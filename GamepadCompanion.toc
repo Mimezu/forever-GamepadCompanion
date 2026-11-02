@@ -1,0 +1,21 @@
+## Interface: 16001
+## Title: Gamepad Companion
+## Notes: Controller bar layout and suite integration for Blizzard's Forever gamepad UI.
+## Author: Mimezu
+## Version: 0.4.1
+## X-GamepadCompanion-Client: Forever
+## SavedVariables: GamepadCompanionDB, GamepadCompanionEditModeDB, GamepadCompanionFormNames
+## LoadSavedVariablesFirst: 1
+## Category: Mimezu's Suite
+## Group: Mimezu_Controls
+## IconAtlas: gamepad-radial-icon-gamemenu
+# Settings load through native SavedVariables.
+
+Model.lua
+Core.lua
+CameraPitch.lua
+SpreadOverview.lua
+NativeLayoutExport.lua
+EditMode.lua
+OptionsSkin.lua
+Options.lua
