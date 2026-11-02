@@ -327,6 +327,9 @@ end
 
 -- Once per session: give every custom gamepad layout the systems of Blizzard's
 -- gamepad preset, so each of them has the controller action bar.
+-- On 70338 Blizzard's ReconcileLayouts let an already clean gamepad layout fall
+-- through to the keyboard reconcile (an "elseif"), which removed the bar again at
+-- every login. 70532 fixed that, so this normally finds nothing; kept as a safety net.
 local function Repair()
     local data = C_EditMode and Safe(C_EditMode.GetLayouts)
     local preset = GamepadPreset()

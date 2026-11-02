@@ -33,6 +33,11 @@ when the active layout lacks it, and the bar then cannot be selected in Edit Mod
 gives those layouts the gamepad preset's systems, as Blizzard's own patch-time check does.
 Frames you moved keep their positions. Keyboard layouts are not touched.
 
+(On build 70338 Blizzard's own check had a flaw: a gamepad layout that was already clean
+fell through to the keyboard check, which took the controller bar out again at every login.
+Build 70532 fixed that, so this repair should now find nothing to do; it stays as a safety
+net.)
+
 If Blizzard did not keep the selection, Companion says so once and names the layout to
 pick in Edit Mode.
 
@@ -46,7 +51,7 @@ conversions, with the Blizzard layouts as they were before, are kept in `nativeE
 
 - `/gpc edit`: what happened on this character.
 - `/gpc edit convert [Companion layout]`: make the Blizzard layout again, for example after
-  you deleted it. In the gamepad UI it also selects it and reloads.
+  you deleted it. In the gamepad UI it also selects it.
 - `/gpc edit list`: your Companion layouts and Blizzard's gamepad layouts.
 
 ## Notes

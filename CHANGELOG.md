@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (0.4.2) Fix for client 70532 and later: class buttons (LB + LT / RB + RT) with an offset. While their radial flyout is open, Blizzard now anchors the button to the flyout's centre with no offset (`ApplyExtraButtonStyles`, `IsPopupOpen`), after centring the flyout on the button where Companion put it. Companion added its offset on top of that anchor, so the button jumped away from the open radial by the offset. It now leaves that anchor alone (and the prompt where it is) while the flyout is open; the offset comes back when the flyout closes. `tests/CompactLayout.lua` covers both the 70338 (reparent only) and 70532 (anchor to flyout) behaviour.
+- (0.4.2) The per-login gamepad layout repair now finds nothing: 70338's own `ReconcileLayouts` let a clean gamepad layout fall through to the keyboard reconcile (an `elseif`), which removed the controller bar at every login and made the 0.4.1 repair necessary; 70532 fixed it. The repair stays as a safety net. Help text and EDIT-MODE.md no longer say the conversion reloads the UI (0.4.1 removed that).
+
 - (0.4.1) Fix: no controller action bar after the conversion.
   - Gamepad layouts saved before 70338 ("gamepad new", "Alberich", "[GP] Gamepad Mime 2", "Alberich Native") are stored without the GamepadMainActionBar system, and with 59 keyboard-era systems. Edit Mode hides a frame whose system the active layout lacks, so the bar was hidden and could not be selected in Edit Mode.
   - Every login (out of combat), Companion now gives those layouts the gamepad preset's systems and settings, like Blizzard's ReconcileWithGamepad. Moved frames keep their positions and keyboard layouts are untouched. The previous layouts are kept in `nativeExportHistory`.

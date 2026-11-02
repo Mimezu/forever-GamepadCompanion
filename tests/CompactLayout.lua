@@ -63,9 +63,17 @@ page.active = page.actionBars.topBar
 -- Native class-action button: re-anchors to its XML offset on every press.
 local left = frame(page, page.BottomCenteredAnchor, -138, -50)
 left.anchorInfo = { x = -138, y = -50 }
+-- Its radial flyout (FlyoutButtonMixin): open while attached to this button.
+function left:IsPopupOpen() return self.popup ~= nil and self.popup.attached == self end
+function left:GetPopup() return self.popup end
 function left:ApplyExtraButtonStylesForState(state)
     local push = state == "PUSHED" and -2 or 0
-    self.points = { { "CENTER", page.BottomCenteredAnchor, "CENTER", self.anchorInfo.x + push, self.anchorInfo.y + push } }
+    if self:IsPopupOpen() then
+        -- 70532: anchored to the open flyout's centre, no offset.
+        self.points = { { "CENTER", self.popup, "CENTER", push, push } }
+    else
+        self.points = { { "CENTER", page.BottomCenteredAnchor, "CENTER", self.anchorInfo.x + push, self.anchorInfo.y + push } }
+    end
 end
 function left:SetParent(parent) self.parent = parent end
 page.LeftClassAction = left
@@ -168,6 +176,31 @@ near(x, -98, "back on the page"); near(y, -30)
 left:ApplyExtraButtonStylesForState("NORMAL")
 x, y = offset(left)
 near(x, -98, "and after Blizzard's restyle"); near(y, -30)
+-- 70532: while the flyout is open, Blizzard anchors the button to the flyout's centre with no
+-- offset (the flyout was centred on the button where we put it). Our offset is not added a
+-- second time, our scale stays, and the prompt stays put.
+flyout.scale = 1
+left.popup, flyout.attached = flyout, left
+left:SetParent(flyout)
+x, y = offset(left)
+near(x, -98, "attach: our placement is kept"); near(y, -30)
+left:ApplyExtraButtonStylesForState("NORMAL")
+assert(left.points[1][2] == flyout, "Blizzard's anchor to the open flyout is kept")
+near(left.points[1][4], 0, "centred on the open flyout: no offset added"); near(left.points[1][5], 0)
+near(left.scale, 1.5, "our scale stays while the flyout is open")
+px, py = offset(page.LeftInputPrompt)
+near(px, -98, "prompt untouched while the flyout is open"); near(py, -75)
+left:ApplyExtraButtonStylesForState("PUSHED")
+near(left.points[1][4], -2 / 1.5, "pushed on the flyout: only Blizzard's push, at screen size")
+-- Closing: Blizzard reparents first, then detaches and restyles natively; our offset comes back.
+left:SetParent(page)
+near(left.points[1][4], -2 / 1.5, "reparented while still attached: nothing added")
+flyout.attached = nil
+left:ApplyExtraButtonStylesForState("NORMAL")
+x, y = offset(left)
+near(x, -98, "offset back after the flyout closed"); near(y, -30)
+px, py = offset(page.LeftInputPrompt)
+near(px, -98); near(py, -75)
 -- No writes in combat, even with a flyout parent.
 combat = true
 before = writes
@@ -193,7 +226,7 @@ near(page.LeftInputPrompt.points[1][5], -80)
 api.SetEnabled(true)
 assert(page.LeftInputPrompt.alpha == 0)
 api.SetClassPrompts(true)
-print("PASS: class button offset/scale, prompt follow, press hook, combat deferral, flyout guard, prompt hide/restore")
+print("PASS: class button offset/scale, prompt follow, press hook, combat deferral, flyout guard (70338 parent, 70532 anchor), prompt hide/restore")
 
 -- Copy and reset between layouts.
 assert(api.SetBarOption("base", "y", -80, "standard"))

@@ -322,9 +322,9 @@ function S.Chrome(frame, title, onClose)
     legacyTitle:SetPoint("CENTER")
     legacyTitle:SetWordWrap(false)
     local legacyClose = CreateFrame("Button", nil, top, "UIPanelCloseButtonNoScripts")
-    legacyClose:SetSize(24, 24)
-    -- Forever's UIPanelCloseButtonDefaultAnchorsMixin uses (-2, 1).
-    legacyClose:SetPoint("TOPRIGHT", border, "TOPRIGHT", -2, 1)
+    legacyClose:SetSize(28, 28)
+    -- Forever's UIPanelCloseButtonDefaultAnchorsMixin: 28 px at (0, 3) since build 70532 (24 px at (-2, 1) before).
+    legacyClose:SetPoint("TOPRIGHT", border, "TOPRIGHT", 0, 3)
     legacyClose:SetScript("OnClick", Close)
     local drag = CreateFrame("Frame", nil, top)
     drag:SetPoint("TOPLEFT", border, "TOPLEFT", 0, -1)

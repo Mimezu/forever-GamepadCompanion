@@ -348,15 +348,21 @@ local function ApplyClassButton(layer, config, wanted, page)
         or not livePoints or not Finite(liveScale) then pending = true; return end
     local native = record.points[1]
     local scale = record.scale * config.scale
+    -- While its radial flyout is open, Blizzard (since 70532) anchors the button to the
+    -- flyout's centre with no offset, after centring the flyout on the button where we had
+    -- put it. Nothing to add then, and the prompt stays where it is.
+    local popup = SafeCall(button.IsPopupOpen, button) == true and SafeCall(button.GetPopup, button) or nil
+    local onPopup = popup ~= nil and native[2] == popup
+    local cx, cy = onPopup and 0 or config.x, onPopup and 0 or config.y
     -- Blizzard's own offset is the same number under any parent (it rewrites it in the
     -- parent's units); only ours is in page units and needs converting.
     local nx, ny = native[4] * record.scale, native[5] * record.scale
-    local x, y = nx + config.x, ny + config.y
+    local x, y = nx + cx, ny + cy
     local toParent = pageEff / parentEff
-    local desired = { { native[1], native[2], native[3], (nx + config.x * toParent) / scale, (ny + config.y * toParent) / scale } }
+    local desired = { { native[1], native[2], native[3], (nx + cx * toParent) / scale, (ny + cy * toParent) / scale } }
     if not SamePoints(livePoints, desired) and not WritePoints(record, desired) then pending = true end
     if not SameNumber(liveScale, scale) and not WriteScale(record, scale) then pending = true end
-    if not prompt then return end
+    if not prompt or onPopup then return end
     local promptRecord = records[prompt]
     local promptPoints, promptLiveScale = ObserveGeometry(promptRecord)
     if not promptRecord.points or #promptRecord.points ~= 1 or not Finite(promptRecord.scale)

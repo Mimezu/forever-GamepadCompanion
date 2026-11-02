@@ -3,7 +3,7 @@
 -- Run from the client root:
 --   lua5.1 Interface/AddOns/GamepadCompanion/tests/NativeMigration.lua Interface/AddOns/GamepadCompanion [SavedVariables file]
 local root = (arg[1] or "Interface/AddOns/GamepadCompanion") .. "/"
-local svFile = arg[2] or "WTF/Account/118944884#4/SavedVariables/GamepadCompanion.lua"
+local svFile = arg[2] or "StorageInvestigation/fixtures/GamepadCompanion-beta-70338.lua"
 local blizzard = "StorageInvestigation/forever-ui-70338/Interface/AddOns/"
 
 -- Blizzard data -------------------------------------------------------------
