@@ -39,7 +39,8 @@ function hooksecurefunc(target, method, hook)
     hooks[#hooks + 1] = method
 end
 GamepadMode = {}
-InputUtil = { IsGamepadUIEnabled = function() return true end }
+local gamepadUI = true
+InputUtil = { IsGamepadUIEnabled = function() return gamepadUI end }
 GamepadSharedUtility = { InputBindingManager = { IsOnlyCoreBindingSetActive = function() return true end } }
 SlashCmdList = {}
 IsKeyDown = function() return false end
@@ -296,7 +297,15 @@ function methods:HookScript(key, callback)
     self.scripts[key] = function(...) if previous then previous(...) end; callback(...) end
 end
 function methods:SetText(text) self.text = text end
-function methods:CreateFontString() return uiFrame() end
+local texts = {}
+function methods:CreateFontString() local f = uiFrame(); texts[#texts + 1] = f; return f end
+-- Any text in the window (the status line) containing the fragment.
+local function said(fragment)
+    for _, f in ipairs(texts) do
+        if type(rawget(f, "text")) == "string" and f.text:find(fragment, 1, true) then return true end
+    end
+    return false
+end
 function methods:CreateTexture() return uiFrame() end
 function methods:IsEnabled() return true end
 function methods:IsShown() return self.shown end
@@ -376,8 +385,22 @@ api.RefreshOptions()
 assert(find("Compact").enabled == true)
 switch("Compact", "1")
 assert(find("Compact  ·  in use") and visible("Action bars"))
+-- In the gamepad interface the Settings panel is not opened from addon code (it would
+-- taint the gamepad window manager); the window says where to find the options.
+local printed = {}
+local realPrint = print
+print = function(message) printed[#printed + 1] = tostring(message) end
 click("Gamepad options")
-assert(opened and opened[1] == 42 and opened[2] == nil, "opens Options > Gamepad (compact moved to Edit Mode)")
+assert(not opened and GamepadCompanionOptions:IsShown(), "gamepad UI: no settings call, window stays")
+assert(said("Open Options > Gamepad from the game menu"), "gamepad UI: the note is shown in the window")
+SlashCmdList.GAMEPADCOMPANION("gamepad")
+assert(not opened and #printed == 1 and printed[1]:find("Open Options > Gamepad from the game menu", 1, true),
+    "gamepad UI: /gpc gamepad prints the note instead")
+print = realPrint
+-- With the mouse and keyboard interface the panel opens as before.
+gamepadUI = false
+click("Gamepad options")
+assert(opened and opened[1] == 42 and opened[2] == nil, "keyboard UI: opens Options > Gamepad (compact moved to Edit Mode)")
 assert(not GamepadCompanionOptions:IsShown())
 SettingsPanel.scripts.OnHide()
 assert(GamepadCompanionOptions:IsShown(), "window returns after Blizzard settings close")

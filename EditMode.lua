@@ -14,7 +14,7 @@ GamepadCompanionAPI.EditMode = API
 -- tables and frames are read, never written.
 
 local events = CreateFrame("Frame")
-local ready, attempted, scheduled, repaired = false, false, false, false
+local ready, attempted, scheduled = false, false, false
 
 local function Say(message)
     print("|cff80c0ffGamepad Companion:|r " .. message)
@@ -141,6 +141,9 @@ end
 -- action bar system (GamepadMainActionBar), and Edit Mode hides a registered
 -- frame whose system the active layout lacks: no bar, and nothing to select.
 -- Kept systems keep their position and values; missing ones get the preset's.
+-- Since 70532 Blizzard's own login check (ReconcileLayouts) does this for every
+-- gamepad layout; Convert applies it to the copy it saves so the saved data is
+-- already clean.
 function API.ReconcileGamepad(layout, presetSystems)
     local saved, matched, changed = {}, 0, false
     for _, system in ipairs(layout.systems or {}) do saved[Key(system)] = system end
@@ -171,17 +174,6 @@ function API.ReconcileGamepad(layout, presetSystems)
     if matched ~= #(layout.systems or {}) then changed = true end
     if changed then layout.systems = systems end
     return changed
-end
-
--- Reconcile every custom gamepad layout in `data`; returns the changed names.
-local function RepairAll(data, presetSystems)
-    local names = {}
-    for _, layout in ipairs(data.layouts or {}) do
-        if layout.interfaceStyle == GamepadStyle() and API.ReconcileGamepad(layout, presetSystems) then
-            names[#names + 1] = '"' .. tostring(layout.layoutName) .. '"'
-        end
-    end
-    return names
 end
 
 local function LayoutIndex(data, name)
@@ -259,7 +251,9 @@ function API.Convert(profileName, activate)
         baseName = baseName, previousNative = M.Copy(data), exported = M.Copy(layout), report = M.Copy(report), status = "prepared" }
     Remember(receipt)
     local copy = M.Copy(data)
-    local repaired = RepairAll(copy, preset)
+    for _, other in ipairs(copy.layouts) do
+        if other.interfaceStyle == style then API.ReconcileGamepad(other, preset) end
+    end
     copy.layouts[#copy.layouts + 1] = layout
     local saved, err = pcall(C_EditMode.SaveLayouts, copy)
     if not saved then
@@ -283,7 +277,6 @@ function API.Convert(profileName, activate)
     Say(string.format("\"%s\" -> Blizzard layout \"%s\": %d frames%s.", profileName, name, #report.frames,
         baseName and (", other frames and the action bar from \"" .. baseName .. "\"") or ""))
     for _, warning in ipairs(report.warnings) do Say(warning) end
-    if #repaired > 0 then Say("Added the controller action bar to " .. table.concat(repaired, ", ") .. ".") end
     if #diffs > 0 then Say(#diffs .. " value(s) were adjusted by Blizzard when saving.") end
     if not activate then
         return true, "Saved. It is selected the next time you use the gamepad UI, or pick it in Edit Mode."
@@ -325,26 +318,6 @@ local function ActiveGamepadLayout()
     return data.layouts[data.activeLayout - presetCount]
 end
 
--- Once per session: give every custom gamepad layout the systems of Blizzard's
--- gamepad preset, so each of them has the controller action bar.
--- On 70338 Blizzard's ReconcileLayouts let an already clean gamepad layout fall
--- through to the keyboard reconcile (an "elseif"), which removed the bar again at
--- every login. 70532 fixed that, so this normally finds nothing; kept as a safety net.
-local function Repair()
-    local data = C_EditMode and Safe(C_EditMode.GetLayouts)
-    local preset = GamepadPreset()
-    if type(data) ~= "table" or type(data.layouts) ~= "table" or not preset or not C_EditMode.SaveLayouts then return end
-    local before = M.Copy(data)
-    local names = RepairAll(data, preset)
-    if #names == 0 then return end
-    Remember({ time = time and time(), character = Safe(UnitGUID, "player"), status = "repaired",
-        repaired = names, previousNative = before })
-    local ok, err = pcall(C_EditMode.SaveLayouts, data)
-    if not ok then Say("Could not update the gamepad layouts: " .. tostring(err)); return end
-    Say("Added the controller action bar to " .. table.concat(names, ", ")
-        .. " (gamepad layouts saved before build 70338 did not have it). Type /reload if the bar is still missing.")
-end
-
 local function Auto()
     scheduled = false
     if attempted or not ready then return end
@@ -352,7 +325,6 @@ local function Auto()
     if not state then return end
     -- Wait (until the next event) for the end of combat and Edit Mode.
     if InCombatLockdown() or Editor() or not ManagerReady() then return end
-    if not repaired then repaired = true; Repair() end
     local native = state.native
     local convert = state.active and state.profiles[state.active] and not (native and native.status ~= "failed")
     -- A failed conversion is not retried by itself; /gpc edit convert does.

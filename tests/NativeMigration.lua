@@ -188,7 +188,8 @@ local function Check(profile, layout)
 end
 
 -- 1. Alberich, in the gamepad UI: converted, verified and selected (no reload);
--- older gamepad layouts get the controller action bar, keyboard ones are untouched.
+-- the older gamepad layout in the saved copy gets the controller action bar (silently),
+-- keyboard ones are untouched.
 GamepadCompanionEditModeDB = CopyTable(saved)
 FreshNative()
 Session()
@@ -204,7 +205,7 @@ for _, s in ipairs(stale.systems) do
     if s.system == Enum.EditModeSystem.Minimap then assert(s.anchorInfo.offsetX == -30 and not s.isInDefaultPosition, "kept its own positions") end
 end
 assert(not HasBar(native.layouts[1]) and #native.layouts[1].systems == #presets[1].systems, "keyboard layout untouched")
-assert(table.concat(printed, "\n"):find('Added the controller action bar to "gamepad new"'))
+assert(not table.concat(printed, "\n"):find("Added the controller action bar"), "no repair chat line (Blizzard reconciles since 70532)")
 local index, layout
 for i, l in ipairs(native.layouts) do if l.layoutName == "Alberich Gamepad" then index, layout = i, l end end
 assert(layout and native.activeLayout == 3 + index, "the new layout is the active gamepad layout")
@@ -235,12 +236,13 @@ printed = {}
 Session(); Fire("PLAYER_ENTERING_WORLD"); RunTimers()
 assert(#printed == 0, "said once")
 
--- 3. Logged in with the keyboard UI: old layouts repaired at once; the
--- conversion waits for the gamepad UI and the end of combat.
+-- 3. Logged in with the keyboard UI: nothing is saved (no per-login repair; Blizzard
+-- reconciles old gamepad layouts itself since 70532); the conversion waits for the
+-- gamepad UI and the end of combat.
 GamepadCompanionEditModeDB = CopyTable(saved)
 FreshNative(); gamepad = false
 Session(); Fire("PLAYER_ENTERING_WORLD"); RunTimers()
-assert(#native.layouts == 3 and HasBar(native.layouts[3]), "keyboard UI: repaired, conversion waits")
+assert(#native.layouts == 3 and not HasBar(native.layouts[3]) and #printed == 0, "keyboard UI: nothing saved, conversion waits")
 gamepad = true; combat = true
 Fire("INPUT_DEVICE_INTERFACE_TRANSITION"); RunTimers()
 assert(#native.layouts == 3, "combat: waits")
@@ -290,4 +292,4 @@ end
 assert(converted >= 1)
 print = _G.print
 io.write("PASS: " .. converted .. " saved Companion layouts convert to native gamepad layouts (70338 preset, "
-    .. #gamepadPreset.systems .. " systems): controller bar position/Compact kept, reconcile-clean, readback exact, selected without ReloadUI; old gamepad layouts get the controller bar, keyboard layouts untouched; lost selection reported once; keyboard-UI deferral, combat wait, full slots, name clash\n")
+    .. #gamepadPreset.systems .. " systems): controller bar position/Compact kept, reconcile-clean, readback exact, selected without ReloadUI; old gamepad layouts in the saved copy get the controller bar (no chat line, no per-login repair), keyboard layouts untouched; lost selection reported once; keyboard-UI deferral, combat wait, full slots, name clash\n")

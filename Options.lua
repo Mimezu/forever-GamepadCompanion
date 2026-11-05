@@ -65,8 +65,18 @@ end
 
 local function IsClassTarget(key) return key == "classLeft" or key == "classRight" end
 
+-- In the gamepad interface Blizzard's Settings panel is not opened from addon code: the
+-- gamepad window manager would then run under addon taint (the "A and B dead until
+-- /reload" bug). The note says where to find the options instead.
+local GAMEPAD_UI_NOTE = "Open Options > Gamepad from the game menu."
+local function GamepadUI()
+    local ok, on = pcall(function() return InputUtil.IsGamepadUIEnabled() end)
+    return ok and ns.Model.Readable(on) and on == true
+end
+
 local function OpenGamepadSettings()
     if InCombatLockdown() then return false, "Blizzard settings open after combat." end
+    if GamepadUI() then return false, GAMEPAD_UI_NOTE end
     local id
     local category = Settings and Settings.GetCategory and GAMEPAD_LABEL and select(2, pcall(Settings.GetCategory, GAMEPAD_LABEL))
     if type(category) == "table" and category.GetID then id = category:GetID() end
@@ -197,7 +207,7 @@ local function GamepadButton(v, x, y, width, height, size)
             end)
         end
     end, nil, size, height)
-    Tooltip(v.gamepad, "Blizzard gamepad options", "Opens Blizzard's Options > Gamepad. This window comes back when you close it.")
+    Tooltip(v.gamepad, "Blizzard gamepad options", "Opens Blizzard's Options > Gamepad with the mouse and keyboard interface. This window comes back when you close it. In the gamepad interface, open Options > Gamepad from the game menu.")
 end
 
 local function EnableCheck(v, x, y)
@@ -730,7 +740,7 @@ local topics = {
     { "Edit Mode", "Blizzard Edit Mode now has its own gamepad layouts. Open it in the gamepad UI (Edit Mode button) to move frames and the controller action bar block. Blizzard keeps one layout for the keyboard and one for the gamepad, and switches between them by itself.\n\nGamepad Companion no longer moves frames. A Companion layout you used is converted once, the first time you use the gamepad UI: it becomes a Blizzard layout named after your character (Name Gamepad) and is selected. Your old Companion layouts stay saved as a backup.\n\n/gpc edit shows what happened. /gpc edit convert makes the Blizzard layout again, for example after you deleted it." },
     { "Visibility", "Use Frame Gambit to control when bars fade or appear. Add a visibility rule for the controller bar you want to manage.\n\nGamepad Companion controls bar placement and size. Keep one addon responsible for visibility." },
     { "Window styles", "A (default) is made for the gamepad cursor: bigger buttons, arrows to move a bar, and a step size (1, 10 or 50) instead of typing or Shift-click.\n\nB uses the window of Forever Names, Petal and Halo, with each section in a card and typed values.\n\nC is Gamepad Companion's original look.\n\nPick one with the Style buttons at the bottom of the options window, or /gpc style A, B or C. Your settings are the same in every style." },
-    { "Commands", "/gpc  open or close this window\n/gpc on | off  apply or release your layout\n/gpc reset  reset both layouts\n/gpc style A | B | C  window style\n/gpc gamepad  open Blizzard's gamepad options\n/gpc edit  your Blizzard gamepad layout (convert, list)\n/gpc help  list these commands in chat" },
+    { "Commands", "/gpc  open or close this window\n/gpc on | off  apply or release your layout\n/gpc reset  reset both layouts\n/gpc style A | B | C  window style\n/gpc gamepad  open Blizzard's gamepad options (mouse and keyboard interface)\n/gpc edit  your Blizzard gamepad layout (convert, list)\n/gpc help  list these commands in chat" },
 }
 
 function API.ToggleHelp()

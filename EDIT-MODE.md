@@ -27,16 +27,9 @@ UI, out of combat and outside Edit Mode, Companion does this once:
 3. It selects the layout as your gamepad layout. (0.4.0 also tried to reload the UI;
    the game blocks that for addons, so 0.4.1 no longer does.)
 
-Every login, out of combat, Companion also checks your other gamepad layouts. Layouts
-saved before build 70338 lack the controller action bar system. Edit Mode hides the bar
-when the active layout lacks it, and the bar then cannot be selected in Edit Mode. Companion
-gives those layouts the gamepad preset's systems, as Blizzard's own patch-time check does.
-Frames you moved keep their positions. Keyboard layouts are not touched.
-
-(On build 70338 Blizzard's own check had a flaw: a gamepad layout that was already clean
-fell through to the keyboard check, which took the controller bar out again at every login.
-Build 70532 fixed that, so this repair should now find nothing to do; it stays as a safety
-net.)
+Gamepad layouts saved before build 70338 lack the controller action bar system. Since build
+70532 Blizzard's own login check gives them the gamepad preset's systems (frames you moved
+keep their positions). A conversion applies the same check to the layouts it saves.
 
 If Blizzard did not keep the selection, Companion says so once and names the layout to
 pick in Edit Mode.

@@ -1,6 +1,6 @@
 # Gamepad Companion
 
-Extra controls for Blizzard's Forever gamepad UI. Version 0.4.1, for build 1.60.1.70338.
+Extra controls for Blizzard's Forever gamepad UI. Version 0.4.3, for the live client 1.60.1 (build 70707).
 
 ## What it does
 

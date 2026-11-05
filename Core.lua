@@ -731,7 +731,7 @@ local commandHelp = {
     "/gpc on | off  apply or release your layout",
     "/gpc reset  reset both layouts",
     "/gpc style A | B | C  window style (A controller, B Legacy window, C classic)",
-    "/gpc gamepad  open Blizzard's gamepad options",
+    "/gpc gamepad  open Blizzard's gamepad options (mouse and keyboard interface)",
     "/gpc edit  your Blizzard gamepad layout (/gpc edit convert, list)",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
@@ -748,7 +748,9 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         API.SetEnabled(command == "on")
         Say(command == "on" and "your layout is applied." or "layout released; Blizzard's layout is shown.")
     elseif command == "gamepad" then
-        local ok, reason = API.OpenGamepadSettings and API.OpenGamepadSettings()
+        -- (`a and f()` would keep only the first return, so the reason was lost.)
+        local ok, reason = false, nil
+        if API.OpenGamepadSettings then ok, reason = API.OpenGamepadSettings() end
         if not ok and reason then Say(reason) end
     elseif command == "style" then
         local key = rest:upper()
