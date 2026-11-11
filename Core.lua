@@ -628,8 +628,10 @@ function API.GetBarFrame(layer)
 end
 function API.GetCapabilities()
     -- activeZoom stays in the table for consumers; it is always false since 0.4.0.
+    -- bindingOverrides: only the opt-in touchpad zones (Touchpad.lua) bind keys
+    local touch = ns.Touch
     return { layout = state.available, activeZoom = false, activeZoomInCombat = false,
-        toggle = false, bindingOverrides = false, version = 1,
+        toggle = false, bindingOverrides = touch ~= nil and touch.BindsKeys() or false, version = 1,
         synchronousBarState = observedPages[PageUnit()] == true }
 end
 function API.Subscribe(owner, callback)
@@ -733,12 +735,17 @@ local commandHelp = {
     "/gpc style A | B | C  window style (A controller, B Legacy window, C classic)",
     "/gpc gamepad  open Blizzard's gamepad options (mouse and keyboard interface)",
     "/gpc edit  your Blizzard gamepad layout (/gpc edit convert, list)",
+    "/gpc touch  touchpad zones, PlayStation pads (/gpc touch help)",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
     command = command:lower()
     if command == "edit" and API.EditMode then
         API.EditMode.Command(rest)
+        return
+    end
+    if command == "touch" and API.Touch then
+        API.Touch.Command(rest)
         return
     end
     if command == "reset" then

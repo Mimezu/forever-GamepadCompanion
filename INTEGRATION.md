@@ -17,4 +17,6 @@ Version 0.1.3 uses one secure posthook on `SetActiveActionBar`, installed outsid
 
 Since 0.3.0, `GetSettings()` also returns `optionsStyle` (`A`, `B` or `C`; the options window look only). `SetOptionsStyle(style)` saves it without any layout work; `SelectOptionsStyle(style)` (defined by the options window) also restyles open windows. Neither affects bar geometry or state.
 
+Since 0.5.0, `GetCapabilities().bindingOverrides` is true while the opt-in touchpad zones (`Touchpad.lua`) have keys bound: `PADBACK` and its modifier variants in chord mode (L1's variants go to Blizzard's `TOGGLEUIFOCUS`), or `PAD6` in split mode. `GamepadCompanionAPI.Touch` has `Status()` and `Command(text)`. The layout part still never binds keys.
+
 Since 0.4.0, `GetCapabilities().activeZoom` is always false: Blizzard's Edit Mode "Expand" setting enlarges the selected bar. Settings entries have `x`, `y` and `scale` only. `GamepadCompanionAPI.EditMode` now only has `Status()`, `Convert(name, activate)`, `List()` and `Command(text)`.

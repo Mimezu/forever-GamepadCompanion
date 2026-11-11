@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- (0.5.0) **Touchpad zones** for PlayStation controllers, off by default (`/gpc touch on`).
+  - Clicking the touchpad runs the macro of the zone under the finger: a game window (its own button, `/click`), a spell, an item or a macro. Layers for L2, R2 and L2 + R2 like the crossbar; an empty layer zone uses Base. A real press clicks a secure button, so it works in combat (method from Improved Forever's touchpad corners, MIT).
+  - Two ways to share the pad with Blizzard's focus toggle (`TOGGLEUIFOCUS`):
+    - Mode B, chord (default): the whole pad is a 3 × 2 grid while the world has the pad (no window focused, only the core binding set). Unlike Improved Forever, open but unfocused windows don't take the zones away. L1 + touchpad (the modifier L1 emulates) is bound to Blizzard's own action, so focusing and unfocusing works in combat too.
+    - Mode A, split: a gamepad config moves the touchpad's right half (raw button 22) to `PAD6`, three zones; the left half stays `PADBACK`. Turning it off deletes the config and puts back a config of the player's own.
+  - Blizzard's core set re-binds `PADBACK`; Companion puts its binding back on top (out of combat), as Halo does.
+  - Steps aside while Improved Forever's touchpad corners are on (chord mode).
+  - The game's touch cursor is off while Companion has the pad, and back as it was after.
+  - A finger preview above the crossbar: the zones, the one under the finger, the layer, and who has the plain click.
+  - Commands: `/gpc touch on|off|mode|set|clear|list|windows|preview|chord|probe|debug|restore`. No settings tab yet.
+  - New files `TouchModel.lua` (pure logic) and `Touchpad.lua`; new saved variable `GamepadCompanionTouchDB`; `tests/Touchpad.lua` (90 checks, runs the secure snippet).
+  - Not checked in game yet: whether `PAD6` presses reach bindings, and whether the finger position updates without a click (the preview needs it).
+
 - (0.4.3) Removed the per-login gamepad layout repair (`Repair`, the "Added the controller action bar to ..." chat line). Blizzard's own `ReconcileLayouts` has done this at login since 70532. A conversion (`/gpc edit convert`) still reconciles the gamepad layouts in the copy it saves (`ReconcileGamepad`), without a chat line. EDIT-MODE.md updated; `tests/NativeMigration.lua` no longer expects a repair at a keyboard login.
 - (0.4.3) Taint fix: the "Gamepad options" button and `/gpc gamepad` no longer open Blizzard's Settings panel in the gamepad interface (opened from addon code, the panel runs the gamepad window manager under addon taint). They show the note "Open Options > Gamepad from the game menu." instead: in the window's status line, and in chat for the command. With the mouse and keyboard interface they open the panel as before. Also fixed on the way: `/gpc gamepad` never printed its reason (the combat note included), because `API.OpenGamepadSettings and API.OpenGamepadSettings()` kept only the first return value. `tests/CompactLayout.lua` covers both interfaces and the chat line.
 
