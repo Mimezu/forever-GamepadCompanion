@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.5 — 2026-11-11
+
+- Fixed: a swipe also ran a zone (crossing the middle, tap after swipe)
+
 ## 0.6.4 — 2026-11-11
 
 - Fixed: a quick press could count as a swipe from the last touch

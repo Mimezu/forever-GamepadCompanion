@@ -383,9 +383,26 @@ T.SNIPPET = [[
         if not self:GetAttribute("gpc-held") then
             return false
         end
+        -- One half of the pad let go while the other is still pressed (the
+        -- finger slid across the middle): wait for the last release. Only at
+        -- the seam, so a pressed state that lags its own release can't block
+        -- every other press.
+        local keyIndex = self:GetAttribute("gpc-key")
+        local buttons = state and state.buttons
+        if keyIndex and buttons and buttons[keyIndex] and x > -0.25 and x < 0.25 then
+            return false
+        end
         self:SetAttribute("gpc-held", nil)
+        -- The game's own tap (tap to click) right after a swipe: a press at
+        -- exactly the spot the swipe ended. Swallowed once.
+        local echo = self:GetAttribute("gpc-swiped") and x == self:GetAttribute("gpc-xl")
+            and y == self:GetAttribute("gpc-yl")
+        self:SetAttribute("gpc-swiped", nil)
         self:SetAttribute("gpc-xl", x)
         self:SetAttribute("gpc-yl", y)
+        if echo then
+            return false
+        end
         if keydown then
             return false
         end
@@ -404,7 +421,9 @@ T.SNIPPET = [[
             end
         end
     end
-    if not zone then
+    if zone then
+        self:SetAttribute("gpc-swiped", true)
+    else
         local cols, rows = self:GetAttribute("gpc-cols") or 1, self:GetAttribute("gpc-rows") or 1
         local left, width = -1, 2
         if self:GetAttribute("gpc-mode") == "split" then

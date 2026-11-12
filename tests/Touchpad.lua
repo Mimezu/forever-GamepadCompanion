@@ -78,7 +78,7 @@ function SetOverrideBinding(owner, priority, key, action)
 end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
 
-local INDEX = { PADLTRIGGER = 9, PADRTRIGGER = 10 }   -- 0-based, as the game's
+local INDEX = { PADLTRIGGER = 9, PADRTRIGGER = 10, PADBACK = 5, PAD6 = 6 }   -- 0-based, as the game's
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
     ButtonBindingToIndex = function(b) return INDEX[b] end,
@@ -86,6 +86,7 @@ C_GamePad = {
         local buttons = {}
         buttons[INDEX.PADLTRIGGER + 1] = pad.lt
         buttons[INDEX.PADRTRIGGER + 1] = pad.rt
+        buttons[INDEX.PADBACK + 1] = pad.held
         return { labelStyle = pad.labelStyle, name = "DualSense", sticks = { [4] = { x = pad.x, y = pad.y, len = 0 } },
             buttons = buttons }
     end,
@@ -288,6 +289,25 @@ eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/click CharacterMicroButton", "the
 check(Touch.SetZone("base", "swipe-left", "text:/sit"), "set a swipe")
 eq(click:GetAttribute("gpc-swipe"), 1, "swipes set: act on release")
 eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/sit", "swipe left runs its macro")
+-- The game's tap right after the swipe, at the spot it ended: swallowed once
+eq(Press(-0.8, 0.6), nil, "tap echo after a swipe: nothing")
+eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "the next tap there works")
+-- Sliding across the middle: the right half lets go while the left is pressed
+do
+    local function Step(down, x, y, held)
+        pad.x, pad.y, pad.held = x, y, held
+        local result = snippet(click, "LeftButton", down)
+        return result ~= false and not down and click:GetAttribute("type") == "macro" and click:GetAttribute("macrotext") or nil
+    end
+    local ran = {}
+    ran[#ran + 1] = Step(true, 0.7, 0.5, true)      -- right half down (fresh)
+    ran[#ran + 1] = Step(true, -0.05, 0.5, true)    -- left half down: ignored
+    ran[#ran + 1] = Step(false, -0.05, 0.5, true)   -- right half up, left still pressed: wait
+    ran[#ran + 1] = Step(false, -0.8, 0.5, false)   -- left half up: the swipe
+    pad.held = nil
+    eq(#ran, 1, "crossing the middle acts once")
+    eq(ran[1], "/sit", "and it is the swipe")
+end
 -- The last release was at -0.8, 0.6: a press still reporting that spot has a stale start
 eq(Press(-0.8, 0.6, false, false, 0.8, 0.6), nil, "stale start: no swipe, a tap where it ends (Quests, no button)")
 eq(Press(0.5, 0.6, false, false, -0.8, 0.6), "/sit", "fresh start (not the last release spot): swipe left")
