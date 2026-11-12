@@ -57,3 +57,25 @@ conversions, with the Blizzard layouts as they were before, are kept in `nativeE
 - Edit Mode may remember the active layout per specialization (the character cache has one
   slot per spec). If another spec still shows the old layout, select "<Character> Gamepad"
   once in Edit Mode there.
+
+## Blizzard Edit Mode does the rest
+
+Since build 70338, Blizzard Edit Mode has real gamepad layouts. Blizzard keeps one active
+layout for the keyboard and one for the gamepad, and switches between them by itself. In
+the gamepad UI, Edit Mode moves frames and the controller action bar block. That block
+has its own settings there:
+
+- Compact Action Bar
+- Show Empty Bars
+- Button Prompts
+- Highlight
+- Expand: enlarges the bar you are holding.
+
+Companion's Compact / Standard and Edit Mode buttons open Edit Mode.
+
+Companion's own Edit Mode placement (Save here / Load / Import / Copy and the Layouts
+panel) is gone. See the section above for how your saved layout became a
+Blizzard layout.
+
+Companion's bar offsets are added on top of the block's position in Edit Mode. To move
+everything together, use Edit Mode. To move one trigger bar, use Companion.
