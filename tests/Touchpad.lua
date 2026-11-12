@@ -70,6 +70,7 @@ function ClearOverrideBindings(owner)
 end
 function SetOverrideBindingClick(owner, _, key, name, button)
     overrides[key] = { owner = owner, action = "CLICK " .. name .. ":" .. button }
+    if secureHooks.SetOverrideBindingClick then secureHooks.SetOverrideBindingClick(owner, _, key, name, button) end
 end
 function SetOverrideBinding(owner, priority, key, action)
     overrides[key] = { owner = owner, action = action }
@@ -96,7 +97,11 @@ C_GamePad = {
 }
 InputUtil = { IsGamepadUIEnabled = function() return true end }
 GamepadMode = { FrameControlsManager = {} }
-setmetatable(GamepadMode.FrameControlsManager, { __index = function(_, k) if k == "isUIFocused" then return uiFocused end end })
+local shownWindows = 0
+setmetatable(GamepadMode.FrameControlsManager, { __index = function(_, k)
+    if k == "isUIFocused" then return uiFocused end
+    if k == "GetShownFrameCount" then return function() return shownWindows end end
+end })
 GamepadSharedUtility = { InputBindingManager = { IsOnlyCoreBindingSetActive = function() return coreOnly end } }
 function GetMacroInfo(name) if name == "Mount" then return "Mount", 132261, "/cast Swift Horse" end end
 C_Spell = { GetSpellName = function(id) return id == 133 and "Fireball" or nil end }
@@ -319,6 +324,22 @@ Tick()
 uiFocused = false
 Tick()
 eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "lost release: the next press still works")
+
+-- Over windows (default): an open, focused window keeps the zones
+shownWindows, uiFocused, coreOnly = 1, true, false
+Tick()
+eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "over windows: zones with a window focused")
+eq(GetBindingAction("CTRL-PADBACK"), "TOGGLEUIFOCUS", "over windows: L1 + click still focuses")
+SetOverrideBindingClick(UIParent, true, "PADBACK", "SearchBoxButton", "LeftButton")
+RunTimers()
+eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "a window's click binding is taken back")
+shownWindows = 0
+Tick()
+eq(GetBindingAction("PADBACK"), "", "no window, a gamepad panel up: Blizzard's")
+coreOnly, uiFocused = true, false
+Tick()
+Touch.SetOverWindows(false)
+shownWindows = 1
 
 -- A window takes focus: the plain click goes back to Blizzard
 uiFocused = true

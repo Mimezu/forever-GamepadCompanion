@@ -6,6 +6,7 @@ PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens th
 
 - **Touchpad zones**: on or off.
 - **Tap to click**: a light touch presses the pad (the game's GamePadTouchTapButtons).
+- **Over windows** (whole pad): an open window keeps the zones. A zone opens, closes or swaps windows; L1 + touchpad focuses. Off: an open window takes the pad, and its own touchpad uses (search boxes) come back.
 - **Pad**: Whole pad (L1 + touchpad does Blizzard's focus) or Right half (left half stays Blizzard's).
 - **Grid**: whole pad up to 4 × 3, right half up to 2 × 4.
 - **Layer**: Base, L2, R2, L2 + R2, held while clicking. An empty zone does what Base does.
@@ -28,6 +29,7 @@ PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens th
 | `/gpc touch list`, `windows` | Lists |
 | `/gpc touch chord PADRSHOULDER` | Focus chord button |
 | `/gpc touch tap on`, `off` | Tap to click |
+| `/gpc touch over on`, `off` | Over windows |
 | `/gpc touch probe`, `debug on` | What the pad reports |
 | `/gpc touch restore` | Off, controller config back |
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 — 2026-11-11
+
+- Zones work over open windows: same zone closes, another swaps
+- Over windows check box, on by default
+
 ## 0.6.1 — 2026-11-11
 
 - Fixed: touchpad zones did nothing once a swipe was set

@@ -105,10 +105,20 @@ local function UIFocused()
     return manager ~= nil and manager.isUIFocused == true
 end
 
--- The world has the pad: no window focused, no gamepad panel (radial, HUD
--- mode, bar editing) on the binding stack
+local function WindowsShown()
+    local manager = GamepadMode and GamepadMode.FrameControlsManager
+    if not (manager and manager.GetShownFrameCount) then return 0 end
+    local ok, count = pcall(manager.GetShownFrameCount, manager)
+    return ok and tonumber(count) or 0
+end
+
+-- The plain click is zones: no gamepad panel (radial, HUD mode, bar editing)
+-- on the binding stack, and no window focused. Over windows (default): an
+-- open window keeps the zones too (its own binding set doesn't count), so a
+-- zone opens, closes or swaps windows; L1 + touchpad still focuses.
 function Touch.WorldHasPad()
     if not GamepadUI() then return true end
+    if settings.overWindows and WindowsShown() > 0 then return true end
     return CoreOnly() ~= false and not UIFocused()
 end
 
@@ -347,11 +357,14 @@ local function Reassert()
         end
     end
 end
-hooksecurefunc("SetOverrideBinding", function(owner, _, key)
+-- (windows bind the touchpad with SetOverrideBindingClick: search boxes, map focus)
+local function Taken(owner, _, key)
     if owner ~= UIParent or not boundKeys[key] or reassertQueued then return end
     reassertQueued = true
     C_Timer.After(0, Reassert)
-end)
+end
+hooksecurefunc("SetOverrideBinding", Taken)
+hooksecurefunc("SetOverrideBindingClick", Taken)
 
 ---------------------------------------------------------------------------
 -- The preview: a small drawing of the pad while the finger is on it, with
@@ -678,6 +691,7 @@ function Touch.SetMode(mode)
     return true
 end
 function Touch.SetTap(value) settings.tap = value == true; Update() end
+function Touch.SetOverWindows(value) settings.overWindows = value == true; Update() end
 function Touch.SetPreview(value)
     settings.preview = value == true
     if not settings.preview then UpdatePreview(0, 0, false) end
@@ -761,6 +775,9 @@ function Touch.Command(text)
         if not settings.preview then UpdatePreview(0, 0, false) end
         Touch.Notify()
         return Say("Preview " .. (settings.preview and "on" or "off"))
+    elseif command == "windows-over" or command == "over" then
+        Touch.SetOverWindows((words[2] or ""):lower() ~= "off")
+        return Say("Over windows " .. (settings.overWindows and "on" or "off"))
     elseif command == "tap" then
         Touch.SetTap((words[2] or ""):lower() ~= "off")
         return Say("Tap to click " .. (settings.tap and "on" or "off"))
@@ -783,7 +800,7 @@ function Touch.Command(text)
     end
     Say("/gpc touch [status | on | off | mode chord|split | grid <cols> <rows> | set <zone> [lt|rt|both] [window]"
         .. " | clear <zone> [layer]"
-        .. " | list | windows | preview on|off | tap on|off | chord <button> | probe | debug on|off | restore]")
+        .. " | list | windows | preview on|off | tap on|off | over on|off | chord <button> | probe | debug on|off | restore]")
 end
 
 -- Harness access

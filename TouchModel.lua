@@ -130,6 +130,7 @@ function T.Normalize(raw)
         mode = T.MODES[raw.mode] and raw.mode or "chord",
         preview = raw.preview ~= false,
         tap = raw.tap == true,
+        overWindows = raw.overWindows ~= false,
         tapSaved = raw.tapSaved,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,
         actions = {},
