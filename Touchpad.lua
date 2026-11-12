@@ -374,7 +374,22 @@ end
 -- Tap to click: a light touch presses the pad (GamePadTouchTapButtons), on
 -- while Companion has the pad, the player's own setting back after
 local TAP_CVAR = "GamePadTouchTapButtons"
+local TAP_MS_CVAR = "GamePadTouchTapMaxMs"
+local function TapTime(on)
+    local current = GetCVarSafe(TAP_MS_CVAR)
+    if current == nil then return end
+    if on then
+        if settings.tapMsSaved == nil then settings.tapMsSaved = current end
+        local want = tostring(settings.tapMs)
+        if current ~= want then SetCVarSafe(TAP_MS_CVAR, want) end
+    elseif settings.tapMsSaved ~= nil then
+        local saved = settings.tapMsSaved
+        settings.tapMsSaved = nil
+        if current ~= saved then SetCVarSafe(TAP_MS_CVAR, saved) end
+    end
+end
 local function TapToClick(on)
+    TapTime(on)
     local current = GetCVarSafe(TAP_CVAR)
     if current == nil then return end
     if on then
@@ -837,6 +852,13 @@ function Touch.SetInput(input)
     Update()
     return true
 end
+function Touch.SetTapTime(ms)
+    ms = tonumber(ms)
+    if not ms or ms < T.TAP_MS.min or ms > T.TAP_MS.max then return false end
+    settings.tapMs = math.floor(ms)
+    Update()
+    return true
+end
 function Touch.SetTap(value) return Touch.SetInput(value == true and "tap" or "click") end
 function Touch.SetOverWindows(value) settings.overWindows = value == true; Update() end
 function Touch.SetPreview(value)
@@ -941,6 +963,11 @@ function Touch.Command(text)
     elseif command == "tap" then
         Touch.SetTap((words[2] or ""):lower() ~= "off")
         return Say("Tap to click " .. (settings.input == "tap" and "on" or "off"))
+    elseif command == "taptime" then
+        if not Touch.SetTapTime(words[2]) then
+            return Say(("Tap time: %d-%d ms"):format(T.TAP_MS.min, T.TAP_MS.max))
+        end
+        return Say("Tap time " .. settings.tapMs .. " ms")
     elseif command == "input" then
         if not Touch.SetInput((words[2] or ""):lower()) then return Say("Input: click, tap, dual") end
         return Say("Input " .. settings.input)
@@ -965,7 +992,7 @@ function Touch.Command(text)
     end
     Say("/gpc touch [status | on | off | mode chord|split | grid <cols> <rows> | set <zone> [lt|rt|both] [window]"
         .. " | clear <zone> [layer]"
-        .. " | list | windows | preview on|off | tap on|off | input click|tap|dual | over on|off | chord <button> | probe | debug on|off | restore]")
+        .. " | list | windows | preview on|off | tap on|off | input click|tap|dual | taptime <ms> | over on|off | chord <button> | probe | debug on|off | restore]")
 end
 
 -- Harness access

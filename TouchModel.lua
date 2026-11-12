@@ -36,6 +36,8 @@ T.SWIPE_MIN = 0.6
 --          action: the click (raw button 20) moves to PAD6, whole pad only
 T.INPUTS = { click = true, tap = true, dual = true }
 T.CLICK_RAW = 20
+-- How long a touch may last and still be a tap (the game's GamePadTouchTapMaxMs)
+T.TAP_MS = { default = 350, min = 150, max = 600, step = 50 }
 
 function T.ZoneId(row, col) return "r" .. row .. "c" .. col end
 
@@ -139,6 +141,8 @@ function T.Normalize(raw)
         preview = raw.preview ~= false,
         input = T.INPUTS[raw.input] and raw.input or (raw.tap == true and "tap" or "click"),
         touchActions = {},
+        tapMs = Clamp(raw.tapMs, T.TAP_MS.min, T.TAP_MS.max, T.TAP_MS.default),
+        tapMsSaved = raw.tapMsSaved,
         overWindows = raw.overWindows ~= false,
         tapSaved = raw.tapSaved,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,

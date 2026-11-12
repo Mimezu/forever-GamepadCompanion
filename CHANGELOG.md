@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 — 2026-11-11
+
+- Tap time: 350 ms by default, 150 to 600
+
 ## 0.7.2 — 2026-11-11
 
 - Fixed: Touch + click and Right half said No controller

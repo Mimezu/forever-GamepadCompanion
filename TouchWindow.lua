@@ -173,6 +173,11 @@ Refresh = function()
     if not T.IsZone(s, s.mode, selectedZone) then selectedZone = "r1c1" end
     ui.enable:SetChecked(s.enabled)
     ui.preview:SetChecked(s.preview)
+    local taps = s.input ~= "click"
+    for _, w in ipairs({ ui.tapLabel, ui.tapMinus, ui.tapTime, ui.tapPlus }) do w:SetShown(taps) end
+    ui.tapTime:SetText(s.tapMs .. " ms")
+    ui.tapMinus:SetEnabled(s.tapMs > T.TAP_MS.min)
+    ui.tapPlus:SetEnabled(s.tapMs < T.TAP_MS.max)
     for input, button in pairs(ui.inputs) do
         S.SetSelected(button, input == s.input)
         button:SetEnabled(input ~= "dual" or s.mode == "chord")
@@ -209,7 +214,14 @@ local function Build()
 
     -- Left: the pad
     ui.enable = S.NewCheck(body, "Touchpad zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 100)
-    ui.preview = S.NewCheck(body, "Preview", 262, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 60)
+    ui.preview = S.NewCheck(body, "Preview", 292, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 60)
+    ui.tapLabel = S.Text(body, "Tap", 140, -6, nil, 12, S.GOLD)
+    ui.tapMinus = S.NewButton(body, "-", 170, 0, 24, function() Touch.SetTapTime(Settings().tapMs - T.TAP_MS.step) end, nil, 14)
+    ui.tapTime = S.Text(body, "", 196, -6, 64, 12, S.YELLOW)
+    ui.tapTime:SetJustifyH("CENTER")
+    ui.tapPlus = S.NewButton(body, "+", 262, 0, 24, function() Touch.SetTapTime(Settings().tapMs + T.TAP_MS.step) end, nil, 14)
+    S.Tooltip(ui.tapMinus, "Shorter tap")
+    S.Tooltip(ui.tapPlus, "Longer tap")
 
     Label(body, "Press", 0, -40)
     local inputs = { { "click", "Click", 92 }, { "tap", "Tap or click", 100 }, { "dual", "Touch + click", 106 } }

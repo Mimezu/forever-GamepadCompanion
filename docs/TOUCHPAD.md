@@ -29,6 +29,7 @@ PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens th
 | `/gpc touch list`, `windows` | Lists |
 | `/gpc touch chord PADRSHOULDER` | Focus chord button |
 | `/gpc touch input click`, `tap`, `dual` | Press |
+| `/gpc touch taptime 400` | Longest tap, in ms |
 | `/gpc touch set r1c1 touch map` | A zone's Touch slot |
 | `/gpc touch raw` | What a tap and a click press |
 | `/gpc touch over on`, `off` | Over windows |

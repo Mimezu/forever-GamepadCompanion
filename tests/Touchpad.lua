@@ -465,7 +465,11 @@ do
     configs["1356:3302"] = nil
     cvars.GamePadTouchTapButtons = "0"
     pad.hideRaw = true   -- (the live client hides the raw state)
+    cvars.GamePadTouchTapMaxMs = "200"
     check(Touch.SetInput("dual"), "input dual")
+    eq(cvars.GamePadTouchTapMaxMs, "350", "taps on: longer tap time")
+    check(Touch.SetTapTime(500) and cvars.GamePadTouchTapMaxMs == "500", "tap time 500")
+    check(not Touch.SetTapTime(900), "tap time over the limit refused")
     check(T.IsClickMoved(configs["1356:3302"]) and not T.IsSplit(configs["1356:3302"]), "dual: click on PAD6, halves untouched")
     eq(cvars.GamePadTouchTapButtons, "1", "dual: taps press the pad")
     eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "dual: touch is the left button")
@@ -514,6 +518,7 @@ do
     Touch.SetInput("click")
     eq(configs["1356:3302"], nil, "input click: config gone")
     eq(cvars.GamePadTouchTapButtons, "0", "input click: tap setting back")
+    eq(cvars.GamePadTouchTapMaxMs, "200", "input click: tap time back")
     eq(click:GetAttribute("gpc-dual"), 0, "input click: no touch path")
     pad.hideRaw = nil
     local saved = T.Normalize(GamepadCompanionTouchDB)
