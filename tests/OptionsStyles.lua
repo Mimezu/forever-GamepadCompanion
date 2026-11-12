@@ -188,15 +188,15 @@ scaleEdit.text = "9"
 scaleEdit.scripts.OnEnterPressed(scaleEdit)
 local status
 for _, f in ipairs(created) do
-    if f.kind == "FontString" and f.text and f.text:find("Enter a value from 0.5 to 2", 1, true) and f:IsVisible() then status = f end
+    if f.kind == "FontString" and f.text and f.text:find("0.5 to 2 only", 1, true) and f:IsVisible() then status = f end
 end
 assert(status, "out-of-range value explains the range")
 -- A live state repaint keeps the message for a few seconds.
 api.RefreshOptions()
-assert(status.text:find("Enter a value", 1, true), "message survives a repaint")
+assert(status.text:find("to 2 only", 1, true), "message survives a repaint")
 now = now + 6
 api.RefreshOptions()
-assert(not status.text:find("Enter a value", 1, true), "message expires")
+assert(not status.text:find("to 2 only", 1, true), "message expires")
 -- Tab moves to the next field after applying.
 local yEdit = edits[2]
 yEdit:SetFocus()

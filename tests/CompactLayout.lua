@@ -392,9 +392,9 @@ local realPrint = print
 print = function(message) printed[#printed + 1] = tostring(message) end
 click("Gamepad options")
 assert(not opened and GamepadCompanionOptions:IsShown(), "gamepad UI: no settings call, window stays")
-assert(said("Open Options > Gamepad from the game menu"), "gamepad UI: the note is shown in the window")
+assert(said("Game menu > Options > Gamepad"), "gamepad UI: the note is shown in the window")
 SlashCmdList.GAMEPADCOMPANION("gamepad")
-assert(not opened and #printed == 1 and printed[1]:find("Open Options > Gamepad from the game menu", 1, true),
+assert(not opened and #printed == 1 and printed[1]:find("Game menu > Options > Gamepad", 1, true),
     "gamepad UI: /gpc gamepad prints the note instead")
 print = realPrint
 -- With the mouse and keyboard interface the panel opens as before.

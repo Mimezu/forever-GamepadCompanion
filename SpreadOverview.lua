@@ -55,7 +55,7 @@ local function Pickup(kind, id)
 end
 
 local function Editable(slot)
-    if InCombatLockdown and InCombatLockdown() then Error("Form bars can be edited after combat."); return false end
+    if InCombatLockdown and InCombatLockdown() then Error("Not in combat"); return false end
     if not slot or not C_GamepadUI or Call(C_GamepadUI.IsValidGamepadActionStorageSlotIndex, slot) ~= true then return false end
     return true
 end
@@ -65,24 +65,24 @@ local function Receive(button)
     local kind, id, _, spellID = GetCursorInfo()
     if not kind then return end
     local pick, incoming = Pickup(kind, kind == "spell" and spellID or id)
-    if not pick or not incoming then Error("Drag a spell, item or macro into this slot."); return end
+    if not pick or not incoming then Error("Spell, item or macro only"); return end
     local oldKind, oldID = GetActionInfo(button.slot)
     local oldPick, oldArg = Pickup(oldKind, oldID)
-    if oldKind and not oldPick then Error("Move the existing action using the native editor first."); return end
+    if oldKind and not oldPick then Error("Move this action in Blizzard's editor"); return end
     local changed = false
     local ok, message = pcall(function()
         if oldKind then
             ClearCursor()
             PickupAction(button.slot)
-            if GetActionInfo(button.slot) then error("The existing action could not be moved.") end
+            if GetActionInfo(button.slot) then error("Action not moved") end
             changed = true
             ClearCursor()
             pick(incoming)
-            if not GetCursorInfo() then error("The new action could not be picked up.") end
+            if not GetCursorInfo() then error("Action not picked up") end
         end
         PlaceAction(button.slot)
         -- Successful placement clears the cursor because we emptied the slot.
-        if GetCursorInfo() or not GetActionInfo(button.slot) then error("The client did not accept this drop.") end
+        if GetCursorInfo() or not GetActionInfo(button.slot) then error("Drop refused") end
     end)
     if not ok then
         if changed then
@@ -90,7 +90,7 @@ local function Receive(button)
             local restored = pcall(function() oldPick(oldArg); PlaceAction(button.slot) end)
             local restoredKind, restoredID = GetActionInfo(button.slot)
             if not restored or restoredKind ~= oldKind or restoredID ~= oldID then
-                Error("The drop failed. The original action is on the cursor if available; place it back manually.")
+                Error("Drop failed · old action on cursor")
                 return
             end
         end
@@ -165,7 +165,7 @@ local function Ensure()
     overview.title:SetText("Form bars")
     overview.note = Text(overview, "small")
     overview.note:SetWidth(255)
-    overview.note:SetText("Drag spells here to assign. Drag out to move.\nShift forms to identify each bar.")
+    overview.note:SetText("Shift forms to name bars")
     for index = 1, 4 do
         local holder = CreateFrame("Frame", nil, UIParent)
         holder:SetFrameStrata("LOW")
@@ -217,7 +217,7 @@ local function Row(index)
         button:SetScript("OnDragStart", function(self)
             if Editable(self.slot) and not GetCursorInfo() then
                 local ok = pcall(PickupAction, self.slot)
-                if not ok then Error("This action could not be moved.") end
+                if not ok then Error("Action not moved") end
                 if ns.Refresh then ns.Refresh() end
             end
         end)
@@ -226,8 +226,7 @@ local function Row(index)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             if GetActionInfo and Call(GetActionInfo, self.slot) then GameTooltip:SetAction(self.slot)
             else GameTooltip:SetText("Empty form slot") end
-            GameTooltip:AddLine("Drag a spell here to assign. Drag out to move.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
+                    GameTooltip:Show()
         end)
         button:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         row.buttons[buttonIndex] = button

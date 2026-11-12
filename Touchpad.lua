@@ -148,15 +148,15 @@ local function EnsureSplit()
     local base = current
     if not base and id.vendorID == 1356 and id.productID == 3302 then base = T.DualSenseDefault() end
     local config = T.SplitConfig(base)
-    if not config then return false, "this controller has no touchpad halves Companion knows" end
+    if not config then return false, "touchpad halves unknown" end
     config.configID = id
     if not (C_GamePad and C_GamePad.SetConfig) then return false, "no gamepad config API" end
     -- (kept to put back: a config of the player's own, or the default the game gave)
     settings.split = { device = id, backup = current and T.Copy(current) or nil }
     local ok, err = pcall(C_GamePad.SetConfig, config)
-    if not ok then return false, "the game refused the config: " .. tostring(err) end
+    if not ok then return false, "config refused: " .. tostring(err) end
     ApplyConfigs()
-    if not T.IsSplit(GetConfig(id)) then return false, "the config didn't take" end
+    if not T.IsSplit(GetConfig(id)) then return false, "config not kept" end
     return true
 end
 
@@ -507,7 +507,7 @@ end)
 local function Changed(message)
     Touch.RefreshPreview()
     Touch.Apply()
-    Say(message .. (pending and " (applies when combat ends)" or ""))
+    Say(message .. (pending and " · after combat" or ""))
 end
 
 local function ActionText(action)
@@ -588,7 +588,7 @@ local function Probe()
         tostring(e.CTRL), tostring(e.SHIFT), tostring(e.ALT), tostring(GetCVarSafe(CURSOR_CVAR)),
         tostring(GetCVarSafe("GamePadTouchTapButtons"))))
     Say(("probe: right half on PAD6: %s"):format(tostring(id and T.IsSplit(GetConfig(id)))))
-    Say("probe: touch the pad (don't click) for 6 s; then click it with /gpc touch debug on")
+    Say("probe: touch the pad, no click, 6 s")
     local last, n = nil, 0
     local ticker
     ticker = C_Timer.NewTicker(0.2, function()
@@ -612,29 +612,28 @@ function Touch.Command(text)
     if command == "" or command == "status" then return PrintStatus() end
     if command == "on" or command == "off" then
         settings.enabled = command == "on"
-        return Changed("touchpad zones " .. command .. ".")
+        return Changed("Touchpad zones " .. command)
     elseif command == "mode" then
         local mode = T.MODE_ALIASES[(words[2] or ""):lower()]
-        if not mode then return Say("use /gpc touch mode chord (B) or split (A).") end
+        if not mode then return Say("Modes: chord (B), split (A)") end
         settings.mode = mode
-        return Changed(mode == "chord" and "mode B: the whole pad is zones; L1 + touchpad is Blizzard's Focus UI."
-            or "mode A: the right half is zones (PAD6); the left half stays Blizzard's.")
+        return Changed(mode == "chord" and "Mode B: chord" or "Mode A: split")
     elseif command == "set" or command == "clear" then
         local mode = settings.mode
         local zone, layer, rest = (words[2] or ""):lower(), "base", 3
         if T.IsLayer((words[3] or ""):lower()) then layer, rest = words[3]:lower(), 4 end
         if not T.IsZone(mode, zone) then
-            return Say("zones in this mode: " .. table.concat(T.ZONES[mode], ", "))
+            return Say("Zones: " .. table.concat(T.ZONES[mode], ", "))
         end
         local action = "none"
         if command == "set" then
             local window = words[rest] and words[rest]:lower()
             if window then
-                if not T.WINDOW_BY_KEY[window] then return Say("unknown window; /gpc touch windows lists them.") end
+                if not T.WINDOW_BY_KEY[window] then return Say("Unknown window · /gpc touch windows") end
                 action = "window:" .. window
             else
                 action = FromCursor()
-                if not action then return Say("pick up a spell, item or macro first, or name a window.") end
+                if not action then return Say("Nothing on cursor") end
                 if ClearCursor then ClearCursor() end
             end
         end
@@ -649,23 +648,23 @@ function Touch.Command(text)
     elseif command == "preview" then
         settings.preview = (words[2] or ""):lower() ~= "off"
         if not settings.preview then UpdatePreview(0, 0, false) end
-        return Say("preview " .. (settings.preview and "on." or "off."))
+        return Say("Preview " .. (settings.preview and "on" or "off"))
     elseif command == "chord" then
         local button = (words[2] or ""):upper()
-        if not button:match("^PAD") then return Say("use a pad button, e.g. /gpc touch chord PADLSHOULDER.") end
+        if not button:match("^PAD") then return Say("Pad buttons only (PADLSHOULDER)") end
         settings.chordButton = button
-        return Changed("Blizzard's Focus UI on " .. button .. " + touchpad.")
+        return Changed("Focus UI: " .. button .. " + touchpad")
     elseif command == "restore" then
-        if InCombat() then return Say("not in combat.") end
+        if InCombat() then return Say("Not in combat") end
         settings.enabled = false
         local restored = Touch.RestoreSplit()
         Touch.Apply()
-        return Say("touchpad zones off" .. (restored and "; controller config restored." or "."))
+        return Say("Touchpad zones off" .. (restored and " · config restored" or ""))
     elseif command == "probe" then
         return Probe()
     elseif command == "debug" then
         debug = (words[2] or ""):lower() ~= "off"
-        return Say("touch debug " .. (debug and "on: each click prints its zone." or "off."))
+        return Say("Touch debug " .. (debug and "on" or "off"))
     end
     Say("/gpc touch [on | off | mode chord|split | set <zone> [lt|rt|both] [window] | clear <zone> [layer]"
         .. " | list | windows | preview on|off | chord <button> | probe | debug on|off | restore]")

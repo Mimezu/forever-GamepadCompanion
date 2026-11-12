@@ -15,12 +15,9 @@ local classMenuNames = {
     Forms = "Form menu", Auras = "Aura menu", Stances = "Stance menu", Pet = "Pet menu", ["Pet spells"] = "Pet spells",
 }
 local tips = {
-    bars = "All four trigger bars. In compact mode Blizzard shows one at a time in the same place, so they share one position.",
-    base = "The bar shown with no trigger held. Also moves the 1-2-3 page selector, the shoulder icons and the targeting/shortcut bars.",
-    lt = "The bar shown while LT is held.",
-    rt = "The bar shown while RT is held.",
-    both = "The bar shown while LT and RT are both held.",
-    stance = "Blizzard's shared stance/form bar. Its actions are edited in Spread view.",
+    bars = "All 4 trigger bars",
+    base = "Also moves page selector and shoulder icons",
+    stance = "Edit its actions in Spread view",
 }
 -- step, fine step, minimum, maximum, display format
 local specs = {
@@ -31,9 +28,9 @@ local specs = {
 local valueKeys = { "x", "y", "scale" }
 local styleNames = { A = "Controller", B = "Legacy window", C = "Classic" }
 local styleTips = {
-    A = "Big buttons for the gamepad cursor. Move with arrows and pick a step size; no typing.",
-    B = "The window of Forever Names, Petal and Halo, with each section in a card.",
-    C = "Gamepad Companion's original look, with typed values.",
+    A = "Arrows and step sizes",
+    B = "Cards and typed values",
+    C = "Original look",
 }
 -- Style A step sizes: pixels for offsets, and the matching scale step.
 local nudgeSteps = { { "1", 1, 0.01 }, { "10", 10, 0.05 }, { "50", 50, 0.10 } }
@@ -68,14 +65,14 @@ local function IsClassTarget(key) return key == "classLeft" or key == "classRigh
 -- In the gamepad interface Blizzard's Settings panel is not opened from addon code: the
 -- gamepad window manager would then run under addon taint (the "A and B dead until
 -- /reload" bug). The note says where to find the options instead.
-local GAMEPAD_UI_NOTE = "Open Options > Gamepad from the game menu."
+local GAMEPAD_UI_NOTE = "Game menu > Options > Gamepad"
 local function GamepadUI()
     local ok, on = pcall(function() return InputUtil.IsGamepadUIEnabled() end)
     return ok and ns.Model.Readable(on) and on == true
 end
 
 local function OpenGamepadSettings()
-    if InCombatLockdown() then return false, "Blizzard settings open after combat." end
+    if InCombatLockdown() then return false, "Not in combat" end
     if GamepadUI() then return false, GAMEPAD_UI_NOTE end
     local id
     local category = Settings and Settings.GetCategory and GAMEPAD_LABEL and select(2, pcall(Settings.GetCategory, GAMEPAD_LABEL))
@@ -94,7 +91,7 @@ local function OpenGamepadSettings()
     elseif Settings and Settings.OpenToCategory then
         opened = pcall(Settings.OpenToCategory, id)
     end
-    if not opened then return false, "Open Blizzard's Options > Gamepad from the game menu." end
+    if not opened then return false, GAMEPAD_UI_NOTE end
     return true
 end
 API.OpenGamepadSettings = OpenGamepadSettings
@@ -119,9 +116,9 @@ local function Result(ok, reason)
     sticky = nil
     Refresh()
     if reason then
-        Notice((reason == "combat" or reason == "pending") and "Layout changes apply after combat." or tostring(reason))
+        Notice((reason == "combat" or reason == "pending") and "Applies after combat" or tostring(reason))
     elseif ok == false then
-        Notice("This change could not be applied.")
+        Notice("Not applied")
     end
 end
 
@@ -130,7 +127,7 @@ local function Submit(key, value)
     local spec = specs[key]
     if not value or value ~= value or value < spec[3] or value > spec[4] then
         Refresh()
-        Notice(string.format("Enter a value from %g to %g.", spec[3], spec[4]))
+        Notice(string.format("%g to %g only", spec[3], spec[4]))
         return
     end
     -- Round away float drift from repeated fine steps.
@@ -181,14 +178,13 @@ local function ModeButtons(v, x, y, width, height)
         button:SetScript("PostClick", function()
             sticky = nil
             if (API.GetState().mode or "standard") == key then return end
-            Notice(InCombatLockdown() and "Switch layouts after combat."
-                or "In Edit Mode, select the controller action bar and "
-                    .. (key == "compact" and "tick" or "untick") .. " Compact Action Bar.")
+            Notice(InCombatLockdown() and "Not in combat"
+                or (key == "compact" and "Tick" or "Untick") .. " Compact Action Bar in Edit Mode")
         end)
         v.modeButtons[key] = button
     end
-    Tooltip(v.modeButtons.compact, "Compact", "One bar at a time, stacked at the bottom. To switch, click here: Edit Mode opens; select the controller action bar and tick Compact Action Bar. Blizzard saves it with the Edit Mode layout.")
-    Tooltip(v.modeButtons.standard, "Standard", "Each trigger bar has its own spot. To switch, click here: Edit Mode opens; select the controller action bar and untick Compact Action Bar. Blizzard saves it with the Edit Mode layout.")
+    Tooltip(v.modeButtons.compact, "Compact", "Set in Edit Mode")
+    Tooltip(v.modeButtons.standard, "Standard", "Set in Edit Mode")
 end
 
 local function GamepadButton(v, x, y, width, height, size)
@@ -207,14 +203,14 @@ local function GamepadButton(v, x, y, width, height, size)
             end)
         end
     end, nil, size, height)
-    Tooltip(v.gamepad, "Blizzard gamepad options", "Opens Blizzard's Options > Gamepad with the mouse and keyboard interface. This window comes back when you close it. In the gamepad interface, open Options > Gamepad from the game menu.")
+    Tooltip(v.gamepad, "Blizzard gamepad options", "Mouse and keyboard UI only")
 end
 
 local function EnableCheck(v, x, y)
     v.enable = S.NewCheck(v.frame, "Enabled", x, y, function(self)
         Result(API.SetEnabled(self:GetChecked() == true))
     end, 60)
-    Tooltip(v.enable, "Apply my layout", "Off releases every bar back to Blizzard's layout. Your settings are kept.")
+    Tooltip(v.enable, "Enabled", "Off: Blizzard's layout, settings kept")
 end
 
 local function ResetRow(v, x, y, widths, height)
@@ -222,7 +218,7 @@ local function ResetRow(v, x, y, widths, height)
     v.resetBar = Button(v.frame, "Reset", left, y, widths[1], function() Result(API.ResetBar(selected, mode)) end, nil, nil, height)
     left = left + widths[1] + 6
     v.resetLayout = Button(v.frame, "Reset layout", left, y, widths[2], function() Result(API.ResetMode(mode)) end, nil, nil, height)
-    Tooltip(v.resetLayout, "Reset layout", "Puts every bar and button of this layout back in Blizzard's spot. The other layout is not changed.")
+    Tooltip(v.resetLayout, "Reset layout", "Other layout unchanged")
     left = left + widths[2] + 6
     v.copy = Button(v.frame, "Copy from Standard", left, y, widths[3], function()
         Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
@@ -260,7 +256,7 @@ local function Tools(v, x, y, widths, height)
     v.spread = Button(v.frame, "Spread view: Off", left, y, widths[1], function()
         Result(API.SetSpread(not API.GetState().spread))
     end, nil, nil, height)
-    Tooltip(v.spread, "Spread view", "Lays the four bars out side by side, with your form action sets on the left. Drag spells, items or macros onto them outside combat.")
+    Tooltip(v.spread, "Spread view", "Not in combat")
     left = left + widths[1] + 6
     local spells = Button(v.frame, "Spells", left, y, widths[2], nil, "InsecureActionButtonTemplate", nil, height)
     spells:RegisterForClicks("LeftButtonUp")
@@ -271,10 +267,9 @@ local function Tools(v, x, y, widths, height)
     spells:SetScript("PostClick", function()
         ReturnToEditor()
         if InCombatLockdown() or not spells.ready then
-            Notice("Open Spells with Blizzard's spellbook button or controller menu.")
+            Notice("Use Blizzard's spellbook button")
         end
     end)
-    Tooltip(spells, "Spells", "Opens your spellbook next to this window, to drag spells onto the bars.")
     spellButtons[#spellButtons + 1] = spells
     v.spells = spells
     RefreshSpellbookButtons()
@@ -289,9 +284,8 @@ local function Tools(v, x, y, widths, height)
     macros:SetScript("PreClick", function() openingPanel = window:IsShown() end)
     macros:SetScript("PostClick", function()
         ReturnToEditor()
-        if InCombatLockdown() then Notice("Open the macro editor after combat.") end
+        if InCombatLockdown() then Notice("Not in combat") end
     end)
-    Tooltip(macros, "Macros", "Opens Blizzard's macro window next to this one.")
     v.macros = macros
     left = left + widths[3] + 6
     -- Blizzard Edit Mode, run from the hardware click like the Macros button.
@@ -301,9 +295,8 @@ local function Tools(v, x, y, widths, height)
     layouts:SetAttribute("type", "macro")
     layouts:SetAttribute("macrotext", "/editmode")
     layouts:SetScript("PostClick", function()
-        if InCombatLockdown() then Notice("Open Edit Mode after combat.") end
+        if InCombatLockdown() then Notice("Not in combat") end
     end)
-    Tooltip(layouts, "Edit Mode", "Opens Blizzard Edit Mode. In the gamepad UI it edits your gamepad layout: frames, and the controller action bar block with its Compact and Expand settings.")
     v.layouts = layouts
 end
 
@@ -314,7 +307,7 @@ local function StyleSwitch(v, x, y, height)
     label:SetPoint("LEFT", v.frame, "TOPLEFT", x, y - (height or 26) / 2)
     for index, key in ipairs({ "A", "B", "C" }) do
         local button = Button(v.frame, key, x + 36 + (index - 1) * 34, y, 30, function() SelectStyle(key) end, nil, 12, height)
-        Tooltip(button, "Style " .. key .. ": " .. styleNames[key], styleTips[key] .. " Your settings are the same in every style.")
+        Tooltip(button, "Style " .. key .. ": " .. styleNames[key], styleTips[key])
         v.styleButtons[key] = button
     end
 end
@@ -332,8 +325,8 @@ local function ValueRows(v, x, y, width, spacing, labelX)
         control.label:SetPoint("LEFT", v.frame, "TOPLEFT", labelX, rowY - 13)
         control.minus = Button(v.frame, "-", minusX, rowY, 28, function() Step(key, -1) end, nil, 15)
         control.plus = Button(v.frame, "+", right - 28, rowY, 28, function() Step(key, 1) end, nil, 15)
-        Tooltip(control.minus, spec[6], string.format("Click: -%g. Shift-click: -%g.", spec[1], spec[2]))
-        Tooltip(control.plus, spec[6], string.format("Click: +%g. Shift-click: +%g.", spec[1], spec[2]))
+        Tooltip(control.minus, spec[6], string.format("Shift-click: -%g", spec[2]))
+        Tooltip(control.plus, spec[6], string.format("Shift-click: +%g", spec[2]))
         local edit = CreateFrame("EditBox", nil, v.frame, "BackdropTemplate")
         edit:SetPoint("TOPLEFT", editX, rowY)
         edit:SetSize(106, 26)
@@ -371,7 +364,7 @@ local function ValueRows(v, x, y, width, spacing, labelX)
     v.prompts = Button(v.frame, "Shown", minusX, promptY, right - minusX, function()
         Result(API.SetClassPrompts(API.GetSettings().classPrompts == false))
     end)
-    Tooltip(v.prompts, "Button prompt", "The two-icon hint under each class button. Applies to both class buttons.")
+    Tooltip(v.prompts, "Button prompt", "Both class buttons")
 
     function v.UpdateValues(bar, classTab, available, caps)
         for key, control in pairs(v.controls) do
@@ -433,7 +426,7 @@ local function NudgePad(v, cardX, cardY)
     for direction, info in pairs(pad) do
         local button = Button(v.frame, "", info[1], info[2], 40, function() Nudge(info[3], info[4]) end, nil, 14, 40)
         Arrow(button, direction)
-        Tooltip(button, info[5], "Moves by the step size below. Shift-click moves 1.")
+        Tooltip(button, info[5], "Shift-click: 1")
         v.arrows[direction] = button
     end
     local box = CreateFrame("Frame", nil, v.frame, "BackdropTemplate")
@@ -453,7 +446,7 @@ local function NudgePad(v, cardX, cardY)
             v.step = index
             Refresh()
         end, nil, 13, 28)
-        Tooltip(button, "Step " .. info[1], string.format("Arrows move %g. Scale changes by %.2f.", info[2], info[3]))
+        Tooltip(button, "Step " .. info[1], string.format("Scale %.2f", info[3]))
         v.stepButtons[index] = button
     end
     -- Scale: - value +
@@ -472,8 +465,8 @@ local function NudgePad(v, cardX, cardY)
         row.value:SetPoint("LEFT", row.minus, "RIGHT", 4, 0)
         row.value:SetPoint("RIGHT", row.plus, "LEFT", -4, 0)
         row.value:SetJustifyH("CENTER")
-        Tooltip(row.minus, specs[key][6], "Smaller by the step size. Shift-click: 0.01.")
-        Tooltip(row.plus, specs[key][6], "Larger by the step size. Shift-click: 0.01.")
+        Tooltip(row.minus, specs[key][6], "Shift-click: -0.01")
+        Tooltip(row.plus, specs[key][6], "Shift-click: +0.01")
         v.rows[key] = row
         return row
     end
@@ -482,7 +475,7 @@ local function NudgePad(v, cardX, cardY)
     v.prompts = Button(v.frame, "Shown", cardX + 280, cardY - 164, 248, function()
         Result(API.SetClassPrompts(API.GetSettings().classPrompts == false))
     end, nil, nil, 32)
-    Tooltip(v.prompts, "Button prompt", "The two-icon hint under each class button. Applies to both class buttons.")
+    Tooltip(v.prompts, "Button prompt", "Both class buttons")
 
     function v.UpdateValues(bar, classTab, available, caps)
         local layout = not not (bar and available and caps.layout)
@@ -602,8 +595,7 @@ local function LayoutTabs(v, list)
         tab:SetWidth(width)
         tab.label:SetText(entry[2])
         if IsClassTarget(key) then
-            Tooltip(tab, entry[2] .. " (" .. entry[3] .. ")", "Blizzard's round " .. entry[4]:lower()
-                .. " button. Hold " .. entry[3] .. " to open it. Blizzard moves it back while you press it in combat; your placement returns after combat.")
+            Tooltip(tab, entry[2] .. " (" .. entry[3] .. ")", "Blizzard's spot during combat")
         else
             Tooltip(tab, entry[2], tips[key])
         end
@@ -635,8 +627,8 @@ Refresh = function()
         button:SetAttribute("type", key == live and "" or "macro")
     end
     v.modeHint:SetText(mode == "compact"
-        and "One bar at a time, stacked at the bottom. Hold LT or RT to see that bar."
-        or "Each trigger bar keeps its own position, measured from Blizzard's spot.")
+        and "One bar at a time"
+        or "Each bar in its own spot")
     v.modeHint:SetTextColor(DIM[1], DIM[2], DIM[3])
     for _, button in pairs(v.modeButtons) do button:SetEnabled(not InCombatLockdown()) end
 
@@ -650,11 +642,7 @@ Refresh = function()
     local tabName = entry and entry[2] or selected
     if v.cardTitle then v.cardTitle:SetText(tabName .. ": position and size") end
     v.resetBar.label:SetText("Reset " .. tabName)
-    Tooltip(v.resetBar, "Reset " .. tabName, "Puts it back in Blizzard's spot, at Blizzard's size.")
     v.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
-    Tooltip(v.copy, v.copy.label:GetText(), mode == "compact"
-        and "Base becomes the compact bar position. Stance and class buttons are copied as they are."
-        or "The compact bar becomes Base. Stance and class buttons are copied as they are.")
 
     v.enable:SetChecked(settings.enabled == true)
     v.enable:SetEnabled(not caps.suspended)
@@ -666,27 +654,27 @@ Refresh = function()
     if sticky and GetTime and GetTime() < stickyUntil then
         SetStatus(sticky)
     elseif caps.suspended then
-        SetStatus("Controller enhancements paused. Your saved settings are preserved.")
+        SetStatus("Paused · settings kept")
     elseif state.layoutError then
-        SetStatus("A layout change was blocked, so automatic retries stopped. Reset the bar or turn Enabled off and on to try again.")
+        SetStatus("Layout blocked · toggle Enabled to retry")
     elseif not state.available then
-        SetStatus("Blizzard's controller bars are not available right now.")
+        SetStatus("Controller bars unavailable")
     elseif InCombatLockdown() then
-        SetStatus("Layout changes apply after combat.")
+        SetStatus("Applies after combat")
     elseif state.pendingLayout then
-        SetStatus("Layout changes are waiting for Blizzard's bars.")
+        SetStatus("Waiting for Blizzard's bars")
     elseif not settings.enabled then
-        SetStatus("Enabled is off: Blizzard's layout is shown.")
+        SetStatus("Off · Blizzard's layout")
     elseif not state.nativeEnabled then
-        SetStatus("Ready. Switch to Blizzard's gamepad UI to use your layout.")
+        SetStatus("Ready · applies in gamepad UI")
     elseif classTab then
-        SetStatus("Offsets move the button from Blizzard's spot. Scale keeps it in place.")
+        SetStatus("Offsets from Blizzard's spot")
     elseif mode == "compact" and state.spread then
-        SetStatus("Spread view shows all four bars; compact play shows one at a time.")
+        SetStatus("Spread: all 4 bars")
     elseif v.controller then
-        SetStatus("Bars stay visible while this window is open. Pick a step size, then use the arrows.")
+        SetStatus("Bars shown while open")
     else
-        SetStatus("Bars stay visible while this window is open. Shift-click - or +, or scroll over a value, for fine steps.")
+        SetStatus("Bars shown while open")
     end
     refreshing = false
 end
@@ -734,13 +722,13 @@ API.SelectOptionsStyle = SelectStyle
 -- Help ---------------------------------------------------------------------
 
 local topics = {
-    { "Compact mode", "Blizzard's Compact Action Bar setting is in Edit Mode: select the controller action bar there. It is saved with the Edit Mode layout. With it on, the four trigger bars sit in one spot at the bottom and only the active bar is shown.\n\nCompanion keeps two layouts: Compact and Standard. It uses the one that matches Blizzard's setting, so switching modes never scrambles the other layout. Click the mode that is not in use to open Edit Mode and change it there (not during combat).\n\nTo move the whole bar block, use Edit Mode too. Companion's offsets are added on top of Blizzard's position.\n\nIn Compact, Action bars moves all four bars together. Copy from Standard / Compact carries Base, Stance and the class buttons across." },
-    { "Bar layout", "Choose a bar tab, then adjust its offsets and scale. Offsets move the bar from Blizzard's position; scale changes its size. To enlarge the bar you are holding, tick Expand on the controller action bar in Edit Mode.\n\nBase also moves the 1-2-3 page selector, the shoulder icons and their targeting/shortcut bars.\n\nStance controls the shared bar Blizzard fills with your form actions. Edit those actions in Spread view.\n\nShift-click - or + for fine steps, or scroll the mouse wheel over a value. Type a value and press Enter or Tab to apply it. During combat, geometry waits until combat ends." },
-    { "Class buttons", "Druids, paladins, warriors, hunters and warlocks get round class buttons below the bars (LB + LT, RB + RT). They open a radial menu of forms, auras, stances or pet commands.\n\nTheir tab moves and scales that button. The two-icon prompt under it follows, or can be hidden.\n\nBlizzard puts the button back in its own spot every time it's pressed. Outside combat Companion restores your placement at once; in combat it stays in Blizzard's spot until combat ends." },
-    { "Edit Mode", "Blizzard Edit Mode now has its own gamepad layouts. Open it in the gamepad UI (Edit Mode button) to move frames and the controller action bar block. Blizzard keeps one layout for the keyboard and one for the gamepad, and switches between them by itself.\n\nGamepad Companion no longer moves frames. A Companion layout you used is converted once, the first time you use the gamepad UI: it becomes a Blizzard layout named after your character (Name Gamepad) and is selected. Your old Companion layouts stay saved as a backup.\n\n/gpc edit shows what happened. /gpc edit convert makes the Blizzard layout again, for example after you deleted it." },
-    { "Visibility", "Use Frame Gambit to control when bars fade or appear. Add a visibility rule for the controller bar you want to manage.\n\nGamepad Companion controls bar placement and size. Keep one addon responsible for visibility." },
-    { "Window styles", "A (default) is made for the gamepad cursor: bigger buttons, arrows to move a bar, and a step size (1, 10 or 50) instead of typing or Shift-click.\n\nB uses the window of Forever Names, Petal and Halo, with each section in a card and typed values.\n\nC is Gamepad Companion's original look.\n\nPick one with the Style buttons at the bottom of the options window, or /gpc style A, B or C. Your settings are the same in every style." },
-    { "Commands", "/gpc  open or close this window\n/gpc on | off  apply or release your layout\n/gpc reset  reset both layouts\n/gpc style A | B | C  window style\n/gpc gamepad  open Blizzard's gamepad options (mouse and keyboard interface)\n/gpc edit  your Blizzard gamepad layout (convert, list)\n/gpc help  list these commands in chat" },
+    { "Compact mode", "Edit Mode > controller bar > Compact Action Bar\nCompact and Standard keep separate layouts\nWhole bar block: Edit Mode" },
+    { "Bar layout", "Offsets from Blizzard's spot\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nStance actions: Spread view\nFine steps: Shift-click or mouse wheel\nIn combat: applies after" },
+    { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nLB + LT and RB + RT menus\nIn combat: Blizzard's spot" },
+    { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
+    { "Visibility", "Frame Gambit\nCompanion: placement and size only" },
+    { "Window styles", "A  Controller (default)\nB  Legacy window\nC  Classic\nSettings shared" },
+    { "Commands", "/gpc  window\n/gpc on | off  my layout\n/gpc reset  both layouts\n/gpc style A | B | C\n/gpc gamepad  Blizzard options\n/gpc edit  gamepad layout\n/gpc touch  touchpad\n/gpc help  commands in chat" },
 }
 
 function API.ToggleHelp()
@@ -764,7 +752,7 @@ function API.ToggleHelp()
             buttons[index] = Button(help.body, topic[1], 0, -(index - 1) * 32, 150, function() Show(index) end)
         end
         if API.GetCapabilities().suspended then
-            copy:SetText("Controller enhancements are paused in this recovery build. Blizzard's controller UI remains in control.\n\nYour saved layout settings are preserved.")
+            copy:SetText("Paused in this recovery build\nSettings kept")
         else
             Show(1)
         end

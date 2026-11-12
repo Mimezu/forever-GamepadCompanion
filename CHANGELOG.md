@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- (0.5.1) **Shorter text.** Labels, tooltips, status lines, chat messages, errors and help are a few words each. Tooltips that repeated a visible label are gone. The help window keeps its topics as short fact lines; README has the details.
 - (0.5.0) **Touchpad zones** for PlayStation controllers, off by default (`/gpc touch on`).
   - Clicking the touchpad runs the macro of the zone under the finger: a game window (its own button, `/click`), a spell, an item or a macro. Layers for L2, R2 and L2 + R2 like the crossbar; an empty layer zone uses Base. A real press clicks a secure button, so it works in combat (method from Improved Forever's touchpad corners, MIT).
   - Two ways to share the pad with Blizzard's focus toggle (`TOGGLEUIFOCUS`):

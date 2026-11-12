@@ -204,7 +204,7 @@ local function Select(state, data, index, presetCount)
     local ok, err = pcall(C_EditMode.SetActiveLayout, wanted)
     local active = Safe(C_EditMode.GetLayouts)
     if not ok or not active or active.activeLayout ~= wanted then
-        return false, tostring(err or "Blizzard kept the previous layout")
+        return false, tostring(err or "Layout not changed")
     end
     state.native.status, state.native.select = "selected", nil
     return true
@@ -216,16 +216,16 @@ end
 -- so there is no reload; Blizzard applies the layout through its own event.
 function API.Convert(profileName, activate)
     local state = State()
-    if not state then return false, "Character data is not ready yet." end
+    if not state then return false, "Character not ready" end
     if profileName == "" then profileName = nil end
     profileName = profileName or state.active or (state.native and state.native.sourceName)
     local profile = profileName and state.profiles[profileName]
     if not profile then
-        return false, profileName and ("No Companion layout named \"" .. profileName .. "\" on this character.")
-            or "This character has no Companion layout to convert."
+        return false, profileName and ("No Companion layout \"" .. profileName .. "\"")
+            or "No Companion layout"
     end
-    if InCombatLockdown() then return false, "Finish combat first." end
-    if Editor() then return false, "Close Edit Mode first." end
+    if InCombatLockdown() then return false, "Not in combat" end
+    if Editor() then return false, "Close Edit Mode first" end
     if activate and not Gamepad() then activate = false end
     local style = GamepadStyle()
     local kind = Enum.EditModeLayoutType and Enum.EditModeLayoutType.Character
@@ -233,19 +233,19 @@ function API.Convert(profileName, activate)
     local preset, presetCount = GamepadPreset()
     if not E or style == nil or kind == nil or type(data) ~= "table" or type(data.layouts) ~= "table"
         or not preset or not C_EditMode.SaveLayouts or not C_EditMode.SetActiveLayout then
-        return false, "Blizzard's gamepad Edit Mode is not available in this client."
+        return false, "Gamepad Edit Mode unavailable"
     end
     local count = 0
     for _, layout in ipairs(data.layouts) do if layout.layoutType == kind then count = count + 1 end end
     local limit = Constants and Constants.EditModeConsts and Constants.EditModeConsts.EditModeMaxLayoutsPerType or 5
     if count >= limit then
-        return false, "Blizzard's " .. limit .. " character layout slots are full. Delete one in Edit Mode, then type /gpc edit convert."
+        return false, "Layout slots are full (" .. limit .. ") · delete one, then /gpc edit convert"
     end
     local name = API.FreeName(data, Safe(UnitName, "player"))
-    if not name then return false, "No free layout name. Rename a layout in Edit Mode, then type /gpc edit convert." end
+    if not name then return false, "No free layout name · rename one, then /gpc edit convert" end
     local base, baseName = API.BaseSystems(data, preset, presetCount)
     local built, layout, report = pcall(E.Build, profile, base, Targets(), name, kind, style)
-    if not built then return false, "Nothing was saved: " .. tostring(layout) end
+    if not built then return false, "Not saved: " .. tostring(layout) end
 
     local receipt = { time = time and time(), character = Safe(UnitGUID, "player"), sourceName = profileName,
         baseName = baseName, previousNative = M.Copy(data), exported = M.Copy(layout), report = M.Copy(report), status = "prepared" }
@@ -258,7 +258,7 @@ function API.Convert(profileName, activate)
     local saved, err = pcall(C_EditMode.SaveLayouts, copy)
     if not saved then
         receipt.status = "save-failed"
-        return false, "Blizzard did not save the layout: " .. tostring(err)
+        return false, "Not saved: " .. tostring(err)
     end
     local readback = Safe(C_EditMode.GetLayouts)
     local index, returned = LayoutIndex(readback, name)
@@ -268,26 +268,26 @@ function API.Convert(profileName, activate)
         receipt.status = "verification-failed"
         state.native = { layoutName = name, sourceName = profileName, status = "failed", time = receipt.time,
             reason = table.concat(diffs, "; ") }
-        return false, "Blizzard did not keep the layout \"" .. name .. "\" as built (" .. state.native.reason .. ")."
+        return false, "\"" .. name .. "\" changed by Blizzard (" .. state.native.reason .. ")"
     end
     receipt.status = "saved"
     state.native = { layoutName = name, sourceName = profileName, status = "saved", select = true, time = receipt.time,
         warnings = report.warnings, diffs = #diffs > 0 and diffs or nil }
     if state.active == profileName then state.active = nil end
-    Say(string.format("\"%s\" -> Blizzard layout \"%s\": %d frames%s.", profileName, name, #report.frames,
-        baseName and (", other frames and the action bar from \"" .. baseName .. "\"") or ""))
+    Say(string.format("\"%s\" -> Blizzard layout \"%s\": %d frames%s", profileName, name, #report.frames,
+        baseName and (", rest from \"" .. baseName .. "\"") or ""))
     for _, warning in ipairs(report.warnings) do Say(warning) end
-    if #diffs > 0 then Say(#diffs .. " value(s) were adjusted by Blizzard when saving.") end
+    if #diffs > 0 then Say(#diffs .. " values adjusted by Blizzard") end
     if not activate then
-        return true, "Saved. It is selected the next time you use the gamepad UI, or pick it in Edit Mode."
+        return true, "Saved · used in gamepad UI"
     end
     local selected, reason = Select(state, readback, index, presetCount)
     if not selected then
         receipt.status = "select-failed"
-        return false, "Saved, but Blizzard did not select it (" .. reason .. "). Pick \"" .. name .. "\" in Edit Mode."
+        return false, "Saved, not selected (" .. reason .. ") · pick \"" .. name .. "\" in Edit Mode"
     end
     receipt.status = "selected"
-    return true, '"' .. name .. '" is now your gamepad layout.'
+    return true, 'Gamepad layout: "' .. name .. '"'
 end
 
 -- A layout converted while the keyboard UI was in use is selected here.
@@ -297,13 +297,13 @@ local function SelectSaved(state)
     local _, presetCount = GamepadPreset()
     local index = LayoutIndex(data, native.layoutName)
     if not index or not presetCount then
-        native.status, native.reason, native.select = "failed", "the layout was deleted", nil
-        return false, "\"" .. native.layoutName .. "\" no longer exists. Type /gpc edit convert to make it again."
+        native.status, native.reason, native.select = "failed", "deleted", nil
+        return false, "\"" .. native.layoutName .. "\" deleted · /gpc edit convert"
     end
     local selected, reason = Select(state, data, index, presetCount)
     if not selected then
         native.select = nil
-        return false, "Blizzard did not select \"" .. native.layoutName .. "\" (" .. reason .. "). Pick it in Edit Mode."
+        return false, "Not selected (" .. reason .. ") · pick \"" .. native.layoutName .. "\" in Edit Mode"
     end
     return true, '"' .. native.layoutName .. '" is now your gamepad layout.'
 end
@@ -337,7 +337,7 @@ local function Auto()
     attempted = true
     local ok, message
     if convert then
-        Say("Companion no longer moves frames itself. Converting your Companion layout to a Blizzard Edit Mode layout...")
+        Say("Converting Companion layout to Edit Mode")
         ok, message = API.Convert(state.active, true)
     elseif selectSaved then
         ok, message = SelectSaved(state)
@@ -346,8 +346,8 @@ local function Auto()
         native.checked = true
         local active = ActiveGamepadLayout()
         if active and active.layoutName ~= native.layoutName then
-            message = 'Blizzard is using "' .. tostring(active.layoutName) .. '" for the gamepad. To use "'
-                .. native.layoutName .. '", pick it in the layout list at the top of Edit Mode.'
+            message = 'Blizzard is using "' .. tostring(active.layoutName) .. '" · pick "'
+                .. native.layoutName .. '" in Edit Mode'
         end
     end
     if message then Say(message) end
@@ -367,10 +367,10 @@ function API.Status()
         for _, system in ipairs(active.systems or {}) do
             if system.system == (Enum.EditModeSystem or {}).GamepadMainActionBar then hasBar = true end
         end
-        status = status .. ' Gamepad layout in use: "' .. tostring(active.layoutName) .. '"'
-            .. (hasBar and "." or " (no controller action bar in it; /reload adds it).")
+        status = status .. ' · in use: "' .. tostring(active.layoutName) .. '"'
+            .. (hasBar and "" or " (no controller bar; /reload)")
     elseif preset then
-        status = status .. " Gamepad layout in use: Blizzard's preset."
+        status = status .. " · in use: Blizzard preset"
     end
     return status
 end
@@ -379,18 +379,16 @@ function API.NativeStatus()
     local state = State()
     local native = state and state.native
     if native and native.status == "selected" then
-        return "Your Companion layout is the Blizzard Edit Mode layout \"" .. native.layoutName
-            .. "\". Change it in Edit Mode; Blizzard switches layouts with the input mode."
+        return "Gamepad layout: \"" .. native.layoutName .. "\""
     elseif native and native.status == "saved" then
-        return "Your Companion layout is saved as the Blizzard layout \"" .. native.layoutName
-            .. "\". It is selected the next time you use the gamepad UI."
+        return "Saved as \"" .. native.layoutName .. "\" · used in gamepad UI"
     elseif state and state.active and state.profiles[state.active] then
         if native and native.status == "failed" then
-            return "Converting \"" .. state.active .. "\" failed: " .. tostring(native.reason) .. ". Type /gpc edit convert to try again."
+            return "Converting \"" .. state.active .. "\" failed: " .. tostring(native.reason) .. " · /gpc edit convert"
         end
-        return "Your Companion layout \"" .. state.active .. "\" becomes a Blizzard Edit Mode layout the next time you use the gamepad UI."
+        return "\"" .. state.active .. "\" converts in gamepad UI"
     end
-    return "Use Blizzard Edit Mode in the gamepad UI to move frames. Blizzard keeps a separate layout for the gamepad and switches by itself."
+    return "Frames: Blizzard Edit Mode"
 end
 
 function API.List()
@@ -420,7 +418,7 @@ function API.Command(message)
         end
     else
         Say(API.Status())
-        if command ~= "" and command ~= "status" then Say("/gpc edit convert [Companion layout] makes a Blizzard layout; /gpc edit list.") end
+        if command ~= "" and command ~= "status" then Say("/gpc edit convert [layout] · /gpc edit list") end
     end
 end
 SLASH_GAMEPADEDITMODE1 = "/gpedit"

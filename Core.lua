@@ -614,10 +614,10 @@ function API.SetEditing(value)
     Refresh()
 end
 function API.SetSpread(value)
-    if value and InCombat() then return false, "Spread view is unavailable during combat." end
+    if value and InCombat() then return false, "Not in combat" end
     spread = editing and value == true
     Refresh()
-    return true, pending and "Layout restoration is waiting until combat ends." or nil
+    return true, pending and "Applies after combat" or nil
 end
 function API.GetBarFrame(layer)
     if M.classKeys[layer] then
@@ -647,8 +647,8 @@ local function Save()
     for _, record in pairs(records) do record.failed = nil end
     if InCombat() then pending = true end
     if observingNative then QueueRefresh() else Refresh() end
-    if state.layoutError then return true, "A layout change was blocked. Automatic retries stopped." end
-    return true, pending and "Saved; applies after combat or when the native layout is available." or nil
+    if state.layoutError then return true, "Layout blocked" end
+    return true, pending and "Saved · applies later" or nil
 end
 -- `mode` is "standard" or "compact". Omitted means standard, the only layout
 -- older callers know about.
@@ -660,10 +660,10 @@ end
 function API.GetMode() return state.mode or "standard" end
 function API.SetBarOption(layer, key, value, mode)
     mode = CheckLayer(layer, mode)
-    if not mode or not M.bounds[key] then return false, "Unknown bar setting." end
+    if not mode or not M.bounds[key] then return false, "Unknown setting" end
     local range = M.bounds[key]
     local checked = M.Number(value, range[1], range[2], nil)
-    if checked == nil then return false, "Enter a valid number." end
+    if checked == nil then return false, "Not a number" end
     M.Layout(settings, mode)[layer][key] = checked
     return Save()
 end
@@ -671,7 +671,7 @@ function API.SetEnabled(enabled) settings.enabled = enabled == true; return Save
 function API.SetClassPrompts(shown) settings.classPrompts = shown ~= false; return Save() end
 function API.ResetBar(layer, mode)
     mode = CheckLayer(layer, mode)
-    if not mode then return false, "Unknown bar." end
+    if not mode then return false, "Unknown bar" end
     M.Layout(settings, mode)[layer] = M.Entry()
     return Save()
 end
@@ -683,7 +683,7 @@ end
 -- Copies stance and class buttons, plus Base <-> the compact bar, between layouts.
 function API.CopyLayout(from, to)
     local valid = { compact = true, standard = true }
-    if from == to or not valid[from] or not valid[to] then return false, "Unknown layout." end
+    if from == to or not valid[from] or not valid[to] then return false, "Unknown layout" end
     local source, target = M.Layout(settings, from), M.Layout(settings, to)
     for _, layer in ipairs({ "stance", "classLeft", "classRight" }) do target[layer] = M.Copy(source[layer]) end
     if to == "compact" then target.bars = M.Copy(source.base) else target.base = M.Copy(source.bars) end
@@ -696,7 +696,7 @@ function API.ResetAll()
 end
 -- Look of the options windows only; no layout work.
 function API.SetOptionsStyle(style)
-    if not M.styles[style] then return false, "Unknown style." end
+    if not M.styles[style] then return false, "Unknown style" end
     settings.optionsStyle = style
     GamepadCompanionDB = M.Copy(settings)
     return true
@@ -729,13 +729,13 @@ SLASH_GAMEPADCOMPANION1 = "/gpc"
 SLASH_GAMEPADCOMPANION2 = "/gamepadcompanion"
 local function Say(message) print("|cff80c0ffGamepad Companion:|r " .. message) end
 local commandHelp = {
-    "/gpc  open or close the options window",
-    "/gpc on | off  apply or release your layout",
+    "/gpc  window",
+    "/gpc on | off  my layout",
     "/gpc reset  reset both layouts",
-    "/gpc style A | B | C  window style (A controller, B Legacy window, C classic)",
-    "/gpc gamepad  open Blizzard's gamepad options (mouse and keyboard interface)",
-    "/gpc edit  your Blizzard gamepad layout (/gpc edit convert, list)",
-    "/gpc touch  touchpad zones, PlayStation pads (/gpc touch help)",
+    "/gpc style A | B | C  window style",
+    "/gpc gamepad  Blizzard options",
+    "/gpc edit  gamepad layout",
+    "/gpc touch  touchpad zones",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
@@ -750,10 +750,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "reset" then
         API.ResetAll()
-        Say("layout reset" .. (pending and "; it applies when combat ends." or "."))
+        Say("Layout reset" .. (pending and " · after combat" or ""))
     elseif command == "off" or command == "on" then
         API.SetEnabled(command == "on")
-        Say(command == "on" and "your layout is applied." or "layout released; Blizzard's layout is shown.")
+        Say(command == "on" and "Layout on" or "Layout off")
     elseif command == "gamepad" then
         -- (`a and f()` would keep only the first return, so the reason was lost.)
         local ok, reason = false, nil
@@ -761,15 +761,15 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         if not ok and reason then Say(reason) end
     elseif command == "style" then
         local key = rest:upper()
-        if not M.styles[key] then Say("use /gpc style A, B or C."); return end
+        if not M.styles[key] then Say("Styles: A, B, C"); return end
         if API.SelectOptionsStyle then API.SelectOptionsStyle(key) else API.SetOptionsStyle(key) end
-        Say("window style " .. key .. ".")
+        Say("Style " .. key)
     elseif command == "help" or command == "?" then
         for _, line in ipairs(commandHelp) do Say(line) end
     elseif command == "" or command == "options" or command == "config" then
         if API.ToggleOptions then API.ToggleOptions() end
     else
-        Say("unknown command \"" .. command .. "\". /gpc help lists the commands.")
+        Say("Unknown command \"" .. command .. "\" · /gpc help")
     end
 end
 
