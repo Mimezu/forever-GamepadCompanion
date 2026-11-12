@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 — 2026-11-11
+
+- Touch + click: a light tap and a full click run different actions
+- Press: Click, Tap or click, Touch + click
+- `/gpc touch raw` shows what a tap and a click press
+
 ## 0.6.5 — 2026-11-11
 
 - Fixed: a swipe also ran a zone (crossing the middle, tap after swipe)

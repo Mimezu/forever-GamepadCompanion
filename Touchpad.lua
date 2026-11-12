@@ -149,24 +149,34 @@ local function ApplyConfigs()
     if C_GamePad and C_GamePad.ApplyConfigs then pcall(C_GamePad.ApplyConfigs) end
 end
 
--- true when PAD6 is in place (made now or before)
-local function EnsureSplit()
+-- The controller config Companion needs: "split" (the right half on PAD6)
+-- or "click" (the physical click on PAD6). true when in place.
+local CONFIGS = {
+    split = { make = function(c) return T.SplitConfig(c) end, is = function(c) return T.IsSplit(c) end },
+    click = { make = function(c) return T.ClickConfig(c) end, is = function(c) return T.IsClickMoved(c) end },
+}
+local function EnsureConfig(kind)
     local id = DeviceID()
     if not id then return false, "no controller" end
+    local want, other = CONFIGS[kind], CONFIGS[kind == "split" and "click" or "split"]
     local current = GetConfig(id)
-    if T.IsSplit(current) then return true end
-    local base = current
+    if want.is(current) and not other.is(current) then return true end
+    -- (ours already, of the other kind: start again from what was there before)
+    local ours = settings.split and settings.split.device
+    local before = ours and settings.split.backup or current
+    local base = before
     if not base and id.vendorID == 1356 and id.productID == 3302 then base = T.DualSenseDefault() end
-    local config = T.SplitConfig(base)
-    if not config then return false, "touchpad halves unknown" end
+    if base and other.is(base) then base = T.DualSenseDefault() end
+    local config = want.make(base)
+    if not config then return false, "touchpad buttons unknown" end
     config.configID = id
     if not (C_GamePad and C_GamePad.SetConfig) then return false, "no gamepad config API" end
     -- (kept to put back: a config of the player's own, or the default the game gave)
-    settings.split = { device = id, backup = current and T.Copy(current) or nil }
+    if not ours then settings.split = { device = id, backup = current and T.Copy(current) or nil } end
     local ok, err = pcall(C_GamePad.SetConfig, config)
     if not ok then return false, "config refused: " .. tostring(err) end
     ApplyConfigs()
-    if not T.IsSplit(GetConfig(id)) then return false, "config not kept" end
+    if not want.is(GetConfig(id)) then return false, "config not kept" end
     return true
 end
 
@@ -254,7 +264,7 @@ function Touch.RestoreSplit()
     ApplyConfigs()
     -- (a config the player had of their own, unlike what the game falls back to: back as it was)
     local backup = saved.backup
-    if backup and not T.IsSplit(backup) and T.Signature(GetConfig(id)) ~= T.Signature(backup)
+    if backup and not T.IsSplit(backup) and not T.IsClickMoved(backup) and T.Signature(GetConfig(id)) ~= T.Signature(backup)
         and C_GamePad.SetConfig then
         pcall(C_GamePad.SetConfig, backup)
         ApplyConfigs()
@@ -284,7 +294,7 @@ click:SetScript("PostClick", function(self, _, down)
     if debug then
         local ran = acts and self:GetAttribute("type") == "macro"
             and (tostring(self:GetAttribute("macrotext")):gsub("\n", " | "))
-        Say(("touch %s: %s, %s -> %s"):format(down and "down" or "up",
+        Say(("%s %s: %s, %s -> %s"):format(tostring(self:GetAttribute("gpc-input") or "touch"), down and "down" or "up",
             tostring(zone and T.ZoneLabel(zone, T.Grid(settings, settings.mode)) or "-"),
             tostring(layer and T.LAYER_LABELS[layer] or "-"), ran or "nothing"))
     end
@@ -369,8 +379,10 @@ function Touch.Apply()
     click:SetAttribute("gpc-stick", T.PAD_STICK)
     click:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
     click:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
-    click:SetAttribute("gpc-key", PadIndex(settings.mode == "split" and T.SPLIT_KEY or T.PAD_KEY))
     click:SetAttribute("gpc-swiped", nil)
+    click:SetAttribute("gpc-t-held", nil)
+    click:SetAttribute("gpc-t-click", nil)
+    click:SetAttribute("gpc-c-echo", nil)
     local grid = T.Grid(settings, settings.mode)
     click:SetAttribute("gpc-cols", grid.cols)
     click:SetAttribute("gpc-rows", grid.rows)
@@ -389,13 +401,28 @@ function Touch.Apply()
             click:SetAttribute("gpc-m-" .. layer .. "-" .. zone, macro)
         end
     end
-    -- The split config
+    -- The controller config: right half or click on PAD6
     local env = Env()
     local splitNote
-    if settings.enabled and settings.mode == "split" and env.padStyle == "Shapes" then
-        env.splitReady, splitNote = EnsureSplit()
+    local kind = settings.enabled and env.padStyle == "Shapes"
+        and (settings.mode == "split" and "split" or (settings.input == "dual" and "click")) or nil
+    if kind then
+        local ready
+        ready, splitNote = EnsureConfig(kind)
+        if kind == "split" then env.splitReady = ready else env.clickReady = ready end
     elseif settings.split and settings.split.device then
         Touch.RestoreSplit()
+    end
+    local dual = settings.mode == "chord" and settings.input == "dual" and env.clickReady == true
+    click:SetAttribute("gpc-dual", dual and 1 or 0)
+    click:SetAttribute("gpc-click-key", PadIndex(T.SPLIT_KEY))
+    click:SetAttribute("gpc-key", PadIndex((settings.mode == "split" or dual) and T.SPLIT_KEY or T.PAD_KEY))
+    for _, layer in ipairs(T.LAYERS) do
+        for _, zone in ipairs(T.ALL_ZONES.chord) do
+            local macro = dual and settings.enabled and inUse[zone]
+                and T.MacroText(settings.touchActions[layer][zone], lookup) or nil
+            click:SetAttribute("gpc-t-" .. layer .. "-" .. zone, macro)
+        end
     end
     -- The bindings
     local plan, planNote = T.BindingPlan(settings, env)
@@ -403,8 +430,9 @@ function Touch.Apply()
     wipe(boundKeys)
     for _, entry in ipairs(plan) do
         if entry.click then
-            SetOverrideBindingClick(binds, true, entry.key, click:GetName(), "LeftButton")
-            boundKeys[entry.key] = "CLICK " .. click:GetName() .. ":LeftButton"
+            local mouse = entry.mouse or "LeftButton"
+            SetOverrideBindingClick(binds, true, entry.key, click:GetName(), mouse)
+            boundKeys[entry.key] = "CLICK " .. click:GetName() .. ":" .. mouse
         else
             SetOverrideBinding(binds, true, entry.key, entry.action)
             boundKeys[entry.key] = entry.action
@@ -413,7 +441,7 @@ function Touch.Apply()
     lastOurs = env.ours
     note = splitNote or planNote
     BlockTouchCursor(#plan > 0)
-    TapToClick(#plan > 0 and settings.tap)
+    TapToClick(#plan > 0 and settings.input ~= "click")
 end
 
 function Touch.BindsKeys() return next(boundKeys) ~= nil end
@@ -658,7 +686,7 @@ function Touch.Status()
     local env = Env()
     return {
         enabled = settings.enabled, mode = settings.mode, preview = settings.preview, chordButton = settings.chordButton,
-        tap = settings.tap,
+        input = settings.input,
         padStyle = env.padStyle, ours = env.ours, conflict = env.conflict, note = note, pending = pending,
         bound = T.Copy(boundKeys),
     }
@@ -766,7 +794,13 @@ function Touch.SetMode(mode)
     Update()
     return true
 end
-function Touch.SetTap(value) settings.tap = value == true; Update() end
+function Touch.SetInput(input)
+    if not T.INPUTS[input] then return false end
+    settings.input = input
+    Update()
+    return true
+end
+function Touch.SetTap(value) return Touch.SetInput(value == true and "tap" or "click") end
 function Touch.SetOverWindows(value) settings.overWindows = value == true; Update() end
 function Touch.SetPreview(value)
     settings.preview = value == true
@@ -782,9 +816,16 @@ function Touch.SetGrid(cols, rows)
     Update()
     return true
 end
-function Touch.SetZone(layer, zone, action)
+-- slot: "click" (default) or "touch" (dual input; zones only, whole pad)
+function Touch.SetZone(layer, zone, action, slot)
     local mode = settings.mode
     if not T.IsZone(settings, mode, zone) or not T.IsLayer(layer) then return false end
+    if slot == "touch" then
+        if mode ~= "chord" or not settings.touchActions[layer] or T.GESTURE_LABELS[zone] then return false end
+        settings.touchActions[layer][zone] = action or "none"
+        Update()
+        return true
+    end
     settings.actions[mode][layer][zone] = action or "none"
     Update()
     return true
@@ -813,9 +854,10 @@ function Touch.Command(text)
         return Changed(mode == "chord" and "Mode B: chord" or "Mode A: split")
     elseif command == "set" or command == "clear" then
         local mode = settings.mode
-        local zone, layer, rest = (words[2] or ""):lower(), "base", 3
+        local zone, layer, rest, slot = (words[2] or ""):lower(), "base", 3, "click"
         zone = T.OLD_ZONES[mode][zone] or zone
-        if T.IsLayer((words[3] or ""):lower()) then layer, rest = words[3]:lower(), 4 end
+        if (words[rest] or ""):lower() == "touch" then slot, rest = "touch", rest + 1 end
+        if T.IsLayer((words[rest] or ""):lower()) then layer, rest = words[rest]:lower(), rest + 1 end
         if not T.IsZone(settings, mode, zone) then
             return Say("Zones: " .. table.concat(T.Zones(settings), ", ") .. ", " .. table.concat(T.GESTURES, ", "))
         end
@@ -831,9 +873,14 @@ function Touch.Command(text)
                 if ClearCursor then ClearCursor() end
             end
         end
-        settings.actions[mode][layer][zone] = action
-        return Changed(("%s, %s: %s"):format(T.ZoneLabel(zone, T.Grid(settings, mode)), T.LAYER_LABELS[layer],
-            ActionText(action)))
+        if slot == "touch" then
+            if mode ~= "chord" or T.GESTURE_LABELS[zone] then return Say("Touch: whole pad zones only") end
+            settings.touchActions[layer][zone] = action
+        else
+            settings.actions[mode][layer][zone] = action
+        end
+        return Changed(("%s, %s%s: %s"):format(T.ZoneLabel(zone, T.Grid(settings, mode)), T.LAYER_LABELS[layer],
+            slot == "touch" and ", touch" or "", ActionText(action)))
     elseif command == "grid" then
         if not Touch.SetGrid(words[2], words[3]) then
             local limit = T.GRID_LIMITS[settings.mode]
@@ -856,7 +903,10 @@ function Touch.Command(text)
         return Say("Over windows " .. (settings.overWindows and "on" or "off"))
     elseif command == "tap" then
         Touch.SetTap((words[2] or ""):lower() ~= "off")
-        return Say("Tap to click " .. (settings.tap and "on" or "off"))
+        return Say("Tap to click " .. (settings.input == "tap" and "on" or "off"))
+    elseif command == "input" then
+        if not Touch.SetInput((words[2] or ""):lower()) then return Say("Input: click, tap, dual") end
+        return Say("Input " .. settings.input)
     elseif command == "chord" then
         local button = (words[2] or ""):upper()
         if not button:match("^PAD") then return Say("Pad buttons only (PADLSHOULDER)") end
@@ -878,7 +928,7 @@ function Touch.Command(text)
     end
     Say("/gpc touch [status | on | off | mode chord|split | grid <cols> <rows> | set <zone> [lt|rt|both] [window]"
         .. " | clear <zone> [layer]"
-        .. " | list | windows | preview on|off | tap on|off | over on|off | chord <button> | probe | debug on|off | restore]")
+        .. " | list | windows | preview on|off | tap on|off | input click|tap|dual | over on|off | chord <button> | probe | debug on|off | restore]")
 end
 
 -- Harness access

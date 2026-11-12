@@ -29,6 +29,14 @@ T.GESTURE_LABELS = { ["swipe-up"] = "Swipe up", ["swipe-down"] = "Swipe down",
     ["swipe-left"] = "Swipe left", ["swipe-right"] = "Swipe right" }
 T.SWIPE_MIN = 0.6
 
+-- How the pad is pressed:
+--   click  a full click runs the zone
+--   tap    a light tap or a full click runs it (the game's tap to click)
+--   dual   a light tap runs the zone's Touch action, a full click its Click
+--          action: the click (raw button 20) moves to PAD6, whole pad only
+T.INPUTS = { click = true, tap = true, dual = true }
+T.CLICK_RAW = 20
+
 function T.ZoneId(row, col) return "r" .. row .. "c" .. col end
 
 -- Every zone id a mode can have (its largest grid)
@@ -129,7 +137,8 @@ function T.Normalize(raw)
         enabled = raw.enabled == true,
         mode = T.MODES[raw.mode] and raw.mode or "chord",
         preview = raw.preview ~= false,
-        tap = raw.tap == true,
+        input = T.INPUTS[raw.input] and raw.input or (raw.tap == true and "tap" or "click"),
+        touchActions = {},
         overWindows = raw.overWindows ~= false,
         tapSaved = raw.tapSaved,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,
@@ -141,6 +150,16 @@ function T.Normalize(raw)
         local g = type(raw.grid) == "table" and type(raw.grid[mode]) == "table" and raw.grid[mode] or {}
         out.grid[mode] = { cols = Clamp(g.cols, 1, limit.cols, T.DEFAULT_GRID[mode].cols),
             rows = Clamp(g.rows, 1, limit.rows, T.DEFAULT_GRID[mode].rows) }
+    end
+    -- Touch actions (dual input, whole pad)
+    local touchSaved = type(raw.touchActions) == "table" and raw.touchActions or {}
+    for _, layer in ipairs(T.LAYERS) do
+        out.touchActions[layer] = {}
+        local saved = type(touchSaved[layer]) == "table" and touchSaved[layer] or {}
+        for _, zone in ipairs(T.ALL_ZONES.chord) do
+            local action = saved[zone]
+            if action == "none" or ValidAction(action) then out.touchActions[layer][zone] = action end
+        end
     end
     local actions = type(raw.actions) == "table" and raw.actions or nil
     for mode in pairs(T.MODES) do
@@ -260,15 +279,25 @@ function T.BindingPlan(settings, env)
     end
     if env.conflict then return plan, "Improved Forever's touchpad corners are on" end
     local chordMod = T.ModifierFor(settings.chordButton, env.emulate)
+    local dual = settings.input == "dual" and env.clickReady
     for _, prefix in ipairs(T.Prefixes()) do
         local key = prefix .. T.PAD_KEY
+        local clickKey = dual and (prefix .. T.SPLIT_KEY) or nil
         if chordMod and prefix:find(chordMod .. "-", 1, true) then
             plan[#plan + 1] = { key = key, action = T.NATIVE_ACTION }
+            if clickKey then plan[#plan + 1] = { key = clickKey, action = T.NATIVE_ACTION } end
         elseif env.ours then
-            plan[#plan + 1] = { key = key, click = true }
+            -- (dual: the touch is the left button, the click the right one)
+            plan[#plan + 1] = { key = key, click = true, mouse = dual and "LeftButton" or nil }
+            if clickKey then plan[#plan + 1] = { key = clickKey, click = true, mouse = "RightButton" } end
+        elseif clickKey then
+            -- (a window has the pad: the moved click still does Blizzard's)
+            plan[#plan + 1] = { key = clickKey, action = T.NATIVE_ACTION }
         end
     end
-    return plan, not chordMod and "no modifier on " .. settings.chordButton .. ": no chord for Blizzard's function" or nil
+    local why = not chordMod and "no modifier on " .. settings.chordButton .. ": no chord for Blizzard's function" or nil
+    if settings.input == "dual" and not env.clickReady then why = why or "the click isn't PAD6 yet" end
+    return plan, why
 end
 
 -- A gamepad config with the touchpad's right half on PAD6: a copy of config,
@@ -293,7 +322,27 @@ end
 function T.IsSplit(config)
     if type(config) ~= "table" or type(config.rawButtonMappings) ~= "table" then return false end
     for _, m in ipairs(config.rawButtonMappings) do
-        if m.button == T.SPLIT_KEY then return true end
+        if m.button == T.SPLIT_KEY and m.rawIndex ~= T.CLICK_RAW then return true end
+    end
+    return false
+end
+
+-- A copy of config with the touchpad's physical click (raw 20) on PAD6, or nil
+function T.ClickConfig(config)
+    if type(config) ~= "table" or type(config.rawButtonMappings) ~= "table" then return nil end
+    local out = Copy(config)
+    local found = false
+    for _, m in ipairs(out.rawButtonMappings) do
+        if m.rawIndex == T.CLICK_RAW then m.button = T.SPLIT_KEY; found = true end
+    end
+    return found and out or nil
+end
+
+-- Whether a config has the click on PAD6 already
+function T.IsClickMoved(config)
+    if type(config) ~= "table" or type(config.rawButtonMappings) ~= "table" then return false end
+    for _, m in ipairs(config.rawButtonMappings) do
+        if m.rawIndex == T.CLICK_RAW and m.button == T.SPLIT_KEY then return true end
     end
     return false
 end
@@ -355,6 +404,70 @@ a held flag debounces: the restricted environment has no clock). It acts on the
 release, at the finger's spot then. A layer with nothing there falls back to Base. ]]
 T.SNIPPET = [[
     self:SetAttribute("type", nil)
+    if self:GetAttribute("gpc-dual") == 1 and button ~= "RightButton" then
+        -- A light tap (dual input): its Touch action, at the spot it touched.
+        -- A full click presses the halves too; that touch is part of the
+        -- click, not a tap: skipped.
+        local state = GetGamePadState()
+        local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
+        local x, y = stick and stick.x or 0, stick and stick.y or 0
+        local buttons = state and state.buttons
+        local clickIndex = self:GetAttribute("gpc-click-key")
+        local clicking = self:GetAttribute("gpc-held") or (clickIndex and buttons and buttons[clickIndex])
+        if down then
+            if self:GetAttribute("gpc-t-held") then
+                return false
+            end
+            self:SetAttribute("gpc-t-held", true)
+            self:SetAttribute("useOnKeyDown", false)
+            self:SetAttribute("gpc-t-click", clicking and true or nil)
+            return false
+        end
+        if not self:GetAttribute("gpc-t-held") then
+            return false
+        end
+        self:SetAttribute("gpc-t-held", nil)
+        local partOfClick = self:GetAttribute("gpc-t-click") or clicking
+            or (self:GetAttribute("gpc-c-echo") and x == self:GetAttribute("gpc-xl") and y == self:GetAttribute("gpc-yl"))
+        self:SetAttribute("gpc-t-click", nil)
+        self:SetAttribute("gpc-c-echo", nil)
+        if partOfClick then
+            return false
+        end
+        local cols, rows = self:GetAttribute("gpc-cols") or 1, self:GetAttribute("gpc-rows") or 1
+        local col, row = cols, rows
+        for i = 1, cols do
+            if x < -1 + 2 * i / cols then
+                col = i
+                break
+            end
+        end
+        for i = 1, rows do
+            if y > 1 - 2 * i / rows then
+                row = i
+                break
+            end
+        end
+        local zone = "r" .. row .. "c" .. col
+        local lti, rti = self:GetAttribute("gpc-lt"), self:GetAttribute("gpc-rt")
+        local lt = buttons and lti and buttons[lti] and true or false
+        local rt = buttons and rti and buttons[rti] and true or false
+        local layer = (lt and rt and "both") or (lt and "lt") or (rt and "rt") or "base"
+        local macro = self:GetAttribute("gpc-t-" .. layer .. "-" .. zone)
+        if not macro and layer ~= "base" then
+            macro = self:GetAttribute("gpc-t-base-" .. zone)
+        end
+        self:SetAttribute("gpc-zone", zone)
+        self:SetAttribute("gpc-layer", layer)
+        self:SetAttribute("gpc-input", "touch")
+        if not macro then
+            return false
+        end
+        self:SetAttribute("macrotext", macro)
+        self:SetAttribute("type", "macro")
+        return
+    end
+    self:SetAttribute("gpc-input", "click")
     local swipes = self:GetAttribute("gpc-swipe") == 1
     -- Always on the release: at the press the game still reports the last touch's spot
     local keydown = false
@@ -400,6 +513,7 @@ T.SNIPPET = [[
         self:SetAttribute("gpc-swiped", nil)
         self:SetAttribute("gpc-xl", x)
         self:SetAttribute("gpc-yl", y)
+        self:SetAttribute("gpc-c-echo", true)
         if echo then
             return false
         end

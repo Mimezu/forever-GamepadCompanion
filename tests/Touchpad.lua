@@ -87,6 +87,7 @@ C_GamePad = {
         buttons[INDEX.PADLTRIGGER + 1] = pad.lt
         buttons[INDEX.PADRTRIGGER + 1] = pad.rt
         buttons[INDEX.PADBACK + 1] = pad.held
+        buttons[INDEX.PAD6 + 1] = pad.clickHeld
         return { labelStyle = pad.labelStyle, name = "DualSense", sticks = { [4] = { x = pad.x, y = pad.y, len = 0 } },
             buttons = buttons }
     end,
@@ -435,6 +436,67 @@ pad.labelStyle = "Shapes"
 local saved = GamepadCompanionTouchDB
 eq(saved.enabled, true, "saved: enabled")
 eq(saved.actions.chord.lt.r1c3, "spell:133", "saved: the LT zone")
+
+-- Dual input: a light tap runs the zone's Touch action, a full click its Click action
+do
+    Touch.Command("on")
+    Touch.SetOverWindows(true)
+    shownWindows, uiFocused, coreOnly = 0, false, true
+    configs["1356:3302"] = nil
+    cvars.GamePadTouchTapButtons = "0"
+    check(Touch.SetInput("dual"), "input dual")
+    check(T.IsClickMoved(configs["1356:3302"]) and not T.IsSplit(configs["1356:3302"]), "dual: click on PAD6, halves untouched")
+    eq(cvars.GamePadTouchTapButtons, "1", "dual: taps press the pad")
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "dual: touch is the left button")
+    eq(GetBindingAction("PAD6"), "CLICK GamepadCompanionTouchClick:RightButton", "dual: click is the right button")
+    eq(GetBindingAction("CTRL-PAD6"), "TOGGLEUIFOCUS", "dual: L1 + click focuses")
+    check(Touch.SetZone("base", "r1c1", "text:/wave", "touch"), "set a touch action")
+    check(not Touch.SetZone("base", "swipe-up", "text:/wave", "touch"), "no touch action on a swipe")
+    local function Do(button, down, x, y)
+        pad.x, pad.y = x, y
+        local result = snippet(click, button, down)
+        if result ~= false and not down and click:GetAttribute("type") == "macro" then return click:GetAttribute("macrotext") end
+    end
+    -- A tap at top left
+    Do("LeftButton", true, -0.8, 0.6)
+    eq(Do("LeftButton", false, -0.8, 0.6), "/wave", "tap: the Touch action")
+    -- A click at top left (the halves press too, inside the click)
+    pad.clickHeld = true
+    Do("RightButton", true, -0.7, 0.5)
+    Do("LeftButton", true, -0.7, 0.5)
+    local touchRan = Do("LeftButton", false, -0.7, 0.5)
+    pad.clickHeld = nil
+    local clickRan = Do("RightButton", false, -0.7, 0.5)
+    eq(touchRan, nil, "click: its touch is skipped")
+    eq(clickRan, "/click CharacterMicroButton", "click: the Click action")
+    -- The game's tap right after the click, same spot: skipped
+    Do("LeftButton", true, -0.7, 0.5)
+    eq(Do("LeftButton", false, -0.7, 0.5), nil, "tap echo after a click: skipped")
+    Do("LeftButton", true, -0.75, 0.55)
+    eq(Do("LeftButton", false, -0.75, 0.55), "/wave", "next tap works")
+    -- An empty Touch zone does nothing (no fallback to the click action)
+    Do("LeftButton", true, 0.8, -0.6)
+    eq(Do("LeftButton", false, 0.8, -0.6), nil, "empty touch zone: nothing")
+    -- A window has the pad (Over windows off): the click does Blizzard's
+    Touch.SetOverWindows(false)
+    uiFocused = true
+    Tick()
+    eq(GetBindingAction("PAD6"), "TOGGLEUIFOCUS", "window focused: click is Blizzard's")
+    uiFocused = false
+    Tick()
+    Touch.SetOverWindows(true)
+    -- Right half mode swaps the config kind; back to click input removes it
+    Touch.SetMode("split")
+    check(T.IsSplit(configs["1356:3302"]) and not T.IsClickMoved(configs["1356:3302"]), "split: right half, click not moved")
+    Touch.SetMode("chord")
+    check(T.IsClickMoved(configs["1356:3302"]), "back to whole pad: click moved again")
+    Touch.SetInput("click")
+    eq(configs["1356:3302"], nil, "input click: config gone")
+    eq(cvars.GamePadTouchTapButtons, "0", "input click: tap setting back")
+    eq(click:GetAttribute("gpc-dual"), 0, "input click: no touch path")
+    local saved = T.Normalize(GamepadCompanionTouchDB)
+    eq(saved.touchActions.base.r1c1, "text:/wave", "touch action saved")
+end
 
 -- Touch or click probe: click moved to PAD6 for 12 s, then all put back
 do

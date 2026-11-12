@@ -212,6 +212,28 @@ eq(Touch.Settings().actions.chord.base.r1c1, "window:bags", "combat: setting sav
 check(ui.status.text == "Applies after combat", "combat: status says it waits (" .. tostring(ui.status.text) .. ")")
 combat = false
 
+-- Touch + click: two slots per zone
+press("Touch + click")
+eq(Touch.Settings().input, "dual", "input dual")
+check(ui.slots.touch:IsShown() and ui.slots.click:IsShown(), "slots shown")
+ui.tiles.r1c1.scripts.OnClick(ui.tiles.r1c1)
+press("Touch")
+press("Character")
+eq(Touch.Settings().touchActions.base.r1c1, "window:character", "touch slot set")
+eq(Touch.Settings().actions.chord.base.r1c1, "window:bags", "click slot unchanged")
+eq(ui.tiles.r1c1.label.text, "Character", "tile shows the touch action")
+check(ui.tiles.r1c1.small:IsShown(), "tile shows the click action small")
+press("Click")
+eq(ui.tiles.r1c1.label.text, "Bags", "click slot: tile shows the click action")
+ui.swipes["swipe-up"].scripts.OnClick(ui.swipes["swipe-up"])
+check(not ui.slots.touch:IsEnabled(), "swipes have no touch slot")
+ui.tiles.r1c1.scripts.OnClick(ui.tiles.r1c1)
+press("Right half")
+check(not ui.inputs.dual:IsEnabled(), "touch + click: whole pad only")
+check(not ui.slots.touch:IsShown(), "no slots in right half")
+press("Whole pad")
+press("Click")
+
 -- Chat commands refresh the window
 Touch.Command("grid 4 1")
 eq(ui.cols.text, "4 columns", "chat grid refreshes the window")
