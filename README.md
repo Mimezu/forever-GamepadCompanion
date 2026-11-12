@@ -13,8 +13,8 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 - Compact or Standard is a Blizzard setting: Edit Mode > controller bar > Compact Action Bar.
 - Spread view shows all 4 bars side by side, for dragging spells onto them.
 - Changes made in combat apply after combat.
-- `/gpc touch` opens the Touchpad window: zones, grid, swipes, what each runs.
-- `/gpc pad` opens the Controller page: every button, layer and page on a DualSense drawing.
+- `/gpc pad` opens the Controller page: every button, layer and page on a DualSense drawing. Choose what each runs: spells, items, macros, Halo rings, windows, typed macros.
+- Bindings are per character; a new character starts from a copy.
 
 | Command | Does |
 |---|---|
@@ -24,7 +24,7 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 | `/gpc style A`, `B`, `C` | Window style |
 | `/gpc gamepad` | Blizzard gamepad options |
 | `/gpc edit` | Gamepad Edit Mode layout |
-| `/gpc touch` | Touchpad window |
+| `/gpc touch` | Controller page, touchpad |
 | `/gpc pad` | Controller page |
 | `/gpc help` | Commands in chat |
 

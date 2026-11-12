@@ -1,6 +1,6 @@
 # Touchpad zones
 
-PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens the Touchpad window.
+PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens the Controller page on the touchpad.
 
 ## Window
 

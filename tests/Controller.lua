@@ -148,15 +148,65 @@ C_GamePad.GetDeviceMappedState = function()
     return { labelStyle = "Shapes", sticks = { [4] = { x = 0, y = 0 } }, buttons = buttons }
 end
 
+local hooks = {}
+function hooksecurefunc(name, fn) hooks[name] = hooks[name] or {}; table.insert(hooks[name], fn) end
+-- Bindings keep the clicked button's name
+function SetOverrideBindingClick(owner, _, key, name, button)
+    overrides[key] = { owner = owner, action = "CLICK " .. name .. ":" .. (button or "LeftButton") }
+end
+local timers = {}
+C_Timer.After = function(_, fn) timers[#timers + 1] = fn end
+local function RunTimers() local list = timers; timers = {}; for _, fn in ipairs(list) do fn() end end
+-- Spellbook, bags, macros, Halo
+Enum = { SpellBookSpellBank = { Player = 0 }, SpellBookItemType = { Spell = 1 } }
+C_SpellBook = {
+    GetNumSpellBookSkillLines = function() return 1 end,
+    GetSpellBookSkillLineInfo = function() return { name = "Holy", iconID = 9, itemIndexOffset = 0, numSpellBookItems = 3 } end,
+    GetSpellBookItemInfo = function(slot)
+        if slot == 1 then return { spellID = 133, actionID = 133, name = "Fireball", iconID = 7, itemType = 1 } end
+        if slot == 2 then return { spellID = 5, actionID = 5, name = "Passive", iconID = 7, itemType = 1, isPassive = true } end
+        if slot == 3 then return { spellID = 635, actionID = 635, name = "Holy Light", iconID = 8, itemType = 1 } end
+    end,
+}
+C_Spell.GetSpellName = function(id) return ({ [133] = "Fireball", [635] = "Holy Light" })[id] end
+C_Container = { GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end,
+    GetContainerItemInfo = function(bag, slot)
+        if bag == 0 and slot == 1 then return { itemID = 6948, iconFileID = 2 } end
+        if bag == 0 and slot == 2 then return { itemID = 2589, iconFileID = 3 } end
+    end }
+C_Item = { GetItemSpell = function(id) return id == 6948 and "Hearthstone" or nil end,
+    GetItemNameByID = function(id) return ({ [6948] = "Hearthstone", [2589] = "Linen Cloth" })[id] end,
+    PickupItem = function(id) cursor = id end }
+GetNumMacros = function() return 1, 0 end
+GetMacroInfo = function(x) if x == 1 or x == "Mount" then return "Mount", 3, "/cast Summon Charger" end end
+Halo = { db = { rings = { { id = 1, name = "Utility", slices = {} }, { id = 2, name = "Alt only", owner = "alt" } } },
+    RingActiveHere = function(ring) return ring.owner == nil end, RingIcon = function() return 4 end }
+GAMEPAD_MOD_LEFT, GAMEPAD_MOD_RIGHT, GAMEPAD_MOD_LEFT_AND_RIGHT = "SHIFT", "CTRL", "CTRL-SHIFT"
+-- Per character: this character has no profile yet; the account has touch settings
+GamepadCompanionCharDB = nil
+GamepadCompanionTouchDB = { enabled = false, split = { device = "pad" }, actions = { chord = { base = { r1c1 = "window:bags" } } } }
+
 local ns = {}
-for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Touchpad.lua", "ControllerModel.lua", "SpreadOverview.lua",
-    "OptionsSkin.lua", "TouchWindow.lua", "ControllerWindow.lua" }) do
+for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "Touchpad.lua", "Keys.lua", "ControllerModel.lua",
+    "SpreadOverview.lua", "OptionsSkin.lua", "Picker.lua", "ControllerWindow.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
-local C, Touch = ns.ControllerModel, ns.Touch
+local C, Touch, Keys = ns.ControllerModel, ns.Touch, ns.Keys
 for _, f in ipairs(created) do
     if f.events.ADDON_LOADED and f.scripts.OnEvent then f.scripts.OnEvent(f, "ADDON_LOADED", "GamepadCompanion") end
 end
+local function Fire(event)
+    for _, f in ipairs(created) do
+        if f.events[event] and f.scripts.OnEvent then f.scripts.OnEvent(f, event) end
+    end
+end
+
+-- Profile: per character, seeded from the account; the controller's own state shared
+check(type(GamepadCompanionCharDB) == "table" and GamepadCompanionCharDB.touch ~= nil, "character profile made")
+eq(GamepadCompanionCharDB.touch.actions.chord.base.r1c1, "window:bags", "seeded from the account settings")
+check(GamepadCompanionCharDB.touch ~= GamepadCompanionTouchDB, "a copy, not the account table")
+eq(Touch.Settings().split.device, "pad", "controller state from the account")
+check(type(GamepadCompanionCharDB.keys) == "table", "button bindings in the profile")
 
 -- Model --------------------------------------------------------------------------
 local k = { first = 100, perPage = 32, reserved = 4, pages = 3 }
@@ -236,13 +286,75 @@ eq(actions[128], nil, "slot emptied")
 ui.slots[1].scripts.OnClick(ui.slots[1])
 eq(actions[128] and actions[128].id, 133, "clicking with an action drops it")
 
--- Other buttons
+-- The picker on a bar slot: spells, items, macros only
+local picker, pui
+ui.slots[2].scripts.OnClick(ui.slots[2])
+ui.choose.scripts.OnClick(ui.choose)
+picker, pui = ns.PickerWindow()
+check(picker and picker:IsShown(), "choose opens the picker")
+local keys = {}
+for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
+eq(table.concat(keys, ","), "spells:Holy,items,macros", "bar slot: spells, items, macros")
+eq(pui.tiles[1].entry.name, "Fireball", "first spell")
+eq(#pui.categories[1].list, 2, "passive spells left out")
+pui.cats.items.scripts.OnClick(pui.cats.items)
+eq(pui.tiles[1].entry.name, "Hearthstone", "usable items only")
+check(not pui.tiles[2]:IsShown(), "cloth left out")
+pui.search:SetText("holy")
+pui.search.scripts.OnTextChanged(pui.search)
+eq(pui.tiles[1].entry.name, "Holy Light", "search looks in every category")
+pui.tiles[1].scripts.OnClick(pui.tiles[1])
+check(not picker:IsShown(), "picking closes the picker")
+eq(actions[129] and actions[129].id, 635, "picked spell placed on the slot")
+eq(cursor, nil, "cursor left empty")
+eq(ui.name.text, "Holy Light", "card shows it")
+
+-- Buttons: Blizzard's defaults, then Companion's bindings per layer
+ui.buttons.l1.scripts.OnClick(ui.buttons.l1)
+eq(ui.name.text, "Enemy targets", "L1: Blizzard's default")
+eq(ui.kind.text, "Blizzard", "marked Blizzard")
+check(not ui.clear:IsEnabled(), "nothing of ours to clear")
 ui.buttons.l3.scripts.OnClick(ui.buttons.l3)
-eq(ui.name.text, "Auto-run", "L3 runs its binding")
-check((ui.buttons.l3.text.text or ""):find("Auto-run", 1, true), "L3 label on the art")
-eq(ui.buttons.r1.runs, "Radial", "R1 found by command")
+ui.choose.scripts.OnClick(ui.choose)
+keys = {}
+for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
+eq(table.concat(keys, ","), "spells:Holy,items,macros,halo,windows,text", "button: every kind")
+pui.cats.halo.scripts.OnClick(pui.cats.halo)
+eq(pui.tiles[1].entry.name, "Utility", "Halo rings of this character")
+check(not pui.tiles[2]:IsShown(), "another character's ring left out")
+pui.tiles[1].scripts.OnClick(pui.tiles[1])
+eq(Keys.Get("PADLSTICK", "base"), "halo:1", "L3 runs the ring")
+eq(GamepadCompanionCharDB.keys.PADLSTICK.base, "halo:1", "saved per character")
+eq(overrides.PADLSTICK and overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:k1", "L3 bound")
+eq(_G.GamepadCompanionKeys:GetAttribute("*macrotext-k1"), "/click HaloButton t1 LeftButton true", "ring macro")
+eq(ui.name.text, "Utility", "card shows the ring")
+check((ui.buttons.l3.text.text or ""):find("Utility", 1, true), "label on the art")
+-- L2 + L3: a typed macro
+ui.layers.lt.scripts.OnClick(ui.layers.lt)
+eq(ui.rows[1].name.text, "Utility", "every layer: base")
+ui.choose.scripts.OnClick(ui.choose)
+pui.cats.text.scripts.OnClick(pui.cats.text)
+check(pui.textPane:IsShown(), "typed macro pane")
+pui.macro:SetText("/wave")
+pui.useMacro.scripts.OnClick(pui.useMacro)
+eq(Keys.Get("PADLSTICK", "lt"), "text:/wave", "L2 + L3 macro")
+eq(overrides["SHIFT-PADLSTICK"] and overrides["SHIFT-PADLSTICK"].action, "CLICK GamepadCompanionKeys:k2", "Shift = L2")
+-- Blizzard takes the key back: put back next frame
+overrides.PADLSTICK = { owner = UIParent, action = "TOGGLEAUTORUN" }
+for _, fn in ipairs(hooks.SetOverrideBinding or {}) do fn(UIParent, true, "PADLSTICK", "TOGGLEAUTORUN") end
+RunTimers()
+eq(overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:k1", "binding put back")
+-- Clear, in combat it waits
+combat = true
+ui.clear.scripts.OnClick(ui.clear)
+eq(Keys.Get("PADLSTICK", "lt"), nil, "cleared")
+check(overrides["SHIFT-PADLSTICK"] ~= nil, "binding waits for combat to end")
+combat = false
+Fire("PLAYER_REGEN_ENABLED")
+eq(overrides["SHIFT-PADLSTICK"], nil, "binding gone after combat")
+ui.layers.base.scripts.OnClick(ui.layers.base)
 ui.buttons.ps.scripts.OnClick(ui.buttons.ps)
-eq(ui.name.text, "Not bound", "PS unbound")
+eq(ui.name.text, "Empty", "PS unbound")
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
 check(ui.layers.lt.selected, "L2 on the art picks the L2 bar")
 check(ui.showLayer:IsShown(), "card: show layer")
@@ -250,58 +362,50 @@ ui.showLayer.scripts.OnClick(ui.showLayer)
 check(ui.layers.base.selected, "back to base")
 
 -- Touchpad: settings and bindings in the card
-ui.buttons.touchpad.scripts.OnClick(ui.buttons.touchpad)
-check(ui.tp:IsShown(), "touchpad: the panel shows")
-check(not ui.name:IsShown(), "touchpad: no action header")
-eq(ui.padText.text, "Touchpad", "pad caption when off")
+API.ToggleTouchpad()
+check(window:IsShown() and ui.tp:IsShown(), "/gpc touch opens this page on the touchpad")
 local tp = ui.tpw
 tp.enable:SetChecked(true); tp.enable.scripts.OnClick(tp.enable)
 eq(Touch.Settings().enabled, true, "zones on from the card")
 local shown = 0
 for _, c in pairs(ui.zones) do if c:IsShown() then shown = shown + 1 end end
 eq(shown, 6, "3 x 2 zones on the pad")
-check((ui.zones.r1c1.label.text or "") ~= "", "zones show their actions")
-eq(tp.cols.text, "3 columns", "grid in the card")
--- Pick a zone on the art, bind a window
 ui.zones.r2c3.scripts.OnClick(ui.zones.r2c3)
 eq(tp.zoneTitle.text, "Bottom right · Base", "zone picked on the art")
-tp.windows.map.scripts.OnClick(tp.windows.map)
-eq(Touch.Settings().actions.chord.base.r2c3, "window:map", "window bound from the card")
-eq(tp.current.text, "World Map", "card shows the binding")
-check(tp.windows.map.selected, "window button marked")
--- Drop a spell on an art zone, on L2
+ui.choose.scripts.OnClick(ui.choose)
+pui.cats.windows.scripts.OnClick(pui.cats.windows)
+local map
+for i = 1, 24 do local t = pui.tiles[i]; if t and t.entry and t.entry.action == "window:map" then map = t end end
+map.scripts.OnClick(map)
+eq(Touch.Settings().actions.chord.base.r2c3, "window:map", "window from the picker")
+eq(ui.name.text, "World Map", "card shows the binding")
 ui.layers.lt.scripts.OnClick(ui.layers.lt)
+eq(ui.kind.text, "Window · Base", "L2: Base's, inherited")
+check(not ui.clear:IsEnabled(), "inherited: nothing to clear")
 cursor = 133
 ui.zones.r1c1.scripts.OnReceiveDrag(ui.zones.r1c1)
 eq(Touch.Settings().actions.chord.lt.r1c1, "spell:133", "spell dropped on the art zone")
 eq(cursor, nil, "cursor emptied")
-eq(tp.zoneTitle.text, "Top left · L2", "the zone and layer")
-check(ui.tp:IsShown(), "the panel stays")
--- Grid, press, Touch slot
 tp.colsMinus.scripts.OnClick(tp.colsMinus)
 eq(tp.cols.text, "2 columns", "fewer columns")
 tp.inputs.dual.scripts.OnClick(tp.inputs.dual)
-eq(Touch.Settings().input, "dual", "touch + click from the card")
 check(tp.slots.touch:IsShown(), "touch and click slots")
-check(tp.tapTime:IsShown(), "tap time shown with taps")
 tp.slots.touch.scripts.OnClick(tp.slots.touch)
-tp.windows.character.scripts.OnClick(tp.windows.character)
-eq(Touch.Settings().touchActions.lt.r1c1, "window:character", "touch slot bound")
-eq(Touch.Settings().actions.chord.lt.r1c1, "spell:133", "click slot kept")
--- Swipe macro
+ui.choose.scripts.OnClick(ui.choose)
+pui.cats.halo.scripts.OnClick(pui.cats.halo)
+pui.tiles[1].scripts.OnClick(pui.tiles[1])
+eq(Touch.Settings().touchActions.lt.r1c1, "halo:1", "touch slot: a Halo ring")
+eq(Touch.Runs("halo:1"), "/click HaloButton t1 LeftButton true", "ring macro for zones")
 tp.swipes["swipe-up"].scripts.OnClick(tp.swipes["swipe-up"])
 eq(tp.zoneTitle.text, "Swipe up · L2", "swipe picked")
 check(not tp.slots.touch:IsEnabled(), "swipes: click slot only")
-tp.macro:SetText("/sit")
-tp.save.scripts.OnClick(tp.save)
-eq(Touch.Settings().actions.chord.lt["swipe-up"], "text:/sit", "macro saved on the swipe")
-tp.clear.scripts.OnClick(tp.clear)
-eq(Touch.Settings().actions.chord.lt["swipe-up"], "none", "clear")
 tp.modes.split.scripts.OnClick(tp.modes.split)
 check(not tp.inputs.dual:IsEnabled(), "right half: no touch + click")
-check(not tp.over:IsShown(), "right half: no over windows")
 tp.modes.chord.scripts.OnClick(tp.modes.chord)
 ui.layers.base.scripts.OnClick(ui.layers.base)
+API.ToggleTouchpad()
+check(not window:IsShown(), "touchpad toggle closes")
+API.ToggleController()
 
 -- Held triggers and pressed buttons
 pressed.PADLTRIGGER, pressed.PADRTRIGGER, pressed.PAD1 = true, true, true

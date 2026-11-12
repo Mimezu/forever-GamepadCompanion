@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 — 2026-11-12
+
+- Choose: a picker for spells (by spellbook line), items, macros, Halo rings, windows, typed macros
+- Bind L1, R1, L3, R3, Create, Options, PS and Mute on every layer
+- Halo rings on buttons and touchpad zones
+- Bindings are per character; a new character starts from a copy
+- The Touchpad window is gone: `/gpc touch` opens the Controller page on the touchpad
+- Fixed: L3, R3, Options and the shoulders showed Not bound while the page was open
+
 ## 0.8.1 — 2026-11-12
 
 - Controller page: bigger d-pad and face buttons in recessed wells

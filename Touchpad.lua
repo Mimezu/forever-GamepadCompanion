@@ -339,19 +339,7 @@ click:SetScript("PostClick", function(self, _, down)
     lastClick = { at = GetTime(), zone = zone, layer = layer }
 end)
 
-local lookup = {
-    button = function(name) local b = _G[name]; return type(b) == "table" and b.Click ~= nil end,
-    spellName = function(id)
-        if not id then return nil end
-        if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
-        return GetSpellInfo and (GetSpellInfo(id))
-    end,
-    macroBody = function(name)
-        if not GetMacroInfo then return nil end
-        local _, _, body = GetMacroInfo(name)
-        return body
-    end,
-}
+local lookup = ns.Shared.lookup
 
 -- The finger slides the mouse cursor (the game's touch cursor) and shows it:
 -- off while Companion has the pad, the player's own setting back after
@@ -501,26 +489,12 @@ function Touch.BindsKeys() return next(boundKeys) ~= nil end
 -- Blizzard's core set binds the touchpad (TOGGLEUIFOCUS) again at login and
 -- whenever one of its panels closes; the most recent priority binding wins.
 -- Put ours back on top when it really took one (Halo 0.9.8's fix).
-local reassertQueued = false
-local function Reassert()
-    reassertQueued = false
-    if InCombat() then pending = true; return end
-    for key, action in pairs(boundKeys) do
-        if GetBindingAction and GetBindingAction(key, true) ~= action then
-            Touch.Apply()
-            if debug then Say("touch: Blizzard took " .. key .. "; put back") end
-            return
-        end
-    end
-end
 -- (windows bind the touchpad with SetOverrideBindingClick: search boxes, map focus)
-local function Taken(owner, _, key)
-    if owner ~= UIParent or not boundKeys[key] or reassertQueued then return end
-    reassertQueued = true
-    C_Timer.After(0, Reassert)
-end
-hooksecurefunc("SetOverrideBinding", Taken)
-hooksecurefunc("SetOverrideBindingClick", Taken)
+ns.Shared.Claim(boundKeys, function(key)
+    if InCombat() then pending = true; return end
+    Touch.Apply()
+    if debug then Say("touch: Blizzard took " .. key .. "; put back") end
+end)
 
 ---------------------------------------------------------------------------
 -- The preview: a small drawing of the pad while the finger is on it, with
@@ -554,6 +528,10 @@ local function ActionLook(action)
     elseif kind == "text" then
         local first = value:match("^[^\n]*") or value
         return #first > 24 and (first:sub(1, 23) .. "…") or first, "Interface\\Icons\\INV_Misc_Note_01"
+    elseif kind == "halo" then
+        local ring = ns.Shared.HaloRing(value)
+        if not ring then return "Halo ring" end
+        return ring.name or "Halo ring", ns.Shared.HaloIcon(ring)
     end
     return action
 end
@@ -722,13 +700,26 @@ end
 events:SetScript("OnEvent", function(_, event, arg)
     if event == "ADDON_LOADED" then
         if arg ~= "GamepadCompanion" then return end
-        settings = T.Normalize(GamepadCompanionTouchDB)
-        GamepadCompanionTouchDB = settings
+        -- Per character; the controller's own state (its config, the game's
+        -- touch settings Companion changed) is shared by all characters
+        local account = type(GamepadCompanionTouchDB) == "table" and GamepadCompanionTouchDB or {}
+        local char = ns.Shared.CharDB()
+        local raw = type(char.touch) == "table" and char.touch or T.Copy(account)
+        settings = T.Normalize(raw)
+        for _, key in ipairs(T.DEVICE_FIELDS) do settings[key] = T.Copy(account[key]) end
+        if type(settings.split) ~= "table" then settings.split = {} end
+        char.touch = settings
+        GamepadCompanionTouchDB = account
         loaded = true
         return
     end
     if not loaded then return end
-    if event == "PLAYER_LOGOUT" then BlockTouchCursor(false); return TapToClick(false) end
+    if event == "PLAYER_LOGOUT" then
+        BlockTouchCursor(false)
+        TapToClick(false)
+        for _, key in ipairs(T.DEVICE_FIELDS) do GamepadCompanionTouchDB[key] = T.Copy(settings[key]) end
+        return
+    end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     if event == "SPELLS_CHANGED" or event == "UPDATE_MACROS" then Touch.RefreshPreview() end
     Touch.Apply()
@@ -843,7 +834,7 @@ local function Probe()
     end)
 end
 
--- Setters for the Touchpad window (no chat line)
+-- Setters for the Controller page (no chat line)
 local listeners = {}
 function Touch.OnChange(callback) listeners[#listeners + 1] = callback end
 local function Notify() for _, callback in ipairs(listeners) do pcall(callback) end end

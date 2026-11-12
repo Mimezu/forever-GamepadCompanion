@@ -115,6 +115,7 @@ GamepadCompanionAPI = {}
 local ns = {}
 assert(loadfile(root .. "/TouchModel.lua"))("GamepadCompanion", ns)
 local T = ns.TouchModel
+assert(loadfile(root .. "/Shared.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Touchpad.lua"))("GamepadCompanion", ns)
 local Touch = ns.Touch
 local click = _G.GamepadCompanionTouchClick
@@ -434,7 +435,7 @@ eq(next(overrides), nil, "Xbox pad: nothing bound")
 pad.labelStyle = "Shapes"
 
 -- Saved settings survive
-local saved = GamepadCompanionTouchDB
+local saved = GamepadCompanionCharDB.touch
 eq(saved.enabled, true, "saved: enabled")
 eq(saved.actions.chord.lt.r1c3, "spell:133", "saved: the LT zone")
 
@@ -521,7 +522,7 @@ do
     eq(cvars.GamePadTouchTapMaxMs, "200", "input click: tap time back")
     eq(click:GetAttribute("gpc-dual"), 0, "input click: no touch path")
     pad.hideRaw = nil
-    local saved = T.Normalize(GamepadCompanionTouchDB)
+    local saved = T.Normalize(GamepadCompanionCharDB.touch)
     eq(saved.touchActions.base.r1c1, "text:/wave", "touch action saved")
 end
 

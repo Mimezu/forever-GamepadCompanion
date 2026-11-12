@@ -119,6 +119,8 @@ local function Copy(value)
     return out
 end
 T.Copy = Copy
+-- Settings that belong to the controller, not the character
+T.DEVICE_FIELDS = { "split", "tapSaved", "tapMsSaved", "touchCursor" }
 
 local function ValidAction(action)
     return type(action) == "string" and action:match("^(%a+):(.+)$") ~= nil
@@ -667,6 +669,9 @@ function T.MacroText(action, lookup)
         return lookup.macroBody(value)
     elseif kind == "text" then
         return value
+    elseif kind == "halo" then
+        -- (Halo opens a ring from a macro like its tap mode)
+        return lookup.haloRing and lookup.haloRing(value) and ("/click HaloButton t" .. value .. " LeftButton true") or nil
     end
 end
 

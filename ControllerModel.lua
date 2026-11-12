@@ -76,6 +76,12 @@ C.COMMAND_NAMES = {
     TOGGLECHARACTER0 = "Character", OPENALLBAGS = "Bags", TOGGLEBACKPACK = "Bags",
     CAMERAZOOMIN = "Zoom in", CAMERAZOOMOUT = "Zoom out", TOGGLEMUSIC = "Music",
 }
+-- Blizzard's gamepad defaults: its core binding set (BindingSetFactory.lua),
+-- cleared while a window has the gamepad's focus, and the targeting shoulders
+C.BLIZZARD = {
+    PADLSHOULDER = "Enemy targets", PADRSHOULDER = "Friendly targets",
+    PADFORWARD = "Game menu", PADBACK = "Focus UI", PADLSTICK = "Auto-run", PADRSTICK = "Ping",
+}
 -- Commands looked up by key too, for bindings GetBindingAction doesn't report
 C.LOOKUP_COMMANDS = {
     "GAMEPADLEFTMOD", "GAMEPADRIGHTMOD", "GAMEPADLEFTTARGETMODIFIER", "GAMEPADRIGHTTARGETMODIFIER",
