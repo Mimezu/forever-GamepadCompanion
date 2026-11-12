@@ -501,7 +501,7 @@ end)
 -- each zone's action and the zone under the finger lit. Display only.
 ---------------------------------------------------------------------------
 local preview
-local PAD_W, PAD_H = 240, 100
+local PAD_W, PAD_H = 300, 168      -- the pad's shape on the Controller page art
 
 local function ActionLook(action)
     if action == nil or action == "none" then return nil end
@@ -537,47 +537,143 @@ local function ActionLook(action)
 end
 Touch.ActionLook = ActionLook
 
+local function SetLook(texture, icon, isAtlas)
+    if not icon then texture:Hide(); return end
+    if isAtlas then
+        texture:SetAtlas(icon)
+        texture:SetTexCoord(0, 1, 0, 1)
+    else
+        texture:SetTexture(icon)
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- (no icon border)
+    end
+    texture:Show()
+end
+
 local function Cell(parent)
     local c = CreateFrame("Frame", nil, parent)
-    c.bg = c:CreateTexture(nil, "BACKGROUND")
-    c.bg:SetAllPoints()
-    c.icon = c:CreateTexture(nil, "ARTWORK")
-    c.icon:SetSize(22, 22)
-    c.icon:SetPoint("TOP", 0, -4)
+    c.glow = c:CreateTexture(nil, "BACKGROUND", nil, 1)
+    c.glow:SetPoint("TOPLEFT", 2, -2)
+    c.glow:SetPoint("BOTTOMRIGHT", -2, 2)
+    c.glow:SetColorTexture(1, 0.78, 0.28, 0.22)
+    if c.glow.SetBlendMode then c.glow:SetBlendMode("ADD") end
+    c.glow:Hide()
+    c.frame = c:CreateTexture(nil, "ARTWORK", nil, 1)
+    c.frame:SetSize(34, 34)
+    c.frame:SetPoint("CENTER", 0, 7)
+    c.frame:SetColorTexture(0, 0, 0, 0.7)
+    c.icon = c:CreateTexture(nil, "ARTWORK", nil, 2)
+    c.icon:SetSize(32, 32)
+    c.icon:SetPoint("CENTER", c.frame)
     -- (dual input: the Touch action, small, over the Click one's corner)
-    c.touch = c:CreateTexture(nil, "OVERLAY")
-    c.touch:SetSize(13, 13)
+    c.touch = c:CreateTexture(nil, "OVERLAY", nil, 2)
+    c.touch:SetSize(15, 15)
     c.touch:SetPoint("CENTER", c.icon, "TOPRIGHT", 1, -1)
     c.touch:Hide()
     c.label = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    c.label:SetPoint("BOTTOMLEFT", 2, 3)
-    c.label:SetPoint("BOTTOMRIGHT", -2, 3)
+    c.label:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
+    c.label:SetShadowOffset(1, -1)
+    c.label:SetShadowColor(0, 0, 0, 1)
+    c.label:SetPoint("TOPLEFT", c.frame, "BOTTOMLEFT", -30, -3)
+    c.label:SetPoint("TOPRIGHT", c.frame, "BOTTOMRIGHT", 30, -3)
     c.label:SetJustifyH("CENTER")
     c.label:SetWordWrap(false)
     return c
 end
 
+local PAD_ART = { 348 / 1024, 676 / 1024, 100 / 1024, 284 / 1024 }   -- the pad on art/DualSense.tga
+local INSET = 9                                                     -- inside its outline
+
+local function Glyph(name, size)
+    local C = ns.ControllerModel
+    return C and C.Glyph(name, size) or ""
+end
+
 local function BuildPreview()
+    local S = ns.OptionsSkin
     local f = CreateFrame("Frame", "GamepadCompanionTouchPreview", UIParent)
-    f:SetSize(PAD_W + 12, PAD_H + 34)
-    f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 250)
+    f:SetSize(PAD_W + 28, PAD_H + 70)
+    f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 230)
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(false)
     f:Hide()
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0, 0, 0, 0.55)
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.title:SetPoint("TOP", 0, -5)
-    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.hint:SetPoint("BOTTOM", 0, 4)
+    if S and S.Panel then S.Panel(f) else
+        f.bg = f:CreateTexture(nil, "BACKGROUND")
+        f.bg:SetAllPoints()
+        f.bg:SetColorTexture(0.06, 0.04, 0.02, 0.85)
+    end
+    -- Header: the pad's glyph and name, the layer on the right
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetFont("Fonts\\FRIZQT__.TTF", 13, "")
+    f.title:SetTextColor(0.94, 0.86, 0.69)
+    f.title:SetPoint("TOPLEFT", 16, -12)
+    f.layerText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.layerText:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
+    f.layerText:SetTextColor(1, 0.82, 0)
+    f.layerText:SetPoint("TOPRIGHT", -16, -12)
+    local rule = f:CreateTexture(nil, "ARTWORK")
+    rule:SetPoint("TOPLEFT", 14, -32)
+    rule:SetPoint("TOPRIGHT", -14, -32)
+    rule:SetHeight(1)
+    rule:SetColorTexture(1, 0.82, 0, 0.25)
+    -- The pad, drawn as on the Controller page
+    f.pad = CreateFrame("Frame", nil, f)
+    f.pad:SetSize(PAD_W, PAD_H)
+    f.pad:SetPoint("TOP", 0, -40)
+    f.padArt = f.pad:CreateTexture(nil, "BACKGROUND")
+    f.padArt:SetAllPoints()
+    f.padArt:SetTexture("Interface\\AddOns\\GamepadCompanion\\art\\DualSense")
+    f.padArt:SetTexCoord(PAD_ART[1], PAD_ART[2], PAD_ART[3], PAD_ART[4])
+    f.lines = {}
     f.cells = {}
-    f.native = Cell(f)
-    f.native.label:SetText("Blizzard")
-    f.dot = f:CreateTexture(nil, "OVERLAY")
+    -- Split: the left half stays Blizzard's
+    f.native = CreateFrame("Frame", nil, f.pad)
+    f.native.bg = f.native:CreateTexture(nil, "BACKGROUND", nil, 2)
+    f.native.bg:SetAllPoints()
+    f.native.bg:SetColorTexture(0, 0, 0, 0.35)
+    f.native.label = f.native:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.native.label:SetPoint("CENTER")
+    f.native.label:SetText(Glyph("Shp_TouchpadL", 18) .. "\nBlizzard")
+    -- Blizzard has the pad (a window is open, chord mode)
+    f.blizzard = f.pad:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.blizzard:SetPoint("CENTER")
+    f.blizzard:SetText("Focus UI")
+    -- The finger: a soft glow and a bright core
+    f.halo = f.pad:CreateTexture(nil, "OVERLAY", nil, 5)
+    f.halo:SetSize(22, 22)
+    f.halo:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    f.halo:SetVertexColor(1, 0.78, 0.3, 0.45)
+    if f.halo.SetBlendMode then f.halo:SetBlendMode("ADD") end
+    f.dot = f.pad:CreateTexture(nil, "OVERLAY", nil, 6)
     f.dot:SetSize(8, 8)
-    f.dot:SetColorTexture(1, 0.82, 0.2, 0.95)
+    f.dot:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    f.dot:SetVertexColor(1, 0.95, 0.75, 1)
+    f.dot:SetPoint("CENTER", f.halo)
+    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.hint:SetPoint("BOTTOM", 0, 11)
+    -- Fades in and out
+    f.alpha, f.target = 0, 0
+    f:SetAlpha(0)
+    f:SetScript("OnUpdate", function(self, elapsed)
+        if self.alpha == self.target then return end
+        local step = math.min(1, (elapsed or 0) * 8)
+        self.alpha = self.alpha + (self.target - self.alpha) * step
+        if math.abs(self.target - self.alpha) < 0.02 then self.alpha = self.target end
+        self:SetAlpha(self.alpha)
+        if self.alpha == 0 then self:Hide() end
+    end)
     return f
+end
+
+local function Line(f, index)
+    local l = f.lines[index]
+    if not l then
+        l = f.pad:CreateTexture(nil, "BORDER")
+        l:SetColorTexture(0.94, 0.86, 0.69, 0.18)
+        f.lines[index] = l
+    end
+    l:ClearAllPoints()
+    l:Show()
+    return l
 end
 
 local function LayoutPreview(layer)
@@ -585,61 +681,60 @@ local function LayoutPreview(layer)
     local mode = settings.mode
     local zones = T.Zones(settings)
     local grid = T.Grid(settings, mode)
-    local left, top = 6, -20
-    local native = f.native
-    native:Hide()
+    local innerW, innerH = PAD_W - 2 * INSET, PAD_H - 2 * INSET
+    local x0, w = INSET, innerW
     for _, c in pairs(f.cells) do c:Hide() end
+    for _, l in ipairs(f.lines) do l:Hide() end
     f.zones = {}
-    local function Place(c, col, row, cols, rows, x0, w)
-        local cw, ch = w / cols, PAD_H / rows
-        c:ClearAllPoints()
-        c:SetSize(cw - 2, ch - 2)
-        c:SetPoint("TOPLEFT", f, "TOPLEFT", x0 + (col - 1) * cw + 1, top - (row - 1) * ch - 1)
-        c:Show()
-    end
+    f.native:SetShown(mode == "split")
     if mode == "split" then
-        Place(native, 1, 1, 1, 1, left, PAD_W / 2)
-        native.bg:SetColorTexture(0.25, 0.25, 0.3, 0.6)
-        native.icon:Hide()
+        f.native:ClearAllPoints()
+        f.native:SetPoint("TOPLEFT", f.pad, "TOPLEFT", INSET, -INSET)
+        f.native:SetSize(innerW / 2, innerH)
+        x0, w = INSET + innerW / 2, innerW / 2
     end
-    for i, zone in ipairs(zones) do
-        local c = f.cells[zone] or Cell(f)
+    local cw, ch = w / grid.cols, innerH / grid.rows
+    -- Dividers between the zones
+    local n = 0
+    for col = (mode == "split" and 0 or 1), grid.cols - 1 do
+        n = n + 1
+        local l = Line(f, n)
+        l:SetSize(1, innerH - 8)
+        l:SetPoint("TOPLEFT", f.pad, "TOPLEFT", x0 + col * cw, -INSET - 4)
+    end
+    for row = 1, grid.rows - 1 do
+        n = n + 1
+        local l = Line(f, n)
+        l:SetSize(w - 8, 1)
+        l:SetPoint("TOPLEFT", f.pad, "TOPLEFT", x0 + 4, -INSET - row * ch)
+    end
+    local dual = mode == "chord" and settings.input == "dual"
+    for _, zone in ipairs(zones) do
+        local c = f.cells[zone] or Cell(f.pad)
         f.cells[zone] = c
         f.zones[zone] = true
         local row, col = zone:match("^r(%d)c(%d)$")
         row, col = tonumber(row), tonumber(col)
-        if mode == "split" then
-            Place(c, col, row, grid.cols, grid.rows, left + PAD_W / 2, PAD_W / 2)
-        else
-            Place(c, col, row, grid.cols, grid.rows, left, PAD_W)
-        end
+        c:ClearAllPoints()
+        c:SetSize(cw, ch)
+        c:SetPoint("TOPLEFT", f.pad, "TOPLEFT", x0 + (col - 1) * cw, -INSET - (row - 1) * ch)
         local action = settings.actions[mode][layer][zone]
         if (action == nil or action == "none") and layer ~= "base" then action = settings.actions[mode].base[zone] end
         local label, icon, isAtlas = ActionLook(action)
         c.label:SetText(label or "")
-        if icon then
-            if isAtlas then c.icon:SetAtlas(icon) else c.icon:SetTexture(icon) end
-            c.icon:Show()
-        else
-            c.icon:Hide()
-        end
-        local touch = mode == "chord" and settings.input == "dual" and settings.touchActions[layer] and settings.touchActions[layer][zone]
-        if (touch == nil or touch == "none") and layer ~= "base" and mode == "chord" and settings.input == "dual" then
-            touch = settings.touchActions.base[zone]
-        end
+        SetLook(c.icon, icon, isAtlas)
+        c.frame:SetShown(icon ~= nil)
+        local touch = dual and settings.touchActions[layer] and settings.touchActions[layer][zone]
+        if dual and (touch == nil or touch == "none") and layer ~= "base" then touch = settings.touchActions.base[zone] end
         local _, tIcon, tAtlas = ActionLook(touch)
-        if tIcon then
-            if tAtlas then c.touch:SetAtlas(tIcon) else c.touch:SetTexture(tIcon) end
-            c.touch:Show()
-        else
-            c.touch:Hide()
-        end
+        SetLook(c.touch, tIcon, tAtlas)
+        c:Show()
     end
 end
 
 local function UpdatePreview(x, y, show)
     if not show then
-        if preview then preview:Hide() end
+        if preview and preview:IsShown() then preview.target = 0 end
         return
     end
     preview = preview or BuildPreview()
@@ -654,15 +749,23 @@ local function UpdatePreview(x, y, show)
     local blizzard = mode == "chord" and not lastOurs
     local zone = not onNative and T.ZoneAt(mode, x, y, T.Grid(settings, mode)) or nil
     for z, c in pairs(preview.cells) do
-        if z == zone and preview.zones[z] and not blizzard then c.bg:SetColorTexture(1, 0.82, 0.2, 0.35)
-        else c.bg:SetColorTexture(1, 1, 1, 0.08) end
+        local lit = z == zone and preview.zones[z] and not blizzard
+        c.glow:SetShown(lit and true or false)
+        c.label:SetTextColor(lit and 1 or 0.94, lit and 0.82 or 0.86, lit and 0 or 0.69)
+        c:SetAlpha(blizzard and 0.3 or 1)
     end
-    preview.native.bg:SetColorTexture(onNative and 0.4 or 0.25, onNative and 0.6 or 0.25, onNative and 1 or 0.3, 0.6)
-    preview.title:SetText(blizzard and "Touchpad: Blizzard (Focus UI)"
-        or ("Touchpad" .. (layer ~= "base" and (" | " .. T.LAYER_LABELS[layer]) or "")))
-    preview.hint:SetText(mode == "chord" and "L1 + touchpad: Focus UI" or "Left half: Focus UI")
-    preview.dot:ClearAllPoints()
-    preview.dot:SetPoint("CENTER", preview, "TOPLEFT", 6 + (x + 1) / 2 * PAD_W, -20 - (1 - y) / 2 * PAD_H)
+    preview.native.bg:SetColorTexture(onNative and 0.25 or 0, onNative and 0.4 or 0, onNative and 0.8 or 0, 0.35)
+    preview.blizzard:SetShown(blizzard)
+    preview.title:SetText(Glyph("Shp_TouchpadL", 16) .. "  Touchpad")
+    preview.layerText:SetText(blizzard and "Blizzard" or (layer ~= "base" and ns.ControllerModel
+        and ns.ControllerModel.Combo(layer, nil, 16) or ""))
+    preview.hint:SetText(mode == "chord" and (Glyph("Shp_LShoulder", 14) .. " + " .. Glyph("Shp_TouchpadL", 14) .. "  Focus UI")
+        or "Left half  ·  Focus UI")
+    local inner = PAD_W - 2 * INSET
+    preview.halo:ClearAllPoints()
+    preview.halo:SetPoint("CENTER", preview.pad, "TOPLEFT", INSET + (x + 1) / 2 * inner,
+        -INSET - (1 - y) / 2 * (PAD_H - 2 * INSET))
+    preview.target = 1
     preview:Show()
 end
 

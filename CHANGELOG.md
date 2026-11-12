@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1 — 2026-11-12
+
+- Touchpad preview restyled: Forever panel, the pad as drawn on the Controller page, glowing finger, fades in and out
+
 ## 0.9.0 — 2026-11-12
 
 - Choose: a picker for spells (by spellbook line), items, macros, Halo rings, windows, typed macros
