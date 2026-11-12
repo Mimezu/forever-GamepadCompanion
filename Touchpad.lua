@@ -566,6 +566,11 @@ local function Cell(parent)
     c.icon = c:CreateTexture(nil, "ARTWORK")
     c.icon:SetSize(22, 22)
     c.icon:SetPoint("TOP", 0, -4)
+    -- (dual input: the Touch action, small, over the Click one's corner)
+    c.touch = c:CreateTexture(nil, "OVERLAY")
+    c.touch:SetSize(13, 13)
+    c.touch:SetPoint("CENTER", c.icon, "TOPRIGHT", 1, -1)
+    c.touch:Hide()
     c.label = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     c.label:SetPoint("BOTTOMLEFT", 2, 3)
     c.label:SetPoint("BOTTOMRIGHT", -2, 3)
@@ -639,6 +644,17 @@ local function LayoutPreview(layer)
             c.icon:Show()
         else
             c.icon:Hide()
+        end
+        local touch = mode == "chord" and settings.input == "dual" and settings.touchActions[layer] and settings.touchActions[layer][zone]
+        if (touch == nil or touch == "none") and layer ~= "base" and mode == "chord" and settings.input == "dual" then
+            touch = settings.touchActions.base[zone]
+        end
+        local _, tIcon, tAtlas = ActionLook(touch)
+        if tIcon then
+            if tAtlas then c.touch:SetAtlas(tIcon) else c.touch:SetTexture(tIcon) end
+            c.touch:Show()
+        else
+            c.touch:Hide()
         end
     end
 end
