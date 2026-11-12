@@ -56,11 +56,18 @@ local function PadStyle()
     return state and state.labelStyle
 end
 
+-- The controller's vendor and product IDs. This client hides the raw state
+-- from addons, so a PlayStation pad without them is taken as a DualSense
+-- (the pad whose touchpad buttons Companion knows).
+local DUALSENSE = { vendorID = 1356, productID = 3302 }
 local function DeviceID()
-    if not (C_GamePad and C_GamePad.GetDeviceRawState and C_GamePad.GetActiveDeviceID) then return nil end
-    local ok, raw = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
-    if not ok or type(raw) ~= "table" or not raw.vendorID then return nil end
-    return { vendorID = raw.vendorID, productID = raw.productID }
+    if C_GamePad and C_GamePad.GetDeviceRawState and C_GamePad.GetActiveDeviceID then
+        local ok, raw = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
+        if ok and type(raw) == "table" and raw.vendorID then
+            return { vendorID = raw.vendorID, productID = raw.productID }
+        end
+    end
+    if PadStyle() == "Shapes" then return { vendorID = DUALSENSE.vendorID, productID = DUALSENSE.productID } end
 end
 
 -- A button's index in GetGamePadState().buttons (1-based)

@@ -91,7 +91,7 @@ C_GamePad = {
         return { labelStyle = pad.labelStyle, name = "DualSense", sticks = { [4] = { x = pad.x, y = pad.y, len = (pad.x == 0 and pad.y == 0) and 0 or 1 } },
             buttons = buttons }
     end,
-    GetDeviceRawState = function() return { vendorID = pad.vendorID, productID = pad.productID } end,
+    GetDeviceRawState = function() if pad.hideRaw then return nil end return { vendorID = pad.vendorID, productID = pad.productID } end,
     GetConfig = function(id) return configs[id.vendorID .. ":" .. id.productID] end,
     SetConfig = function(config) configs[config.configID.vendorID .. ":" .. config.configID.productID] = config end,
     DeleteConfig = function(id) configs[id.vendorID .. ":" .. id.productID] = nil end,
@@ -464,6 +464,7 @@ do
     shownWindows, uiFocused, coreOnly = 0, false, true
     configs["1356:3302"] = nil
     cvars.GamePadTouchTapButtons = "0"
+    pad.hideRaw = true   -- (the live client hides the raw state)
     check(Touch.SetInput("dual"), "input dual")
     check(T.IsClickMoved(configs["1356:3302"]) and not T.IsSplit(configs["1356:3302"]), "dual: click on PAD6, halves untouched")
     eq(cvars.GamePadTouchTapButtons, "1", "dual: taps press the pad")
@@ -514,6 +515,7 @@ do
     eq(configs["1356:3302"], nil, "input click: config gone")
     eq(cvars.GamePadTouchTapButtons, "0", "input click: tap setting back")
     eq(click:GetAttribute("gpc-dual"), 0, "input click: no touch path")
+    pad.hideRaw = nil
     local saved = T.Normalize(GamepadCompanionTouchDB)
     eq(saved.touchActions.base.r1c1, "text:/wave", "touch action saved")
 end

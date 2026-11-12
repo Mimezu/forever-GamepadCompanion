@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.2 — 2026-11-11
+
+- Fixed: Touch + click and Right half said No controller
+
 ## 0.7.1 — 2026-11-11
 
 - Fixed: taps ran the middle zone instead of the one tapped
