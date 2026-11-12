@@ -306,6 +306,14 @@ local function Tools(v, x, y, widths, height)
     end
 end
 
+-- The Controller page (every button, every layer)
+local function ControllerButton(v, x, y, width, height, size)
+    v.controllerPage = Button(v.frame, "Controller", x, y, width, function()
+        if API.ToggleController then API.ToggleController() end
+    end, nil, size, height)
+    Tooltip(v.controllerPage, "Controller", "Every button, every layer")
+end
+
 local SelectStyle
 local function StyleSwitch(v, x, y, height)
     local label = Text(v.frame, "Style", x, 0, nil, 11, DIM)
@@ -518,6 +526,7 @@ local function BuildClassic()
     ResetRow(v, 0, -316, { 169, 169, 170 })
     v.status = Note(v.frame, 4, -350, 512, 2)
     S.Heading(v.frame, "TOOLS", 0, -388, 520)
+    ControllerButton(v, 418, -384, 102, 20, 11)
     Tools(v, 0, -412, { 128, 84, 84, 108, 92 })
     StyleSwitch(v, 4, -456)
     Button(v.frame, "Close", 418, -456, 102, function() window:Hide() end)
@@ -544,6 +553,7 @@ local function BuildLegacy()
     ResetRow(v, 12, -332, { 168, 168, 168 })
     v.status = Note(v.frame, 4, -380, 532, 2)
     S.Card(v.frame, "Tools", 0, -414, 540, 74)
+    ControllerButton(v, 392, -418, 136, 22, 11)
     Tools(v, 12, -452, { 128, 84, 84, 104, 92 })
     Footer(v, -498)
     return v
@@ -563,6 +573,7 @@ local function BuildController()
     ResetRow(v, 12, -374, { 168, 168, 168 }, 28)
     v.status = Note(v.frame, 4, -422, 532, 2)
     S.Card(v.frame, "Tools", 0, -456, 540, 76)
+    ControllerButton(v, 392, -460, 136, 22, 11)
     Tools(v, 12, -494, { 128, 84, 84, 104, 92 }, 28)
     Footer(v, -542, 28)
     return v

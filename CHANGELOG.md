@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 — 2026-11-12
+
+- Controller page (`/gpc pad`): the whole DualSense, every bar slot on every layer and page
+- Drop, pick up and clear actions on it; other buttons show what they run
+- Holding L2 / R2 shows that layer; pressed buttons light up
+
 ## 0.7.3 — 2026-11-11
 
 - Tap time: 350 ms by default, 150 to 600

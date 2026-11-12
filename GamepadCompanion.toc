@@ -2,7 +2,7 @@
 ## Title: Gamepad Companion
 ## Notes: Controller bar layout and suite integration for Blizzard's Forever gamepad UI.
 ## Author: Mimezu
-## Version: 0.7.3
+## Version: 0.8.0
 ## X-GamepadCompanion-Client: Forever
 ## SavedVariables: GamepadCompanionDB, GamepadCompanionEditModeDB, GamepadCompanionFormNames, GamepadCompanionTouchDB
 ## LoadSavedVariablesFirst: 1
@@ -14,6 +14,7 @@ Model.lua
 Core.lua
 CameraPitch.lua
 TouchModel.lua
+ControllerModel.lua
 Touchpad.lua
 SpreadOverview.lua
 NativeLayoutExport.lua
@@ -21,3 +22,4 @@ EditMode.lua
 OptionsSkin.lua
 Options.lua
 TouchWindow.lua
+ControllerWindow.lua

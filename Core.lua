@@ -736,6 +736,7 @@ local commandHelp = {
     "/gpc gamepad  Blizzard options",
     "/gpc edit  gamepad layout",
     "/gpc touch  touchpad window",
+    "/gpc pad  controller page",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
@@ -746,6 +747,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "touch" and API.Touch then
         API.Touch.Command(rest)
+        return
+    end
+    if (command == "pad" or command == "controller") and API.ToggleController then
+        API.ToggleController()
         return
     end
     if command == "reset" then

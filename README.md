@@ -14,6 +14,7 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 - Spread view shows all 4 bars side by side, for dragging spells onto them.
 - Changes made in combat apply after combat.
 - `/gpc touch` opens the Touchpad window: zones, grid, swipes, what each runs.
+- `/gpc pad` opens the Controller page: every button, layer and page on a DualSense drawing.
 
 | Command | Does |
 |---|---|
@@ -24,6 +25,7 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 | `/gpc gamepad` | Blizzard gamepad options |
 | `/gpc edit` | Gamepad Edit Mode layout |
 | `/gpc touch` | Touchpad window |
+| `/gpc pad` | Controller page |
 | `/gpc help` | Commands in chat |
 
 ## Data

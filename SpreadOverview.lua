@@ -298,3 +298,5 @@ function ns.UpdateSpreadOverview(state)
 end
 
 ns.DiscoverFormStorage = Discover
+-- Shared with the Controller page
+ns.GamepadSlotDrop, ns.GamepadSlotEditable, ns.GamepadEmptyAtlas = Receive, Editable, EmptyAtlas
