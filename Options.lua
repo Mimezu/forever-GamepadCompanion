@@ -298,6 +298,12 @@ local function Tools(v, x, y, widths, height)
         if InCombatLockdown() then Notice("Not in combat") end
     end)
     v.layouts = layouts
+    if widths[5] then
+        left = left + widths[4] + 6
+        v.touchpad = Button(v.frame, "Touchpad", left, y, widths[5], function()
+            if API.ToggleTouchpad then API.ToggleTouchpad() end
+        end, nil, nil, height)
+    end
 end
 
 local SelectStyle
@@ -512,7 +518,7 @@ local function BuildClassic()
     ResetRow(v, 0, -316, { 169, 169, 170 })
     v.status = Note(v.frame, 4, -350, 512, 2)
     S.Heading(v.frame, "TOOLS", 0, -388, 520)
-    Tools(v, 0, -412, { 142, 110, 110, 140 })
+    Tools(v, 0, -412, { 128, 84, 84, 108, 92 })
     StyleSwitch(v, 4, -456)
     Button(v.frame, "Close", 418, -456, 102, function() window:Hide() end)
     return v
@@ -538,7 +544,7 @@ local function BuildLegacy()
     ResetRow(v, 12, -332, { 168, 168, 168 })
     v.status = Note(v.frame, 4, -380, 532, 2)
     S.Card(v.frame, "Tools", 0, -414, 540, 74)
-    Tools(v, 12, -452, { 138, 111, 111, 138 })
+    Tools(v, 12, -452, { 128, 84, 84, 104, 92 })
     Footer(v, -498)
     return v
 end
@@ -557,7 +563,7 @@ local function BuildController()
     ResetRow(v, 12, -374, { 168, 168, 168 }, 28)
     v.status = Note(v.frame, 4, -422, 532, 2)
     S.Card(v.frame, "Tools", 0, -456, 540, 76)
-    Tools(v, 12, -494, { 138, 111, 111, 138 }, 28)
+    Tools(v, 12, -494, { 128, 84, 84, 104, 92 }, 28)
     Footer(v, -542, 28)
     return v
 end
@@ -728,7 +734,7 @@ local topics = {
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
     { "Visibility", "Frame Gambit\nCompanion: placement and size only" },
     { "Window styles", "A  Controller (default)\nB  Legacy window\nC  Classic\nSettings shared" },
-    { "Commands", "/gpc  window\n/gpc on | off  my layout\n/gpc reset  both layouts\n/gpc style A | B | C\n/gpc gamepad  Blizzard options\n/gpc edit  gamepad layout\n/gpc touch  touchpad\n/gpc help  commands in chat" },
+    { "Commands", "/gpc  window\n/gpc on | off  my layout\n/gpc reset  both layouts\n/gpc style A | B | C\n/gpc gamepad  Blizzard options\n/gpc edit  gamepad layout\n/gpc touch  touchpad window\n/gpc help  commands in chat" },
 }
 
 function API.ToggleHelp()

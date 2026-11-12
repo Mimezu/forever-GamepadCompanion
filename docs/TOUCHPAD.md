@@ -1,27 +1,48 @@
 # Touchpad zones
 
-`/gpc touch on` turns them on. Blizzard's own touchpad function (an open window takes the
-pad, or gives it back to the world) stays reachable in both modes:
+PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens the Touchpad window.
 
-- **Mode B, chord** (default, `/gpc touch mode chord`): the whole pad is six zones (3 × 2)
-  while the world has the pad, even with windows open. A focused window gets the plain click
-  back, so one click takes you out of it. **L1 + touchpad** always runs Blizzard's function,
-  in combat too. Change the button with `/gpc touch chord PADRSHOULDER`.
-- **Mode A, split** (`/gpc touch mode split`): a gamepad config makes the touchpad's right
-  half its own button (`PAD6`), with three zones top to bottom. The left half stays
-  Blizzard's. Turning it off (or `/gpc touch restore`) puts your controller config back.
+## Window
 
-Setting zones (no settings tab yet):
+- **Touchpad zones**: on or off.
+- **Pad**: Whole pad (L1 + touchpad does Blizzard's focus) or Right half (left half stays Blizzard's).
+- **Grid**: whole pad up to 4 × 3, right half up to 2 × 4.
+- **Layer**: Base, L2, R2, L2 + R2, held while clicking. An empty zone does what Base does.
+- **Tiles**: click one to select it. Drop a spell, item or macro on it to set it.
+- **Swipes**: press, slide and let go. Once a swipe is set, zones act on release.
+- **Right side**: windows, a dropped spell, item or macro, or typed macro text.
 
-- `/gpc touch set tl character`: a game window (`/gpc touch windows` lists them).
-- `/gpc touch set tr lt`: with a spell, item or macro on the cursor, the L2 layer's zone.
-- `/gpc touch clear tl`, `/gpc touch list`.
-- Zones: `tl tc tr bl bc br` in mode B, `top mid bot` in mode A. An empty L2 / R2 zone uses
-  Base.
+## Commands
 
-While your finger moves on the pad, a small drawing of it shows each zone and lights the one
-under your finger (`/gpc touch preview off` hides it). `/gpc touch probe` prints what the pad
-reports; `/gpc touch debug on` prints each click's zone. If Improved Forever's touchpad corners
-are on, mode B stays out of their way.
+| Command | Does |
+|---|---|
+| `/gpc touch` | Window |
+| `/gpc touch status` | State in chat |
+| `/gpc touch on`, `off` | Zones on or off |
+| `/gpc touch mode chord`, `split` | Whole pad or right half |
+| `/gpc touch grid 3 2` | Columns and rows |
+| `/gpc touch set r1c2 lt map` | Zone, layer, window |
+| `/gpc touch set swipe-up` | Swipe, from the cursor |
+| `/gpc touch clear r1c2` | Clear |
+| `/gpc touch list`, `windows` | Lists |
+| `/gpc touch chord PADRSHOULDER` | Focus chord button |
+| `/gpc touch probe`, `debug on` | What the pad reports |
+| `/gpc touch restore` | Off, controller config back |
 
-The secure-click method comes from Improved Forever's touchpad corners (markgravity, MIT).
+Zones are `r<row>c<col>`, row 1 at the top. Swipes: `swipe-up`, `swipe-down`, `swipe-left`, `swipe-right`.
+
+## How it works
+
+- A touchpad click presses a secure button. Its snippet reads the finger (`GetGamePadState().sticks[4]`) and the triggers, picks the zone or swipe, and runs that macro. It works in combat.
+- Whole pad: `PADBACK` is bound to the button while no window has focus. `CTRL-PADBACK` (L1) stays `TOGGLEUIFOCUS`.
+- Right half: a gamepad config moves raw button 22 to `PAD6`. Off or `restore` puts your config back.
+- Blizzard's core set re-binds `PADBACK`; Companion puts its binding back on top out of combat.
+- The game's touch cursor is off while Companion has the pad.
+- Steps aside while Improved Forever's touchpad corners are on.
+- Settings change in combat apply after combat.
+- Method from Improved Forever's touchpad corners (markgravity, MIT).
+
+## Not checked in game
+
+- `PAD6` presses reaching bindings (Right half).
+- The finger position at release (swipes) and without a click (preview).

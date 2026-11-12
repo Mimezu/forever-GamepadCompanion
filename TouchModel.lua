@@ -19,21 +19,72 @@ ns.TouchModel = T
 T.MODES = { chord = true, split = true }
 T.MODE_ALIASES = { b = "chord", chord = "chord", a = "split", split = "split" }
 
-T.ZONES = {
-    chord = { "tl", "tc", "tr", "bl", "bc", "br" },   -- the whole pad, 3 x 2
-    split = { "top", "mid", "bot" },                  -- the right half, 3 rows
-}
-T.ZONE_LABELS = {
-    tl = "Top left", tc = "Top centre", tr = "Top right",
-    bl = "Bottom left", bc = "Bottom centre", br = "Bottom right",
-    top = "Top", mid = "Middle", bot = "Bottom",
-}
+-- Zones are a grid: "r<row>c<col>", row 1 at the top. chord covers the whole
+-- pad; split covers the right half only.
+T.GRID_LIMITS = { chord = { cols = 4, rows = 3 }, split = { cols = 2, rows = 4 } }
+T.DEFAULT_GRID = { chord = { cols = 3, rows = 2 }, split = { cols = 1, rows = 3 } }
+-- Swipes: the finger moves at least SWIPE_MIN (the pad is 2 wide) while pressed
+T.GESTURES = { "swipe-up", "swipe-down", "swipe-left", "swipe-right" }
+T.GESTURE_LABELS = { ["swipe-up"] = "Swipe up", ["swipe-down"] = "Swipe down",
+    ["swipe-left"] = "Swipe left", ["swipe-right"] = "Swipe right" }
+T.SWIPE_MIN = 0.6
+
+function T.ZoneId(row, col) return "r" .. row .. "c" .. col end
+
+-- Every zone id a mode can have (its largest grid)
+T.ALL_ZONES = {}
+for mode, limit in pairs(T.GRID_LIMITS) do
+    T.ALL_ZONES[mode] = {}
+    for row = 1, limit.rows do
+        for col = 1, limit.cols do T.ALL_ZONES[mode][#T.ALL_ZONES[mode] + 1] = T.ZoneId(row, col) end
+    end
+end
+
+-- The grid a settings table uses for a mode
+function T.Grid(settings, mode)
+    local g = settings and settings.grid and settings.grid[mode]
+    return g or T.DEFAULT_GRID[mode]
+end
+
+-- The zones in use, row by row
+function T.Zones(settings, mode)
+    mode = mode or settings.mode
+    local g, list = T.Grid(settings, mode), {}
+    for row = 1, g.rows do
+        for col = 1, g.cols do list[#list + 1] = T.ZoneId(row, col) end
+    end
+    return list
+end
+
+local ROW_NAMES = { [2] = { "Top", "Bottom" }, [3] = { "Top", "Middle", "Bottom" } }
+local COL_NAMES = { [2] = { "left", "right" }, [3] = { "left", "centre", "right" } }
+-- "Top left", "Middle", "Row 2, column 4", "Whole pad"
+function T.ZoneLabel(zone, grid)
+    local gesture = T.GESTURE_LABELS[zone]
+    if gesture then return gesture end
+    local row, col = tostring(zone):match("^r(%d)c(%d)$")
+    row, col = tonumber(row), tonumber(col)
+    if not row then return tostring(zone) end
+    grid = grid or { cols = 4, rows = 4 }
+    local r = ROW_NAMES[grid.rows] and ROW_NAMES[grid.rows][row]
+    local c = COL_NAMES[grid.cols] and COL_NAMES[grid.cols][col]
+    if grid.rows == 1 and grid.cols == 1 then return "Whole pad" end
+    if grid.rows == 1 then return c and (c:sub(1, 1):upper() .. c:sub(2)) or ("Column " .. col) end
+    if grid.cols == 1 then return r or ("Row " .. row) end
+    if r and c then return r .. " " .. c end
+    return "Row " .. row .. ", column " .. col
+end
+
 -- As the crossbar's: Base, L2 held, R2 held, both held
 T.LAYERS = { "base", "lt", "rt", "both" }
 T.LAYER_LABELS = { base = "Base", lt = "L2", rt = "R2", both = "L2 + R2" }
 
--- (column edges of the 3 x 2 grid, row edges of the 3 rows; x and y run -1..1)
-T.EDGE = 1 / 3
+-- Old zone names (0.5.0)
+T.OLD_ZONES = {
+    chord = { tl = "r1c1", tc = "r1c2", tr = "r1c3", bl = "r2c1", bc = "r2c2", br = "r2c3" },
+    split = { top = "r1c1", mid = "r2c1", bot = "r3c1" },
+}
+
 
 T.PAD_STICK = 4            -- the touchpad's finger position (PStick)
 T.PAD_KEY = "PADBACK"      -- the touchpad click, both halves by default
@@ -46,9 +97,9 @@ T.MODIFIERS = { "ALT", "CTRL", "SHIFT" }
 T.EMULATE_CVARS = { ALT = "GamePadEmulateAlt", CTRL = "GamePadEmulateCtrl", SHIFT = "GamePadEmulateShift" }
 
 local DEFAULT_ACTIONS = {
-    chord = { base = { tl = "window:character", tc = "window:spellbook", tr = "window:questlog",
-        bl = "window:talents", bc = "window:professions", br = "window:bags" } },
-    split = { base = { top = "window:character", mid = "window:questlog", bot = "window:bags" } },
+    chord = { base = { r1c1 = "window:character", r1c2 = "window:spellbook", r1c3 = "window:questlog",
+        r2c1 = "window:talents", r2c2 = "window:professions", r2c3 = "window:bags" } },
+    split = { base = { r1c1 = "window:character", r2c1 = "window:questlog", r3c1 = "window:bags" } },
 }
 
 local function Copy(value)
@@ -64,38 +115,73 @@ local function ValidAction(action)
 end
 T.ValidAction = ValidAction
 
+local function Clamp(value, low, high, default)
+    value = tonumber(value)
+    if not value then return default end
+    value = math.floor(value)
+    return value < low and low or (value > high and high or value)
+end
+
 function T.Normalize(raw)
     raw = type(raw) == "table" and raw or {}
     local out = {
-        version = 1,
+        version = 2,
         enabled = raw.enabled == true,
         mode = T.MODES[raw.mode] and raw.mode or "chord",
         preview = raw.preview ~= false,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,
         actions = {},
         split = type(raw.split) == "table" and Copy(raw.split) or {},
+        grid = {},
     }
+    for mode, limit in pairs(T.GRID_LIMITS) do
+        local g = type(raw.grid) == "table" and type(raw.grid[mode]) == "table" and raw.grid[mode] or {}
+        out.grid[mode] = { cols = Clamp(g.cols, 1, limit.cols, T.DEFAULT_GRID[mode].cols),
+            rows = Clamp(g.rows, 1, limit.rows, T.DEFAULT_GRID[mode].rows) }
+    end
     local actions = type(raw.actions) == "table" and raw.actions or nil
-    for mode, zones in pairs(T.ZONES) do
+    for mode in pairs(T.MODES) do
         out.actions[mode] = {}
         local saved = actions and type(actions[mode]) == "table" and actions[mode] or nil
         for _, layer in ipairs(T.LAYERS) do
             local layerSaved = saved and type(saved[layer]) == "table" and saved[layer] or nil
             local defaults = not saved and DEFAULT_ACTIONS[mode][layer] or nil
             out.actions[mode][layer] = {}
-            for _, zone in ipairs(zones) do
-                local action = layerSaved and layerSaved[zone]
-                if layerSaved == nil and defaults then action = defaults[zone] end
+            local function Take(zone, action)
                 -- ("none": cleared by the player, kept so defaults don't come back)
                 if action == "none" or ValidAction(action) then out.actions[mode][layer][zone] = action end
+            end
+            if layerSaved == nil and defaults then
+                for zone, action in pairs(defaults) do Take(zone, action) end
+            elseif layerSaved then
+                for old, zone in pairs(T.OLD_ZONES[mode]) do
+                    if layerSaved[zone] == nil then Take(zone, layerSaved[old]) end
+                end
+                for _, zone in ipairs(T.ALL_ZONES[mode]) do
+                    if layerSaved[zone] ~= nil then Take(zone, layerSaved[zone]) end
+                end
+                for _, gesture in ipairs(T.GESTURES) do Take(gesture, layerSaved[gesture]) end
             end
         end
     end
     return out
 end
 
-function T.IsZone(mode, zone)
-    for _, z in ipairs(T.ZONES[mode] or {}) do if z == zone then return true end end
+-- A zone of the grid in use, or a swipe
+function T.IsZone(settings, mode, zone)
+    for _, z in ipairs(T.Zones(settings, mode)) do if z == zone then return true end end
+    for _, g in ipairs(T.GESTURES) do if g == zone then return true end end
+    return false
+end
+
+-- Whether any layer of a mode has a swipe set (then zones act on release)
+function T.HasSwipes(settings, mode)
+    for _, layer in ipairs(T.LAYERS) do
+        for _, g in ipairs(T.GESTURES) do
+            local a = settings.actions[mode][layer][g]
+            if a and a ~= "none" then return true end
+        end
+    end
     return false
 end
 
@@ -104,12 +190,25 @@ function T.IsLayer(layer)
     return false
 end
 
--- The zone under a finger at x, y (the snippet below does the same)
-function T.ZoneAt(mode, x, y)
-    if mode == "split" then
-        return y > T.EDGE and "top" or (y < -T.EDGE and "bot" or "mid")
-    end
-    return (y > 0 and "t" or "b") .. (x < -T.EDGE and "l" or (x > T.EDGE and "r" or "c"))
+-- The zone under a finger at x, y (-1..1, y up); the snippet below does the same
+function T.ZoneAt(mode, x, y, grid)
+    grid = grid or T.DEFAULT_GRID[mode]
+    local left, width = -1, 2
+    if mode == "split" then left, width = 0, 1 end
+    local col, row = grid.cols, grid.rows
+    for i = 1, grid.cols do if x < left + width * i / grid.cols then col = i; break end end
+    for i = 1, grid.rows do if y > 1 - 2 * i / grid.rows then row = i; break end end
+    return T.ZoneId(row, col)
+end
+
+-- The swipe from (x0, y0) to (x, y), or nil for a tap
+function T.SwipeOf(x0, y0, x, y, min)
+    local dx, dy = x - x0, y - y0
+    min = min or T.SWIPE_MIN
+    if dx * dx + dy * dy < min * min then return nil end
+    local ax, ay = dx < 0 and -dx or dx, dy < 0 and -dy or dy
+    if ax > ay then return dx > 0 and "swipe-right" or "swipe-left" end
+    return dy > 0 and "swipe-up" or "swipe-down"
 end
 
 -- The layer from the triggers held
@@ -241,22 +340,31 @@ end
 --[[ What the secure click runs, for the button's OnClick wrap (pre-body: self,
 button, down). Attributes, set out of combat by Touchpad.lua:
   gpc-mode      "chord" | "split"
+  gpc-cols/rows the grid
   gpc-stick     the touchpad's stick index
   gpc-lt/rt     the triggers' button indexes in GetGamePadState().buttons
   gpc-keydown   1: act on the press (ActionButtonUseKeyDown), 0: on the release
-  gpc-m-<layer>-<zone>  that zone's macro text
+  gpc-swipe     1: swipes are set, so act on the release (the finger may move)
+  gpc-swipe-min how far the finger moves for a swipe
+  gpc-m-<layer>-<zone>  that zone's (or swipe's) macro text
 It acts once per click (both halves of the pad can report the same press, so
-a held flag debounces: the restricted environment has no clock). A layer with
-nothing on that zone falls back to Base. ]]
+a held flag debounces: the restricted environment has no clock). The zone is
+where the press started. A layer with nothing there falls back to Base. ]]
 T.SNIPPET = [[
     self:SetAttribute("type", nil)
-    local keydown = self:GetAttribute("gpc-keydown") ~= 0
+    local swipes = self:GetAttribute("gpc-swipe") == 1
+    local keydown = self:GetAttribute("gpc-keydown") ~= 0 and not swipes
+    local state = GetGamePadState()
+    local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
+    local x, y = stick and stick.x or 0, stick and stick.y or 0
     if down then
         if self:GetAttribute("gpc-held") then
             return false
         end
         self:SetAttribute("gpc-held", true)
         self:SetAttribute("useOnKeyDown", nil)
+        self:SetAttribute("gpc-x0", x)
+        self:SetAttribute("gpc-y0", y)
         if not keydown then
             return false
         end
@@ -269,15 +377,40 @@ T.SNIPPET = [[
             return false
         end
     end
-    local state = GetGamePadState()
-    local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
-    local x, y = stick and stick.x or 0, stick and stick.y or 0
-    local edge = 1 / 3
+    local x0, y0 = self:GetAttribute("gpc-x0") or x, self:GetAttribute("gpc-y0") or y
     local zone
-    if self:GetAttribute("gpc-mode") == "split" then
-        zone = (y > edge and "top") or (y < -edge and "bot") or "mid"
-    else
-        zone = (y > 0 and "t" or "b") .. ((x < -edge and "l") or (x > edge and "r") or "c")
+    if swipes and not down then
+        local dx, dy = x - x0, y - y0
+        local min = self:GetAttribute("gpc-swipe-min") or 0.6
+        if dx * dx + dy * dy >= min * min then
+            local ax, ay = dx < 0 and -dx or dx, dy < 0 and -dy or dy
+            if ax > ay then
+                zone = dx > 0 and "swipe-right" or "swipe-left"
+            else
+                zone = dy > 0 and "swipe-up" or "swipe-down"
+            end
+        end
+    end
+    if not zone then
+        local cols, rows = self:GetAttribute("gpc-cols") or 1, self:GetAttribute("gpc-rows") or 1
+        local left, width = -1, 2
+        if self:GetAttribute("gpc-mode") == "split" then
+            left, width = 0, 1
+        end
+        local col, row = cols, rows
+        for i = 1, cols do
+            if x0 < left + width * i / cols then
+                col = i
+                break
+            end
+        end
+        for i = 1, rows do
+            if y0 > 1 - 2 * i / rows then
+                row = i
+                break
+            end
+        end
+        zone = "r" .. row .. "c" .. col
     end
     local pad = state and state.buttons
     local lti, rti = self:GetAttribute("gpc-lt"), self:GetAttribute("gpc-rt")
@@ -348,6 +481,8 @@ function T.MacroText(action, lookup)
         return tonumber(value) and ("/use item:" .. value) or nil
     elseif kind == "macro" then
         return lookup.macroBody(value)
+    elseif kind == "text" then
+        return value
     end
 end
 

@@ -198,7 +198,7 @@ click:SetScript("PostClick", function(self, _, down)
     local zone, layer = self:GetAttribute("gpc-zone"), self:GetAttribute("gpc-layer")
     lastClick = { at = GetTime(), zone = zone, layer = layer }
     if debug then
-        Say(("touch: %s, %s -> %s"):format(tostring(T.ZONE_LABELS[zone] or zone), tostring(T.LAYER_LABELS[layer] or layer),
+        Say(("touch: %s, %s -> %s"):format(tostring(T.ZoneLabel(zone, T.Grid(settings, settings.mode))), tostring(T.LAYER_LABELS[layer] or layer),
             self:GetAttribute("type") and tostring(self:GetAttribute("macrotext")):gsub("\n", " | ") or "nothing"))
     end
 end)
@@ -255,13 +255,22 @@ function Touch.Apply()
     click:SetAttribute("gpc-keydown", GetCVarSafe("ActionButtonUseKeyDown") == "0" and 0 or 1)
     click:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
     click:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
-    for mode, zones in pairs(T.ZONES) do
-        for _, layer in ipairs(T.LAYERS) do
-            for _, zone in ipairs(zones) do
-                local macro = mode == settings.mode and settings.enabled
-                    and T.MacroText(settings.actions[mode][layer][zone], lookup) or nil
-                click:SetAttribute("gpc-m-" .. layer .. "-" .. zone, macro)
-            end
+    local grid = T.Grid(settings, settings.mode)
+    click:SetAttribute("gpc-cols", grid.cols)
+    click:SetAttribute("gpc-rows", grid.rows)
+    click:SetAttribute("gpc-swipe", T.HasSwipes(settings, settings.mode) and 1 or 0)
+    click:SetAttribute("gpc-swipe-min", T.SWIPE_MIN)
+    local inUse = {}
+    for _, zone in ipairs(T.Zones(settings)) do inUse[zone] = true end
+    for _, zone in ipairs(T.GESTURES) do inUse[zone] = true end
+    local every = {}
+    for _, zones in pairs(T.ALL_ZONES) do for _, zone in ipairs(zones) do every[zone] = true end end
+    for _, zone in ipairs(T.GESTURES) do every[zone] = true end
+    for _, layer in ipairs(T.LAYERS) do
+        for zone in pairs(every) do
+            local macro = settings.enabled and inUse[zone]
+                and T.MacroText(settings.actions[settings.mode][layer][zone], lookup) or nil
+            click:SetAttribute("gpc-m-" .. layer .. "-" .. zone, macro)
         end
     end
     -- The split config
@@ -342,6 +351,9 @@ local function ActionLook(action)
     elseif kind == "macro" then
         local name, icon = GetMacroInfo(value)
         return name or value, icon
+    elseif kind == "text" then
+        local first = value:match("^[^\n]*") or value
+        return #first > 24 and (first:sub(1, 23) .. "…") or first, "Interface\\Icons\\INV_Misc_Note_01"
     end
     return action
 end
@@ -388,11 +400,13 @@ end
 local function LayoutPreview(layer)
     local f = preview
     local mode = settings.mode
-    local zones = T.ZONES[mode]
+    local zones = T.Zones(settings)
+    local grid = T.Grid(settings, mode)
     local left, top = 6, -20
     local native = f.native
     native:Hide()
     for _, c in pairs(f.cells) do c:Hide() end
+    f.zones = {}
     local function Place(c, col, row, cols, rows, x0, w)
         local cw, ch = w / cols, PAD_H / rows
         c:ClearAllPoints()
@@ -408,10 +422,13 @@ local function LayoutPreview(layer)
     for i, zone in ipairs(zones) do
         local c = f.cells[zone] or Cell(f)
         f.cells[zone] = c
+        f.zones[zone] = true
+        local row, col = zone:match("^r(%d)c(%d)$")
+        row, col = tonumber(row), tonumber(col)
         if mode == "split" then
-            Place(c, 1, i, 1, 3, left + PAD_W / 2, PAD_W / 2)
+            Place(c, col, row, grid.cols, grid.rows, left + PAD_W / 2, PAD_W / 2)
         else
-            Place(c, (i - 1) % 3 + 1, i <= 3 and 1 or 2, 3, 2, left, PAD_W)
+            Place(c, col, row, grid.cols, grid.rows, left, PAD_W)
         end
         local action = settings.actions[mode][layer][zone]
         if (action == nil or action == "none") and layer ~= "base" then action = settings.actions[mode].base[zone] end
@@ -441,9 +458,9 @@ local function UpdatePreview(x, y, show)
     local mode = settings.mode
     local onNative = mode == "split" and x < 0
     local blizzard = mode == "chord" and not lastOurs
-    local zone = not onNative and T.ZoneAt(mode, x, y) or nil
+    local zone = not onNative and T.ZoneAt(mode, x, y, T.Grid(settings, mode)) or nil
     for z, c in pairs(preview.cells) do
-        if z == zone and not blizzard then c.bg:SetColorTexture(1, 0.82, 0.2, 0.35)
+        if z == zone and preview.zones[z] and not blizzard then c.bg:SetColorTexture(1, 0.82, 0.2, 0.35)
         else c.bg:SetColorTexture(1, 1, 1, 0.08) end
     end
     preview.native.bg:SetColorTexture(onNative and 0.4 or 0.25, onNative and 0.6 or 0.25, onNative and 1 or 0.3, 0.6)
@@ -507,6 +524,7 @@ end)
 local function Changed(message)
     Touch.RefreshPreview()
     Touch.Apply()
+    if Touch.Notify then Touch.Notify() end
     Say(message .. (pending and " · after combat" or ""))
 end
 
@@ -540,10 +558,13 @@ end
 
 local function PrintList()
     local mode = settings.mode
-    Say(("zones, mode %s:"):format(mode == "chord" and "B (chord, 3 x 2)" or "A (split, right half)"))
+    local grid = T.Grid(settings, mode)
+    Say(("zones, %s, %d x %d:"):format(mode == "chord" and "whole pad" or "right half", grid.cols, grid.rows))
     for _, layer in ipairs(T.LAYERS) do
         local parts = {}
-        for _, zone in ipairs(T.ZONES[mode]) do
+        local list = T.Zones(settings)
+        for _, g in ipairs(T.GESTURES) do list[#list + 1] = g end
+        for _, zone in ipairs(list) do
             local action = settings.actions[mode][layer][zone]
             if action and action ~= "none" then parts[#parts + 1] = zone .. "=" .. ActionText(action) end
         end
@@ -605,10 +626,59 @@ local function Probe()
     end)
 end
 
+-- Setters for the Touchpad window (no chat line)
+local listeners = {}
+function Touch.OnChange(callback) listeners[#listeners + 1] = callback end
+local function Notify() for _, callback in ipairs(listeners) do pcall(callback) end end
+Touch.Notify = Notify
+local function Update()
+    Touch.RefreshPreview()
+    Touch.Apply()
+    Notify()
+end
+function Touch.Settings() return settings end
+function Touch.SetEnabled(value) settings.enabled = value == true; Update() end
+function Touch.SetMode(mode)
+    mode = T.MODE_ALIASES[mode] or mode
+    if not T.MODES[mode] then return false end
+    settings.mode = mode
+    Update()
+    return true
+end
+function Touch.SetPreview(value)
+    settings.preview = value == true
+    if not settings.preview then UpdatePreview(0, 0, false) end
+    Notify()
+end
+-- action: "window:<key>", "spell:<id>", "item:<id>", "macro:<name>" or "none"
+function Touch.SetGrid(cols, rows)
+    local limit = T.GRID_LIMITS[settings.mode]
+    cols, rows = tonumber(cols), tonumber(rows)
+    if not cols or not rows or cols < 1 or rows < 1 or cols > limit.cols or rows > limit.rows then return false end
+    settings.grid[settings.mode] = { cols = cols, rows = rows }
+    Update()
+    return true
+end
+function Touch.SetZone(layer, zone, action)
+    local mode = settings.mode
+    if not T.IsZone(settings, mode, zone) or not T.IsLayer(layer) then return false end
+    settings.actions[mode][layer][zone] = action or "none"
+    Update()
+    return true
+end
+-- The spell, item or macro on the cursor, taken off it
+function Touch.TakeCursor()
+    local action = FromCursor()
+    if action and ClearCursor then ClearCursor() end
+    return action
+end
+function Touch.IsPending() return pending end
+
 function Touch.Command(text)
     local words = {}
     for w in (text or ""):gmatch("%S+") do words[#words + 1] = w end
     local command = (words[1] or ""):lower()
+    if command == "" and API.ToggleTouchpad then return API.ToggleTouchpad() end
     if command == "" or command == "status" then return PrintStatus() end
     if command == "on" or command == "off" then
         settings.enabled = command == "on"
@@ -621,9 +691,10 @@ function Touch.Command(text)
     elseif command == "set" or command == "clear" then
         local mode = settings.mode
         local zone, layer, rest = (words[2] or ""):lower(), "base", 3
+        zone = T.OLD_ZONES[mode][zone] or zone
         if T.IsLayer((words[3] or ""):lower()) then layer, rest = words[3]:lower(), 4 end
-        if not T.IsZone(mode, zone) then
-            return Say("Zones: " .. table.concat(T.ZONES[mode], ", "))
+        if not T.IsZone(settings, mode, zone) then
+            return Say("Zones: " .. table.concat(T.Zones(settings), ", ") .. ", " .. table.concat(T.GESTURES, ", "))
         end
         local action = "none"
         if command == "set" then
@@ -638,7 +709,14 @@ function Touch.Command(text)
             end
         end
         settings.actions[mode][layer][zone] = action
-        return Changed(("%s, %s: %s."):format(T.ZONE_LABELS[zone], T.LAYER_LABELS[layer], ActionText(action)))
+        return Changed(("%s, %s: %s"):format(T.ZoneLabel(zone, T.Grid(settings, mode)), T.LAYER_LABELS[layer],
+            ActionText(action)))
+    elseif command == "grid" then
+        if not Touch.SetGrid(words[2], words[3]) then
+            local limit = T.GRID_LIMITS[settings.mode]
+            return Say(("Grid: 1-%d columns, 1-%d rows"):format(limit.cols, limit.rows))
+        end
+        return Changed(("Grid %s x %s"):format(words[2], words[3]))
     elseif command == "list" then
         return PrintList()
     elseif command == "windows" then
@@ -648,6 +726,7 @@ function Touch.Command(text)
     elseif command == "preview" then
         settings.preview = (words[2] or ""):lower() ~= "off"
         if not settings.preview then UpdatePreview(0, 0, false) end
+        Touch.Notify()
         return Say("Preview " .. (settings.preview and "on" or "off"))
     elseif command == "chord" then
         local button = (words[2] or ""):upper()
@@ -666,7 +745,8 @@ function Touch.Command(text)
         debug = (words[2] or ""):lower() ~= "off"
         return Say("Touch debug " .. (debug and "on" or "off"))
     end
-    Say("/gpc touch [on | off | mode chord|split | set <zone> [lt|rt|both] [window] | clear <zone> [layer]"
+    Say("/gpc touch [status | on | off | mode chord|split | grid <cols> <rows> | set <zone> [lt|rt|both] [window]"
+        .. " | clear <zone> [layer]"
         .. " | list | windows | preview on|off | chord <button> | probe | debug on|off | restore]")
 end
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — 2026-11-11
+
+- Touchpad window: `/gpc touch` or the Touchpad button
+- Grid of your choice, up to 4 × 3
+- Swipe up, down, left and right
+- Typed macro text on any zone or swipe
+- Drop spells, items and macros on zones
+
 ## 0.5.1 — 2026-11-11
 
 - Shorter labels, tooltips, messages and help

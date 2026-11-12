@@ -119,19 +119,31 @@ do
     local s = T.Normalize()
     eq(s.enabled, false, "off by default")
     eq(s.mode, "chord", "chord (B) by default")
-    eq(s.actions.chord.base.tl, "window:character", "default top left")
-    eq(s.actions.split.base.bot, "window:bags", "default split bottom")
+    eq(s.actions.chord.base.r1c1, "window:character", "default top left")
+    eq(s.actions.split.base.r3c1, "window:bags", "default split bottom")
+    eq(s.grid.chord.cols .. "x" .. s.grid.chord.rows, "3x2", "default grid 3 x 2")
     local cleared = T.Normalize({ actions = { chord = { base = { tl = "none", tc = "junk" } } } })
-    eq(cleared.actions.chord.base.tl, "none", "a cleared zone stays cleared")
-    eq(cleared.actions.chord.base.tc, nil, "an invalid action is dropped")
-    eq(cleared.actions.chord.base.tr, nil, "a saved layer gets no defaults back")
+    eq(cleared.actions.chord.base.r1c1, "none", "0.5.0 names: a cleared zone stays cleared")
+    eq(cleared.actions.chord.base.r1c2, nil, "an invalid action is dropped")
+    eq(cleared.actions.chord.base.r1c3, nil, "a saved layer gets no defaults back")
     eq(T.Normalize({ mode = "weird" }).mode, "chord", "unknown mode")
-    eq(T.ZoneAt("chord", -0.9, 0.5), "tl", "zone top left")
-    eq(T.ZoneAt("chord", 0, -0.5), "bc", "zone bottom centre")
-    eq(T.ZoneAt("chord", 0.5, -0.5), "br", "zone bottom right")
-    eq(T.ZoneAt("split", 0.5, 0.9), "top", "split top")
-    eq(T.ZoneAt("split", 0.5, 0), "mid", "split middle")
-    eq(T.ZoneAt("split", 0.5, -0.9), "bot", "split bottom")
+    local big = T.Normalize({ grid = { chord = { cols = 9, rows = 0 } } })
+    eq(big.grid.chord.cols .. "x" .. big.grid.chord.rows, "4x1", "grid clamped")
+    eq(T.ZoneAt("chord", -0.9, 0.5), "r1c1", "zone top left")
+    eq(T.ZoneAt("chord", 0, -0.5), "r2c2", "zone bottom centre")
+    eq(T.ZoneAt("chord", 0.5, -0.5), "r2c3", "zone bottom right")
+    eq(T.ZoneAt("split", 0.5, 0.9), "r1c1", "split top")
+    eq(T.ZoneAt("split", 0.5, 0), "r2c1", "split middle")
+    eq(T.ZoneAt("split", 0.5, -0.9), "r3c1", "split bottom")
+    eq(T.ZoneAt("chord", 0.9, -0.9, { cols = 4, rows = 3 }), "r3c4", "4 x 3 bottom right")
+    eq(T.ZoneAt("chord", -0.4, 0.2, { cols = 4, rows = 3 }), "r2c2", "4 x 3 middle")
+    eq(T.ZoneAt("chord", 0, 0, { cols = 1, rows = 1 }), "r1c1", "1 x 1")
+    eq(T.ZoneLabel("r2c3", { cols = 3, rows = 2 }), "Bottom right", "label 3 x 2")
+    eq(T.ZoneLabel("r1c1", { cols = 1, rows = 1 }), "Whole pad", "label 1 x 1")
+    eq(T.ZoneLabel("r2c4", { cols = 4, rows = 3 }), "Row 2, column 4", "label 4 x 3")
+    eq(T.SwipeOf(0, 0, 0.1, 0.1), nil, "short move: a tap")
+    eq(T.SwipeOf(-0.5, 0, 0.5, 0.2), "swipe-right", "swipe right")
+    eq(T.SwipeOf(0, 0.5, 0.1, -0.5), "swipe-down", "swipe down")
     eq(T.LayerOf(true, true), "both", "both triggers")
     eq(#T.Prefixes(), 8, "eight modifier prefixes")
     eq(T.ModifierFor("PADLSHOULDER", { CTRL = "PADLSHOULDER" }), "CTRL", "L1 emulates Ctrl")
@@ -195,6 +207,7 @@ do
     eq(T.MacroText("item:6948", lookup), "/use item:6948", "item macro")
     eq(T.MacroText("macro:Mount", lookup), "/cast Swift Horse", "macro body")
     eq(T.MacroText("none", lookup), nil, "none")
+    eq(T.MacroText("text:/sit\n/wave", lookup), "/sit\n/wave", "typed macro text")
 end
 
 ---------------------------------------------------------------------------
@@ -205,11 +218,13 @@ local snippet = assert(loadstring("local self, button, down = ...\n" .. wrapped.
 setfenv(snippet, {
     GetGamePadState = function() return C_GamePad.GetDeviceMappedState() end,
 })
--- A full press: down then up; returns what ran (macrotext) or nil
-local function Press(x, y, lt, rt)
-    pad.x, pad.y, pad.lt, pad.rt = x, y, lt or false, rt or false
+-- A full press: down at x, y, up at x2, y2 (default: the same spot);
+-- returns what ran (macrotext) or nil
+local function Press(x, y, lt, rt, x2, y2)
+    pad.lt, pad.rt = lt or false, rt or false
     local ran
     for _, down in ipairs({ true, false }) do
+        if down then pad.x, pad.y = x, y else pad.x, pad.y = x2 or x, y2 or y end
         local result = snippet(click, "LeftButton", down)
         if result ~= false and click:GetAttribute("type") == "macro" then ran = click:GetAttribute("macrotext") end
     end
@@ -253,6 +268,24 @@ eq(Press(0.8, 0.6, true, false), "/cast Fireball", "L2 + top right: the LT layer
 eq(Press(0.8, 0.6, false, true), nil, "R2 + top right: falls back to Base (Quests, no button here)")
 eq(Press(-0.8, 0.6, true, false), "/click CharacterMicroButton", "L2 + an empty LT zone: Base")
 check(fireball, "")
+
+-- Grid and swipes (window setters)
+check(Touch.SetGrid(1, 1), "grid 1 x 1")
+eq(Press(0.8, -0.8), "/click CharacterMicroButton", "1 x 1: the whole pad is the top left action")
+check(not Touch.SetGrid(5, 1), "grid over the limit refused")
+Touch.SetGrid(3, 2)
+eq(Press(0.8, 0.6, false, false, -0.8, 0.6), nil, "no swipes set: a slide is a press at its start (Quests, no button)")
+check(Touch.SetZone("base", "swipe-left", "text:/sit"), "set a swipe")
+eq(click:GetAttribute("gpc-swipe"), 1, "swipes set: act on release")
+eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/sit", "swipe left runs its macro")
+eq(Press(-0.8, 0.6, false, false, -0.7, 0.5), "/click CharacterMicroButton", "a short move is a tap where it started")
+eq(Press(0.8, 0.6, true, false, -0.8, 0.6), "/sit", "L2 + swipe: empty layer falls back to Base")
+Touch.SetZone("base", "swipe-left", "none")
+eq(click:GetAttribute("gpc-swipe"), 0, "no swipes: act on press again")
+local changes = 0
+Touch.OnChange(function() changes = changes + 1 end)
+Touch.SetPreview(true)
+check(changes == 1, "setters notify the window")
 
 -- Debounce: two downs (both halves) act once
 pad.x, pad.y = -0.8, 0.6
@@ -329,7 +362,7 @@ pad.labelStyle = "Shapes"
 -- Saved settings survive
 local saved = GamepadCompanionTouchDB
 eq(saved.enabled, true, "saved: enabled")
-eq(saved.actions.chord.lt.tr, "spell:133", "saved: the LT zone")
+eq(saved.actions.chord.lt.r1c3, "spell:133", "saved: the LT zone")
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

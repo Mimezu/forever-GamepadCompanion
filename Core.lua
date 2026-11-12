@@ -735,7 +735,7 @@ local commandHelp = {
     "/gpc style A | B | C  window style",
     "/gpc gamepad  Blizzard options",
     "/gpc edit  gamepad layout",
-    "/gpc touch  touchpad zones",
+    "/gpc touch  touchpad window",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
