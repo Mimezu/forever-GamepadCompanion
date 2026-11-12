@@ -301,8 +301,8 @@ local function Build(frame, header)
 
     -- Right: the events, in two columns
     local colW = (W - 312 - 10) / 2
-    Column(frame, { "combat" }, 312, colW)
-    Column(frame, { "casting", "rest", "wheel", "progress" }, 312 + colW + 10, colW)
+    Column(frame, { "combat", "progress" }, 312, colW)
+    Column(frame, { "casting", "rest", "wheel" }, 312 + colW + 10, colW)
 end
 
 Refresh = function()

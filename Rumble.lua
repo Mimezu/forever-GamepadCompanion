@@ -228,7 +228,7 @@ V.GROUPS = {
     { key = "combat", label = "Combat" },
     { key = "casting", label = "Casting" },
     { key = "rest", label = "Food & drink" },
-    { key = "wheel", label = "Wheel" },
+    { key = "wheel", label = "Halo rings" },
     { key = "progress", label = "Progress" },
 }
 V.EVENTS = {
@@ -281,9 +281,15 @@ V.EVENTS = {
             .. " the drink is done. Gulp goes with your character: a sip as the hand reaches the mouth, then"
             .. " a swallow. Another pattern: played over and over. Food and drink at once (a mage's"
             .. " Refreshment, Dim Sum): both, drinking felt over eating." },
-    { key = "wheelTick", group = "wheel", label = "Slot change", icon = EVENT_ICONS .. "wheel", on = true,
-        pattern = "micro", gap = 0.03, tip = "In an open wheel, the pick moves to another slot (stick,"
-            .. " D-pad or a new page)." },
+    -- Halo's rings (Gamepad Companion; Halo tells, below)
+    { key = "haloOpen", group = "wheel", label = "Open a ring", icon = EVENT_ICONS .. "wheel", on = true,
+        pattern = "tick", tip = "A Halo ring opens, or another ring takes its place." },
+    { key = "wheelTick", group = "wheel", label = "Slot change", icon = VIBE_ICONS .. "micro", on = true,
+        pattern = "micro", gap = 0.03, tip = "In an open Halo ring, the pick moves to another slot." },
+    { key = "haloUse", group = "wheel", label = "Fire the ring", icon = VIBE_ICONS .. "impact", on = true,
+        pattern = "pulse", tip = "A Halo ring closes using its slot: the spell, item or mount goes." },
+    { key = "haloClose", group = "wheel", label = "Close the ring", icon = VIBE_ICONS .. "fade", on = false,
+        pattern = "micro", tip = "A Halo ring closes without using anything. Off by default." },
     { key = "levelUp", group = "progress", label = "Level up", icon = EVENT_ICONS .. "levelup", on = true,
         pattern = "rise", tip = "You reach a new level." },
 }
@@ -1676,10 +1682,27 @@ end)
 -- Gamepad Companion: the settings live in the character's profile
 -- (GamepadCompanionCharDB.vibration, Shared.lua)
 ---------------------------------------------------------------------------
+-- Halo's rings: its event bus (H.On) says when a ring opens, its pick moves,
+-- and it closes (with the slot used, or none)
+local haloHooked = false
+local function HookHalo()
+    local halo = _G.Halo
+    if haloHooked or type(halo) ~= "table" or type(halo.On) ~= "function" then return end
+    haloHooked = true
+    halo.On("open", function() V.Fire("haloOpen") end)
+    halo.On("switch", function() V.Fire("haloOpen") end)
+    halo.On("pick", function() V.Fire("wheelTick") end)
+    halo.On("close", function(_, used) V.Fire(used and "haloUse" or "haloClose") end)
+end
+V.HookHalo = HookHalo
+
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
-loader:SetScript("OnEvent", function(_, _, name)
-    if name ~= "GamepadCompanion" then return end
-    IF.db = ns.Shared.CharDB()
-    V.Settings()
+loader:RegisterEvent("PLAYER_LOGIN")
+loader:SetScript("OnEvent", function(_, event, name)
+    if event == "ADDON_LOADED" and name == "GamepadCompanion" then
+        IF.db = ns.Shared.CharDB()
+        V.Settings()
+    end
+    HookHalo()
 end)

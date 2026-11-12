@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1 — 2026-11-12
+
+- Rumble for Halo rings: open a ring, slot change, fire the ring, close the ring (needs Halo 0.9.28)
+
 ## 0.11.0 — 2026-11-12
 
 - Rumble page: the motors on game events and casts, ported from Improved Forever: Vibration 0.6.3 (MIT)

@@ -125,6 +125,9 @@ local settings = { optionsStyle = "A" }
 GamepadCompanionAPI = { GetSettings = function() return settings end, GetCapabilities = function() return {} end }
 local API = GamepadCompanionAPI
 GamepadCompanionCharDB = nil
+local haloListeners = {}
+Halo = { On = function(kind, fn) haloListeners[kind] = haloListeners[kind] or {}; table.insert(haloListeners[kind], fn) end }
+local function HaloFire(kind, ...) for _, fn in ipairs(haloListeners[kind] or {}) do fn(...) end end
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "RumblePage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -139,7 +142,7 @@ assert(s.enabled == true and math.abs(s.intensity - 0.8) < 1e-9, "on, 80%")
 assert(GamepadCompanionCharDB.vibration == s, "settings in the character's profile")
 assert(V.EventChoice("levelUp") == "rise" and V.EventChoice("jump") == "off", "the original's defaults")
 assert(V.CastPreset("spell") == "auto", "casts match the action")
-assert(#V.PATTERNS >= 48 and #V.RAIL == 15, "every pattern and event: " .. #V.PATTERNS .. ", " .. #V.RAIL)
+assert(#V.PATTERNS >= 48 and #V.RAIL == 18, "every pattern and event: " .. #V.PATTERNS .. ", " .. #V.RAIL)
 assert(V.Active(), "active")
 V.Fire("levelUp")
 RunTimers()
@@ -152,7 +155,24 @@ RunTimers()
 assert(#vib == 0, "no double rumble")
 otherLoaded = false
 print_ = nil
-io.write("PASS: engine ported: profile settings, defaults, events, off beside the original\n")
+-- Halo's rings: open, slot change, fire, close
+for _, f in ipairs(created) do
+    if f.events and f.events.PLAYER_LOGIN and f.scripts.OnEvent then f.scripts.OnEvent(f, "PLAYER_LOGIN") end
+end
+assert(haloListeners.open and haloListeners.pick and haloListeners.close, "listens to Halo")
+local played = {}
+local realPlay = V.Play
+V.Play = function(key, ...) played[#played + 1] = key; return realPlay(key, ...) end
+now = now + 1; HaloFire("open", 1)
+now = now + 1; HaloFire("pick", 2)
+now = now + 1; HaloFire("close", 1, 2)
+now = now + 1; HaloFire("close", 1, nil)
+assert(table.concat(played, ",") == "tick,micro,pulse", "open, slot, fire; close off by default: " .. table.concat(played, ","))
+V.SetEventPattern("haloClose", "fade")
+now = now + 1; HaloFire("close", 1, nil)
+assert(played[4] == "fade", "close the ring")
+V.Play = realPlay
+io.write("PASS: engine ported: profile settings, defaults, events, off beside the original, Halo rings\n")
 
 -- Page -------------------------------------------------------------------------------
 ns.Shell.Open("rumble")
