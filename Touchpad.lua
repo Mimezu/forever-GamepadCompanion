@@ -287,6 +287,20 @@ SecureHandlerWrapScript(click, "OnClick", click, T.SNIPPET)
 local binds = CreateFrame("Frame", "GamepadCompanionTouchBinds")
 
 local lastClick = { at = -math.huge }
+-- Debug: the finger every frame, to compare with what a press read
+local track = { x = nil, y = nil, len = nil, movedAt = 0, prevX = nil, prevY = nil }
+local tracker = CreateFrame("Frame")
+tracker:SetScript("OnUpdate", function()
+    if not debug then return end
+    local x, y, len = Finger()
+    if not x then return end
+    if x ~= track.x or y ~= track.y then
+        track.prevX, track.prevY = track.x, track.y
+        track.movedAt = GetTime()
+    end
+    track.x, track.y, track.len = x, y, len
+end)
+
 click:SetScript("PostClick", function(self, _, down)
     local onDown = self:GetAttribute("useOnKeyDown")
     local acts = (down and onDown ~= false) or (not down and onDown == false)
@@ -297,6 +311,12 @@ click:SetScript("PostClick", function(self, _, down)
         Say(("%s %s: %s, %s -> %s"):format(tostring(self:GetAttribute("gpc-input") or "touch"), down and "down" or "up",
             tostring(zone and T.ZoneLabel(zone, T.Grid(settings, settings.mode)) or "-"),
             tostring(layer and T.LAYER_LABELS[layer] or "-"), ran or "nothing"))
+        if not down and self:GetAttribute("gpc-input") == "touch" then
+            local tx, ty = tonumber(self:GetAttribute("gpc-tx")), tonumber(self:GetAttribute("gpc-ty"))
+            Say(("  read %.2f, %.2f · finger now %.2f, %.2f (len %.2f) · moved %.2f s ago from %s"):format(
+                tx or 0, ty or 0, track.x or 0, track.y or 0, track.len or 0, GetTime() - track.movedAt,
+                track.prevX and ("%.2f, %.2f"):format(track.prevX, track.prevY) or "-"))
+        end
     end
     if not acts then return end
     lastClick = { at = GetTime(), zone = zone, layer = layer }

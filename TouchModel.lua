@@ -427,6 +427,8 @@ T.SNIPPET = [[
             return false
         end
         self:SetAttribute("gpc-t-held", nil)
+        self:SetAttribute("gpc-tx", x)
+        self:SetAttribute("gpc-ty", y)
         local partOfClick = self:GetAttribute("gpc-t-click") or clicking
             or (self:GetAttribute("gpc-c-echo") and x == self:GetAttribute("gpc-xl") and y == self:GetAttribute("gpc-yl"))
         self:SetAttribute("gpc-t-click", nil)
