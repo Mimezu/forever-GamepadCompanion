@@ -292,7 +292,6 @@ function Touch.Apply()
     -- Attributes: this mode's zones, everything else cleared
     click:SetAttribute("gpc-mode", settings.mode)
     click:SetAttribute("gpc-stick", T.PAD_STICK)
-    click:SetAttribute("gpc-keydown", GetCVarSafe("ActionButtonUseKeyDown") == "0" and 0 or 1)
     click:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
     click:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
     local grid = T.Grid(settings, settings.mode)

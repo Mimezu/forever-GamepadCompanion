@@ -288,6 +288,9 @@ eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/click CharacterMicroButton", "the
 check(Touch.SetZone("base", "swipe-left", "text:/sit"), "set a swipe")
 eq(click:GetAttribute("gpc-swipe"), 1, "swipes set: act on release")
 eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/sit", "swipe left runs its macro")
+-- The last release was at -0.8, 0.6: a press still reporting that spot has a stale start
+eq(Press(-0.8, 0.6, false, false, 0.8, 0.6), nil, "stale start: no swipe, a tap where it ends (Quests, no button)")
+eq(Press(0.5, 0.6, false, false, -0.8, 0.6), "/sit", "fresh start (not the last release spot): swipe left")
 eq(Press(-0.8, 0.6, false, false, -0.7, 0.5), "/click CharacterMicroButton", "a short move is a tap where it started")
 cvars.ActionButtonUseKeyDown = "0"
 Touch.SetZone("base", "swipe-left", "none")

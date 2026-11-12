@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4 — 2026-11-11
+
+- Fixed: a quick press could count as a swipe from the last touch
+
 ## 0.6.3 — 2026-11-11
 
 - Fixed: a direct press used the last touch's spot; zones now act on release

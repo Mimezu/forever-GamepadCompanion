@@ -346,7 +346,6 @@ button, down). Attributes, set out of combat by Touchpad.lua:
   gpc-cols/rows the grid
   gpc-stick     the touchpad's stick index
   gpc-lt/rt     the triggers' button indexes in GetGamePadState().buttons
-  gpc-keydown   1: act on the press (ActionButtonUseKeyDown), 0: on the release
   gpc-swipe     1: swipes are set, so act on the release (the finger may move)
   gpc-swipe-min how far the finger moves for a swipe
   gpc-m-<layer>-<zone>  that zone's (or swipe's) macro text
@@ -368,8 +367,15 @@ T.SNIPPET = [[
         end
         self:SetAttribute("gpc-held", true)
         self:SetAttribute("useOnKeyDown", keydown)
-        self:SetAttribute("gpc-x0", x)
-        self:SetAttribute("gpc-y0", y)
+        -- The last release's spot again: the new touch hasn't arrived, so the
+        -- start is unknown and this press can't be a swipe
+        if x == self:GetAttribute("gpc-xl") and y == self:GetAttribute("gpc-yl") then
+            self:SetAttribute("gpc-x0", nil)
+            self:SetAttribute("gpc-y0", nil)
+        else
+            self:SetAttribute("gpc-x0", x)
+            self:SetAttribute("gpc-y0", y)
+        end
         if not keydown then
             return false
         end
@@ -378,13 +384,15 @@ T.SNIPPET = [[
             return false
         end
         self:SetAttribute("gpc-held", nil)
+        self:SetAttribute("gpc-xl", x)
+        self:SetAttribute("gpc-yl", y)
         if keydown then
             return false
         end
     end
-    local x0, y0 = self:GetAttribute("gpc-x0") or x, self:GetAttribute("gpc-y0") or y
+    local x0, y0 = self:GetAttribute("gpc-x0"), self:GetAttribute("gpc-y0")
     local zone
-    if swipes and not down then
+    if swipes and not down and x0 and y0 then
         local dx, dy = x - x0, y - y0
         local min = self:GetAttribute("gpc-swipe-min") or 0.6
         if dx * dx + dy * dy >= min * min then
