@@ -63,6 +63,39 @@ local function DeviceID()
     return { vendorID = raw.vendorID, productID = raw.productID }
 end
 
+-- Raw probe: which raw buttons a tap and a click press (12 s, tap to click on
+-- meanwhile). Prints each change as "raw <index> down|up" (0-based, as the
+-- gamepad config's rawIndex). Display only.
+local rawProbing = false
+function Touch.RawProbe()
+    if rawProbing or not (C_GamePad and C_GamePad.GetDeviceRawState and C_GamePad.GetActiveDeviceID) then return end
+    rawProbing = true
+    local tapCVar, oldTap = "GamePadTouchTapButtons", GetCVar and GetCVar("GamePadTouchTapButtons")
+    if oldTap ~= nil and SetCVar then pcall(SetCVar, tapCVar, "1") end
+    print("|cff80c0ffGamepad Companion:|r raw probe 12 s: tap 3 times, then click 3 times")
+    local last, f, left = {}, CreateFrame("Frame"), 12
+    f:SetScript("OnUpdate", function(self, elapsed)
+        left = left - elapsed
+        local ok, raw = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
+        local buttons = ok and type(raw) == "table" and (raw.rawButtons or raw.buttons)
+        if type(buttons) == "table" then
+            for i, pressed in pairs(buttons) do
+                pressed = pressed and true or false
+                if last[i] ~= nil and last[i] ~= pressed then
+                    print(("|cff80c0ffGamepad Companion:|r raw %d %s (%.2f s)"):format(i - 1, pressed and "down" or "up", 12 - left))
+                end
+                last[i] = pressed
+            end
+        end
+        if left <= 0 then
+            self:SetScript("OnUpdate", nil)
+            if oldTap ~= nil and SetCVar then pcall(SetCVar, tapCVar, oldTap) end
+            rawProbing = false
+            print("|cff80c0ffGamepad Companion:|r raw probe done" .. (type(buttons) == "table" and "" or ": no raw buttons"))
+        end
+    end)
+end
+
 -- A button's index in GetGamePadState().buttons (1-based)
 local function PadIndex(binding)
     local index = C_GamePad and C_GamePad.ButtonBindingToIndex and C_GamePad.ButtonBindingToIndex(binding)
@@ -795,6 +828,8 @@ function Touch.Command(text)
         return Say("Touchpad zones off" .. (restored and " · config restored" or ""))
     elseif command == "probe" then
         return Probe()
+    elseif command == "raw" then
+        return Touch.RawProbe()
     elseif command == "debug" then
         debug = (words[2] or ""):lower() ~= "off"
         return Say("Touch debug " .. (debug and "on" or "off"))
