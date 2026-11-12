@@ -249,19 +249,59 @@ check(ui.showLayer:IsShown(), "card: show layer")
 ui.showLayer.scripts.OnClick(ui.showLayer)
 check(ui.layers.base.selected, "back to base")
 
--- Touchpad
+-- Touchpad: settings and bindings in the card
 ui.buttons.touchpad.scripts.OnClick(ui.buttons.touchpad)
-eq(ui.name.text, "Blizzard", "zones off")
+check(ui.tp:IsShown(), "touchpad: the panel shows")
+check(not ui.name:IsShown(), "touchpad: no action header")
 eq(ui.padText.text, "Touchpad", "pad caption when off")
-Touch.SetEnabled(true)
-eq(ui.name.text, "Touchpad zones", "zones on: the card follows")
+local tp = ui.tpw
+tp.enable:SetChecked(true); tp.enable.scripts.OnClick(tp.enable)
+eq(Touch.Settings().enabled, true, "zones on from the card")
 local shown = 0
 for _, c in pairs(ui.zones) do if c:IsShown() then shown = shown + 1 end end
 eq(shown, 6, "3 x 2 zones on the pad")
 check((ui.zones.r1c1.label.text or "") ~= "", "zones show their actions")
-check(ui.openTouch:IsShown(), "touchpad window button")
-ui.openTouch.scripts.OnClick(ui.openTouch)
-check(_G.GamepadCompanionTouchpad and _G.GamepadCompanionTouchpad:IsShown(), "opens the touchpad window")
+eq(tp.cols.text, "3 columns", "grid in the card")
+-- Pick a zone on the art, bind a window
+ui.zones.r2c3.scripts.OnClick(ui.zones.r2c3)
+eq(tp.zoneTitle.text, "Bottom right · Base", "zone picked on the art")
+tp.windows.map.scripts.OnClick(tp.windows.map)
+eq(Touch.Settings().actions.chord.base.r2c3, "window:map", "window bound from the card")
+eq(tp.current.text, "World Map", "card shows the binding")
+check(tp.windows.map.selected, "window button marked")
+-- Drop a spell on an art zone, on L2
+ui.layers.lt.scripts.OnClick(ui.layers.lt)
+cursor = 133
+ui.zones.r1c1.scripts.OnReceiveDrag(ui.zones.r1c1)
+eq(Touch.Settings().actions.chord.lt.r1c1, "spell:133", "spell dropped on the art zone")
+eq(cursor, nil, "cursor emptied")
+eq(tp.zoneTitle.text, "Top left · L2", "the zone and layer")
+check(ui.tp:IsShown(), "the panel stays")
+-- Grid, press, Touch slot
+tp.colsMinus.scripts.OnClick(tp.colsMinus)
+eq(tp.cols.text, "2 columns", "fewer columns")
+tp.inputs.dual.scripts.OnClick(tp.inputs.dual)
+eq(Touch.Settings().input, "dual", "touch + click from the card")
+check(tp.slots.touch:IsShown(), "touch and click slots")
+check(tp.tapTime:IsShown(), "tap time shown with taps")
+tp.slots.touch.scripts.OnClick(tp.slots.touch)
+tp.windows.character.scripts.OnClick(tp.windows.character)
+eq(Touch.Settings().touchActions.lt.r1c1, "window:character", "touch slot bound")
+eq(Touch.Settings().actions.chord.lt.r1c1, "spell:133", "click slot kept")
+-- Swipe macro
+tp.swipes["swipe-up"].scripts.OnClick(tp.swipes["swipe-up"])
+eq(tp.zoneTitle.text, "Swipe up · L2", "swipe picked")
+check(not tp.slots.touch:IsEnabled(), "swipes: click slot only")
+tp.macro:SetText("/sit")
+tp.save.scripts.OnClick(tp.save)
+eq(Touch.Settings().actions.chord.lt["swipe-up"], "text:/sit", "macro saved on the swipe")
+tp.clear.scripts.OnClick(tp.clear)
+eq(Touch.Settings().actions.chord.lt["swipe-up"], "none", "clear")
+tp.modes.split.scripts.OnClick(tp.modes.split)
+check(not tp.inputs.dual:IsEnabled(), "right half: no touch + click")
+check(not tp.over:IsShown(), "right half: no over windows")
+tp.modes.chord.scripts.OnClick(tp.modes.chord)
+ui.layers.base.scripts.OnClick(ui.layers.base)
 
 -- Held triggers and pressed buttons
 pressed.PADLTRIGGER, pressed.PADRTRIGGER, pressed.PAD1 = true, true, true

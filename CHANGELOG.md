@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 — 2026-11-12
+
+- Controller page: bigger d-pad and face buttons in recessed wells
+- Touchpad settings and bindings in the side card; pick a zone on the drawing
+- Cleaner button labels
+
 ## 0.8.0 — 2026-11-12
 
 - Controller page (`/gpc pad`): the whole DualSense, every bar slot on every layer and page

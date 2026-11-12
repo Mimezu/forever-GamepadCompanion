@@ -17,6 +17,7 @@ local window, body
 local ui = { layers = {}, pages = {}, slots = {}, buttons = {}, zones = {}, rows = {} }
 local selectedLayer, selectedPage, heldLayer = "base", 1, nil
 local selected = { kind = "slot", slot = 1 }    -- or { kind = "button", id = ... }
+local tpZone, tpSlot = "r1c1", "click"          -- the touchpad zone (or swipe) and slot edited
 local Refresh
 
 local function Call(fn, ...)
@@ -128,7 +129,7 @@ end
 
 local function SlotButton(info)
     local square = info.shape == "square"
-    local size = square and 36 or 46
+    local size = (square and C.SQUARE or C.CIRCLE) * K
     local b = CreateFrame("Button", nil, ui.art)
     b:SetSize(size, size)
     b:SetPoint("CENTER", ui.art, "TOPLEFT", C.ToFrame(info.x, info.y, K))
@@ -159,6 +160,11 @@ local function SlotButton(info)
     b.selection:SetVertexColor(1, 0.82, 0.2)
     b.selection:Hide()
     b.pressed = Glow(b, not square)
+    -- (the button's glyph, small, on the slot's outer corner)
+    b.glyph = b:CreateTexture(nil, "OVERLAY", nil, 3)
+    b.glyph:SetSize(18, 18)
+    b.glyph:SetAtlas("Gamepad_" .. info.glyph .. "_32")
+    b.glyph:SetPoint("CENTER", b, "BOTTOMRIGHT", -5, 5)
     local hover = b:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints()
     hover:SetAtlas("gamepad-actionbar-" .. shape .. "slot-border-hover")
@@ -201,10 +207,11 @@ local function SlotButton(info)
 end
 
 local ROUND = { l3 = true, r3 = true, ps = true }
-local LABELS = {   -- where a button's label sits (art), and its width
-    l2 = { 212, 50, 120 }, r2 = { 812, 50, 120 }, l1 = { 212, 83, 160 }, r1 = { 812, 83, 160 },
-    create = { 308, 170, 120 }, options = { 716, 170, 120 }, l3 = { 382, 392, 96 }, r3 = { 642, 392, 96 },
-    ps = { 512, 344, 110 },
+-- Where a button's label sits on the art: x, y, width, anchor
+local LABELS = {
+    l2 = { 212, 46, 120 }, r2 = { 812, 46, 120 }, l1 = { 212, 75, 150 }, r1 = { 812, 75, 150 },
+    create = { 290, 124, 150, "RIGHT" }, options = { 734, 124, 150, "LEFT" },
+    l3 = { 382, 392, 100 }, r3 = { 642, 392, 100 }, ps = { 512, 350, 130, "BOTTOM" },
 }
 
 local function HotSpot(info)
@@ -227,9 +234,13 @@ local function HotSpot(info)
     local spot = LABELS[info.id]
     if spot then
         b.text = ui.art:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        b.text:SetPoint("CENTER", ui.art, "TOPLEFT", C.ToFrame(spot[1], spot[2], K))
+        local anchor = spot[4] or "CENTER"
+        b.text:SetPoint(anchor, ui.art, "TOPLEFT", C.ToFrame(spot[1], spot[2], K))
         b.text:SetWidth(spot[3] * K)
-        b.text:SetJustifyH("CENTER")
+        b.text:SetJustifyH(anchor == "RIGHT" and "RIGHT" or anchor == "LEFT" and "LEFT" or "CENTER")
+        -- (shoulders and the side buttons: glyph and binding on one line)
+        b.oneLine = info.id == "l1" or info.id == "r1" or anchor == "RIGHT" or anchor == "LEFT"
+        if b.oneLine then b.text:SetWordWrap(false) end
         b.text:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
     end
     b.info = info
@@ -252,8 +263,39 @@ local function HotSpot(info)
 end
 
 -- The touchpad's zones, drawn on the pad
-local function ZoneCell()
-    local c = CreateFrame("Frame", nil, ui.art)
+local function TouchSettings() return ns.Touch and ns.Touch.Settings and ns.Touch.Settings() end
+
+-- The slot a zone's binding goes to: Touch only on the whole pad with Touch + click
+local function TpSlot(zone)
+    local s = TouchSettings()
+    local dual = s and s.mode == "chord" and s.input == "dual"
+    return (dual and not T.GESTURE_LABELS[zone]) and tpSlot or "click"
+end
+
+-- Put what the cursor holds on a touchpad zone; true when it did
+local function TouchDrop(zone)
+    local Touch = ns.Touch
+    if not (Touch and GetCursorInfo and GetCursorInfo()) then return false end
+    local action = Touch.TakeCursor()
+    if not action then return false end
+    Touch.SetZone(Layer(), zone, action, TpSlot(zone))
+    return true
+end
+
+local function PickZone(zone)
+    TouchDrop(zone)
+    tpZone = zone
+    Select("button", "touchpad")
+end
+
+local function ZoneCell(zone)
+    local c = CreateFrame("Button", nil, ui.art)
+    c:RegisterForClicks("LeftButtonUp")
+    c:SetScript("OnClick", function() PickZone(zone) end)
+    c:SetScript("OnReceiveDrag", function() PickZone(zone) end)
+    local hover = c:CreateTexture(nil, "HIGHLIGHT")
+    hover:SetAllPoints()
+    hover:SetColorTexture(1, 0.78, 0.3, 0.14)
     c:SetFrameLevel((ui.art:GetFrameLevel() or 0) + 2)
     c.bg = c:CreateTexture(nil, "BACKGROUND")
     c.bg:SetAllPoints()
@@ -312,7 +354,7 @@ local function LayoutZones(layer)
     for _, zone in ipairs(T.Zones(s)) do
         local row, col = zone:match("^r(%d)c(%d)$")
         row, col = tonumber(row), tonumber(col)
-        local c = ui.zones[zone] or ZoneCell()
+        local c = ui.zones[zone] or ZoneCell(zone)
         ui.zones[zone] = c
         c:ClearAllPoints()
         c:SetPoint("TOPLEFT", ui.art, "TOPLEFT", C.ToFrame(x0 + (col - 1) * cw + 2, r.y0 + (row - 1) * ch + 2, K))
@@ -322,6 +364,8 @@ local function LayoutZones(layer)
         SetLook(c.icon, action)
         c.label:SetText(label or "")
         if dual then SetLook(c.touch, TouchAction(s.touchActions, layer, zone)) else c.touch:Hide() end
+        local picked = selected.kind == "button" and selected.id == "touchpad" and tpZone == zone
+        if picked then c.bg:SetColorTexture(1, 0.82, 0.2, 0.3) else c.bg:SetColorTexture(1, 0.85, 0.55, 0.06) end
         c:Show()
     end
 end
@@ -332,29 +376,83 @@ local function Row(index)
     if ui.rows[index] then return ui.rows[index] end
     local card = ui.card
     local r = CreateFrame("Button", nil, card)
-    r:SetPoint("TOPLEFT", 10, -238 - (index - 1) * 44)
-    r:SetSize(CARD_W - 20, 40)
+    r:SetPoint("TOPLEFT", 10, -238 - (index - 1) * 56)
+    r:SetSize(CARD_W - 20, 50)
     local hover = r:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints()
     hover:SetColorTexture(1, 0.7, 0.2, 0.1)
     r.selection = r:CreateTexture(nil, "BACKGROUND")
     r.selection:SetAllPoints()
     r.selection:SetColorTexture(1, 0.72, 0.2, 0.16)
-    r.combo = S.Text(r, "", 4, -12, 64, 12, S.GOLD)
+    r.combo = S.Text(r, "", 4, -17, 64, 12, S.GOLD)
     r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(30, 30)
+    r.icon:SetSize(38, 38)
     r.icon:SetPoint("LEFT", 72, 0)
-    r.name = S.Text(r, "", 110, -13, CARD_W - 130, 12, S.GOLD)
+    r.name = S.Text(r, "", 118, -18, CARD_W - 138, 12, S.GOLD)
     r.name:SetWordWrap(false)
     r:RegisterForClicks("LeftButtonUp")
     ui.rows[index] = r
     return r
 end
 
+local function RefreshTouchPanel()
+    local Touch, s, tp, layer = ns.Touch, TouchSettings(), ui.tpw, Layer()
+    local grid, limit = T.Grid(s, s.mode), T.GRID_LIMITS[s.mode]
+    if not T.IsZone(s, s.mode, tpZone) then tpZone = "r1c1" end
+    tp.enable:SetChecked(s.enabled)
+    tp.preview:SetChecked(s.preview)
+    for input, b in pairs(tp.inputs) do
+        S.SetSelected(b, input == s.input)
+        b:SetEnabled(input ~= "dual" or s.mode == "chord")
+    end
+    for mode, b in pairs(tp.modes) do S.SetSelected(b, mode == s.mode) end
+    tp.cols:SetText(grid.cols .. (grid.cols == 1 and " column" or " columns"))
+    tp.rows:SetText(grid.rows .. (grid.rows == 1 and " row" or " rows"))
+    tp.colsMinus:SetEnabled(grid.cols > 1); tp.colsPlus:SetEnabled(grid.cols < limit.cols)
+    tp.rowsMinus:SetEnabled(grid.rows > 1); tp.rowsPlus:SetEnabled(grid.rows < limit.rows)
+    local taps = s.input ~= "click"
+    for _, w in ipairs({ tp.tapLabel, tp.tapMinus, tp.tapTime, tp.tapPlus }) do w:SetShown(taps) end
+    tp.tapTime:SetText(s.tapMs .. " ms")
+    tp.tapMinus:SetEnabled(s.tapMs > T.TAP_MS.min)
+    tp.tapPlus:SetEnabled(s.tapMs < T.TAP_MS.max)
+    tp.over:SetChecked(s.overWindows)
+    tp.over:SetShown(s.mode == "chord")
+
+    -- The zone
+    local dual = s.mode == "chord" and s.input == "dual"
+    local swipe = T.GESTURE_LABELS[tpZone] ~= nil
+    local slot = TpSlot(tpZone)
+    tp.zoneTitle:SetText((swipe and T.GESTURE_LABELS[tpZone] or T.ZoneLabel(tpZone, grid)) .. " · " .. T.LAYER_LABELS[layer])
+    for key, b in pairs(tp.slots) do
+        b:SetShown(dual)
+        S.SetSelected(b, key == slot)
+        b:SetEnabled(key == "click" or not swipe)
+    end
+    local set = slot == "touch" and s.touchActions or s.actions[s.mode]
+    local own = set[layer] and set[layer][tpZone]
+    if own == "none" then own = nil end
+    local action = own
+    if not action and layer ~= "base" and set.base then action = set.base[tpZone] end
+    if action == "none" then action = nil end
+    local inherited = own == nil and action ~= nil
+    local label = Touch.ActionLook(action)
+    SetLook(tp.icon, action)
+    tp.icon:SetAlpha(inherited and 0.4 or 1)
+    local missing = action and not Touch.Runs(action)
+    tp.current:SetText(label and ((inherited and (label .. "  (Base)") or label) .. (missing and "  · not found" or ""))
+        or "Empty")
+    tp.clear:SetEnabled(own ~= nil)
+    for key, b in pairs(tp.windows) do S.SetSelected(b, own == "window:" .. key) end
+    local text = own and own:match("^text:(.*)$") or ""
+    if not tp.macro:HasFocus() then tp.macro:SetText(text) end
+    for gesture, b in pairs(tp.swipes) do S.SetSelected(b, gesture == tpZone) end
+end
+
 local function RefreshCard()
     local layer = Layer()
     local card = ui.card
-    for _, w in ipairs({ ui.pickup, ui.clear, ui.drop, ui.openTouch, ui.showLayer, ui.layersTitle }) do w:Hide() end
+    for _, w in ipairs({ ui.pickup, ui.clear, ui.drop, ui.showLayer, ui.layersTitle, ui.tp }) do w:Hide() end
+    for _, w in ipairs({ ui.bigIcon, ui.name, ui.kind, ui.sub }) do w:Show() end
     for _, r in ipairs(ui.rows) do r:Hide() end
     ui.bigIcon:SetTexCoord(0, 1, 0, 1)
     if selected.kind == "slot" then
@@ -414,20 +512,139 @@ local function RefreshCard()
         ui.showLayer.label:SetText(selectedLayer == info.layer and "Show Base" or ("Show " .. info.name))
         ui.showLayer:Show()
     elseif info.role == "touchpad" then
-        local s = ns.Touch and ns.Touch.Settings and ns.Touch.Settings()
-        local on = s and s.enabled
-        ui.name:SetText(on and "Touchpad zones" or "Blizzard")
-        if on and T then
-            local grid = T.Grid(s, s.mode)
-            ui.sub:SetText(grid.cols .. " × " .. grid.rows .. (s.mode == "split" and " · right half" or ""))
-        else
-            ui.sub:SetText("Zones off")
+        -- Everything the Touchpad window has, in the card
+        for _, w in ipairs({ ui.bigIcon, ui.name, ui.kind, ui.sub }) do w:Hide() end
+        if ns.Touch and T then
+            ui.tp:Show()
+            RefreshTouchPanel()
         end
-        ui.openTouch:Show()
     else
         local runs = BindingOf(info.key)
         ui.name:SetText(runs or "Not bound")
         ui.sub:SetText("")
+    end
+end
+
+-- The touchpad panel: settings, then the picked zone's binding
+local function BuildTouchPanel(card)
+    local Touch = ns.Touch
+    local W = CARD_W - 24
+    local p = CreateFrame("Frame", nil, card)
+    p:SetPoint("TOPLEFT", 12, -40)
+    p:SetSize(W, BODY_H - 36 - 48)
+    ui.tp = p
+    local tp = { inputs = {}, modes = {}, slots = {}, windows = {}, swipes = {} }
+    ui.tpw = tp
+    local function Settings() return Touch.Settings() end
+
+    tp.enable = S.NewCheck(p, "Zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 60)
+    tp.preview = S.NewCheck(p, "Preview", 132, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 70)
+    local x = 0
+    for _, e in ipairs({ { "click", "Click", 74 }, { "tap", "Tap or click", 90 }, { "dual", "Touch + click", 90 } }) do
+        tp.inputs[e[1]] = S.NewButton(p, e[2], x, -32, e[3], function() Touch.SetInput(e[1]) end, nil, 11, 24)
+        x = x + e[3] + 4
+    end
+    S.Tooltip(tp.inputs.click, "Press", "A full click")
+    S.Tooltip(tp.inputs.tap, "Press", "Taps out of combat only")
+    S.Tooltip(tp.inputs.dual, "Touch + click", "Whole pad only")
+    local half = (W - 4) / 2
+    tp.modes.chord = S.NewButton(p, "Whole pad", 0, -62, half, function() Touch.SetMode("chord") end, nil, 11, 24)
+    tp.modes.split = S.NewButton(p, "Right half", half + 4, -62, half, function() Touch.SetMode("split") end, nil, 11, 24)
+    S.Tooltip(tp.modes.chord, "Whole pad", "L1 + touchpad: Blizzard's focus")
+    S.Tooltip(tp.modes.split, "Right half", "Left half: Blizzard's focus")
+
+    local function Step(sx, tip, dc, dr)
+        local b = S.NewButton(p, dc + dr < 0 and "-" or "+", sx, -92, 24, function()
+            local s = Settings()
+            local g = T.Grid(s, s.mode)
+            Touch.SetGrid(g.cols + dc, g.rows + dr)
+        end, nil, 13, 24)
+        S.Tooltip(b, tip)
+        return b
+    end
+    tp.colsMinus = Step(0, "Fewer columns", -1, 0)
+    tp.cols = S.Text(p, "", 26, -98, 66, 11, S.YELLOW)
+    tp.cols:SetJustifyH("CENTER")
+    tp.colsPlus = Step(94, "More columns", 1, 0)
+    tp.rowsMinus = Step(W - 118, "Fewer rows", 0, -1)
+    tp.rows = S.Text(p, "", W - 92, -98, 66, 11, S.YELLOW)
+    tp.rows:SetJustifyH("CENTER")
+    tp.rowsPlus = Step(W - 24, "More rows", 0, 1)
+
+    tp.tapLabel = S.Text(p, "Tap", 0, -128, 30, 11, S.GOLD)
+    tp.tapMinus = S.NewButton(p, "-", 30, -122, 24, function() Touch.SetTapTime(Settings().tapMs - T.TAP_MS.step) end, nil, 13, 24)
+    tp.tapTime = S.Text(p, "", 56, -128, 60, 11, S.YELLOW)
+    tp.tapTime:SetJustifyH("CENTER")
+    tp.tapPlus = S.NewButton(p, "+", 118, -122, 24, function() Touch.SetTapTime(Settings().tapMs + T.TAP_MS.step) end, nil, 13, 24)
+    S.Tooltip(tp.tapMinus, "Shorter tap")
+    S.Tooltip(tp.tapPlus, "Longer tap")
+    tp.over = S.NewCheck(p, "Over windows", 150, -121, function(self) Touch.SetOverWindows(self:GetChecked() == true) end, 90)
+    S.Tooltip(tp.over, "Over windows", "Off: an open window takes the pad")
+
+    -- The picked zone
+    local rule = p:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(1, 0.82, 0, 0.18)
+    rule:SetHeight(1)
+    rule:SetPoint("TOPLEFT", 0, -154)
+    rule:SetWidth(W)
+    tp.zoneTitle = S.Text(p, "", 0, -166, W - 122, 12, S.YELLOW)
+    tp.zoneTitle:SetWordWrap(false)
+    for i, e in ipairs({ { "touch", "Touch" }, { "click", "Click" } }) do
+        tp.slots[e[1]] = S.NewButton(p, e[2], W - 116 + (i - 1) * 60, -161, 56, function()
+            tpSlot = e[1]
+            Refresh()
+        end, nil, 11, 22)
+    end
+    tp.icon = p:CreateTexture(nil, "ARTWORK")
+    tp.icon:SetSize(30, 30)
+    tp.icon:SetPoint("TOPLEFT", 0, -190)
+    tp.current = S.Text(p, "", 38, -199, W - 108, 12, S.GOLD)
+    tp.current:SetWordWrap(false)
+    tp.clear = S.NewButton(p, "Clear", W - 64, -193, 64, function()
+        Touch.SetZone(Layer(), tpZone, "none", TpSlot(tpZone))
+    end, nil, 11, 24)
+    tp.drop = S.NewButton(p, "Drop spell, item or macro", 0, -226, W, nil, nil, 11, 28)
+    tp.drop.label:SetTextColor(S.GREY[1], S.GREY[2], S.GREY[3])
+    local function DropHere() if TouchDrop(tpZone) then Refresh() end end
+    tp.drop:SetScript("OnClick", DropHere)
+    tp.drop:SetScript("OnReceiveDrag", DropHere)
+
+    local cw = (W - 8) / 3
+    for i, w in ipairs(T.WINDOWS) do
+        local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
+        tp.windows[w.key] = S.NewButton(p, w.label, col * (cw + 4), -260 - row * 25, cw, function()
+            Touch.SetZone(Layer(), tpZone, "window:" .. w.key, TpSlot(tpZone))
+        end, nil, 10, 22)
+    end
+
+    local box = CreateFrame("EditBox", nil, p, "BackdropTemplate")
+    box:SetPoint("TOPLEFT", 0, -364)
+    box:SetSize(W - 78, 40)
+    box:SetMultiLine(true)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(255)
+    box:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
+    box:SetTextColor(1, 1, 1)
+    box:SetTextInsets(6, 6, 5, 5)
+    S.Edit(box)
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    tp.macro = box
+    tp.save = S.NewButton(p, "Save macro", W - 74, -364, 74, function()
+        local text = (box:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        box:ClearFocus()
+        Touch.SetZone(Layer(), tpZone, text ~= "" and ("text:" .. text) or "none", TpSlot(tpZone))
+    end, nil, 10, 40)
+    S.Tooltip(tp.save, "Macro", "Typed macro for this zone")
+
+    S.Text(p, "Swipes", 0, -414, nil, 11, S.YELLOW)
+    local sw = (W - 12) / 4
+    for i, gesture in ipairs(T.GESTURES) do
+        local label = T.GESTURE_LABELS[gesture]:gsub("^Swipe ", "")
+        label = label:sub(1, 1):upper() .. label:sub(2)
+        local b = S.NewButton(p, label, (i - 1) * (sw + 4), -430, sw, function() PickZone(gesture) end, nil, 11, 24)
+        b:SetScript("OnReceiveDrag", function() PickZone(gesture) end)
+        S.Tooltip(b, T.GESTURE_LABELS[gesture])
+        tp.swipes[gesture] = b
     end
 end
 
@@ -470,11 +687,11 @@ Refresh = function()
         if b.text then
             local glyph = C.Glyph(info.glyph, 14)
             if info.role == "layer" then
-                b.text:SetText(glyph .. " " .. info.name)
+                b.text:SetText(C.Glyph(info.glyph, 18))
                 if layer == info.layer or layer == "both" then b.text:SetTextColor(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3])
                 else b.text:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) end
             else
-                b.text:SetText(glyph .. (runs and ("\n" .. runs) or ""))
+                b.text:SetText(glyph .. (runs and ((b.oneLine and " " or "\n") .. runs) or ""))
                 b.text:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
             end
         end
@@ -568,9 +785,7 @@ local function Build()
     end
     ui.drop:SetScript("OnClick", DropHere)
     ui.drop:SetScript("OnReceiveDrag", DropHere)
-    ui.openTouch = S.NewButton(card, "Touchpad window", 12, -126, CARD_W - 24, function()
-        if API.ToggleTouchpad then API.ToggleTouchpad() end
-    end)
+    if ns.Touch and T then BuildTouchPanel(card) else ui.tp = CreateFrame("Frame", nil, card) end
     ui.showLayer = S.NewButton(card, "", 12, -126, CARD_W - 24, function()
         local info = C.BUTTON_BY_ID[selected.id]
         selectedLayer = selectedLayer == info.layer and "base" or info.layer

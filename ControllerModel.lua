@@ -15,6 +15,8 @@ C.LAYER_LABELS = { base = "Base", lt = "L2", rt = "R2", both = "L2 + R2" }
 C.BAR_INDEX = { base = 1, lt = 2, rt = 3, both = 4 }
 C.PAGES = 3
 C.SLOTS_PER_BAR = 8
+-- Slot sizes on the art: d-pad squares, face circles
+C.SQUARE, C.CIRCLE = 72, 78
 
 -- A Blizzard gamepad glyph as text
 function C.Glyph(name, size)
@@ -26,14 +28,14 @@ C.LAYER_GLYPHS = { base = nil, lt = { "Shp_LTrigger" }, rt = { "Shp_RTrigger" },
 -- Bar slots in Blizzard's order (Bindings.xml: 1-4 the d-pad left, up,
 -- right, down; 5-8 the face buttons left, up, right, down). x, y on the art.
 C.SLOTS = {
-    { slot = 1, key = "PADDLEFT", name = "Left", glyph = "Shp_Left", x = 186, y = 262, shape = "square" },
-    { slot = 2, key = "PADDUP", name = "Up", glyph = "Shp_Up", x = 232, y = 216, shape = "square" },
-    { slot = 3, key = "PADDRIGHT", name = "Right", glyph = "Shp_Right", x = 278, y = 262, shape = "square" },
-    { slot = 4, key = "PADDDOWN", name = "Down", glyph = "Shp_Down", x = 232, y = 308, shape = "square" },
-    { slot = 5, key = "PAD3", name = "Square", glyph = "Shp_Square", x = 730, y = 262, shape = "circle" },
-    { slot = 6, key = "PAD4", name = "Triangle", glyph = "Shp_Triangle", x = 792, y = 200, shape = "circle" },
-    { slot = 7, key = "PAD2", name = "Circle", glyph = "Shp_Circle", x = 854, y = 262, shape = "circle" },
-    { slot = 8, key = "PAD1", name = "Cross", glyph = "Shp_Cross", x = 792, y = 324, shape = "circle" },
+    { slot = 1, key = "PADDLEFT", name = "Left", glyph = "Shp_Left", x = 124, y = 272, shape = "square" },
+    { slot = 2, key = "PADDUP", name = "Up", glyph = "Shp_Up", x = 198, y = 198, shape = "square" },
+    { slot = 3, key = "PADDRIGHT", name = "Right", glyph = "Shp_Right", x = 272, y = 272, shape = "square" },
+    { slot = 4, key = "PADDDOWN", name = "Down", glyph = "Shp_Down", x = 198, y = 346, shape = "square" },
+    { slot = 5, key = "PAD3", name = "Square", glyph = "Shp_Square", x = 750, y = 272, shape = "circle" },
+    { slot = 6, key = "PAD4", name = "Triangle", glyph = "Shp_Triangle", x = 826, y = 196, shape = "circle" },
+    { slot = 7, key = "PAD2", name = "Circle", glyph = "Shp_Circle", x = 902, y = 272, shape = "circle" },
+    { slot = 8, key = "PAD1", name = "Cross", glyph = "Shp_Cross", x = 826, y = 348, shape = "circle" },
 }
 
 -- The base bar's face buttons are Blizzard's own (MainActionBarFrame.lua)
@@ -145,6 +147,11 @@ function C.CommandName(command)
     local global = _G["BINDING_NAME_" .. command]
     if type(global) == "string" and global ~= "" then return global end
     if command:match("^CLICK GamepadCompanionTouch") then return "Touchpad zones" end
+    local frame = command:match("^CLICK ([^:]+)")
+    if frame then
+        frame = frame:gsub("Button$", ""):gsub("(%l)(%u)", "%1 %2")
+        return frame ~= "" and frame or "Click"
+    end
     local spell = command:match("^SPELL (.+)$")
     if spell then return spell end
     local macro = command:match("^MACRO (.+)$")

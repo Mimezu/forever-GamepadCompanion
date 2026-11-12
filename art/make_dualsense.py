@@ -96,18 +96,10 @@ def main():
         cx = 512 + sx * 204
         rrect(d, cx - 7, 106, cx + 7, 142, 7, 2.5, LINE, FILL)
 
-    # D-pad: four arrow keys
-    dc = (232, 262)
-    for ang in (0, 90, 180, 270):
-        key = [(0, -22), (24, -22), (48, 0), (24, 22), (0, 22)]
-        key = [(x + 18, y) for x, y in key]
-        rot = [rot_pt(p, ang) for p in key]
-        poly(d, [(dc[0] + x, dc[1] + y) for x, y in rot], 3, LINE, FILL)
-
-    # Face buttons
-    fc = (792, 262)
-    for dx, dy in ((0, -62), (62, 0), (0, 62), (-62, 0)):
-        circle(d, fc[0] + dx, fc[1] + dy, 30, 3, LINE, FILL)
+    # D-pad and face buttons: a recessed well each; the page's slots sit in it
+    for cx in (198, 826):
+        circle(d, cx, 272, 124, 2.5, SOFT, (8, 5, 2, 120))
+        circle(d, cx, 272, 112, 1, (240, 222, 178, 60))
 
     # Sticks
     for cx in (382, 642):
