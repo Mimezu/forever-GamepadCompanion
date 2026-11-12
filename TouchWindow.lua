@@ -101,6 +101,7 @@ local function LayoutPad()
         if not label then tile.label:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
         S.SetSelected(tile, zone == selectedZone)
         if label and inherited and zone ~= selectedZone then tile.label:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
+        if action and not Touch.Runs(action) then tile.label:SetTextColor(1, 0.35, 0.3) end
         tile:Show()
     end
     for _, gesture in ipairs(T.GESTURES) do
@@ -124,7 +125,9 @@ local function RefreshBinder()
     else
         ui.current:Hide()
     end
-    ui.currentText:SetText(label and (inherited and (label .. "  (Base)") or label) or "Empty")
+    local missing = action and not Touch.Runs(action)
+    ui.currentText:SetText(label and ((inherited and (label .. "  (Base)") or label) .. (missing and "  · not found" or ""))
+        or "Empty")
     ui.clear:SetEnabled(not inherited and action ~= nil)
     for key, button in pairs(ui.windows) do
         S.SetSelected(button, not inherited and action == "window:" .. key)
@@ -150,6 +153,7 @@ Refresh = function()
     if not T.IsZone(s, s.mode, selectedZone) then selectedZone = "r1c1" end
     ui.enable:SetChecked(s.enabled)
     ui.preview:SetChecked(s.preview)
+    ui.tap:SetChecked(s.tap)
     for mode, button in pairs(ui.modes) do S.SetSelected(button, mode == s.mode) end
     ui.modeNote:SetText(s.mode == "chord" and "L1 + touchpad: Blizzard's focus" or "Left half: Blizzard's focus")
     ui.cols:SetText(grid.cols .. (grid.cols == 1 and " column" or " columns"))
@@ -178,8 +182,10 @@ local function Build()
     body:SetSize(BODY_W, BODY_H)
 
     -- Left: the pad
-    ui.enable = S.NewCheck(body, "Touchpad zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 110)
-    ui.preview = S.NewCheck(body, "Finger preview", 200, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 110)
+    ui.enable = S.NewCheck(body, "Touchpad zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 100)
+    ui.tap = S.NewCheck(body, "Tap to click", 136, 0, function(self) Touch.SetTap(self:GetChecked() == true) end, 84)
+    ui.preview = S.NewCheck(body, "Preview", 262, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 60)
+    S.Tooltip(ui.tap, "Tap to click", "Light touch presses the pad")
 
     Label(body, "Pad", 0, -40)
     ui.modes.chord = S.NewButton(body, "Whole pad", 70, -40, 150, function() Touch.SetMode("chord") end)

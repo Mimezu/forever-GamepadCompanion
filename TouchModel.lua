@@ -129,6 +129,8 @@ function T.Normalize(raw)
         enabled = raw.enabled == true,
         mode = T.MODES[raw.mode] and raw.mode or "chord",
         preview = raw.preview ~= false,
+        tap = raw.tap == true,
+        tapSaved = raw.tapSaved,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,
         actions = {},
         split = type(raw.split) == "table" and Copy(raw.split) or {},
@@ -347,7 +349,8 @@ button, down). Attributes, set out of combat by Touchpad.lua:
   gpc-swipe     1: swipes are set, so act on the release (the finger may move)
   gpc-swipe-min how far the finger moves for a swipe
   gpc-m-<layer>-<zone>  that zone's (or swipe's) macro text
-It acts once per click (both halves of the pad can report the same press, so
+useOnKeyDown follows, so the secure button runs the macro on the same half of
+the click (it ignores the other half). It acts once per click (both halves of the pad can report the same press, so
 a held flag debounces: the restricted environment has no clock). The zone is
 where the press started. A layer with nothing there falls back to Base. ]]
 T.SNIPPET = [[
@@ -362,7 +365,7 @@ T.SNIPPET = [[
             return false
         end
         self:SetAttribute("gpc-held", true)
-        self:SetAttribute("useOnKeyDown", nil)
+        self:SetAttribute("useOnKeyDown", keydown)
         self:SetAttribute("gpc-x0", x)
         self:SetAttribute("gpc-y0", y)
         if not keydown then

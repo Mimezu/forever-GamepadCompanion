@@ -226,7 +226,11 @@ local function Press(x, y, lt, rt, x2, y2)
     for _, down in ipairs({ true, false }) do
         if down then pad.x, pad.y = x, y else pad.x, pad.y = x2 or x, y2 or y end
         local result = snippet(click, "LeftButton", down)
-        if result ~= false and click:GetAttribute("type") == "macro" then ran = click:GetAttribute("macrotext") end
+        -- SecureActionButton_OnClick: acts on the down only with useOnKeyDown (or the CVar), else on the up
+        local onDown = click:GetAttribute("useOnKeyDown")
+        if onDown == nil then onDown = cvars.ActionButtonUseKeyDown == "1" end
+        local acts = (down and onDown) or (not down and not onDown)
+        if result ~= false and acts and click:GetAttribute("type") == "macro" then ran = click:GetAttribute("macrotext") end
     end
     return ran
 end
@@ -279,6 +283,19 @@ check(Touch.SetZone("base", "swipe-left", "text:/sit"), "set a swipe")
 eq(click:GetAttribute("gpc-swipe"), 1, "swipes set: act on release")
 eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/sit", "swipe left runs its macro")
 eq(Press(-0.8, 0.6, false, false, -0.7, 0.5), "/click CharacterMicroButton", "a short move is a tap where it started")
+cvars.ActionButtonUseKeyDown = "0"
+Touch.SetZone("base", "swipe-left", "none")
+eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "key-up players: zones act on release")
+Touch.SetZone("base", "swipe-left", "text:/sit")
+cvars.ActionButtonUseKeyDown = "1"
+-- Tap to click
+check(Touch.SetTap ~= nil, "tap setter")
+cvars.GamePadTouchTapButtons = "0"
+Touch.SetTap(true)
+eq(cvars.GamePadTouchTapButtons, "1", "tap to click on")
+Touch.SetTap(false)
+eq(cvars.GamePadTouchTapButtons, "0", "tap to click off: player's value back")
+check(Touch.Runs("window:bags") == nil and Touch.Runs("window:character") ~= nil, "Runs: a missing window button")
 eq(Press(0.8, 0.6, true, false, -0.8, 0.6), "/sit", "L2 + swipe: empty layer falls back to Base")
 Touch.SetZone("base", "swipe-left", "none")
 eq(click:GetAttribute("gpc-swipe"), 0, "no swipes: act on press again")
@@ -293,6 +310,15 @@ local first = snippet(click, "LeftButton", true)
 local second = snippet(click, "LeftButton", true)
 check(first ~= false and second == false, "second down of the same click ignored")
 snippet(click, "LeftButton", false)
+
+-- A press whose release goes elsewhere (the window it opened took the pad)
+pad.x, pad.y = -0.8, 0.6
+snippet(click, "LeftButton", true)
+uiFocused = true
+Tick()
+uiFocused = false
+Tick()
+eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "lost release: the next press still works")
 
 -- A window takes focus: the plain click goes back to Blizzard
 uiFocused = true

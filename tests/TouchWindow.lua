@@ -105,6 +105,7 @@ GetMacroInfo = function() end
 GetCursorInfo = function() if cursor then return "spell", 1, "spell", cursor end end
 ClearCursor = function() cursor = nil end
 CharacterMicroButton = { Click = function() end }
+WorldMapMicroButton = { Click = function() end }
 
 local settings = { optionsStyle = "A" }
 GamepadCompanionAPI = { GetSettings = function() return settings end }
@@ -165,6 +166,9 @@ eq(ui.binder.title.text, "Bottom right · Base", "tile selects its zone")
 press("World Map")
 eq(Touch.Settings().actions.chord.base.r3c2, "window:map", "window button sets the zone")
 eq(ui.tiles.r3c2.label.text, "World Map", "tile shows the window")
+press("Bags")
+check(ui.currentText.text:find("not found", 1, true), "a window this client has no button for is flagged")
+press("World Map")
 
 -- A layer: empty zones show Base's, dimmed
 press("L2")

@@ -193,14 +193,18 @@ local binds = CreateFrame("Frame", "GamepadCompanionTouchBinds")
 
 local lastClick = { at = -math.huge }
 click:SetScript("PostClick", function(self, _, down)
-    local acts = (self:GetAttribute("gpc-keydown") ~= 0) == (down and true or false)
-    if not acts then return end
+    local onDown = self:GetAttribute("useOnKeyDown")
+    local acts = (down and onDown ~= false) or (not down and onDown == false)
     local zone, layer = self:GetAttribute("gpc-zone"), self:GetAttribute("gpc-layer")
-    lastClick = { at = GetTime(), zone = zone, layer = layer }
     if debug then
-        Say(("touch: %s, %s -> %s"):format(tostring(T.ZoneLabel(zone, T.Grid(settings, settings.mode))), tostring(T.LAYER_LABELS[layer] or layer),
-            self:GetAttribute("type") and tostring(self:GetAttribute("macrotext")):gsub("\n", " | ") or "nothing"))
+        local ran = acts and self:GetAttribute("type") == "macro"
+            and (tostring(self:GetAttribute("macrotext")):gsub("\n", " | "))
+        Say(("touch %s: %s, %s -> %s"):format(down and "down" or "up",
+            tostring(zone and T.ZoneLabel(zone, T.Grid(settings, settings.mode)) or "-"),
+            tostring(layer and T.LAYER_LABELS[layer] or "-"), ran or "nothing"))
     end
+    if not acts then return end
+    lastClick = { at = GetTime(), zone = zone, layer = layer }
 end)
 
 local lookup = {
@@ -235,6 +239,27 @@ local function BlockTouchCursor(block)
     end
 end
 
+-- Tap to click: a light touch presses the pad (GamePadTouchTapButtons), on
+-- while Companion has the pad, the player's own setting back after
+local TAP_CVAR = "GamePadTouchTapButtons"
+local function TapToClick(on)
+    local current = GetCVarSafe(TAP_CVAR)
+    if current == nil then return end
+    if on then
+        if settings.tapSaved == nil then settings.tapSaved = current end
+        if current ~= "1" then SetCVarSafe(TAP_CVAR, "1") end
+    elseif settings.tapSaved ~= nil then
+        local saved = settings.tapSaved
+        settings.tapSaved = nil
+        if current ~= saved then SetCVarSafe(TAP_CVAR, saved) end
+    end
+end
+
+-- The macro an action runs now, or nil (a window with no button in this client)
+function Touch.Runs(action)
+    return T.MacroText(action, lookup)
+end
+
 local function Env()
     return {
         padStyle = PadStyle(),
@@ -249,6 +274,11 @@ function Touch.Apply()
     if not loaded then return end
     if InCombat() then pending = true; return end
     pending = false
+    -- A press whose release went to another binding (a window took the pad
+    -- between the two) must not block the next one
+    click:SetAttribute("gpc-held", nil)
+    click:SetAttribute("gpc-zone", nil)
+    click:SetAttribute("gpc-layer", nil)
     -- Attributes: this mode's zones, everything else cleared
     click:SetAttribute("gpc-mode", settings.mode)
     click:SetAttribute("gpc-stick", T.PAD_STICK)
@@ -297,6 +327,7 @@ function Touch.Apply()
     lastOurs = env.ours
     note = splitNote or planNote
     BlockTouchCursor(#plan > 0)
+    TapToClick(#plan > 0 and settings.tap)
 end
 
 function Touch.BindsKeys() return next(boundKeys) ~= nil end
@@ -512,7 +543,7 @@ events:SetScript("OnEvent", function(_, event, arg)
         return
     end
     if not loaded then return end
-    if event == "PLAYER_LOGOUT" then return BlockTouchCursor(false) end
+    if event == "PLAYER_LOGOUT" then BlockTouchCursor(false); return TapToClick(false) end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     if event == "SPELLS_CHANGED" or event == "UPDATE_MACROS" then Touch.RefreshPreview() end
     Touch.Apply()
@@ -538,6 +569,7 @@ function Touch.Status()
     local env = Env()
     return {
         enabled = settings.enabled, mode = settings.mode, preview = settings.preview, chordButton = settings.chordButton,
+        tap = settings.tap,
         padStyle = env.padStyle, ours = env.ours, conflict = env.conflict, note = note, pending = pending,
         bound = T.Copy(boundKeys),
     }
@@ -645,6 +677,7 @@ function Touch.SetMode(mode)
     Update()
     return true
 end
+function Touch.SetTap(value) settings.tap = value == true; Update() end
 function Touch.SetPreview(value)
     settings.preview = value == true
     if not settings.preview then UpdatePreview(0, 0, false) end
@@ -728,6 +761,9 @@ function Touch.Command(text)
         if not settings.preview then UpdatePreview(0, 0, false) end
         Touch.Notify()
         return Say("Preview " .. (settings.preview and "on" or "off"))
+    elseif command == "tap" then
+        Touch.SetTap((words[2] or ""):lower() ~= "off")
+        return Say("Tap to click " .. (settings.tap and "on" or "off"))
     elseif command == "chord" then
         local button = (words[2] or ""):upper()
         if not button:match("^PAD") then return Say("Pad buttons only (PADLSHOULDER)") end
@@ -747,7 +783,7 @@ function Touch.Command(text)
     end
     Say("/gpc touch [status | on | off | mode chord|split | grid <cols> <rows> | set <zone> [lt|rt|both] [window]"
         .. " | clear <zone> [layer]"
-        .. " | list | windows | preview on|off | chord <button> | probe | debug on|off | restore]")
+        .. " | list | windows | preview on|off | tap on|off | chord <button> | probe | debug on|off | restore]")
 end
 
 -- Harness access

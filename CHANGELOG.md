@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 — 2026-11-11
+
+- Fixed: touchpad zones did nothing once a swipe was set
+- Fixed: zones stopped after a zone opened a window
+- Tap to click: a light touch presses the pad
+- Zones whose window isn't found show in red
+
 ## 0.6.0 — 2026-11-11
 
 - Touchpad window: `/gpc touch` or the Touchpad button
