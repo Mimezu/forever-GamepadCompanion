@@ -536,8 +536,9 @@ local topics = {
     { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
     { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
+    { "Rumble", "The motors on game events and casts\nEach event: a pattern, or Off\nCasts: a set for casting, interrupted, cancelled, pushed back\nMatch the action: each spell, profession or weapon its own feel\nTry: as the game would play it\nOff while Improved Forever: Vibration is on" },
     { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
-    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
+    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  rumble\n/gpc rumble test  each motor\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }
 
 local help = { buttons = {} }
@@ -584,7 +585,7 @@ API.RefreshOptions = function() Refresh() end
 ns.RefreshOptions = Refresh
 
 Shell.AddPage({
-    key = "bars", name = "Bars", order = 2,
+    key = "bars", name = "Bars", order = 3,
     icon = "Interface\\Icons\\INV_Misc_Gear_01",
     build = BuildBars, refresh = RefreshBars,
     -- Bars stay shown, and live state updates, while the window is open
@@ -600,11 +601,11 @@ Shell.AddPage({
     end,
 })
 Shell.AddPage({
-    key = "tools", name = "Tools", order = 3,
+    key = "tools", name = "Tools", order = 4,
     icon = "Interface\\Icons\\Ability_Repair", build = BuildTools, refresh = RefreshTools,
 })
 Shell.AddPage({
-    key = "help", name = "Help", order = 4, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
+    key = "help", name = "Help", order = 5, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
 })
 
 local events = CreateFrame("Frame")

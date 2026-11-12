@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0 — 2026-11-12
+
+- Rumble page: the motors on game events and casts, ported from Improved Forever: Vibration 0.6.3 (MIT)
+- Its 48 patterns, 15 events, cast sets and Match the action / weapon / move; strength; Try; motor test
+- Off while Improved Forever: Vibration is loaded; settings per character
+
 ## 0.10.0 — 2026-11-12
 
 - One window with side tabs: Controller (main), Bars, Tools, Help

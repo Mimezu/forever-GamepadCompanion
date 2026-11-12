@@ -733,6 +733,7 @@ local commandHelp = {
     "/gpc pad  controller",
     "/gpc touch  touchpad",
     "/gpc bars  bar layout",
+    "/gpc rumble  rumble · test: each motor",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
@@ -751,6 +752,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if (command == "pad" or command == "controller") and API.ToggleController then
         API.ToggleController()
+        return
+    end
+    if command == "rumble" and API.OpenRumble then
+        if rest:lower() == "test" and API.Rumble then API.Rumble.TestSides() else API.OpenRumble() end
         return
     end
     if command == "bars" and API.OpenBars then
