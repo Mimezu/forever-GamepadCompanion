@@ -117,7 +117,22 @@ def main():
     out = img.resize((W, H), Image.LANCZOS)
     here = os.path.dirname(os.path.abspath(__file__))
     out.save(os.path.join(here, "DualSense.tga"))
+    make_pad(here)
     print("ok")
+
+
+def make_pad(here):
+    """art/Touchpad.tga: the touchpad alone, for the floating preview.
+    512 x 512; the pad fills the top 512 x 287 (Touchpad.lua's PAD_TEX)."""
+    k = 512 / 328
+    pts = [(352, 104), (672, 104), (664, 262), (648, 280), (376, 280), (360, 262)]
+    pts = [((x - 348) * k, (y - 100) * k) for x, y in pts]
+    img = Image.new("RGBA", (s(512), s(512)), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    rrect_poly(d, pts, 4, LINE, (12, 8, 4, 215))
+    inner = [(x + (256 - x) * 0.025, y + (143 - y) * 0.05) for x, y in pts]
+    rrect_poly(d, inner, 1.5, (240, 222, 178, 70), None)
+    img.resize((512, 512), Image.LANCZOS).save(os.path.join(here, "Touchpad.tga"))
 
 
 def rot_pt(p, ang):

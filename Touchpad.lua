@@ -580,8 +580,8 @@ local function Cell(parent)
     return c
 end
 
-local PAD_ART = { 348 / 1024, 676 / 1024, 100 / 1024, 284 / 1024 }   -- the pad on art/DualSense.tga
-local INSET = 9                                                     -- inside its outline
+local PAD_TEX = 287 / 512   -- art/Touchpad.tga: the pad fills its top 512 x 287
+local INSET = 9             -- inside its outline
 
 local function Glyph(name, size)
     local C = ns.ControllerModel
@@ -589,40 +589,33 @@ local function Glyph(name, size)
 end
 
 local function BuildPreview()
-    local S = ns.OptionsSkin
+    -- No panel: the pad floats, its name above, the hint below
     local f = CreateFrame("Frame", "GamepadCompanionTouchPreview", UIParent)
-    f:SetSize(PAD_W + 28, PAD_H + 70)
+    f:SetSize(PAD_W, PAD_H + 44)
     f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 230)
     f:SetFrameStrata("DIALOG")
     f:EnableMouse(false)
     f:Hide()
-    if S and S.Panel then S.Panel(f) else
-        f.bg = f:CreateTexture(nil, "BACKGROUND")
-        f.bg:SetAllPoints()
-        f.bg:SetColorTexture(0.06, 0.04, 0.02, 0.85)
+    local function Shadowed(size, r, g, b)
+        local text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetFont("Fonts\\FRIZQT__.TTF", size, "")
+        text:SetShadowOffset(1, -1)
+        text:SetShadowColor(0, 0, 0, 1)
+        text:SetTextColor(r, g, b)
+        return text
     end
-    -- Header: the pad's glyph and name, the layer on the right
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.title:SetFont("Fonts\\FRIZQT__.TTF", 13, "")
-    f.title:SetTextColor(0.94, 0.86, 0.69)
-    f.title:SetPoint("TOPLEFT", 16, -12)
-    f.layerText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.layerText:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
-    f.layerText:SetTextColor(1, 0.82, 0)
-    f.layerText:SetPoint("TOPRIGHT", -16, -12)
-    local rule = f:CreateTexture(nil, "ARTWORK")
-    rule:SetPoint("TOPLEFT", 14, -32)
-    rule:SetPoint("TOPRIGHT", -14, -32)
-    rule:SetHeight(1)
-    rule:SetColorTexture(1, 0.82, 0, 0.25)
-    -- The pad, drawn as on the Controller page
+    f.title = Shadowed(13, 0.94, 0.86, 0.69)
+    f.title:SetPoint("TOPLEFT", 10, 0)
+    f.layerText = Shadowed(12, 1, 0.82, 0)
+    f.layerText:SetPoint("TOPRIGHT", -10, 0)
+    -- The pad, drawn as on the Controller page (art/Touchpad.tga)
     f.pad = CreateFrame("Frame", nil, f)
     f.pad:SetSize(PAD_W, PAD_H)
-    f.pad:SetPoint("TOP", 0, -40)
+    f.pad:SetPoint("TOP", 0, -20)
     f.padArt = f.pad:CreateTexture(nil, "BACKGROUND")
     f.padArt:SetAllPoints()
-    f.padArt:SetTexture("Interface\\AddOns\\GamepadCompanion\\art\\DualSense")
-    f.padArt:SetTexCoord(PAD_ART[1], PAD_ART[2], PAD_ART[3], PAD_ART[4])
+    f.padArt:SetTexture("Interface\\AddOns\\GamepadCompanion\\art\\Touchpad")
+    f.padArt:SetTexCoord(0, 1, 0, PAD_TEX)
     f.lines = {}
     f.cells = {}
     -- Split: the left half stays Blizzard's
@@ -648,8 +641,8 @@ local function BuildPreview()
     f.dot:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
     f.dot:SetVertexColor(1, 0.95, 0.75, 1)
     f.dot:SetPoint("CENTER", f.halo)
-    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.hint:SetPoint("BOTTOM", 0, 11)
+    f.hint = Shadowed(11, 0.72, 0.72, 0.72)
+    f.hint:SetPoint("BOTTOM", 0, 0)
     -- Fades in and out
     f.alpha, f.target = 0, 0
     f:SetAlpha(0)

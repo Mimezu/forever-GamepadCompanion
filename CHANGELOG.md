@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2 — 2026-11-12
+
+- Touchpad preview: no panel, the pad floats
+
 ## 0.9.1 — 2026-11-12
 
 - Touchpad preview restyled: Forever panel, the pad as drawn on the Controller page, glowing finger, fades in and out
