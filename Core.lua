@@ -730,13 +730,13 @@ SLASH_GAMEPADCOMPANION2 = "/gamepadcompanion"
 local function Say(message) print("|cff80c0ffGamepad Companion:|r " .. message) end
 local commandHelp = {
     "/gpc  window",
-    "/gpc on | off  my layout",
-    "/gpc reset  reset both layouts",
-    "/gpc style A | B | C  window style",
+    "/gpc pad  controller",
+    "/gpc touch  touchpad",
+    "/gpc bars  bar layout",
+    "/gpc on | off  my bar layout",
+    "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
-    "/gpc edit  gamepad layout",
-    "/gpc touch  touchpad window",
-    "/gpc pad  controller page",
+    "/gpc edit  Edit Mode layout",
 }
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
@@ -753,6 +753,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         API.ToggleController()
         return
     end
+    if command == "bars" and API.OpenBars then
+        API.OpenBars()
+        return
+    end
     if command == "reset" then
         API.ResetAll()
         Say("Layout reset" .. (pending and " · after combat" or ""))
@@ -764,11 +768,6 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         local ok, reason = false, nil
         if API.OpenGamepadSettings then ok, reason = API.OpenGamepadSettings() end
         if not ok and reason then Say(reason) end
-    elseif command == "style" then
-        local key = rest:upper()
-        if not M.styles[key] then Say("Styles: A, B, C"); return end
-        if API.SelectOptionsStyle then API.SelectOptionsStyle(key) else API.SetOptionsStyle(key) end
-        Say("Style " .. key)
     elseif command == "help" or command == "?" then
         for _, line in ipairs(commandHelp) do Say(line) end
     elseif command == "" or command == "options" or command == "config" then

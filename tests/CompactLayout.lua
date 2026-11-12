@@ -340,6 +340,7 @@ C_Texture = { GetAtlasInfo = function() return {
     file = 123, width = 300, height = 50, leftTexCoord = 0, rightTexCoord = 1, topTexCoord = 0, bottomTexCoord = 1,
 } end }
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
 api.ToggleOptions()
 local function find(label)
@@ -371,10 +372,10 @@ local function switch(label, value)
 end
 assert(find("Compact  ·  in use") and find("Standard"), "mode buttons mark the live layout")
 assert(visible("Action bars") and visible("Stance") and visible("Aura menu"))
-assert(not visible("LT"), "compact has no per-trigger tabs")
+assert(not visible("L2"), "compact has no per-trigger tabs")
 switch("Standard", "0")
 assert(find("Standard  ·  in use") and find("Compact"), "the clicked layout is now in use")
-assert(visible("LT") and visible("LT + RT") and not visible("Action bars") and visible("Aura menu"))
+assert(visible("L2") and visible("L2 + R2") and not visible("Action bars") and visible("Aura menu"))
 click("Aura menu")
 assert(find("Reset Aura menu"))
 combat = true

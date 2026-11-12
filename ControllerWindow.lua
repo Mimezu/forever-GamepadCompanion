@@ -10,12 +10,12 @@ local API = GamepadCompanionAPI
 
 local K = 0.78                                  -- art scale
 local ART_W, ART_H = C.ART_W * K, C.ART_H * K   -- 799 x 530
-local TOP = 40                                  -- tabs above the art
+local TOP = 0                                   -- (the layer and page tabs sit in the page header)
 local CARD_X, CARD_W = math.floor(ART_W) + 16, 286
-local BODY_W, BODY_H = CARD_X + CARD_W, TOP + math.floor(ART_H) + 34
+local BODY_W, BODY_H = ns.Shell.W, ns.Shell.H
 local W = CARD_W - 24                           -- the card's content width
 
-local window, body
+local window, body      -- the page frame (Window.lua's Controller page)
 local ui = { layers = {}, pages = {}, slots = {}, buttons = {}, zones = {}, rows = {} }
 local selectedLayer, selectedPage, heldLayer = "base", 1, nil
 local selected = { kind = "slot", slot = 1 }    -- or { kind = "button", id = ... }
@@ -764,7 +764,7 @@ end
 -- Refresh ------------------------------------------------------------------------
 
 Refresh = function()
-    if not window or not window:IsShown() then return end
+    if not window or not window:IsVisible() then return end
     local layer = Layer()
     local active = ActivePage()
     for l, button in pairs(ui.layers) do S.SetSelected(button, l == layer) end
@@ -818,22 +818,16 @@ end
 
 -- Build --------------------------------------------------------------------------
 
-local function Build()
-    window = CreateFrame("Frame", "GamepadCompanionController", UIParent)
-    window:SetPoint("CENTER")
-    window:SetFrameStrata("HIGH")
-    window:SetToplevel(true)
-    window.chrome = S.Chrome(window, "Gamepad Companion · Controller")
-    body = CreateFrame("Frame", nil, window)
-    body:SetSize(BODY_W, BODY_H)
+local function Build(frame, header)
+    window, body = frame, frame
 
-    -- Layers and pages
-    local x = 0
+    -- Layers and pages, in the page header
+    local x = 150
     for _, layer in ipairs(C.LAYERS) do
         local glyphs = C.Combo(layer, nil, 14)
         local label = layer == "base" and "Base" or glyphs
         local width = layer == "both" and 84 or 64
-        ui.layers[layer] = S.NewButton(body, label, x, 0, width, function()
+        ui.layers[layer] = S.NewButton(header, label, x, -3, width, function()
             selectedLayer = layer
             Refresh()
         end, nil, 12, 28)
@@ -841,9 +835,9 @@ local function Build()
         x = x + width + 6
     end
     local pageX = ART_W - C.PAGES * 40 - 50
-    ui.pageLabel = S.Text(body, "Page", pageX, -8, 46, 12, S.GOLD)
+    ui.pageLabel = S.Text(header, "Page", pageX, -11, 46, 12, S.GOLD)
     for p = 1, C.PAGES do
-        ui.pages[p] = S.NewButton(body, tostring(p), pageX + 46 + (p - 1) * 40, 0, 36, function()
+        ui.pages[p] = S.NewButton(header, tostring(p), pageX + 46 + (p - 1) * 40, -3, 36, function()
             selectedPage = p
             Refresh()
         end, nil, 12, 28)
@@ -866,7 +860,7 @@ local function Build()
     ui.status = S.Note(body, 2, -(TOP + ART_H + 10), ART_W - 4, 1, 11, S.GREY)
 
     -- Card
-    ui.card = S.Card(body, " ", CARD_X, 0, CARD_W, BODY_H - 36)
+    ui.card = S.Card(body, " ", CARD_X, 0, CARD_W, BODY_H)
     local card = ui.card
     ui.ed = BuildEditor(card)
     ui.name, ui.kind, ui.clear, ui.pickup, ui.choose = ui.ed.name, ui.ed.kind, ui.ed.clear, ui.ed.pickup, ui.ed.choose
@@ -886,8 +880,6 @@ local function Build()
         Refresh()
     end)
     if ns.Touch and T then BuildTouchPanel(card) end
-
-    S.NewButton(body, "Close", BODY_W - 100, -(BODY_H - 28), 100, function() window:Hide() end)
 
     -- Live: held triggers show their layer, pressed buttons light up
     local wait, pageWait, lastActive = 0, 0, nil
@@ -911,11 +903,6 @@ local function Build()
             if active ~= lastActive then lastActive = active; Refresh() end
         end
     end)
-    window:SetScript("OnShow", function()
-        selectedPage = ActivePage() or selectedPage
-        Refresh()
-    end)
-    window:SetScript("OnHide", function() if ns.Picker then ns.Picker.Close() end end)
     local events = CreateFrame("Frame")
     for _, event in ipairs({ "ACTIONBAR_SLOT_CHANGED", "UPDATE_MACROS", "SPELLS_CHANGED", "UPDATE_BINDINGS",
         "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "CURSOR_CHANGED" }) do
@@ -927,37 +914,27 @@ local function Build()
     end)
     if ns.Touch and ns.Touch.OnChange then ns.Touch.OnChange(Refresh) end
     if ns.Keys then ns.Keys.OnChange(Refresh) end
-    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionController"
-    S.RegisterWindow(window)
-    window:Hide()
 end
 
-local function ApplyStyle()
-    window.chrome:SetKind(S.ChromeKind(S.CurrentStyle()))
-    local inset = window.chrome:Insets()
-    body:ClearAllPoints()
-    body:SetPoint("TOPLEFT", inset.left, -inset.top)
-    window:SetSize(BODY_W + inset.left + inset.right, BODY_H + inset.top + inset.bottom)
-    S.Fit(window)
-end
+-- The main page of the Gamepad Companion window
+ns.Shell.AddPage({
+    key = "controller", name = "Controller", order = 1, icon = "Interface\\Icons\\Trade_Engineering",
+    build = Build, refresh = function() Refresh() end,
+    show = function() selectedPage = ActivePage() or selectedPage end,
+    hide = function() if ns.Picker then ns.Picker.Close() end end,
+})
 
-function API.ToggleController()
-    if not window then Build() end
-    if window:IsShown() then window:Hide(); return end
-    ApplyStyle()
-    window:Show()
-    window:Raise()
-end
+function API.ToggleController() ns.Shell.Toggle("controller") end
 
--- /gpc touch and the options window's Touchpad button: this page, on the touchpad
+-- /gpc touch: this page, on the touchpad
 function API.ToggleTouchpad()
-    if window and window:IsShown() and selected.kind == "button" and selected.id == "touchpad" then
-        window:Hide()
+    local open = ns.Shell.IsShown("controller")
+    if open and selected.kind == "button" and selected.id == "touchpad" then
+        ns.Shell.Window():Hide()
         return
     end
     selected = { kind = "button", id = "touchpad" }
-    if window and window:IsShown() then Refresh(); return end
-    API.ToggleController()
+    if open then Refresh() else ns.Shell.Open("controller") end
 end
 
 -- Harness access

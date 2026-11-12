@@ -81,6 +81,7 @@ C_Texture = { GetAtlasInfo = function() return {
     topTexCoord = 0, bottomTexCoord = 1,
 } end }
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
 GamepadCompanionAPI.ToggleOptions()
 assert(editing and GamepadCompanionOptions:IsShown())

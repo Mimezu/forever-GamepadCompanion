@@ -397,7 +397,7 @@ function Picker.Open(req)
     if not window then Build() end
     request = req
     window.chrome:SetTitle(req.title or "Choose")
-    window.chrome:SetKind(S.ChromeKind(S.CurrentStyle()))
+    window.chrome:SetKind("legacy")
     local inset = window.chrome:Insets()
     body:ClearAllPoints()
     body:SetPoint("TOPLEFT", inset.left, -inset.top)

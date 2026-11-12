@@ -1,16 +1,22 @@
+-- The Bars, Tools and Help pages of the Gamepad Companion window (Window.lua).
+--   Bars   where Blizzard's controller bars and class buttons sit, and their size
+--   Tools  Blizzard's spellbook, macros, Edit Mode and gamepad options; spread
+--          view; Edit Mode layouts; the character's profile
+--   Help   short topics and the commands
 local ADDON, ns = ...
-local S = ns.OptionsSkin
+local S, Shell = ns.OptionsSkin, ns.Shell
 local API = GamepadCompanionAPI
-local GOLD, GREY, DIM = S.GOLD, S.GREY, S.DIM
+local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
 local Text, Note, Button, Tooltip, SetSelected = S.Text, S.Note, S.NewButton, S.Tooltip, S.SetSelected
+local W, H = Shell.W, Shell.H
 
 -- Targets per layout. Compact mode stacks the four trigger bars in one spot and
 -- shows only the active one, so they share a single "Action bars" entry there.
 local targetsByMode = {
     compact = { { "bars", "Action bars" }, { "stance", "Stance" } },
-    standard = { { "base", "Base" }, { "lt", "LT" }, { "rt", "RT" }, { "both", "LT + RT" }, { "stance", "Stance" } },
+    standard = { { "base", "Base" }, { "lt", "L2" }, { "rt", "R2" }, { "both", "L2 + R2" }, { "stance", "Stance" } },
 }
-local classTargets = { { "classLeft", "LB + LT" }, { "classRight", "RB + RT" } }
+local classTargets = { { "classLeft", "L1 + L2" }, { "classRight", "R1 + R2" } }
 local classMenuNames = {
     Forms = "Form menu", Auras = "Aura menu", Stances = "Stance menu", Pet = "Pet menu", ["Pet spells"] = "Pet spells",
 }
@@ -19,27 +25,21 @@ local tips = {
     base = "Also moves page selector and shoulder icons",
     stance = "Edit its actions in Spread view",
 }
--- step, fine step, minimum, maximum, display format
+-- step, fine step, minimum, maximum, display format, name
 local specs = {
-    x = { 10, 1, -2000, 2000, "%.0f", "Horizontal offset" },
-    y = { 10, 1, -2000, 2000, "%.0f", "Vertical offset" },
+    x = { 10, 1, -2000, 2000, "%.0f", "X" },
+    y = { 10, 1, -2000, 2000, "%.0f", "Y" },
     scale = { 0.05, 0.01, 0.5, 2, "%.2f", "Scale" },
 }
-local valueKeys = { "x", "y", "scale" }
-local styleNames = { A = "Controller", B = "Legacy window", C = "Classic" }
-local styleTips = {
-    A = "Arrows and step sizes",
-    B = "Cards and typed values",
-    C = "Original look",
-}
--- Style A step sizes: pixels for offsets, and the matching scale step.
+-- Arrow steps: pixels for offsets, and the matching scale step
 local nudgeSteps = { { "1", 1, 0.01 }, { "10", 10, 0.05 }, { "50", 50, 0.10 } }
 
-local mode, selected, window, help, refreshing = nil, "base", nil, nil, false
-local views, view, style = {}, nil, "A"
+local mode, selected, refreshing = nil, "base", false
+local ui = { tabs = {}, modeButtons = {}, controls = {}, arrows = {}, stepButtons = {} }
+local step = 2
 local spellButtons = {}
 local openingPanel, reopenAfterSettings
-local Refresh, SetStatus
+local Refresh
 
 local function PlayerClassButtons()
     local _, class = UnitClass("player")
@@ -47,8 +47,8 @@ local function PlayerClassButtons()
     return ns.Model and ns.Model.classButtonUse[class] or {}
 end
 
--- Targets for the mode being edited: its bars, then this class's LB+LT / RB+RT
--- menu buttons. Classes without one don't see those tabs.
+-- Targets for the mode being edited: its bars, then this class's L1 + L2 /
+-- R1 + R2 menu buttons. Classes without one don't see those.
 local function Targets()
     local list = {}
     for _, entry in ipairs(targetsByMode[mode]) do list[#list + 1] = entry end
@@ -61,7 +61,9 @@ local function Targets()
 end
 
 local function IsClassTarget(key) return key == "classLeft" or key == "classRight" end
+local function Window() return Shell.Window() end
 
+-- Blizzard's gamepad options -----------------------------------------------------
 -- In the gamepad interface Blizzard's Settings panel is not opened from addon code: the
 -- gamepad window manager would then run under addon taint (the "A and B dead until
 -- /reload" bug). The note says where to find the options instead.
@@ -96,7 +98,7 @@ local function OpenGamepadSettings()
 end
 API.OpenGamepadSettings = OpenGamepadSettings
 
--- Values -------------------------------------------------------------------
+-- Values -----------------------------------------------------------------------
 
 local function Current(key)
     local settings = API.GetSettings()
@@ -104,16 +106,9 @@ local function Current(key)
     return layout[selected] and layout[selected][key] or 0
 end
 
--- A message about the user's last action stays up for a few seconds, even
--- when a live state change repaints the window underneath it.
-local sticky, stickyUntil
-local function Notice(message)
-    sticky, stickyUntil = message, (GetTime and GetTime() or 0) + 5
-    SetStatus(message)
-end
+local function Notice(message) Shell.SetStatus(message, true) end
 
 local function Result(ok, reason)
-    sticky = nil
     Refresh()
     if reason then
         Notice((reason == "combat" or reason == "pending") and "Applies after combat" or tostring(reason))
@@ -123,7 +118,7 @@ local function Result(ok, reason)
 end
 
 local function Submit(key, value)
-    if refreshing or not (view and view.supported[key]) then return end
+    if refreshing or not ui.supported then return end
     local spec = specs[key]
     if not value or value ~= value or value < spec[3] or value > spec[4] then
         Refresh()
@@ -147,88 +142,13 @@ local function ParseNumber(text)
     return tonumber((tostring(text or ""):gsub(",", ".")))
 end
 
--- Shared pieces ------------------------------------------------------------
-
-local function NewView(key, width, height)
-    local v = { style = key, width = width, height = height, controls = {}, tabs = {}, modeButtons = {},
-        styleButtons = {}, supported = {} }
-    v.frame = CreateFrame("Frame", nil, window)
-    v.frame:SetSize(width, height)
-    v.frame:Hide()
-    return v
-end
-
--- Compact / Standard show which of Blizzard's layouts is in use. Since build
--- 70338 "Compact Action Bar" is a setting of the controller action bar in Edit
--- Mode, saved with the Edit Mode layout; the old GamepadUseCompactActionBar CVar
--- is no longer read. The mode that is not in use runs Blizzard's /editmode from
--- the hardware click, like the Macros button: opening Edit Mode from addon code
--- would taint the gamepad window manager. Refresh clears the macro on the mode
--- in use.
-local function ModeButtons(v, x, y, width, height)
-    local first = math.floor((width - 6) / 2)
-    local second = width - 6 - first
-    for index, key in ipairs({ "compact", "standard" }) do
-        local button = Button(v.frame, key, index == 1 and x or x + first + 6, y,
-            index == 1 and first or second, nil, "InsecureActionButtonTemplate", nil, height)
-        button:RegisterForClicks("LeftButtonUp")
-        button:SetAttribute("useOnKeyDown", false)
-        button:SetAttribute("type", "macro")
-        button:SetAttribute("macrotext", "/editmode")
-        button:SetScript("PostClick", function()
-            sticky = nil
-            if (API.GetState().mode or "standard") == key then return end
-            Notice(InCombatLockdown() and "Not in combat"
-                or (key == "compact" and "Tick" or "Untick") .. " Compact Action Bar in Edit Mode")
-        end)
-        v.modeButtons[key] = button
-    end
-    Tooltip(v.modeButtons.compact, "Compact", "Set in Edit Mode")
-    Tooltip(v.modeButtons.standard, "Standard", "Set in Edit Mode")
-end
-
-local function GamepadButton(v, x, y, width, height, size)
-    v.gamepad = Button(v.frame, "Gamepad options", x, y, width, function()
-        local ok, reason = OpenGamepadSettings()
-        if not ok then Result(nil, reason); return end
-        reopenAfterSettings = true
-        window:Hide()
-        -- If Blizzard's panel never opened, don't pop this window up later.
-        if C_Timer and C_Timer.After then
-            C_Timer.After(1, function()
-                if reopenAfterSettings and SettingsPanel and SettingsPanel.IsShown and not SettingsPanel:IsShown() then
-                    reopenAfterSettings = nil
-                    if not window:IsShown() and not InCombatLockdown() then API.ToggleOptions() end
-                end
-            end)
-        end
-    end, nil, size, height)
-    Tooltip(v.gamepad, "Blizzard gamepad options", "Mouse and keyboard UI only")
-end
-
-local function EnableCheck(v, x, y)
-    v.enable = S.NewCheck(v.frame, "Enabled", x, y, function(self)
-        Result(API.SetEnabled(self:GetChecked() == true))
-    end, 60)
-    Tooltip(v.enable, "Enabled", "Off: Blizzard's layout, settings kept")
-end
-
-local function ResetRow(v, x, y, widths, height)
-    local left = x
-    v.resetBar = Button(v.frame, "Reset", left, y, widths[1], function() Result(API.ResetBar(selected, mode)) end, nil, nil, height)
-    left = left + widths[1] + 6
-    v.resetLayout = Button(v.frame, "Reset layout", left, y, widths[2], function() Result(API.ResetMode(mode)) end, nil, nil, height)
-    Tooltip(v.resetLayout, "Reset layout", "Other layout unchanged")
-    left = left + widths[2] + 6
-    v.copy = Button(v.frame, "Copy from Standard", left, y, widths[3], function()
-        Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
-    end, nil, nil, height)
-end
+-- Blizzard's panels, from the hardware click -------------------------------------
 
 local function ReturnToEditor()
     local reopen = openingPanel
     openingPanel = nil
-    if reopen and not window:IsShown() and not InCombatLockdown() then window:Show() end
+    local window = Window()
+    if reopen and window and not window:IsShown() and not InCombatLockdown() then window:Show() end
 end
 
 local function RefreshSpellbookButtons()
@@ -251,171 +171,31 @@ local function RefreshSpellbookButtons()
     end
 end
 
-local function Tools(v, x, y, widths, height)
-    local left = x
-    v.spread = Button(v.frame, "Spread view: Off", left, y, widths[1], function()
-        Result(API.SetSpread(not API.GetState().spread))
-    end, nil, nil, height)
-    Tooltip(v.spread, "Spread view", "Not in combat")
-    left = left + widths[1] + 6
-    local spells = Button(v.frame, "Spells", left, y, widths[2], nil, "InsecureActionButtonTemplate", nil, height)
-    spells:RegisterForClicks("LeftButtonUp")
-    spells:SetAttribute("useOnKeyDown", false)
-    spells:HookScript("OnShow", RefreshSpellbookButtons)
-    spells:HookScript("OnEnter", RefreshSpellbookButtons)
-    spells:SetScript("PreClick", function() openingPanel = window:IsShown() end)
-    spells:SetScript("PostClick", function()
-        ReturnToEditor()
-        if InCombatLockdown() or not spells.ready then
-            Notice("Use Blizzard's spellbook button")
-        end
-    end)
-    spellButtons[#spellButtons + 1] = spells
-    v.spells = spells
-    RefreshSpellbookButtons()
-    left = left + widths[2] + 6
-    local macros = Button(v.frame, "Macros", left, y, widths[3], nil, "InsecureActionButtonTemplate", nil, height)
-    macros:RegisterForClicks("LeftButtonUp")
-    macros:SetAttribute("useOnKeyDown", false)
-    -- Let the engine-owned hardware-click action run Blizzard's slash command.
-    -- Never call its panel opener from an addon OnClick or retry it directly.
-    macros:SetAttribute("type", "macro")
-    macros:SetAttribute("macrotext", "/macro")
-    macros:SetScript("PreClick", function() openingPanel = window:IsShown() end)
-    macros:SetScript("PostClick", function()
-        ReturnToEditor()
-        if InCombatLockdown() then Notice("Not in combat") end
-    end)
-    v.macros = macros
-    left = left + widths[3] + 6
-    -- Blizzard Edit Mode, run from the hardware click like the Macros button.
-    local layouts = Button(v.frame, "Edit Mode", left, y, widths[4], nil, "InsecureActionButtonTemplate", nil, height)
-    layouts:RegisterForClicks("LeftButtonUp")
-    layouts:SetAttribute("useOnKeyDown", false)
-    layouts:SetAttribute("type", "macro")
-    layouts:SetAttribute("macrotext", "/editmode")
-    layouts:SetScript("PostClick", function()
-        if InCombatLockdown() then Notice("Not in combat") end
-    end)
-    v.layouts = layouts
-    if widths[5] then
-        left = left + widths[4] + 6
-        v.touchpad = Button(v.frame, "Touchpad", left, y, widths[5], function()
-            if API.ToggleTouchpad then API.ToggleTouchpad() end
-        end, nil, nil, height)
-    end
+-- A secure button that runs a slash command from the click (Blizzard's panels
+-- must not be opened from addon code)
+local function SlashButton(parent, label, x, y, width, height, slash)
+    local b = Button(parent, label, x, y, width, nil, "InsecureActionButtonTemplate", 13, height)
+    b:RegisterForClicks("LeftButtonUp")
+    b:SetAttribute("useOnKeyDown", false)
+    b:SetAttribute("type", "macro")
+    b:SetAttribute("macrotext", slash)
+    return b
 end
 
--- The Controller page (every button, every layer)
-local function ControllerButton(v, x, y, width, height, size)
-    v.controllerPage = Button(v.frame, "Controller", x, y, width, function()
-        if API.ToggleController then API.ToggleController() end
-    end, nil, size, height)
-    Tooltip(v.controllerPage, "Controller", "Every button, every layer")
-end
+-- Bars page ----------------------------------------------------------------------
 
-local SelectStyle
-local function StyleSwitch(v, x, y, height)
-    local label = Text(v.frame, "Style", x, 0, nil, 11, DIM)
-    label:ClearAllPoints()
-    label:SetPoint("LEFT", v.frame, "TOPLEFT", x, y - (height or 26) / 2)
-    for index, key in ipairs({ "A", "B", "C" }) do
-        local button = Button(v.frame, key, x + 36 + (index - 1) * 34, y, 30, function() SelectStyle(key) end, nil, 12, height)
-        Tooltip(button, "Style " .. key .. ": " .. styleNames[key], styleTips[key])
-        v.styleButtons[key] = button
-    end
-end
-
--- Offset / scale rows with a typed value between - and + (styles B, C).
-local function ValueRows(v, x, y, width, spacing, labelX)
-    local right = x + width
-    local minusX, editX = right - 28 - 6 - 106 - 6 - 28, right - 28 - 6 - 106
-    for index, key in ipairs(valueKeys) do
-        local spec = specs[key]
-        local rowY = y - (index - 1) * spacing
-        local control = {}
-        control.label = Text(v.frame, spec[6], 0, 0, minusX - labelX - 8)
-        control.label:ClearAllPoints()
-        control.label:SetPoint("LEFT", v.frame, "TOPLEFT", labelX, rowY - 13)
-        control.minus = Button(v.frame, "-", minusX, rowY, 28, function() Step(key, -1) end, nil, 15)
-        control.plus = Button(v.frame, "+", right - 28, rowY, 28, function() Step(key, 1) end, nil, 15)
-        Tooltip(control.minus, spec[6], string.format("Shift-click: -%g", spec[2]))
-        Tooltip(control.plus, spec[6], string.format("Shift-click: +%g", spec[2]))
-        local edit = CreateFrame("EditBox", nil, v.frame, "BackdropTemplate")
-        edit:SetPoint("TOPLEFT", editX, rowY)
-        edit:SetSize(106, 26)
-        edit:SetFontObject("GameFontHighlight")
-        edit:SetJustifyH("CENTER")
-        edit:SetAutoFocus(false)
-        edit:SetMaxLetters(12)
-        S.Edit(edit)
-        edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-        -- Leaving the box without Enter puts the saved value back.
-        edit:SetScript("OnEditFocusLost", function(self)
-            self:HighlightText(0, 0)
-            self:SetText(string.format(spec[5], Current(key)))
-        end)
-        edit:SetScript("OnEnterPressed", function(self) Submit(key, ParseNumber(self:GetText())); self:ClearFocus() end)
-        edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-        edit:SetScript("OnTabPressed", function(self)
-            Submit(key, ParseNumber(self:GetText()))
-            local nextKey = valueKeys[index % #valueKeys + 1]
-            local nextControl = v.controls[nextKey]
-            if nextControl and nextControl.edit:IsShown() then nextControl.edit:SetFocus() else self:ClearFocus() end
-        end)
-        edit:EnableMouseWheel(true)
-        edit:SetScript("OnMouseWheel", function(_, delta)
-            if v.supported[key] and not edit:HasFocus() then Step(key, delta > 0 and 1 or -1) end
-        end)
-        control.edit = edit
-        v.controls[key] = control
-    end
-    -- Class buttons get a prompt toggle in the row below scale.
-    local promptY = y - 3 * spacing
-    v.promptsLabel = Text(v.frame, "Button prompt", 0, 0, minusX - labelX - 8)
-    v.promptsLabel:ClearAllPoints()
-    v.promptsLabel:SetPoint("LEFT", v.frame, "TOPLEFT", labelX, promptY - 13)
-    v.prompts = Button(v.frame, "Shown", minusX, promptY, right - minusX, function()
-        Result(API.SetClassPrompts(API.GetSettings().classPrompts == false))
-    end)
-    Tooltip(v.prompts, "Button prompt", "Both class buttons")
-
-    function v.UpdateValues(bar, classTab, available, caps)
-        for key, control in pairs(v.controls) do
-            local supported = not not (bar and available and caps.layout)
-            v.supported[key] = supported
-            if bar and not control.edit:HasFocus() then
-                control.edit:SetText(string.format(specs[key][5], bar[key]))
-            end
-            control.edit:EnableMouse(supported)
-            if not supported then control.edit:ClearFocus() end
-            control.edit:SetTextColor(supported and 1 or 0.5, supported and 1 or 0.5, supported and 1 or 0.5)
-            control.minus:SetEnabled(supported)
-            control.plus:SetEnabled(supported)
-            local shade = supported and 1 or 0.5
-            control.label:SetTextColor(GOLD[1] * shade, GOLD[2] * shade, GOLD[3] * shade)
-        end
-    end
-    function v.HasFocus()
-        for _, control in pairs(v.controls) do if control.edit:HasFocus() then return true end end
-        return false
-    end
-end
-
--- Arrow icon for style C, with a plain-text fallback.
 local function Arrow(button, direction)
     local atlas = direction == "left" and "common-icon-backarrow" or "common-icon-forwardarrow"
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
-    if info then
+    if info and button.CreateTexture then
         button.label:SetText("")
         local icon = button:CreateTexture(nil, "OVERLAY")
         icon:SetAtlas(atlas)
-        icon:SetSize(20, 20)
+        icon:SetSize(22, 22)
         icon:SetPoint("CENTER")
         if icon.SetRotation then
             icon:SetRotation(direction == "up" and math.pi / 2 or direction == "down" and -math.pi / 2 or 0)
         end
-        button.icon = icon
         button:HookScript("OnEnable", function() icon:SetDesaturated(false); icon:SetAlpha(1) end)
         button:HookScript("OnDisable", function() icon:SetDesaturated(true); icon:SetAlpha(0.5) end)
     else
@@ -423,193 +203,150 @@ local function Arrow(button, direction)
     end
 end
 
--- Controller-friendly editor (style A): arrows move by the chosen step, big
--- -/+ buttons for scale, no text entry.
-local function NudgePad(v, cardX, cardY)
-    v.step = 2
-    local function Nudge(dx, dy)
-        local size = nudgeSteps[v.step][2]
-        if dx ~= 0 then Step("x", dx, size) end
-        if dy ~= 0 then Step("y", dy, size) end
+-- [-] [ value ] [+], the value typed or stepped
+local function ValueRow(parent, key, x, y, width)
+    local spec = specs[key]
+    local c = {}
+    c.label = Text(parent, spec[6], x, y - 7, 60, 13, GOLD)
+    local editX, editW = x + 60 + 40, width - 60 - 80
+    c.minus = Button(parent, "-", x + 60, y, 36, function() Step(key, -1) end, nil, 16, 30)
+    c.plus = Button(parent, "+", x + width - 36, y, 36, function() Step(key, 1) end, nil, 16, 30)
+    Tooltip(c.minus, spec[6], string.format("Shift-click: -%g", spec[2]))
+    Tooltip(c.plus, spec[6], string.format("Shift-click: +%g", spec[2]))
+    local edit = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+    edit:SetPoint("TOPLEFT", editX, y)
+    edit:SetSize(editW, 30)
+    edit:SetFontObject("GameFontHighlight")
+    edit:SetJustifyH("CENTER")
+    edit:SetAutoFocus(false)
+    edit:SetMaxLetters(12)
+    S.Edit(edit)
+    edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+    -- Leaving the box without Enter puts the saved value back.
+    edit:SetScript("OnEditFocusLost", function(self)
+        self:HighlightText(0, 0)
+        self:SetText(string.format(spec[5], Current(key)))
+    end)
+    edit:SetScript("OnEnterPressed", function(self) Submit(key, ParseNumber(self:GetText())); self:ClearFocus() end)
+    edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    -- Tab applies and moves to the next value
+    edit:SetScript("OnTabPressed", function(self)
+        Submit(key, ParseNumber(self:GetText()))
+        local nextKey = ({ x = "y", y = "scale", scale = "x" })[key]
+        local nextControl = ui.controls[nextKey]
+        if nextControl and nextControl.edit:IsVisible() then nextControl.edit:SetFocus() else self:ClearFocus() end
+    end)
+    edit:EnableMouseWheel(true)
+    edit:SetScript("OnMouseWheel", function(_, delta)
+        if ui.supported and not edit:HasFocus() then Step(key, delta > 0 and 1 or -1) end
+    end)
+    c.edit = edit
+    ui.controls[key] = c
+    return c
+end
+
+local function BuildBars(frame, header)
+    ui.frame = frame
+    ui.enable = S.NewCheck(header, "My bar layout", W - 150, -4, function(self)
+        Result(API.SetEnabled(self:GetChecked() == true))
+    end, 110)
+    Tooltip(ui.enable, "My bar layout", "Off: Blizzard's, settings kept")
+
+    -- Blizzard's layout in use
+    local layout = S.Card(frame, "Blizzard layout", 0, 0, W, 86)
+    for index, key in ipairs({ "compact", "standard" }) do
+        local b = Button(layout, key, 14 + (index - 1) * 286, -42, 280, nil, "InsecureActionButtonTemplate", 13, 32)
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetAttribute("useOnKeyDown", false)
+        b:SetAttribute("type", "macro")
+        b:SetAttribute("macrotext", "/editmode")
+        b:SetScript("PostClick", function()
+            if (API.GetState().mode or "standard") == key then return end
+            Notice(InCombatLockdown() and "Not in combat"
+                or (key == "compact" and "Tick" or "Untick") .. " Compact Action Bar in Edit Mode")
+        end)
+        ui.modeButtons[key] = b
     end
+    Tooltip(ui.modeButtons.compact, "Compact", "Set in Edit Mode")
+    Tooltip(ui.modeButtons.standard, "Standard", "Set in Edit Mode")
+    ui.modeHint = Text(layout, "", 604, -50, W - 620, 12, GREY)
+
+    -- The bar list
+    ui.list = S.Card(frame, "Bar", 0, -98, 250, H - 98)
+
+    -- Position
+    local pos = S.Card(frame, "Position", 262, -98, 470, H - 98)
+    ui.posCard = pos
+    local cx, cy = 235, -190      -- the readout's centre
     local pad = {
-        up = { cardX + 120, cardY - 80, 0, 1, "Move up" }, down = { cardX + 120, cardY - 168, 0, -1, "Move down" },
-        left = { cardX + 40, cardY - 124, -1, 0, "Move left" }, right = { cardX + 200, cardY - 124, 1, 0, "Move right" },
+        up = { cx - 28, cy + 86, 0, 1, "Move up" }, down = { cx - 28, cy - 30, 0, -1, "Move down" },
+        left = { cx - 120, cy + 28, -1, 0, "Move left" }, right = { cx + 64, cy + 28, 1, 0, "Move right" },
     }
-    v.arrows = {}
     for direction, info in pairs(pad) do
-        local button = Button(v.frame, "", info[1], info[2], 40, function() Nudge(info[3], info[4]) end, nil, 14, 40)
-        Arrow(button, direction)
-        Tooltip(button, info[5], "Shift-click: 1")
-        v.arrows[direction] = button
+        local b = Button(pos, "", info[1], info[2], 56, function()
+            local size = nudgeSteps[step][2]
+            if info[3] ~= 0 then Step("x", info[3], size) end
+            if info[4] ~= 0 then Step("y", info[4], size) end
+        end, nil, 14, 56)
+        Arrow(b, direction)
+        Tooltip(b, info[5], "Shift-click: 1")
+        ui.arrows[direction] = b
     end
-    local box = CreateFrame("Frame", nil, v.frame, "BackdropTemplate")
-    box:SetPoint("TOPLEFT", cardX + 86, cardY - 126)
-    box:SetSize(108, 36)
+    local box = CreateFrame("Frame", nil, pos, "BackdropTemplate")
+    box:SetPoint("TOPLEFT", cx - 56, cy + 22)
+    box:SetSize(112, 44)
     S.Edit(box)
-    v.readout = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    v.readout:SetPoint("LEFT", 4, 0)
-    v.readout:SetPoint("RIGHT", -4, 0)
-    v.readout:SetJustifyH("CENTER")
-    local stepLabel = Text(v.frame, "Step", 0, 0, nil, 12)
-    stepLabel:ClearAllPoints()
-    stepLabel:SetPoint("LEFT", v.frame, "TOPLEFT", cardX + 14, cardY - 234)
-    v.stepButtons = {}
+    ui.readout = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    ui.readout:SetPoint("LEFT", 4, 0)
+    ui.readout:SetPoint("RIGHT", -4, 0)
+    ui.readout:SetJustifyH("CENTER")
+    Text(pos, "Step", 20, -296, 60, 13, GOLD)
     for index, info in ipairs(nudgeSteps) do
-        local button = Button(v.frame, info[1], cardX + 62 + (index - 1) * 62, cardY - 220, 56, function()
-            v.step = index
+        local b = Button(pos, info[1], 120 + (index - 1) * 82, -288, 76, function()
+            step = index
             Refresh()
-        end, nil, 13, 28)
-        Tooltip(button, "Step " .. info[1], string.format("Scale %.2f", info[3]))
-        v.stepButtons[index] = button
+        end, nil, 13, 30)
+        Tooltip(b, "Step " .. info[1], string.format("Scale %.2f", info[3]))
+        ui.stepButtons[index] = b
     end
-    -- Scale: - value +
-    v.rows = {}
-    local function Row(key, labelY)
-        local row = {}
-        row.label = Text(v.frame, specs[key][6], cardX + 282, cardY - labelY, 244)
-        row.minus = Button(v.frame, "-", cardX + 280, cardY - labelY - 18, 40, function()
-            Step(key, -1, nudgeSteps[v.step][3])
-        end, nil, 16, 32)
-        row.plus = Button(v.frame, "+", cardX + 488, cardY - labelY - 18, 40, function()
-            Step(key, 1, nudgeSteps[v.step][3])
-        end, nil, 16, 32)
-        row.value = v.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        row.value:SetFont("Fonts\\FRIZQT__.TTF", 14, "")
-        row.value:SetPoint("LEFT", row.minus, "RIGHT", 4, 0)
-        row.value:SetPoint("RIGHT", row.plus, "LEFT", -4, 0)
-        row.value:SetJustifyH("CENTER")
-        Tooltip(row.minus, specs[key][6], "Shift-click: -0.01")
-        Tooltip(row.plus, specs[key][6], "Shift-click: +0.01")
-        v.rows[key] = row
-        return row
-    end
-    Row("scale", 80)
-    v.promptsLabel = Text(v.frame, "Button prompt", cardX + 282, cardY - 146, 244)
-    v.prompts = Button(v.frame, "Shown", cardX + 280, cardY - 164, 248, function()
+    ValueRow(pos, "x", 20, -346, 430)
+    ValueRow(pos, "y", 20, -386, 430)
+
+    -- Size, prompt and resets
+    local size = S.Card(frame, "Size", 744, -98, W - 744, H - 98)
+    local sw = W - 744 - 40
+    ValueRow(size, "scale", 20, -50, sw)
+    ui.scaleSteps = Text(size, "", 80, -88, sw - 60, 11, DIM)
+    ui.promptsLabel = Text(size, "Button prompt", 20, -128, sw, 13, GOLD)
+    ui.prompts = Button(size, "Shown", 20, -150, sw, function()
         Result(API.SetClassPrompts(API.GetSettings().classPrompts == false))
-    end, nil, nil, 32)
-    Tooltip(v.prompts, "Button prompt", "Both class buttons")
-
-    function v.UpdateValues(bar, classTab, available, caps)
-        local layout = not not (bar and available and caps.layout)
-        v.supported.x, v.supported.y, v.supported.scale = layout, layout, layout
-        for _, button in pairs(v.arrows) do button:SetEnabled(layout) end
-        v.readout:SetText(bar and string.format("X  %d\nY  %d", bar.x, bar.y) or "")
-        v.readout:SetTextColor(layout and 1 or 0.5, layout and 1 or 0.5, layout and 1 or 0.5)
-        for index, button in ipairs(v.stepButtons) do SetSelected(button, index == v.step) end
-        for key, row in pairs(v.rows) do
-            local supported = v.supported[key]
-            row.value:SetText(bar and string.format(specs[key][5], bar[key]) or "")
-            row.minus:SetEnabled(supported); row.plus:SetEnabled(supported)
-            local shade = supported and 1 or 0.5
-            row.label:SetTextColor(GOLD[1] * shade, GOLD[2] * shade, GOLD[3] * shade)
-            row.value:SetTextColor(shade, shade, shade)
-        end
-    end
-    function v.HasFocus() return false end
+    end, nil, 13, 30)
+    Tooltip(ui.prompts, "Button prompt", "Both class buttons")
+    ui.resetBar = Button(size, "Reset", 20, -(H - 98) + 132, sw, function() Result(API.ResetBar(selected, mode)) end, nil, 13, 30)
+    ui.resetLayout = Button(size, "Reset layout", 20, -(H - 98) + 94, sw, function() Result(API.ResetMode(mode)) end, nil, 13, 30)
+    Tooltip(ui.resetLayout, "Reset layout", "Other layout unchanged")
+    ui.copy = Button(size, "Copy from Standard", 20, -(H - 98) + 56, sw, function()
+        Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
+    end, nil, 13, 30)
 end
 
--- Builders -----------------------------------------------------------------
--- Each style builds its own body; Refresh fills whichever one is shown.
-
-local function BuildClassic()
-    local v = NewView("C", 520, 482)
-    EnableCheck(v, -2, 0)
-    GamepadButton(v, 270, 0, 142)
-    v.help = Button(v.frame, "?  Help", 418, 0, 102, function() API.ToggleHelp() end)
-    S.Heading(v.frame, "LAYOUT", 0, -38, 520)
-    ModeButtons(v, 0, -62, 520)
-    v.modeHint = Note(v.frame, 4, -94, 512, 2)
-    v.tabArea = { x = 0, y = -128, width = 520, height = 26, size = 11 }
-    ValueRows(v, 0, -166, 520, 36, 4)
-    ResetRow(v, 0, -316, { 169, 169, 170 })
-    v.status = Note(v.frame, 4, -350, 512, 2)
-    S.Heading(v.frame, "TOOLS", 0, -388, 520)
-    ControllerButton(v, 418, -384, 102, 20, 11)
-    Tools(v, 0, -412, { 128, 84, 84, 108, 92 })
-    StyleSwitch(v, 4, -456)
-    Button(v.frame, "Close", 418, -456, 102, function() window:Hide() end)
-    return v
-end
-
-local function Footer(v, y, height)
-    EnableCheck(v, -2, y - ((height or 26) - 26) / 2)
-    StyleSwitch(v, 150, y, height)
-    v.help = Button(v.frame, "?  Help", 334, y, 100, function() API.ToggleHelp() end, nil, nil, height)
-    Button(v.frame, "Close", 440, y, 100, function() window:Hide() end, nil, nil, height)
-end
-
-local function BuildLegacy()
-    local v = NewView("B", 540, 524)
-    S.Card(v.frame, "Layout", 0, 0, 540, 104)
-    GamepadButton(v, 392, -4, 136, 22, 11)
-    ModeButtons(v, 12, -40, 516)
-    v.modeHint = Note(v.frame, 14, -72, 512, 2)
-    local position = S.Card(v.frame, "Position and size", 0, -112, 540, 262)
-    v.cardTitle = position.title
-    v.tabArea = { x = 12, y = -152, width = 516, height = 26, size = 11 }
-    ValueRows(v, 12, -190, 516, 34, 14)
-    ResetRow(v, 12, -332, { 168, 168, 168 })
-    v.status = Note(v.frame, 4, -380, 532, 2)
-    S.Card(v.frame, "Tools", 0, -414, 540, 74)
-    ControllerButton(v, 392, -418, 136, 22, 11)
-    Tools(v, 12, -452, { 128, 84, 84, 104, 92 })
-    Footer(v, -498)
-    return v
-end
-
-local function BuildController()
-    local v = NewView("A", 540, 570)
-    v.controller = true
-    S.Card(v.frame, "Layout", 0, 0, 540, 104)
-    GamepadButton(v, 392, -4, 136, 22, 11)
-    ModeButtons(v, 12, -38, 516, 28)
-    v.modeHint = Note(v.frame, 14, -72, 512, 2)
-    local position = S.Card(v.frame, "Position and size", 0, -112, 540, 304)
-    v.cardTitle = position.title
-    v.tabArea = { x = 12, y = -150, width = 516, height = 28, size = 12 }
-    NudgePad(v, 0, -112)
-    ResetRow(v, 12, -374, { 168, 168, 168 }, 28)
-    v.status = Note(v.frame, 4, -422, 532, 2)
-    S.Card(v.frame, "Tools", 0, -456, 540, 76)
-    ControllerButton(v, 392, -460, 136, 22, 11)
-    Tools(v, 12, -494, { 128, 84, 84, 104, 92 }, 28)
-    Footer(v, -542, 28)
-    return v
-end
-
-local builders = { A = BuildController, B = BuildLegacy, C = BuildClassic }
-
--- Refresh ------------------------------------------------------------------
-
-SetStatus = function(message)
-    if view and view.status then view.status:SetText(message or "") end
-end
-
-local function LayoutTabs(v, list)
-    for _, tab in pairs(v.tabs) do tab:Hide() end
+local function LayoutList(list)
+    for _, tab in pairs(ui.tabs) do tab:Hide() end
     local found = false
     for _, entry in ipairs(list) do if entry[1] == selected then found = true end end
     if not found then selected = list[1][1] end
-    local area, gap, count = v.tabArea, 6, #list
-    local total = area.width - gap * (count - 1)
     for index, entry in ipairs(list) do
         local key = entry[1]
-        -- Spread the rounding so the last tab ends exactly on the right edge.
-        local left = math.floor(total * (index - 1) / count)
-        local width = math.floor(total * index / count) - left
-        local tab = v.tabs[key]
+        local tab = ui.tabs[key]
         if not tab then
-            tab = Button(v.frame, entry[2], 0, 0, width, function()
+            tab = Button(ui.list, entry[2], 12, 0, 226, function()
                 selected = key
                 Refresh()
-            end, nil, area.size, area.height)
-            v.tabs[key] = tab
+            end, nil, 13, 34)
+            ui.tabs[key] = tab
         end
         tab:ClearAllPoints()
-        tab:SetPoint("TOPLEFT", area.x + left + (index - 1) * gap, area.y)
-        tab:SetWidth(width)
+        tab:SetPoint("TOPLEFT", 12, -42 - (index - 1) * 40)
         tab.label:SetText(entry[2])
         if IsClassTarget(key) then
             Tooltip(tab, entry[2] .. " (" .. entry[3] .. ")", "Blizzard's spot during combat")
@@ -621,221 +358,273 @@ local function LayoutTabs(v, list)
     end
 end
 
-Refresh = function()
-    if not window or not view then return end
-    RefreshSpellbookButtons()
+local function BarsStatus(settings, state, caps, classTab)
+    if caps.suspended then return "Paused · settings kept" end
+    if state.layoutError then return "Layout blocked · turn My bar layout off and on" end
+    if not state.available then return "Controller bars unavailable" end
+    if InCombatLockdown() then return "Applies after combat" end
+    if state.pendingLayout then return "Waiting for Blizzard's bars" end
+    if not settings.enabled then return "Off · Blizzard's layout" end
+    if not state.nativeEnabled then return "Ready · applies in gamepad UI" end
+    if classTab then return "Offsets from Blizzard's spot" end
+    if mode == "compact" and state.spread then return "Spread: all 4 bars" end
+    return "Bars shown while open"
+end
+
+local function RefreshBars()
+    if not ui.frame then return end
     refreshing = true
-    local v = view
     local settings, state, caps = API.GetSettings(), API.GetState(), API.GetCapabilities()
     local live = state.mode or "standard"
-    -- The layout being edited is always the one Blizzard is using.
     mode = live
     local list = Targets()
-    LayoutTabs(v, list)
+    LayoutList(list)
     local layout = mode == "compact" and settings.compact or settings.bars
     local bar = layout[selected]
     local classTab = IsClassTarget(selected)
     local entry
     for _, item in ipairs(list) do if item[1] == selected then entry = item end end
 
-    for key, button in pairs(v.modeButtons) do
+    for key, button in pairs(ui.modeButtons) do
         SetSelected(button, key == mode)
         button.label:SetText((key == "compact" and "Compact" or "Standard") .. (key == live and "  ·  in use" or ""))
         button:SetAttribute("type", key == live and "" or "macro")
+        button:SetEnabled(not InCombatLockdown())
     end
-    v.modeHint:SetText(mode == "compact"
-        and "One bar at a time"
-        or "Each bar in its own spot")
-    v.modeHint:SetTextColor(DIM[1], DIM[2], DIM[3])
-    for _, button in pairs(v.modeButtons) do button:SetEnabled(not InCombatLockdown()) end
+    ui.modeHint:SetText(mode == "compact" and "One bar at a time" or "Each bar in its own spot")
 
-    v.UpdateValues(bar, classTab, state.available, caps)
-    v.prompts:SetShown(classTab)
-    v.promptsLabel:SetShown(classTab)
-    v.promptsLabel:SetText("Button prompt (" .. (entry and entry[3] or "LB + LT") .. ")")
-    v.prompts.label:SetText(settings.classPrompts ~= false and "Shown" or "Hidden")
-    v.prompts:SetEnabled(state.available == true)
+    local supported = not not (bar and state.available and caps.layout)
+    ui.supported = supported
+    for key, c in pairs(ui.controls) do
+        if bar and not c.edit:HasFocus() then c.edit:SetText(string.format(specs[key][5], bar[key])) end
+        c.edit:EnableMouse(supported)
+        if not supported then c.edit:ClearFocus() end
+        local shade = supported and 1 or 0.5
+        c.edit:SetTextColor(shade, shade, shade)
+        c.minus:SetEnabled(supported)
+        c.plus:SetEnabled(supported)
+        c.label:SetTextColor(GOLD[1] * shade, GOLD[2] * shade, GOLD[3] * shade)
+    end
+    for _, b in pairs(ui.arrows) do b:SetEnabled(supported) end
+    ui.readout:SetText(bar and string.format("X  %d\nY  %d", bar.x, bar.y) or "")
+    for index, b in ipairs(ui.stepButtons) do SetSelected(b, index == step) end
+    ui.scaleSteps:SetText(string.format("Arrows: %d px · %.2f scale", nudgeSteps[step][2], nudgeSteps[step][3]))
+
+    ui.prompts:SetShown(classTab)
+    ui.promptsLabel:SetShown(classTab)
+    ui.promptsLabel:SetText("Button prompt (" .. (entry and entry[3] or "L1 + L2") .. ")")
+    ui.prompts.label:SetText(settings.classPrompts ~= false and "Shown" or "Hidden")
+    ui.prompts:SetEnabled(state.available == true)
 
     local tabName = entry and entry[2] or selected
-    if v.cardTitle then v.cardTitle:SetText(tabName .. ": position and size") end
-    v.resetBar.label:SetText("Reset " .. tabName)
-    v.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
-
-    v.enable:SetChecked(settings.enabled == true)
-    v.enable:SetEnabled(not caps.suspended)
-    v.spread.label:SetText(state.spread and "Spread view: On" or "Spread view: Off")
-    SetSelected(v.spread, state.spread == true)
-    v.spread:SetEnabled(state.enabled == true and (state.spread or not InCombatLockdown()))
-    for key, button in pairs(v.styleButtons) do SetSelected(button, key == style) end
-
-    if sticky and GetTime and GetTime() < stickyUntil then
-        SetStatus(sticky)
-    elseif caps.suspended then
-        SetStatus("Paused · settings kept")
-    elseif state.layoutError then
-        SetStatus("Layout blocked · toggle Enabled to retry")
-    elseif not state.available then
-        SetStatus("Controller bars unavailable")
-    elseif InCombatLockdown() then
-        SetStatus("Applies after combat")
-    elseif state.pendingLayout then
-        SetStatus("Waiting for Blizzard's bars")
-    elseif not settings.enabled then
-        SetStatus("Off · Blizzard's layout")
-    elseif not state.nativeEnabled then
-        SetStatus("Ready · applies in gamepad UI")
-    elseif classTab then
-        SetStatus("Offsets from Blizzard's spot")
-    elseif mode == "compact" and state.spread then
-        SetStatus("Spread: all 4 bars")
-    elseif v.controller then
-        SetStatus("Bars shown while open")
-    else
-        SetStatus("Bars shown while open")
-    end
+    ui.posCard.title:SetText("Position · " .. tabName)
+    ui.resetBar.label:SetText("Reset " .. tabName)
+    ui.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
+    ui.enable:SetChecked(settings.enabled == true)
+    ui.enable:SetEnabled(not caps.suspended)
+    Shell.SetStatus(BarsStatus(settings, state, caps, classTab))
     refreshing = false
 end
 
--- Style --------------------------------------------------------------------
+-- Tools page ---------------------------------------------------------------------
 
-local function ApplyStyle(key)
-    style = builders[key] and key or "A"
-    local v = views[style]
-    if not v then
-        v = builders[style]()
-        views[style] = v
-    end
-    if view and view ~= v then view.frame:Hide() end
-    view = v
-    window.chrome:SetKind(S.ChromeKind(style))
-    local inset = window.chrome:Insets()
-    v.frame:ClearAllPoints()
-    v.frame:SetPoint("TOPLEFT", inset.left, -inset.top)
-    window:SetSize(v.width + inset.left + inset.right, v.height + inset.top + inset.bottom)
-    v.frame:Show()
-    S.Fit(window)
+local function ToolNote(parent, text, x, y, width)
+    return Text(parent, text, x, y, width, 11, DIM)
 end
 
-local function ApplyHelpStyle()
-    if not help then return end
-    help.chrome:SetKind(S.ChromeKind(style))
-    local inset = help.chrome:Insets()
-    help.body:ClearAllPoints()
-    help.body:SetPoint("TOPLEFT", inset.left, -inset.top)
-    help:SetSize(720 + inset.left + inset.right, 300 + inset.top + inset.bottom)
-    S.Fit(help)
+local function BuildTools(frame)
+    local half = (W - 12) / 2
+    -- Blizzard's windows
+    local blizz = S.Card(frame, "Blizzard", 0, 0, half, 210)
+    local bw = (half - 36) / 2
+    local spells = Button(blizz, "Spells", 12, -44, bw, nil, "InsecureActionButtonTemplate", 13, 40)
+    spells:RegisterForClicks("LeftButtonUp")
+    spells:SetAttribute("useOnKeyDown", false)
+    spells:HookScript("OnShow", RefreshSpellbookButtons)
+    spells:HookScript("OnEnter", RefreshSpellbookButtons)
+    spells:SetScript("PreClick", function() local w = Window(); openingPanel = w and w:IsShown() end)
+    spells:SetScript("PostClick", function()
+        ReturnToEditor()
+        if InCombatLockdown() or not spells.ready then Notice("Use Blizzard's spellbook button") end
+    end)
+    spellButtons[#spellButtons + 1] = spells
+    ToolNote(blizz, "Spellbook", 14, -90, bw)
+    local macros = SlashButton(blizz, "Macros", 24 + bw, -44, bw, 40, "/macro")
+    macros:SetScript("PreClick", function() local w = Window(); openingPanel = w and w:IsShown() end)
+    macros:SetScript("PostClick", function()
+        ReturnToEditor()
+        if InCombatLockdown() then Notice("Not in combat") end
+    end)
+    ToolNote(blizz, "Macro window", 26 + bw, -90, bw)
+    local editMode = SlashButton(blizz, "Edit Mode", 12, -118, bw, 40, "/editmode")
+    editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
+    ToolNote(blizz, "Frames and the controller bar", 14, -164, bw)
+    local gamepad = Button(blizz, "Gamepad options", 24 + bw, -118, bw, function()
+        local ok, reason = OpenGamepadSettings()
+        if not ok then Result(nil, reason); return end
+        reopenAfterSettings = true
+        local window = Window()
+        window:Hide()
+        -- If Blizzard's panel never opened, don't pop this window up later.
+        if C_Timer and C_Timer.After then
+            C_Timer.After(1, function()
+                if reopenAfterSettings and SettingsPanel and SettingsPanel.IsShown and not SettingsPanel:IsShown() then
+                    reopenAfterSettings = nil
+                    if not window:IsShown() and not InCombatLockdown() then Shell.Open() end
+                end
+            end)
+        end
+    end, nil, 13, 40)
+    Tooltip(gamepad, "Blizzard gamepad options", "Mouse and keyboard UI only")
+    ToolNote(blizz, "Mouse and keyboard UI", 26 + bw, -164, bw)
+    RefreshSpellbookButtons()
+
+    -- Spread view
+    local spread = S.Card(frame, "Spread view", 0, -222, half, 128)
+    ui.spread = Button(spread, "Spread view: Off", 12, -44, half - 24, function()
+        Result(API.SetSpread(not API.GetState().spread))
+    end, nil, 13, 40)
+    Tooltip(ui.spread, "Spread view", "Not in combat")
+    ToolNote(spread, "All 4 bars side by side, and the form bars · while this window is open", 14, -92, half - 28)
+
+    -- Edit Mode layouts
+    local em = S.Card(frame, "Edit Mode layouts", half + 12, 0, half, 210)
+    ui.emStatus = Text(em, "", 14, -44, half - 28, 13, GOLD)
+    ui.emStatus:SetHeight(60)
+    ui.emStatus:SetJustifyV("TOP")
+    local ew = (half - 36) / 2
+    Button(em, "Convert again", 12, -118, ew, function()
+        if API.EditMode then API.EditMode.Command("convert") end
+        Refresh()
+    end, nil, 13, 40)
+    Button(em, "List in chat", 24 + ew, -118, ew, function()
+        if API.EditMode then API.EditMode.Command("list") end
+    end, nil, 13, 40)
+    ToolNote(em, "Your old Companion layout, as a Blizzard gamepad layout", 14, -164, half - 28)
+
+    -- Profile
+    local profile = S.Card(frame, "Profile", half + 12, -222, half, 128)
+    ui.profileName = Text(profile, "", 14, -44, half - 28, 14, GOLD)
+    ToolNote(profile, "Controller and touchpad bindings: this character\nNew characters start from a copy · bar layout: all characters",
+        14, -70, half - 28)
+
+    -- Frame Gambit
+    local fg = S.Card(frame, "Visibility", 0, -362, W, 90)
+    ui.fgText = Text(fg, "", 14, -44, W - 28, 13, GOLD)
 end
 
-SelectStyle = function(key)
-    if not builders[key] then return end
-    if API.SetOptionsStyle then API.SetOptionsStyle(key) end
-    if not window then style = key; return end
-    ApplyStyle(key)
-    ApplyHelpStyle()
-    if window:IsShown() then Refresh() end
+local function RefreshTools()
+    if not ui.spread then return end
+    local state = API.GetState()
+    ui.spread.label:SetText(state.spread and "Spread view: On" or "Spread view: Off")
+    SetSelected(ui.spread, state.spread == true)
+    ui.spread:SetEnabled(state.enabled == true and (state.spread or not InCombatLockdown()))
+    local ok, emStatus = pcall(function() return API.EditMode and API.EditMode.Status() end)
+    ui.emStatus:SetText(ok and emStatus or "")
+    local name = UnitName and UnitName("player")
+    ui.profileName:SetText(type(name) == "string" and name or "")
+    ui.fgText:SetText(_G.FrameGambitAPI and "Frame Gambit decides when bars show · Companion: place and size"
+        or "Companion places and sizes the bars · Blizzard shows them")
+    RefreshSpellbookButtons()
 end
-API.SelectOptionsStyle = SelectStyle
 
--- Help ---------------------------------------------------------------------
+-- Help page ----------------------------------------------------------------------
 
 local topics = {
-    { "Compact mode", "Edit Mode > controller bar > Compact Action Bar\nCompact and Standard keep separate layouts\nWhole bar block: Edit Mode" },
-    { "Bar layout", "Offsets from Blizzard's spot\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nStance actions: Spread view\nFine steps: Shift-click or mouse wheel\nIn combat: applies after" },
-    { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nLB + LT and RB + RT menus\nIn combat: Blizzard's spot" },
+    { "Controller", "Click a button on the drawing to edit it\nChoose: spells, items, macros, Halo rings, windows, typed macros\nOr drop a spell, item or macro on it\nHold L2 / R2: their layer\nBar slots: pages 1 to 3\nIn combat: applies after" },
+    { "Touchpad", "Click the touchpad on the drawing\nZones, grid, swipes, tap time\nTouch + click: two actions per zone\nTaps work out of combat only\nL1 + touchpad: Blizzard's focus" },
+    { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
+    { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
-    { "Visibility", "Frame Gambit\nCompanion: placement and size only" },
-    { "Window styles", "A  Controller (default)\nB  Legacy window\nC  Classic\nSettings shared" },
-    { "Commands", "/gpc  window\n/gpc on | off  my layout\n/gpc reset  both layouts\n/gpc style A | B | C\n/gpc gamepad  Blizzard options\n/gpc edit  gamepad layout\n/gpc touch  touchpad window\n/gpc help  commands in chat" },
+    { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
+    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }
 
-function API.ToggleHelp()
-    if not help then
-        help = CreateFrame("Frame", "GamepadCompanionHelp", UIParent)
-        help:SetPoint("CENTER")
-        help:SetFrameStrata("FULLSCREEN_DIALOG")
-        help:SetToplevel(true)
-        help.chrome = S.Chrome(help, "Gamepad Companion · Help")
-        help.body = CreateFrame("Frame", nil, help)
-        help.body:SetSize(720, 300)
-        local copy = Text(help.body, "", 172, -4, 548, 13)
-        copy:SetJustifyV("TOP")
-        copy:SetHeight(260)
-        local buttons = {}
-        local function Show(index)
-            copy:SetText(topics[index][2])
-            for i, button in ipairs(buttons) do SetSelected(button, i == index) end
-        end
-        for index, topic in ipairs(topics) do
-            buttons[index] = Button(help.body, topic[1], 0, -(index - 1) * 32, 150, function() Show(index) end)
-        end
-        if API.GetCapabilities().suspended then
-            copy:SetText("Paused in this recovery build\nSettings kept")
-        else
-            Show(1)
-        end
-        Button(help.body, "Close", 620, -274, 100, function() help:Hide() end)
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionHelp"
-        S.RegisterWindow(help)
-        help:Hide()
-    end
-    ApplyHelpStyle()
-    help:SetShown(not help:IsShown())
-    if help:IsShown() then help:Raise() end
+local help = { buttons = {} }
+local function ShowTopic(index)
+    help.index = index
+    help.title:SetText(topics[index][1])
+    help.copy:SetText(topics[index][2])
+    for i, b in ipairs(help.buttons) do SetSelected(b, i == index) end
 end
 
--- Window -------------------------------------------------------------------
-
-local function CreateOptions()
-    window = CreateFrame("Frame", "GamepadCompanionOptions", UIParent)
-    window:SetPoint("CENTER")
-    window:SetFrameStrata("HIGH")
-    window:SetToplevel(true)
-    local title = "Gamepad Companion"
-    local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")
-    if type(version) == "string" then title = title .. "  |cff9d9d9d" .. version .. "|r" end
-    window.chrome = S.Chrome(window, title)
-    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionOptions"
-    S.RegisterWindow(window)
-    window:Hide()
-    local function StateChanged()
-        if not window:IsShown() or (view and view.HasFocus and view.HasFocus()) then return end
-        Refresh()
+local function BuildHelp(frame)
+    local list = S.Card(frame, "Topics", 0, 0, 250, H)
+    for index, topic in ipairs(topics) do
+        help.buttons[index] = Button(list, topic[1], 12, -42 - (index - 1) * 40, 226, function() ShowTopic(index) end, nil, 13, 34)
     end
-    window:SetScript("OnShow", function()
+    local card = S.Card(frame, " ", 262, 0, W - 262, H)
+    help.title = card.title
+    help.copy = Text(card, "", 18, -50, W - 300, 14, GOLD)
+    help.copy:SetJustifyV("TOP")
+    help.copy:SetHeight(H - 70)
+    if help.copy.SetSpacing then help.copy:SetSpacing(8) end
+    if API.GetCapabilities().suspended then
+        help.copy:SetText("Paused in this recovery build\nSettings kept")
+    else
+        ShowTopic(1)
+    end
+end
+
+-- Pages ----------------------------------------------------------------------------
+
+local function StateChanged()
+    local window = Window()
+    if not window or not window:IsShown() then return end
+    for _, c in pairs(ui.controls) do if c.edit:HasFocus() then return end end
+    Refresh()
+end
+
+Refresh = function()
+    RefreshSpellbookButtons()
+    local current = Shell.Current()
+    if current == "bars" then RefreshBars() elseif current == "tools" then RefreshTools() end
+end
+API.RefreshOptions = function() Refresh() end
+ns.RefreshOptions = Refresh
+
+Shell.AddPage({
+    key = "bars", name = "Bars", order = 2,
+    icon = "Interface\\Icons\\INV_Misc_Gear_01",
+    build = BuildBars, refresh = RefreshBars,
+    -- Bars stay shown, and live state updates, while the window is open
+    windowShow = function()
+        mode = API.GetState().mode or "standard"
         API.SetEditing(true)
-        API.Subscribe(window, StateChanged)
-    end)
-    window:SetScript("OnHide", function()
-        API.Unsubscribe(window)
+        API.Subscribe(Window(), StateChanged)
+    end,
+    windowHide = function()
+        API.Unsubscribe(Window())
         if openingPanel then return end
         API.SetEditing(false)
-        if help then help:Hide() end
-    end)
-    window:RegisterEvent("PLAYER_REGEN_ENABLED")
-    window:RegisterEvent("PLAYER_REGEN_DISABLED")
-    window:RegisterEvent("PLAYER_ENTERING_WORLD")
-    window:SetScript("OnEvent", function() if window:IsShown() then Refresh() end end)
-    if SettingsPanel and SettingsPanel.HookScript then
-        SettingsPanel:HookScript("OnHide", function()
-            if not reopenAfterSettings then return end
-            reopenAfterSettings = nil
-            if not window:IsShown() and not InCombatLockdown() then API.ToggleOptions() end
-        end)
-    end
-    ApplyStyle(S.CurrentStyle())
-end
+    end,
+})
+Shell.AddPage({
+    key = "tools", name = "Tools", order = 3,
+    icon = "Interface\\Icons\\Ability_Repair", build = BuildTools, refresh = RefreshTools,
+})
+Shell.AddPage({
+    key = "help", name = "Help", order = 4, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
+})
 
-function API.ToggleOptions()
-    if not window then CreateOptions() end
-    if window:IsShown() then window:Hide(); return end
-    -- Open on the layout Blizzard is using now.
-    mode = API.GetState().mode or "standard"
-    S.Fit(window)
-    Refresh()
-    window:Show()
-    window:Raise()
+local events = CreateFrame("Frame")
+for _, event in ipairs({ "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "PLAYER_ENTERING_WORLD" }) do
+    pcall(events.RegisterEvent, events, event)
 end
-
-function API.RefreshOptions()
+events:SetScript("OnEvent", function()
+    local window = Window()
     if window and window:IsShown() then Refresh() end
+end)
+if SettingsPanel and SettingsPanel.HookScript then
+    SettingsPanel:HookScript("OnHide", function()
+        if not reopenAfterSettings then return end
+        reopenAfterSettings = nil
+        local window = Window()
+        if window and not window:IsShown() and not InCombatLockdown() then Shell.Open() end
+    end)
 end
+
+-- /gpc: the window on its last page (Controller first)
+function API.ToggleOptions(page) Shell.Toggle(page) end
+function API.OpenBars() Shell.Open("bars") end
+function API.ToggleHelp() Shell.Toggle("help") end

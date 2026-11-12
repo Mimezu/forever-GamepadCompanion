@@ -188,7 +188,7 @@ GamepadCompanionTouchDB = { enabled = false, split = { device = "pad" }, actions
 
 local ns = {}
 for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "Touchpad.lua", "Keys.lua", "ControllerModel.lua",
-    "SpreadOverview.lua", "OptionsSkin.lua", "Picker.lua", "ControllerWindow.lua" }) do
+    "SpreadOverview.lua", "OptionsSkin.lua", "Window.lua", "Picker.lua", "ControllerWindow.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local C, Touch, Keys = ns.ControllerModel, ns.Touch, ns.Keys
@@ -235,7 +235,7 @@ actions[128] = { kind = "spell", id = 133, texture = 111 }                 -- pa
 actions[132] = { kind = "macro", id = 5, texture = 222, name = "Mount" }    -- page 2 L2 left
 API.ToggleController()
 local window, ui = ns.ControllerWindow()
-check(window and window:IsShown(), "opens")
+check(window and window:IsShown() and GamepadCompanionOptions:IsShown(), "opens on the Controller page")
 check(ui.pages[2].selected, "opens on the active page")
 eq(ui.pages[2].label.text, "2 •", "active page marked")
 check(ui.layers.base.selected, "base layer")
@@ -404,7 +404,7 @@ check(not tp.inputs.dual:IsEnabled(), "right half: no touch + click")
 tp.modes.chord.scripts.OnClick(tp.modes.chord)
 ui.layers.base.scripts.OnClick(ui.layers.base)
 API.ToggleTouchpad()
-check(not window:IsShown(), "touchpad toggle closes")
+check(not GamepadCompanionOptions:IsShown(), "touchpad toggle closes")
 API.ToggleController()
 
 -- Held triggers and pressed buttons
@@ -424,7 +424,7 @@ eq(ui.pages[3].label.text, "3 •", "active page follows the game")
 
 -- Close
 API.ToggleController()
-check(not window:IsShown(), "toggle closes")
+check(not GamepadCompanionOptions:IsShown(), "toggle closes")
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

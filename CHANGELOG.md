@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0 — 2026-11-12
+
+- One window with side tabs: Controller (main), Bars, Tools, Help
+- Bars page redesigned: bar list, arrows and typed values side by side, size and resets
+- Tools page: Blizzard's windows, spread view, Edit Mode layouts, profile
+- Help is a page; the separate options, help and controller windows are gone
+- Window styles A / B / C removed: one Forever look
+- L2 / R2 names throughout (was LT / RT)
+
 ## 0.9.2 — 2026-11-12
 
 - Touchpad preview: no panel, the pad floats

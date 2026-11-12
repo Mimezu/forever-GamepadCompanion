@@ -1,6 +1,6 @@
 # Gamepad Companion
 
-Moves and resizes the controller action bars and class buttons in WoW Forever's gamepad UI, and adds touchpad zones for PlayStation pads.
+Binds every button of a PlayStation pad in WoW Forever's gamepad UI, adds touchpad zones, and moves and resizes the controller bars.
 
 ## Install
 
@@ -8,20 +8,20 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 
 ## Use
 
-- `/gpc` opens the window. Pick a bar tab, then move it with the arrows.
-- Offsets are measured from Blizzard's spot. The whole bar block moves in Blizzard Edit Mode.
-- Compact or Standard is a Blizzard setting: Edit Mode > controller bar > Compact Action Bar.
-- Spread view shows all 4 bars side by side, for dragging spells onto them.
-- Changes made in combat apply after combat.
-- `/gpc pad` opens the Controller page: every button, layer and page on a DualSense drawing. Choose what each runs: spells, items, macros, Halo rings, windows, typed macros.
+- `/gpc` opens the window. Side tabs: Controller, Bars, Tools, Help.
+- Controller: click a button on the drawing, then Choose what it runs: spells, items, macros, Halo rings, windows, typed macros. Or drop one on it.
+- Hold L2 / R2 to see their layer. The touchpad's zones and settings are on the same page.
+- Bars: where the controller bars sit, and their size. Offsets from Blizzard's spot.
+- Tools: Blizzard's spellbook, macros, Edit Mode and gamepad options; spread view.
 - Bindings are per character; a new character starts from a copy.
+- Changes made in combat apply after combat.
 
 | Command | Does |
 |---|---|
 | `/gpc` | Window |
-| `/gpc on`, `/gpc off` | My layout or Blizzard's |
-| `/gpc reset` | Reset both layouts |
-| `/gpc style A`, `B`, `C` | Window style |
+| `/gpc bars` | Bars page |
+| `/gpc on`, `/gpc off` | My bar layout or Blizzard's |
+| `/gpc reset` | Reset both bar layouts |
 | `/gpc gamepad` | Blizzard gamepad options |
 | `/gpc edit` | Gamepad Edit Mode layout |
 | `/gpc touch` | Controller page, touchpad |

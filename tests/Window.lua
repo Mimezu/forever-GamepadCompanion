@@ -1,5 +1,5 @@
 -- Run from GamepadCompanion: luajit tests/OptionsStyles.lua .
--- Options window styles A/B/C, shared controls and the Edit Mode panel skin.
+-- The Gamepad Companion window: side tabs, the Bars page, Help.
 local root = arg[1] or "."
 local ns = {}
 local combat, now = false, 100
@@ -119,6 +119,7 @@ GamepadCompanionAPI = {
 }
 local api = GamepadCompanionAPI
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
 
 local function find(label, kind)
@@ -140,24 +141,25 @@ local function visibleEdits()
     return list
 end
 
--- Style A (controller) is the default and registers with Frame Gambit's Cinematic windows.
+local function statusText() return GamepadCompanionOptions.status.text or "" end
+
+-- One window, pages on side tabs; Frame Gambit registration; bars shown while open
 api.ToggleOptions()
 local window = GamepadCompanionOptions
-assert(window:IsShown() and editing)
-assert(registered[window], "options window opts into Cinematic suite windows")
-assert(settings.optionsStyle == "A" and window.width == 588 and window.height == 628, "controller layout is the default")
-assert(#visibleEdits() == 0, "the default has no text entry")
--- Style C is the classic look.
-click("C")
-assert(settings.optionsStyle == "C" and editing)
-assert(window.width == 560 and window.height == 560, "classic window keeps its 560x560 size")
-assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"))
--- Tabs fill the row exactly: the last one ends on the right edge.
-local tab = find("Pet spells")
-assert(tab.points[1][4] + tab.width == 520, "last tab ends at the content edge, got " .. tab.points[1][4] + tab.width)
-print("PASS: style A (controller) default, C classic at 560x560, Cinematic registration, tabs fill the row")
+assert(window:IsShown() and editing, "opens and shows the bars")
+assert(registered[window], "the window opts into Cinematic suite windows")
+assert(window.chrome.kind == "legacy", "one Forever look")
+local _, tabs = ns.ShellWindow()
+assert(tabs.bars and tabs.tools and tabs.help, "Bars, Tools and Help tabs")
+assert(ns.Shell.Current() == "bars", "first page without the Controller page loaded")
+assert(tabs.bars.selected.shown and not tabs.tools.selected.shown, "the open page's tab is lit")
+tabs.tools.scripts.OnClick(tabs.tools)
+assert(ns.Shell.Current() == "tools" and find("Spread view: Off") and not find("Pet menu"), "Tools page")
+tabs.bars.scripts.OnClick(tabs.bars)
+assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")
+print("PASS: one window, side tabs, Cinematic registration, bars shown while open")
 
--- Enabled is a check box that reflects the saved setting.
+-- My bar layout: the page's switch mirrors the setting
 local enable
 for _, f in ipairs(created) do if f.kind == "CheckButton" and f:IsVisible() then enable = f end end
 assert(enable and enable.checked == true)
@@ -167,13 +169,13 @@ assert(settings.enabled == false and enable.checked == false)
 enable.checked = true
 enable.scripts.OnClick(enable)
 assert(settings.enabled == true)
-print("PASS: Enabled check box toggles and mirrors the setting")
+print("PASS: My bar layout toggles and mirrors the setting")
 
--- Typed values: comma decimals, Enter applies, leaving without Enter reverts.
+-- Typed values: comma decimals, Enter applies, leaving without Enter reverts
 local edits = visibleEdits()
-assert(#edits == 3, "x, y and scale; active zoom was removed in 0.4.0")
+assert(#edits == 3, "x, y and scale")
 local scaleEdit = edits[3]
-assert(scaleEdit.text == "0.90")
+assert(scaleEdit.text == "0.90", tostring(scaleEdit.text))
 scaleEdit:SetFocus()
 scaleEdit.text = "0,85"
 scaleEdit.scripts.OnEnterPressed(scaleEdit)
@@ -186,64 +188,44 @@ assert(scaleEdit.text == "0.85" and math.abs(settings.compact.bars.scale - 0.85)
 scaleEdit:SetFocus()
 scaleEdit.text = "9"
 scaleEdit.scripts.OnEnterPressed(scaleEdit)
-local status
-for _, f in ipairs(created) do
-    if f.kind == "FontString" and f.text and f.text:find("0.5 to 2 only", 1, true) and f:IsVisible() then status = f end
-end
-assert(status, "out-of-range value explains the range")
--- A live state repaint keeps the message for a few seconds.
+assert(statusText():find("0.5 to 2 only", 1, true), "out-of-range value explains the range")
 api.RefreshOptions()
-assert(status.text:find("to 2 only", 1, true), "message survives a repaint")
+assert(statusText():find("to 2 only", 1, true), "message survives a repaint")
 now = now + 6
 api.RefreshOptions()
-assert(not status.text:find("to 2 only", 1, true), "message expires")
--- Tab moves to the next field after applying.
+assert(not statusText():find("to 2 only", 1, true), "message expires")
 local yEdit = edits[2]
 yEdit:SetFocus()
 yEdit.text = "-40"
 yEdit.scripts.OnTabPressed(yEdit)
-assert(settings.compact.bars.y == -40 and scaleEdit.focus and not yEdit.focus)
+assert(settings.compact.bars.y == -40 and scaleEdit.focus and not yEdit.focus, "Tab applies and moves on")
 scaleEdit:ClearFocus()
 print("PASS: comma decimals, Enter/Tab apply, focus loss reverts, range message stays briefly")
 
--- Class tabs: the prompt row names the tab's own button combination.
+-- Class buttons: the prompt row names the button's own combination
 click("Pet spells")
 local label
 for _, f in ipairs(created) do
     if f.kind == "FontString" and f.text and f.text:find("^Button prompt") and f:IsVisible() then label = f end
 end
-assert(label and label.text == "Button prompt (RB + RT)", tostring(label and label.text))
+assert(label and label.text == "Button prompt (R1 + R2)", tostring(label and label.text))
 click("Pet menu")
-assert(label.text == "Button prompt (LB + LT)")
+assert(label.text == "Button prompt (L1 + L2)")
+assert(find("Reset Pet menu"), "reset names the bar")
 print("PASS: prompt row follows the selected class button")
 
--- The edited layout always follows Blizzard's setting; no "not in use" state.
+-- The edited layout follows Blizzard's setting
 state.mode, state.compact = "standard", false
 api.RefreshOptions()
-assert(find("Standard  ·  in use") and find("LT") and not find("Action bars"))
-for _, f in ipairs(created) do
-    assert(not (f.kind == "FontString" and f.text and f.text:find("Not in use", 1, true)), "no orange not-in-use hint")
-end
+assert(find("Standard  ·  in use") and find("L2") and find("L2 + R2") and not find("Action bars"))
 local standardButton = find("Standard  ·  in use")
 assert(standardButton.attributes.macrotext == "/editmode" and standardButton.attributes.type == "")
 assert(find("Compact").attributes.type == "macro", "the mode not in use opens Edit Mode")
 state.mode, state.compact = "compact", true
 api.RefreshOptions()
-click("Pet menu")
-print("PASS: Compact/Standard follow Blizzard's setting and carry its /console command")
+print("PASS: Compact/Standard follow Blizzard's setting and carry /editmode")
 
--- Style B: Legacy chrome, same settings, editing stays on while switching.
-click("B")
-assert(settings.optionsStyle == "B" and window:IsShown() and editing, "switching keeps the window open")
-assert(window.width == 588 and window.height == 582)
-assert(find("Pet menu") and find("Reset Pet menu"), "selection carries over")
-assert(#visibleEdits() == 3, "class tab shows x, y and scale in style B too")
-print("PASS: style B switches in place with the Legacy window size")
-
--- Style A: arrows and step sizes, no typing.
-click("A")
-assert(settings.optionsStyle == "A" and window.width == 588 and window.height == 628)
-assert(#visibleEdits() == 0, "style A has no text entry")
+-- Arrows move by the chosen step; scale follows typed or stepped
 click("Action bars")
 local arrows = {}
 for _, f in ipairs(created) do
@@ -257,38 +239,27 @@ click("1")
 arrows["Move left"].scripts.OnClick(arrows["Move left"])
 assert(settings.compact.bars.x == -1)
 click("50")
-local scale = settings.compact.bars.scale
-local plus
-for _, f in ipairs(created) do
-    if f.kind == "Button" and f:IsVisible() and f.tipTitle == "Scale" and f.label.text == "+" then plus = f end
-end
-plus.scripts.OnClick(plus)
-assert(math.abs(settings.compact.bars.scale - (scale + 0.10)) < 1e-9, "large step changes scale by 0.10")
--- Arrows are disabled when the bars are unavailable.
+arrows["Move right"].scripts.OnClick(arrows["Move right"])
+assert(settings.compact.bars.x == 49)
 state.available = false
 api.RefreshOptions()
-assert(not arrows["Move up"].enabled)
+assert(not arrows["Move up"].enabled, "disabled when the bars are unavailable")
 state.available = true
 api.RefreshOptions()
 assert(arrows["Move up"].enabled)
-print("PASS: style A nudges by the chosen step, scales by the matching step and disables when unavailable")
+print("PASS: arrows nudge by the chosen step and disable when unavailable")
 
--- Back to A through the slash command path; the choice survives normalization.
-api.SelectOptionsStyle("C")
-assert(window.width == 560 and settings.optionsStyle == "C")
--- Saves from before the A/C swap keep the look they had: old C (controller) is now A.
-assert(M.Normalize({ optionsStyle = "C" }).optionsStyle == "A")
-assert(M.Normalize({ optionsStyle = "B" }).optionsStyle == "B")
-assert(M.Normalize({ optionsStyle = "C", optionsStyleVersion = 2 }).optionsStyle == "C")
-assert(M.Normalize({ optionsStyle = "Z" }).optionsStyle == "A" and M.Normalize().optionsStyle == "A")
-assert(M.Normalize(M.Normalize({ optionsStyle = "C", optionsStyleVersion = 2 })).optionsStyle == "C", "stable after saving")
-print("PASS: style selection by API, A/C swap migration and saved-value validation")
-
--- Help follows the style and registers too.
+-- Help is a page; its topics name the commands
 api.ToggleHelp()
-assert(GamepadCompanionHelp:IsShown() and registered[GamepadCompanionHelp])
-assert(find("Window styles") and find("Commands"))
+assert(window:IsShown() and ns.Shell.Current() == "help")
+click("Commands")
+local copy
+for _, f in ipairs(created) do
+    if f.kind == "FontString" and f.text and f.text:find("/gpc pad", 1, true) and f:IsVisible() then copy = f end
+end
+assert(copy, "commands topic")
 api.ToggleHelp()
-window:Hide()
-assert(not editing)
-print("PASS: help window style, registration and close lifecycle")
+assert(not window:IsShown() and not editing, "closing ends editing")
+-- Saved styles still normalize (the setting stays for older saves)
+assert(M.Normalize({ optionsStyle = "Z" }).optionsStyle == "A")
+print("PASS: help page, close lifecycle")
