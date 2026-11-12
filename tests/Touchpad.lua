@@ -88,7 +88,7 @@ C_GamePad = {
         buttons[INDEX.PADRTRIGGER + 1] = pad.rt
         buttons[INDEX.PADBACK + 1] = pad.held
         buttons[INDEX.PAD6 + 1] = pad.clickHeld
-        return { labelStyle = pad.labelStyle, name = "DualSense", sticks = { [4] = { x = pad.x, y = pad.y, len = 0 } },
+        return { labelStyle = pad.labelStyle, name = "DualSense", sticks = { [4] = { x = pad.x, y = pad.y, len = (pad.x == 0 and pad.y == 0) and 0 or 1 } },
             buttons = buttons }
     end,
     GetDeviceRawState = function() return { vendorID = pad.vendorID, productID = pad.productID } end,
@@ -224,6 +224,7 @@ check(wrapped and wrapped.frame == click and wrapped.script == "OnClick", "snipp
 local snippet = assert(loadstring("local self, button, down = ...\n" .. wrapped.body))
 setfenv(snippet, {
     GetGamePadState = function() return C_GamePad.GetDeviceMappedState() end,
+    SecureCmdOptionParse = function(text) return combat and "1" or "0" end,
 })
 -- A full press: down at x, y, up at x2, y2 (default: the same spot);
 -- returns what ran (macrotext) or nil
@@ -436,6 +437,25 @@ pad.labelStyle = "Shapes"
 local saved = GamepadCompanionTouchDB
 eq(saved.enabled, true, "saved: enabled")
 eq(saved.actions.chord.lt.r1c3, "spell:133", "saved: the LT zone")
+
+-- A tap arrives after the finger left the pad (0, 0): the kept spot, out of combat only
+do
+    Touch.SetInput("tap")
+    local tracker
+    for _, f in ipairs(frames) do if f.scripts.OnUpdate and f ~= watcher then tracker = f end end
+    pad.x, pad.y = -0.8, 0.6
+    tracker.scripts.OnUpdate(tracker, 0.01)
+    eq(click:GetAttribute("gpc-lx"), -0.8, "finger spot kept")
+    eq(Press(0, 0), "/click CharacterMicroButton", "tap after lift: the kept spot (top left)")
+    combat = true
+    pad.x, pad.y = 0.8, -0.6
+    tracker.scripts.OnUpdate(tracker, 0.01)
+    eq(click:GetAttribute("gpc-lx"), -0.8, "combat: spot not updated")
+    eq(Press(0, 0), nil, "combat: a tap after lift does nothing")
+    eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "combat: a click (finger on the pad) still works")
+    combat = false
+    Touch.SetInput("click")
+end
 
 -- Dual input: a light tap runs the zone's Touch action, a full click its Click action
 do

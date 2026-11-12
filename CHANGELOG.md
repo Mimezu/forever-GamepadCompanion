@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-11-11
+
+- Fixed: taps ran the middle zone instead of the one tapped
+- Taps work out of combat only; clicks work everywhere
+
 ## 0.7.0 — 2026-11-11
 
 - Touch + click: a light tap and a full click run different actions

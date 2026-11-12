@@ -164,7 +164,7 @@ local function StatusText()
     return "On"
 end
 
-local INPUT_NOTES = { click = nil, tap = "Light tap = click", dual = "Light tap: Touch · full click: Click" }
+local INPUT_NOTES = { click = nil, tap = "Taps out of combat only", dual = "Tap: Touch, out of combat · click: Click" }
 
 Refresh = function()
     if not window or not window:IsShown() then return end

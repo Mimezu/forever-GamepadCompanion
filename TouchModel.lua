@@ -411,6 +411,16 @@ T.SNIPPET = [[
         local state = GetGamePadState()
         local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
         local x, y = stick and stick.x or 0, stick and stick.y or 0
+        -- A tap reaches us after the finger left the pad, which then reads 0, 0:
+        -- out of combat, the spot Touchpad.lua kept from just before (gpc-lx/ly);
+        -- in combat that can't be kept, so the spot is unknown
+        if not stick or ((stick.len or 0) == 0 and x == 0 and y == 0) then
+            if SecureCmdOptionParse("[combat] 1; 0") == "1" then
+                x, y = nil, nil
+            else
+                x, y = self:GetAttribute("gpc-lx"), self:GetAttribute("gpc-ly")
+            end
+        end
         local buttons = state and state.buttons
         local clickIndex = self:GetAttribute("gpc-click-key")
         local clicking = self:GetAttribute("gpc-held") or (clickIndex and buttons and buttons[clickIndex])
@@ -429,6 +439,9 @@ T.SNIPPET = [[
         self:SetAttribute("gpc-t-held", nil)
         self:SetAttribute("gpc-tx", x)
         self:SetAttribute("gpc-ty", y)
+        if x == nil then
+            return false
+        end
         local partOfClick = self:GetAttribute("gpc-t-click") or clicking
             or (self:GetAttribute("gpc-c-echo") and x == self:GetAttribute("gpc-xl") and y == self:GetAttribute("gpc-yl"))
         self:SetAttribute("gpc-t-click", nil)
@@ -482,6 +495,16 @@ T.SNIPPET = [[
     local state = GetGamePadState()
     local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
     local x, y = stick and stick.x or 0, stick and stick.y or 0
+    -- A tap reaches us after the finger left the pad, which then reads 0, 0:
+    -- out of combat, the spot Touchpad.lua kept from just before (gpc-lx/ly);
+    -- in combat that can't be kept, so the spot is unknown
+    if not stick or ((stick.len or 0) == 0 and x == 0 and y == 0) then
+        if SecureCmdOptionParse("[combat] 1; 0") == "1" then
+            x, y = nil, nil
+        else
+            x, y = self:GetAttribute("gpc-lx"), self:GetAttribute("gpc-ly")
+        end
+    end
     if down then
         if self:GetAttribute("gpc-held") then
             return false
@@ -510,10 +533,13 @@ T.SNIPPET = [[
         -- every other press.
         local keyIndex = self:GetAttribute("gpc-key")
         local buttons = state and state.buttons
-        if keyIndex and buttons and buttons[keyIndex] and x > -0.25 and x < 0.25 then
+        if keyIndex and buttons and buttons[keyIndex] and x and x > -0.25 and x < 0.25 then
             return false
         end
         self:SetAttribute("gpc-held", nil)
+        if x == nil then
+            return false
+        end
         -- The game's own tap (tap to click) right after a swipe: a press at
         -- exactly the spot the swipe ended. Swallowed once.
         local echo = self:GetAttribute("gpc-swiped") and x == self:GetAttribute("gpc-xl")

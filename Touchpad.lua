@@ -290,10 +290,19 @@ local lastClick = { at = -math.huge }
 -- Debug: the finger every frame, to compare with what a press read
 local track = { x = nil, y = nil, len = nil, movedAt = 0, prevX = nil, prevY = nil }
 local tracker = CreateFrame("Frame")
+local keptX, keptY
 tracker:SetScript("OnUpdate", function()
-    if not debug then return end
     local x, y, len = Finger()
     if not x then return end
+    -- The finger's spot for taps (they arrive after it left the pad), kept
+    -- on the secure button while out of combat
+    if settings.enabled and settings.input ~= "click" and (x ~= 0 or y ~= 0 or (len or 0) > 0)
+        and (x ~= keptX or y ~= keptY) and not InCombat() then
+        keptX, keptY = x, y
+        click:SetAttribute("gpc-lx", x)
+        click:SetAttribute("gpc-ly", y)
+    end
+    if not debug then return end
     if x ~= track.x or y ~= track.y then
         track.prevX, track.prevY = track.x, track.y
         track.movedAt = GetTime()

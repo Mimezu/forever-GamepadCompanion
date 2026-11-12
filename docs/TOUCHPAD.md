@@ -49,6 +49,10 @@ Zones are `r<row>c<col>`, row 1 at the top. Swipes: `swipe-up`, `swipe-down`, `s
 - Settings change in combat apply after combat.
 - Method from Improved Forever's touchpad corners (markgravity, MIT).
 
+## Limits
+
+- Taps reach the addon after the finger leaves the pad, which then reports no position. Out of combat Companion keeps the last spot on the secure button; in combat it can't, so taps do nothing and only clicks run zones.
+
 ## Not checked in game
 
 - `PAD6` presses reaching bindings (Right half).
