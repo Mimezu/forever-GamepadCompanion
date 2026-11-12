@@ -436,5 +436,25 @@ local saved = GamepadCompanionTouchDB
 eq(saved.enabled, true, "saved: enabled")
 eq(saved.actions.chord.lt.r1c3, "spell:133", "saved: the LT zone")
 
+-- Touch or click probe: click moved to PAD6 for 12 s, then all put back
+do
+    Touch.Command("mode chord")
+    configs["1356:3302"] = nil
+    cvars.GamePadTouchTapButtons = "0"
+    local count = #frames
+    Touch.Command("raw")
+    local probe
+    for i = count + 1, #frames do if frames[i].scripts.OnUpdate then probe = frames[i] end end
+    check(probe ~= nil, "probe runs")
+    local during = configs["1356:3302"]
+    local moved
+    for _, m in ipairs(during and during.rawButtonMappings or {}) do if m.rawIndex == 20 then moved = m.button end end
+    eq(moved, "PAD6", "probe: click on PAD6")
+    eq(cvars.GamePadTouchTapButtons, "1", "probe: tap to click on")
+    probe.scripts.OnUpdate(probe, 13)
+    eq(configs["1356:3302"], nil, "probe done: config gone again")
+    eq(cvars.GamePadTouchTapButtons, "0", "probe done: tap setting back")
+end
+
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -63,39 +63,6 @@ local function DeviceID()
     return { vendorID = raw.vendorID, productID = raw.productID }
 end
 
--- Raw probe: which raw buttons a tap and a click press (12 s, tap to click on
--- meanwhile). Prints each change as "raw <index> down|up" (0-based, as the
--- gamepad config's rawIndex). Display only.
-local rawProbing = false
-function Touch.RawProbe()
-    if rawProbing or not (C_GamePad and C_GamePad.GetDeviceRawState and C_GamePad.GetActiveDeviceID) then return end
-    rawProbing = true
-    local tapCVar, oldTap = "GamePadTouchTapButtons", GetCVar and GetCVar("GamePadTouchTapButtons")
-    if oldTap ~= nil and SetCVar then pcall(SetCVar, tapCVar, "1") end
-    print("|cff80c0ffGamepad Companion:|r raw probe 12 s: tap 3 times, then click 3 times")
-    local last, f, left = {}, CreateFrame("Frame"), 12
-    f:SetScript("OnUpdate", function(self, elapsed)
-        left = left - elapsed
-        local ok, raw = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
-        local buttons = ok and type(raw) == "table" and (raw.rawButtons or raw.buttons)
-        if type(buttons) == "table" then
-            for i, pressed in pairs(buttons) do
-                pressed = pressed and true or false
-                if last[i] ~= nil and last[i] ~= pressed then
-                    print(("|cff80c0ffGamepad Companion:|r raw %d %s (%.2f s)"):format(i - 1, pressed and "down" or "up", 12 - left))
-                end
-                last[i] = pressed
-            end
-        end
-        if left <= 0 then
-            self:SetScript("OnUpdate", nil)
-            if oldTap ~= nil and SetCVar then pcall(SetCVar, tapCVar, oldTap) end
-            rawProbing = false
-            print("|cff80c0ffGamepad Companion:|r raw probe done" .. (type(buttons) == "table" and "" or ": no raw buttons"))
-        end
-    end)
-end
-
 -- A button's index in GetGamePadState().buttons (1-based)
 local function PadIndex(binding)
     local index = C_GamePad and C_GamePad.ButtonBindingToIndex and C_GamePad.ButtonBindingToIndex(binding)
@@ -201,6 +168,81 @@ local function EnsureSplit()
     ApplyConfigs()
     if not T.IsSplit(GetConfig(id)) then return false, "config not kept" end
     return true
+end
+
+-- Touch or click probe (12 s): which buttons a light tap and a full click
+-- press. Tap to click is on meanwhile, and the touchpad's physical click
+-- (raw button 20, unbound by default) is moved to PAD6, so the game itself
+-- tells them apart if it can. Prints each change; everything is put back.
+local rawProbing = false
+function Touch.RawProbe()
+    if rawProbing then return end
+    if settings.enabled and settings.mode == "split" then return Say("Not in Right half mode") end
+    if InCombat() then return Say("Not in combat") end
+    rawProbing = true
+    local function P(text) print("|cff80c0ffGamepad Companion:|r " .. text) end
+    -- What the raw state looks like here
+    local okRaw, raw = false, nil
+    if C_GamePad and C_GamePad.GetDeviceRawState and C_GamePad.GetActiveDeviceID then
+        okRaw, raw = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
+    end
+    P(("raw state: %s, %s buttons"):format(okRaw and type(raw) or "error",
+        tostring(type(raw) == "table" and (raw.rawButtonCount or (raw.rawButtons and #raw.rawButtons)) or "-")))
+    -- Click on PAD6 for the probe
+    local id = DeviceID() or { vendorID = 1356, productID = 3302 }
+    local before = GetConfig(id)
+    local base = before or T.DualSenseDefault()
+    local config = T.Copy(base)
+    config.configID = id
+    local moved = false
+    for _, m in ipairs(config.rawButtonMappings or {}) do
+        if m.rawIndex == 20 then m.button = T.SPLIT_KEY; moved = true end
+    end
+    if moved and C_GamePad and C_GamePad.SetConfig then
+        moved = pcall(C_GamePad.SetConfig, config)
+        ApplyConfigs()
+    end
+    P("click on PAD6: " .. (moved and "yes" or "no"))
+    local tapCVar, oldTap = "GamePadTouchTapButtons", GetCVarSafe("GamePadTouchTapButtons")
+    if oldTap ~= nil then SetCVarSafe(tapCVar, "1") end
+    P("12 s: tap 3 times, then click 3 times")
+    local watch = { PADBACK = PadIndex("PADBACK"), PAD6 = PadIndex("PAD6") }
+    local last, lastRaw, f, left = {}, {}, CreateFrame("Frame"), 12
+    f:SetScript("OnUpdate", function(self, elapsed)
+        left = left - elapsed
+        local t = 12 - left
+        local state = MappedState()
+        local buttons = state and state.buttons
+        for name, index in pairs(watch) do
+            local pressed = buttons and buttons[index] and true or false
+            if last[name] ~= nil and last[name] ~= pressed then
+                P(("%s %s (%.2f s)"):format(name, pressed and "down" or "up", t))
+            end
+            last[name] = pressed
+        end
+        local ok, r = pcall(C_GamePad.GetDeviceRawState, C_GamePad.GetActiveDeviceID())
+        local rb = ok and type(r) == "table" and r.rawButtons
+        if type(rb) == "table" then
+            for i = 20, 23 do
+                local pressed = rb[i] and true or false
+                if lastRaw[i] ~= nil and lastRaw[i] ~= pressed then
+                    P(("raw %d %s (%.2f s)"):format(i - 1, pressed and "down" or "up", t))
+                end
+                lastRaw[i] = pressed
+            end
+        end
+        if left > 0 then return end
+        self:SetScript("OnUpdate", nil)
+        if oldTap ~= nil then SetCVarSafe(tapCVar, oldTap) end
+        if moved and C_GamePad then
+            if before then pcall(C_GamePad.SetConfig, before)
+            elseif C_GamePad.DeleteConfig then pcall(C_GamePad.DeleteConfig, id) end
+            ApplyConfigs()
+        end
+        rawProbing = false
+        P("probe done, config back")
+        Touch.Apply()
+    end)
 end
 
 -- The controller's config as it was before split mode
