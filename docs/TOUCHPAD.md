@@ -11,7 +11,7 @@ PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens th
 - **Grid**: whole pad up to 4 × 3, right half up to 2 × 4.
 - **Layer**: Base, L2, R2, L2 + R2, held while clicking. An empty zone does what Base does.
 - **Tiles**: click one to select it. Drop a spell, item or macro on it to set it.
-- **Swipes**: press, slide and let go. Once a swipe is set, zones act on release.
+- **Swipes**: press, slide and let go. Zones act on release, at the finger's spot then (at the press the game still reports the last touch).
 - **Right side**: windows, a dropped spell, item or macro, or typed macro text.
 
 ## Commands

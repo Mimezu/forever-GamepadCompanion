@@ -352,12 +352,13 @@ button, down). Attributes, set out of combat by Touchpad.lua:
   gpc-m-<layer>-<zone>  that zone's (or swipe's) macro text
 useOnKeyDown follows, so the secure button runs the macro on the same half of
 the click (it ignores the other half). It acts once per click (both halves of the pad can report the same press, so
-a held flag debounces: the restricted environment has no clock). The zone is
-where the press started. A layer with nothing there falls back to Base. ]]
+a held flag debounces: the restricted environment has no clock). It acts on the
+release, at the finger's spot then. A layer with nothing there falls back to Base. ]]
 T.SNIPPET = [[
     self:SetAttribute("type", nil)
     local swipes = self:GetAttribute("gpc-swipe") == 1
-    local keydown = self:GetAttribute("gpc-keydown") ~= 0 and not swipes
+    -- Always on the release: at the press the game still reports the last touch's spot
+    local keydown = false
     local state = GetGamePadState()
     local stick = state and state.sticks and state.sticks[self:GetAttribute("gpc-stick")]
     local x, y = stick and stick.x or 0, stick and stick.y or 0
@@ -403,13 +404,13 @@ T.SNIPPET = [[
         end
         local col, row = cols, rows
         for i = 1, cols do
-            if x0 < left + width * i / cols then
+            if x < left + width * i / cols then
                 col = i
                 break
             end
         end
         for i = 1, rows do
-            if y0 > 1 - 2 * i / rows then
+            if y > 1 - 2 * i / rows then
                 row = i
                 break
             end

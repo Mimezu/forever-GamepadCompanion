@@ -283,7 +283,8 @@ check(Touch.SetGrid(1, 1), "grid 1 x 1")
 eq(Press(0.8, -0.8), "/click CharacterMicroButton", "1 x 1: the whole pad is the top left action")
 check(not Touch.SetGrid(5, 1), "grid over the limit refused")
 Touch.SetGrid(3, 2)
-eq(Press(0.8, 0.6, false, false, -0.8, 0.6), nil, "no swipes set: a slide is a press at its start (Quests, no button)")
+eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/click CharacterMicroButton", "no swipes set: a slide is a press where it ends")
+eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/click CharacterMicroButton", "the release spot counts, not the stale press spot")
 check(Touch.SetZone("base", "swipe-left", "text:/sit"), "set a swipe")
 eq(click:GetAttribute("gpc-swipe"), 1, "swipes set: act on release")
 eq(Press(0.8, 0.6, false, false, -0.8, 0.6), "/sit", "swipe left runs its macro")
@@ -311,10 +312,11 @@ check(changes == 1, "setters notify the window")
 
 -- Debounce: two downs (both halves) act once
 pad.x, pad.y = -0.8, 0.6
-local first = snippet(click, "LeftButton", true)
+snippet(click, "LeftButton", true)
 local second = snippet(click, "LeftButton", true)
-check(first ~= false and second == false, "second down of the same click ignored")
-snippet(click, "LeftButton", false)
+local up = snippet(click, "LeftButton", false)
+local again = snippet(click, "LeftButton", false)
+check(second == false and up ~= false and again == false, "two downs and two ups of one click act once")
 
 -- A press whose release goes elsewhere (the window it opened took the pad)
 pad.x, pad.y = -0.8, 0.6

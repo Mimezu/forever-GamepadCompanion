@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3 — 2026-11-11
+
+- Fixed: a direct press used the last touch's spot; zones now act on release
+
 ## 0.6.2 — 2026-11-11
 
 - Zones work over open windows: same zone closes, another swaps
