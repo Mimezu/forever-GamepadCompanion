@@ -471,6 +471,12 @@ T.SNIPPET = [[
     end
     self:SetAttribute("gpc-input", "click")
     local swipes = self:GetAttribute("gpc-swipe") == 1
+    do
+        local st = GetGamePadState()
+        local sk = st and st.sticks and st.sticks[self:GetAttribute("gpc-stick")]
+        self:SetAttribute("gpc-tx", sk and sk.x or 0)
+        self:SetAttribute("gpc-ty", sk and sk.y or 0)
+    end
     -- Always on the release: at the press the game still reports the last touch's spot
     local keydown = false
     local state = GetGamePadState()

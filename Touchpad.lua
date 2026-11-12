@@ -311,9 +311,10 @@ click:SetScript("PostClick", function(self, _, down)
         Say(("%s %s: %s, %s -> %s"):format(tostring(self:GetAttribute("gpc-input") or "touch"), down and "down" or "up",
             tostring(zone and T.ZoneLabel(zone, T.Grid(settings, settings.mode)) or "-"),
             tostring(layer and T.LAYER_LABELS[layer] or "-"), ran or "nothing"))
-        if not down and self:GetAttribute("gpc-input") == "touch" then
+        if not down then
             local tx, ty = tonumber(self:GetAttribute("gpc-tx")), tonumber(self:GetAttribute("gpc-ty"))
-            Say(("  read %.2f, %.2f · finger now %.2f, %.2f (len %.2f) · moved %.2f s ago from %s"):format(
+            Say(("  press %s, touch path %s · read %.2f, %.2f · finger now %.2f, %.2f (len %.2f) · moved %.2f s ago from %s"):format(
+                tostring(settings.input), self:GetAttribute("gpc-dual") == 1 and "on" or "off",
                 tx or 0, ty or 0, track.x or 0, track.y or 0, track.len or 0, GetTime() - track.movedAt,
                 track.prevX and ("%.2f, %.2f"):format(track.prevX, track.prevY) or "-"))
         end
