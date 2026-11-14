@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0 — 2026-11-14
+
+- Window key: a keyboard key opens and closes the window (Key Bindings > Gamepad Companion); set it on Tools or in Settings
+- Settings page: Esc > Options > AddOns > Gamepad Companion: Open, /gpc, minimap icon, window key
+- Minimap icon: click opens the window, drag round the edge; on/off on Tools or in Settings
+
 ## 0.11.1 — 2026-11-12
 
 - Rumble for Halo rings: open a ring, slot change, fire the ring, close the ring (needs Halo 0.9.28)

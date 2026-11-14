@@ -13,7 +13,8 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 - Hold L2 / R2 to see their layer. The touchpad's zones and settings are on the same page.
 - Rumble: the motors on game events and casts, each with its pattern (from Improved Forever: Vibration, MIT; see licenses/).
 - Bars: where the controller bars sit, and their size. Offsets from Blizzard's spot.
-- Tools: Blizzard's spellbook, macros, Edit Mode and gamepad options; spread view.
+- Tools: Blizzard's spellbook, macros, Edit Mode and gamepad options; spread view; window key; minimap icon.
+- Also: Esc > Options > AddOns > Gamepad Companion, and the minimap icon.
 - Bindings are per character; a new character starts from a copy.
 - Changes made in combat apply after combat.
 

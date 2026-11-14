@@ -690,14 +690,23 @@ function API.CopyLayout(from, to)
     return Save()
 end
 function API.ResetAll()
-    local style = settings.optionsStyle
-    settings = M.Normalize({ optionsStyle = style, optionsStyleVersion = M.styleVersion })
+    local style, minimap = settings.optionsStyle, settings.minimap
+    settings = M.Normalize({ optionsStyle = style, optionsStyleVersion = M.styleVersion, minimap = minimap })
     return Save()
 end
 -- Look of the options windows only; no layout work.
 function API.SetOptionsStyle(style)
     if not M.styles[style] then return false, "Unknown style" end
     settings.optionsStyle = style
+    GamepadCompanionDB = M.Copy(settings)
+    return true
+end
+
+-- Minimap icon: shown, and its angle round the minimap. No layout work.
+function API.SetMinimap(shown, angle)
+    local current = settings.minimap or {}
+    if shown == nil then shown = current.shown end
+    settings.minimap = M.Normalize({ minimap = { shown = shown ~= false, angle = angle or current.angle } }).minimap
     GamepadCompanionDB = M.Copy(settings)
     return true
 end

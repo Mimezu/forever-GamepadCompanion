@@ -79,6 +79,9 @@ function M.Normalize(raw)
     -- Version 1 saves predate compact mode; its layout starts at native placement.
     local compact = type(raw.compact) == "table" and raw.compact or {}
     for _, layer in ipairs(M.compactLayers) do result.compact[layer] = Entry(compact[layer]) end
+    -- Minimap icon: shown unless turned off; its angle round the minimap, in degrees
+    local minimap = type(raw.minimap) == "table" and raw.minimap or {}
+    result.minimap = { shown = minimap.shown ~= false, angle = M.Number(minimap.angle, 0, 360, 200) }
     return result
 end
 

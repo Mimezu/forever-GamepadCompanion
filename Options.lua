@@ -511,6 +511,9 @@ local function BuildTools(frame)
     -- Frame Gambit
     local fg = S.Card(frame, "Visibility", 0, -362, W, 90)
     ui.fgText = Text(fg, "", 14, -44, W - 28, 13, GOLD)
+
+    -- Window key and minimap icon (Access.lua)
+    if ns.Access then ui.access = ns.Access.BuildCard(frame, 0, -464, W, 100) end
 end
 
 local function RefreshTools()

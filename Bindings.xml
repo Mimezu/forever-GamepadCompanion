@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="GAMEPADCOMPANION_TOGGLE" header="GAMEPADCOMPANION" category="BINDING_CATEGORY_GAMEPADCOMPANION">
+		GamepadCompanion_Toggle()
+	</Binding>
+</Bindings>
