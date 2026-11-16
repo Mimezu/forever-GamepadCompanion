@@ -83,6 +83,14 @@ function H.DB()
         db.light = true
         db.version = 6
     end
+    -- (0.20.1: weather by zone off, once: the game tells addons no weather,
+    -- so it rained in sunshine)
+    if db.version < 7 then
+        for _, k in ipairs({ "rain", "thunder", "snow", "sand", "embers" }) do
+            if type(db.events[k]) == "table" then db.events[k].on = false end
+        end
+        db.version = 7
+    end
     return db
 end
 

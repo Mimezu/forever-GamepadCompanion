@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.1 — 2026-11-16
+
+- Weather by zone off by default (and switched off once): the game tells addons no weather, so it "rained" in sunshine; still there to switch on, labelled by zone, not the sky
+
 ## 0.20.0 — 2026-11-16
 
 - Rumble tab: every vibration in one place. Strength and the motors, then 8 groups (Attacks, Defense, Abilities, Moving, Care, Weather, Progress, Social) and Steps and landing; Rumble's events, the Beta engine's and the cast sets side by side
