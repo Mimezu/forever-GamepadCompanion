@@ -345,7 +345,11 @@ assert(L.StepRate("walk") == 1.5 and select(3, L.StepTiming(2.5)), "walk steps s
 H.DB().stepSync = {}
 local hop, fall = L.LandingFeel(L.LandingWeight(0.45)), L.LandingFeel(L.LandingWeight(2.5))
 assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.35, "a hop: one soft pulse")
-assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9, "a big fall: strong, echoes, a boom")
+assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9 and fall.pulses[1][2] >= 0.39, "a big fall: strong, long, echoes")
+assert(hop.pulses[1][2] <= 0.07, "a hop: short")
+H.DB().landLong = 0.8
+assert(L.LandingFeel(1).pulses[1][2] >= 0.79, "longest landing set by hand")
+H.DB().landLong = nil
 -- Footsteps: the fit from squeezes (one step missed), and the timing it gives
 local rate, offset = L.FitSteps({ 0.15, 0.55, 0.95, 1.75, 2.15, 2.55 })
 assert(math.abs(rate - 2.5) < 1e-6 and math.abs(offset - 0.15) < 1e-6, "rate and offset: " .. tostring(rate) .. " " .. tostring(offset))

@@ -1216,14 +1216,23 @@ function L.LandingWeight(t)
 end
 
 -- The default landing (Thud) shaped by its weight
+-- (in game a harder landing barely felt stronger while it stayed short: on
+-- this pad length is what is felt, so a heavier landing lasts longer, up to
+-- landLong seconds, a setting)
+L.LAND_LONG = 0.4
 function L.LandingFeel(k)
+    local longest = H.DB().landLong or L.LAND_LONG
     local main = 0.25 + 0.75 * k
-    local list = { { 0, 0.055 + 0.08 * k, main, -0.2 } }
+    local len = 0.06 + max(0, longest - 0.06) * k
+    local list = { { 0, len, main, -0.2 * (1 - k) } }
+    -- echoes after it: more, longer and stronger the heavier it is
+    local at = len + 0.08
     for i = 1, floor(k * 3 + 0.3) do
-        list[#list + 1] = { 0.06 + 0.08 * k + 0.1 * i, 0.05, main * 0.45 ^ i, i % 2 == 0 and -0.5 or 0.5 }
+        local echo = 0.05 + 0.1 * k / i
+        list[#list + 1] = { at, echo, main * 0.5 ^ i, i % 2 == 0 and -0.4 or 0.4 }
+        at = at + echo + 0.07
     end
-    if k >= 0.8 then list[#list + 1] = { 0, 0.2, 1, 0 } end
-    return { pulses = list, duck = { amount = 0.4 + 0.5 * k, time = 0.15 } }
+    return { pulses = list, duck = { amount = 0.4 + 0.5 * k, time = 0.1 + len } }
 end
 
 local air = CreateFrame("Frame")

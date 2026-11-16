@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.4 — 2026-11-16
+
+- Beta, landing: heavier is longer too (a hop 60 ms, a full landing up to 0.4 s, centred), with longer echoes; Landing longest setting
+
 ## 0.14.3 — 2026-11-16
 
 - Beta, Steps and landing (Events): Run steps and Walk steps per second, set by hand from the sync
