@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.5 — 2026-11-16
+
+- Controller: double-click a layer row (Every layer) to open Choose for that layer (touchpad zones, buttons, bar slots)
+
 ## 0.22.4 — 2026-11-16
 
 - Rain: drops closer together again (as faint)

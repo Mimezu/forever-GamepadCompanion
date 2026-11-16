@@ -595,6 +595,12 @@ local function RefreshRows(target, y, glyph)
         else r.name:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
         r.selection:SetShown(l == layer)
         r:SetScript("OnClick", function() selectedLayer = l; Refresh() end)
+        -- (double-click: Choose for that layer)
+        r:SetScript("OnDoubleClick", function()
+            selectedLayer = l
+            Refresh()
+            OpenPicker()
+        end)
         r:Show()
     end
 end
