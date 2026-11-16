@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.0 — 2026-11-16
+
+- Battery gauge: the controller's charge in a small battery, top centre (drag it anywhere; hides with the interface): four steps coloured green to red, critical blinking, wired in blue; /gpc battery shows or hides it
+
 ## 0.21.2 — 2026-11-16
 
 - Rain gentler: half as strong, sparser, less boost when heavy; thunder softer

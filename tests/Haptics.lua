@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -892,4 +892,24 @@ do
     assert(alone > 0.3 and with and with < 0.06, "rain under the jump: " .. tostring(alone) .. " -> " .. tostring(with))
     H.Stop()
     io.write("PASS: ambient: weather steps aside for everything else" .. string.char(10))
+end
+
+-- Battery: four steps and wired, shown top centre, hidden on demand
+do
+    local B = ns.Battery
+    local level = 2
+    C_GamePad.GetPowerLevel = function() return level end
+    B.Update()
+    local bar = GamepadCompanionBattery
+    assert(bar and bar:IsShown(), "shown")
+    assert(select(3, B.Look(2)) == "Medium" and B.Look(0) == 1 and B.Look(4) == 4, "levels")
+    level = 9
+    B.Update()
+    assert(not bar:IsShown(), "unknown: hidden")
+    level = 3
+    B.Toggle()
+    assert(not bar:IsShown(), "toggled off")
+    B.Toggle()
+    assert(bar:IsShown(), "and on")
+    io.write("PASS: battery: steps, wired, hidden when unknown, toggle" .. string.char(10))
 end
