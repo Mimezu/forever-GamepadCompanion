@@ -336,7 +336,14 @@ air.scripts.OnUpdate(air, 0.01)
 assert(fired[1] == "landing", "landing: " .. tostring(fired[1]))
 assert(H.DB().landings[1] == 1, "air time kept: " .. tostring(H.DB().landings[1]))
 assert(H.Playing("ev_landing"), "a landing shaped by its fall")
-local hop, fall = L.LandingFeel(L.LandingWeight(0.6)), L.LandingFeel(L.LandingWeight(2.5))
+assert(L.lastLanding and L.lastLanding.t == 1, "last landing shown")
+H.DB().landMin, H.DB().landMax = 0.4, 0.8
+assert(math.abs(L.LandingWeight(0.6) - 0.5) < 1e-9 and L.LandingWeight(0.9) == 1, "landing range set by hand")
+H.DB().landMin, H.DB().landMax = nil, nil
+L.SetStepRate("walk", 1.5)
+assert(L.StepRate("walk") == 1.5 and select(3, L.StepTiming(2.5)), "walk steps set by hand")
+H.DB().stepSync = {}
+local hop, fall = L.LandingFeel(L.LandingWeight(0.45)), L.LandingFeel(L.LandingWeight(2.5))
 assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.35, "a hop: one soft pulse")
 assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9, "a big fall: strong, echoes, a boom")
 -- Footsteps: the fit from squeezes (one step missed), and the timing it gives

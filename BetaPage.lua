@@ -1242,7 +1242,7 @@ local function BuildEvents(p)
     -- Footsteps sync, under Social and Living
     local fx = 2 * (colW + 10)
     local fy = -(2 * 40 + 6 * 30 + 20)
-    local sync = S.Card(p, "Footsteps sync", fx, fy, colW, 210)
+    local sync = S.Card(p, "Steps and landing", fx, fy, colW, 270)
     local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
     for i, g in ipairs(gaits) do
         local y = -40 - (i - 1) * 34
@@ -1254,11 +1254,31 @@ local function BuildEvents(p)
             or "Run, squeeze R2 on each footfall")
         g.text = S.Text(sync, "", 122, y - 8, colW - 134, 11, GREY)
     end
-    local status = S.Note(sync, 12, -110, colW - 24, 2, 11, GOLD)
-    Stepper(sync, "Nudge", 12, -146, { labelWidth = 70, width = colW - 24, step = 0.01, min = -0.5, max = 0.5,
+    local status = S.Note(sync, 12, -104, colW - 24, 1, 11, GOLD)
+    local function Row(label, y, opts)
+        opts.labelWidth, opts.width = 110, colW - 24
+        return Stepper(sync, label, 12, y, opts)
+    end
+    local function rateRow(label, y, band)
+        Row(label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
+            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
+    end
+    rateRow("Run steps", -122, "run")
+    rateRow("Walk steps", -148, "walk")
+    Row("Nudge", -174, { step = 0.01, min = -0.5, max = 0.5,
         format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
         get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
+    Row("Landing soft at", -200, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
+        get = function() return H.DB().landMin or L.LAND_MIN end,
+        set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
+    Row("Landing full at", -226, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
+        get = function() return H.DB().landMax or L.LAND_MAX end,
+        set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
+    local landed = S.Text(sync, "No landing yet", 12, -252, colW - 24, 11, GREY)
     L.onSync = function(text) status:SetText(text) end
+    L.onLand = function(t, k)
+        landed:SetText(string.format("Last landing: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5)))
+    end
     ui.refresh[#ui.refresh + 1] = function()
         for _, g in ipairs(gaits) do
             local cal = L.StepCal(g[1])

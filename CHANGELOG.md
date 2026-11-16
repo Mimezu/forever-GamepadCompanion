@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.3 — 2026-11-16
+
+- Beta, Steps and landing (Events): Run steps and Walk steps per second, set by hand from the sync
+- Beta, landing: Soft at and Full at (air time), 0.5 to 1.2 s by default (was 0.55 to 2.35, so a jump was always soft); the last landing's air time and strength shown
+
 ## 0.14.2 — 2026-11-16
 
 - Beta, Footsteps sync: Sync run and Sync walk apart, each with its own result; a walk sync done running (or the reverse) is refused

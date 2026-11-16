@@ -818,6 +818,26 @@ function L.StepCal(band)
 end
 
 -- Steps per second at a speed, and the first step's time after the start
+-- A gait's steps per second at its own speed (synced, or the guess)
+function L.StepRate(band)
+    local cal = L.StepCal(band) or GUESS[band]
+    return cal.rate
+end
+
+-- Set by hand: kept with the sync's timing (or the guess's)
+function L.SetStepRate(band, rate)
+    local db = H.DB()
+    db.stepSync = db.stepSync or {}
+    local key = Model() .. "-" .. band
+    local cal = db.stepSync[key]
+    if not cal then
+        local g = GUESS[band]
+        cal = { rate = g.rate, offset = g.offset, speed = g.speed, taps = 0 }
+        db.stepSync[key] = cal
+    end
+    cal.rate = max(0.5, min(5, rate))
+end
+
 function L.StepTiming(speed)
     local band = Band(speed)
     local cal = L.StepCal(band)
@@ -1186,8 +1206,13 @@ L.Poll = Poll
 -- with echoes; a big drop, a deep boom. Last air times kept for the report.
 ---------------------------------------------------------------------------
 -- How hard a landing is (0 a plain jump .. 1 a big fall) from its air time
+-- (air times: soft at landMin or less, full at landMax or more; settings)
+L.LAND_MIN, L.LAND_MAX = 0.5, 1.2
 function L.LandingWeight(t)
-    return max(0, min(1, (t - 0.55) / 1.8))
+    local db = H.DB()
+    local lo, hi = db.landMin or L.LAND_MIN, db.landMax or L.LAND_MAX
+    if hi <= lo then return t >= hi and 1 or 0 end
+    return max(0, min(1, (t - lo) / (hi - lo)))
 end
 
 -- The default landing (Thud) shaped by its weight
@@ -1218,6 +1243,8 @@ air:SetScript("OnUpdate", function()
             table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
             while #db.landings > 12 do table.remove(db.landings) end
             local k = L.LandingWeight(t)
+            L.lastLanding = { t = t, k = k }
+            if L.onLand then L.onLand(t, k) end
             local s = L.EventSettings("landing")
             if s.feel == EVENT.landing.feel then L.Fire("landing", 1, L.LandingFeel(k))
             else L.Fire("landing", 0.25 + 0.75 * k) end
