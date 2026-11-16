@@ -25,7 +25,10 @@ local function Now() return GetTime and GetTime() or 0 end
 H.DEFAULTS = {
     engine = false,        -- Beta engine: Rumble through the mixer, beta events, light bar
     mix = "screen",        -- max | screen | sum
-    rate = 0,              -- sends per second at most (0: every frame)
+    rate = 10,             -- sends per second at most (0: every frame). Feels are still read every
+                           --   frame: a vibration starting goes out at once, changes and stops wait
+                           --   for the next send, so each pulse lasts a send's interval at least (in
+                           --   game: 10/s felt much stronger than every frame)
     keepAlive = 0.1,       -- resend an unchanged level after (s; 0: never)
     kick = 0,              -- overdrive: a rise starts with this long at full (s)
     minPulse = 0.05,       -- a pulse from rest lasts at least this long (s): in game, under ~45 ms is
@@ -63,6 +66,10 @@ function H.DB()
         if db.minPulse == 0 then db.minPulse = 0.05 end
         if db.floor[2] == 0.5 then db.floor[2] = 0 end
         db.version = 2
+    end
+    if db.version < 3 then
+        if db.rate == 0 then db.rate = 10 end
+        db.version = 3
     end
     return db
 end
@@ -408,7 +415,6 @@ end
 driver:SetScript("OnUpdate", function()
     local now = Now()
     local db = H.DB()
-    if (db.rate or 0) > 0 and now - out.last < 1 / db.rate then return end
     out.last = now
     -- (a probe or the calibration ramp has the motors and the light)
     if H.hold then return end
@@ -439,7 +445,15 @@ driver:SetScript("OnUpdate", function()
     out.l, out.r, out.lt, out.rt = l, r, lt, rt
     head = head % HISTORY + 1
     history[head][1], history[head][2] = l, r
+    -- Sends limited to db.rate a second; a side starting from rest is never
+    -- held back (a short pulse between two sends would be lost)
+    local gated = (db.rate or 0) > 0 and now - out.sentAt < 1 / db.rate
     if l <= 0 and r <= 0 and lt <= 0 and rt <= 0 then
+        -- (the stop waits for the next send: the pulse lasts that long)
+        if not out.quiet and gated then
+            H.LightTick(now)
+            return
+        end
         if not out.quiet then
             Silence()
             out.quiet = true
@@ -450,6 +464,12 @@ driver:SetScript("OnUpdate", function()
         return
     end
     out.quiet = false
+    local rising = (l > 0 and out.sentL <= 0) or (r > 0 and out.sentR <= 0)
+        or (lt > 0 and out.sentLT <= 0) or (rt > 0 and out.sentRT <= 0)
+    if gated and not rising then
+        H.LightTick(now)
+        return
+    end
     local keep = (db.keepAlive or 0) > 0 and now - out.sentAt >= db.keepAlive
     local step = 1 / 255
     if keep or abs(l - out.sentL) > step or abs(r - out.sentR) > step then

@@ -218,7 +218,7 @@ io.write("PASS: feels: envelope, keys, grain, pan, kick, noise, " .. #H.LIBRARY 
 local db = H.DB()
 assert(GamepadCompanionHapticsDB == db and db.engine == false, "own saved table, engine off")
 near(H.Calibrated(2, 0.5), 0.5, "no floor by default: both grips felt from 5% in game")
-assert(db.minPulse == 0.05 and db.version == 2, "taps held to 50 ms by default")
+assert(db.minPulse == 0.05 and db.version == 3, "taps held to 50 ms by default")
 GamepadCompanionHapticsDB = { minPulse = 0, floor = { 0, 0.5 } }
 local old = H.DB()
 assert(old.minPulse == 0.05 and old.floor[2] == 0, "settings from 0.13.2 moved to the probes' defaults")
@@ -229,6 +229,18 @@ assert(H.Calibrated(1, 0) == 0, "zero stays zero")
 db.gamma[1] = 0.5
 near(H.Calibrated(1, 0.25), 0.5, "curve lifts soft levels")
 db.gamma[1] = 1
+assert(db.rate == 10, "10 sends a second by default")
+-- At 10/s a pulse shorter than a send's interval is still sent, held to it
+vib = {}
+H.Play({ hold = 0.03, peak = 1 }, { voice = "short" })
+frame(0.01)
+assert(vib[1] and vib[1][1] == "Low" and vib[1][2] == 1, "a short pulse goes out at once")
+frame(0.03); frame(0.03)
+assert(#vib == 2 and vib[#vib][1] ~= "stop", "held, not stopped before the next send")
+frame(0.05)
+assert(vib[#vib][1] == "stop", "stopped at the next send")
+H.Stop()
+db.rate = 0
 vib = {}
 H.Play({ hold = 0.1, peak = 1 }, { voice = "a" })
 frame()

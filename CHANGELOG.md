@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.6 — 2026-11-16
+
+- Beta engine: feels read every frame, sends limited (10/s by default): a vibration starting goes out at once (none missed), changes and stops wait for the next send, so each pulse lasts at least a send's interval (felt much stronger in game)
+
 ## 0.14.5 — 2026-11-16
 
 - Beta, landing: the heaviest reach full output whatever Rumble's strength (a light one still follows it); the card shows what was sent (peak and length)
