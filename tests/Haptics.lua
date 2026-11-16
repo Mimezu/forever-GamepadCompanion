@@ -148,7 +148,7 @@ IsShiftKeyDown = function() return false end
 function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
-for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
     "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -417,9 +417,23 @@ ns.Shell.Open("beta")
 local window, tabs = ns.ShellWindow()
 assert(window:IsShown() and ns.Shell.Current() == "beta" and tabs.beta, "Beta tab")
 local ui = ns.BetaPage
-for _, key in ipairs({ "light", "feels", "editor", "tune", "helper", "probes" }) do
+for _, key in ipairs({ "light", "feels", "editor", "tune", "helper", "gestures", "probes" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
+end
+-- Gestures: twelve rows, an action shown by name, Clear
+do
+    local G = ns.Gestures
+    G.Set(2, "text:/dance")
+    ui.Select("gestures")
+    local n, dance = 0, nil
+    for _, f in ipairs(created) do
+        if type(rawget(f, "label")) == "table" and f.label.text == "Clear" and f:IsVisible() then n = n + 1 end
+        if type(rawget(f, "label")) == "table" and type(f.label.text) == "string" and f.label.text:find("/dance", 1, true) and f:IsVisible() then dance = f end
+    end
+    assert(n == 12 and dance, "twelve gesture rows, slot 2 /dance: " .. n)
+    G.Set(2, nil)
+    io.write("PASS: gestures page: twelve slots, each an action" .. string.char(10))
 end
 local function button(label)
     for _, f in ipairs(created) do

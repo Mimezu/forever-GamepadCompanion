@@ -178,10 +178,18 @@ function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         S.Tooltip(r.default, "Default", "The feel it ships with")
         x = x - 4
     end
-    x = x - 34
-    r.try = S.NewButton(r, "Try", x, -5, 32, function() onTry() end, nil, 11, 30)
-    S.Tooltip(r.try, "Try", label)
-    x = x - 4 - 136
+    if opts.clear then
+        x = x - 52
+        r.clear = S.NewButton(r, "Clear", x, -5, 50, function() opts.clear() end, nil, 11, 30)
+        x = x - 4
+    end
+    if onTry then
+        x = x - 34
+        r.try = S.NewButton(r, "Try", x, -5, 32, function() onTry() end, nil, 11, 30)
+        S.Tooltip(r.try, "Try", label)
+        x = x - 4
+    end
+    x = x - 136
     r.pick = S.NewButton(r, "", x, -5, 136, nil, nil, 11, 30)
     r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
     r.pick.icon:SetSize(20, 20)
@@ -210,6 +218,7 @@ function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         r.icon:SetDesaturated(off == true)
         r.label:SetAlpha(off and 0.6 or 1)
         if r.default then r.default:SetEnabled(not isDefault) end
+        if r.clear then r.clear:SetEnabled(not off) end
     end
     return r
 end

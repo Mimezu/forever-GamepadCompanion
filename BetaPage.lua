@@ -1389,6 +1389,45 @@ local function BuildHelper(p)
 end
 
 ---------------------------------------------------------------------------
+-- Gestures: what each of WoW Helper's motion gestures runs (Gestures.lua)
+---------------------------------------------------------------------------
+local function BuildGestures(p)
+    local G = ns.Gestures
+    if not G then return end
+    local ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true }
+    local CW = floor((W - 10) / 2)
+    local rows = {}
+    for col = 0, 1 do
+        local card = S.Card(p, col == 0 and "Gestures" or nil, col * (CW + 10), 0, CW, PH - 40)
+        if col == 0 then
+            S.Text(card, "Recorded in WoW Helper", 110, -14, CW - 130, 11, GREY)
+        end
+        for i = 1, G.SLOTS / 2 do
+            local slot = col * (G.SLOTS / 2) + i
+            local r
+            local function Pick()
+                ns.Picker.Open({ title = "Choose · " .. G.Label(slot), accepts = ACCEPTS, current = G.Get(slot),
+                    onPick = function(action) G.Set(slot, action); Refresh() end })
+            end
+            r = HUI.ChoiceRow(card, -40 - (i - 1) * HUI.ROW_H, CW, "Interface\\Icons\\Ability_Rogue_Sprint", G.Label(slot),
+                Pick, nil, "Spell, item, macro or /emote", { clear = function() G.Set(slot, nil); Refresh() end })
+            r.slot = slot
+            rows[#rows + 1] = r
+        end
+    end
+    ui.refresh[#ui.refresh + 1] = function()
+        for _, r in ipairs(rows) do
+            local action = G.Get(r.slot)
+            local name, icon = nil, nil
+            if action and ns.Touch then name, icon = ns.Touch.ActionLook(action) end
+            local sub = "Ctrl Shift Alt F" .. r.slot
+            if G.IsPending() then sub = sub .. " · after combat" end
+            r:SetChoice(action and (name or action) or "Off", icon, sub, action == nil)
+        end
+    end
+end
+
+---------------------------------------------------------------------------
 -- The page
 ---------------------------------------------------------------------------
 local SECTIONS = {
@@ -1397,6 +1436,7 @@ local SECTIONS = {
     { "editor", "Editor", BuildEditor },
     { "tune", "Tune", BuildTune },
     { "helper", "Helper", BuildHelper },
+    { "gestures", "Gestures", BuildGestures },
     { "probes", "Probes", BuildProbes },
 }
 

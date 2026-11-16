@@ -110,5 +110,9 @@ Names match `HelperLink.lua` `K.CLIPS` / `K.SOUNDS` and `helper/clips.py` (the s
   `K.Play` puts a clip in `touch` and a sound in `sound` (the helper adds the sound's own touch).
   `K.PlayFeel(hdId, gain, side, intensity)`: one of the addon's feels in HD (ids 128-4095, side
   -1..1, intensity 4 = as designed). `K.SetMic("leave"|"off"|"on"|"pulse")`: a state, no cue.
+- Gestures (`Gestures.lua`): WoW Helper records and recognises the pad's motion gestures in
+  slots 1-12 and presses Ctrl+Shift+Alt+F<slot> while WoW is in front. The addon binds those keys
+  to one secure button (`GamepadCompanionGestures`, `g1`..`g12`), each slot an action in the
+  touchpad's format, per character (`GamepadCompanionCharDB.gestures`). No protocol change.
 - Feel ids: `ns.HapticsLab.HdId(key)`, stable, kept in `GamepadCompanionHapticsDB.hdIds`; the cue
   group **HD feels** (off by default) sends each event's feel by its id.

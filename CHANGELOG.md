@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0 — 2026-11-16
+
+- Gestures (Haptics tab): twelve slots for WoW Helper's motion gestures, each a spell, item, macro, window, Halo ring or typed macro (`/dance`) from the Choose picker. The helper presses Ctrl+Shift+Alt+F1-F12; bound per character, out of combat
+
 ## 0.24.1 — 2026-11-16
 
 - Export: the game's sound kits by name (`soundkits`), for WoW Helper's list of WoW sounds
