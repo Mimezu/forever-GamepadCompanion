@@ -376,6 +376,14 @@ end
 
 function H.Playing(id) return voices[id] ~= nil end
 
+-- The voices playing (the debug window): { id, l, r } (their last levels)
+function H.ActiveVoices()
+    local list = {}
+    for id, v in pairs(voices) do list[#list + 1] = { id = id, l = v.lastL or 0, r = v.lastR or 0 } end
+    table.sort(list, function(a, b) return a.id < b.id end)
+    return list
+end
+
 local MIX = {
     max = function(a, b) return a > b and a or b end,
     screen = function(a, b) return 1 - (1 - a) * (1 - b) end,
@@ -428,6 +436,7 @@ function H.Mix(now)
             any = true
             local f = (v.gain or 1) * DuckFactor(id, now)
             a, b = clamp(a * f * (v.left or 1)), clamp(b * f * (v.right or 1))
+            v.lastL, v.lastR = a, b
             if v.raw then raw = true end
             if v.target == "triggers" then lt, rt = mix(lt, a), mix(rt, b)
             else l, r = mix(l, a), mix(r, b) end
@@ -588,6 +597,16 @@ function H.LedNow()
     return max(0, led.r), max(0, led.g), max(0, led.b), led.set
 end
 
+-- The light voices (the debug window): { id, prio, r, g, b }, strongest first
+function H.ActiveLights()
+    local list = {}
+    for id, v in pairs(lights) do
+        list[#list + 1] = { id = id, prio = v.prio, r = v.lastR or 0, g = v.lastG or 0, b = v.lastB or 0 }
+    end
+    table.sort(list, function(a, b) return a.prio > b.prio end)
+    return list
+end
+
 function H.LightsBusy()
     return next(lights) ~= nil or led.set
 end
@@ -598,6 +617,7 @@ function H.LightTick(now)
     local best, br, bg, bb
     for id, v in pairs(lights) do
         local r, g, b = v.fn(now, v)
+        v.lastR, v.lastG, v.lastB = r, g, b
         if r == nil then
             lights[id] = nil
         elseif not best or v.prio > best.prio then

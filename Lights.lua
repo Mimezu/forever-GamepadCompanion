@@ -324,7 +324,7 @@ end
 ---------------------------------------------------------------------------
 local FROM_RUMBLE = { crit = "crit", critRanged = "crit", critted = "critTaken", interrupted = "interrupted",
     instant = "instant", levelUp = "levelUp", haloUse = "haloUse" }
-local FROM_LAB = { hitTaken = "hitTaken", avoid = "avoid", kill = "kill", questDone = "questDone", loot = "loot",
+local FROM_LAB = { hitTaken = "hitTaken", dodge = "avoid", parry = "avoid", block = "avoid", missedYou = "avoid", kill = "kill", questDone = "questDone", loot = "loot",
     death = "death", alive = "alive", whisper = "whisper", readyCheck = "readyCheck", invite = "invite" }
 
 local function Wrap()

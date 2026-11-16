@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "RumblePage.lua", "BetaPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -335,7 +335,7 @@ ev("CHAT_MSG_LOOT", "Bob receives loot: [Linen Cloth].")
 ev("QUEST_TURNED_IN", 1)
 ev("CHAT_MSG_WHISPER", "hi", "Bob")
 local seen = table.concat(fired, ",")
-assert(seen == "hitTaken,avoid,uiError,loot,questDone,whisper", seen)
+assert(seen == "hitTaken,dodge,uiError,loot,questDone,whisper", seen)
 L.EventSettings("whisper").on = false
 fired = {}
 now = now + 1
@@ -702,20 +702,26 @@ do
             if type(rawget(f, "label")) == "table" and f.label.text == label and f:IsVisible() then return f end
         end
     end
-    local pop = GamepadCompanionBetaFeels
-    -- the Combat group's first row (Hit taken): its plate opens the grid
+    -- an event row (Hit taken): its plate opens the palette, Off on top
     local plate
     for _, f in ipairs(created) do
         if rawget(f, "pick") and rawget(f, "e") and f.e.key == "hitTaken" then plate = f.pick end
     end
     assert(plate, "Hit taken row")
     plate.scripts.OnClick(plate)
-    pop = GamepadCompanionBetaFeels
-    assert(pop and pop:IsShown(), "the grid")
-    local off
-    for _, t in ipairs(pop.tiles) do if t.label.text == "Off" and t:IsShown() then off = t end end
-    off.scripts.OnClick(off)
+    local pw = GamepadCompanionPalette
+    assert(pw and pw:IsShown(), "the palette")
+    local off = pw.pal.specialTiles[1]
+    assert(off and off.key == "off", "Off first")
+    off.scripts.OnClick(off, "LeftButton")
     assert(L.EventSettings("hitTaken").on == false, "set Off")
+    plate.scripts.OnClick(plate)
+    pw.pal:ShowGroup("Basics")
+    local tick
+    for _, t in ipairs(pw.pal.tiles) do if t:IsShown() and t.key == "r_tick" then tick = t end end
+    assert(tick, "Rumble's Tick in the palette (Basics)")
+    tick.scripts.OnClick(tick, "LeftButton")
+    assert(L.EventSettings("hitTaken").on and L.EventSettings("hitTaken").feel == "r_tick", "a Rumble pattern on a Beta event")
     ui.Select("light")
     local effectBtn
     for _, f in ipairs(created) do
@@ -723,6 +729,7 @@ do
     end
     assert(effectBtn, "crit light row")
     effectBtn.scripts.OnClick(effectBtn)
+    local pop = GamepadCompanionBetaFeels
     local strobe
     for _, t in ipairs(pop.tiles) do if t.label.text == "Strobe" and t:IsShown() then strobe = t end end
     strobe.scripts.OnClick(strobe)
@@ -770,4 +777,21 @@ do
     C.Settings().sounds = true
     K.SetEnabled(false)
     io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
+end
+
+-- Debug: the reasons, logged and shown
+do
+    local D = ns.HapticsDebug
+    H.DB().engine = true
+    L.EventSettings("whisper").on = true
+    now = now + 2
+    L.Fire("whisper")
+    local text = D.Latest()
+    assert(text and text:find("Whisper", 1, true), "a cue logged: " .. tostring(text))
+    assert(D.VoiceWhy("live_rain"):find("Rain", 1, true), "weather voice named")
+    assert(D.VoiceWhy("ev_loot"):find("Loot", 1, true), "event voice named")
+    assert(D.Show(true) and GamepadCompanionHapticsDebug:IsShown(), "the window")
+    D.Update()
+    D.Show(false)
+    io.write("PASS: debug: cues logged, voices named, the window" .. string.char(10))
 end

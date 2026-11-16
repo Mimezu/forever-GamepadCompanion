@@ -26,7 +26,8 @@ local ICONS = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_"
 -- with its own time, length (50 ms or more), strength and side. Subtle =
 -- 50 ms and soft.
 ---------------------------------------------------------------------------
-L.GROUPS = { "Taps", "Doubles", "Rolls", "Impacts", "Motion", "Life", "Signals", "Extremes" }
+L.GROUPS = { "Taps", "Doubles", "Rolls", "Impacts", "Basics", "Combat", "Moves", "Weapons", "Spells", "Crafts", "Motion",
+    "Life", "Nature", "Signals", "Extremes" }
 
 -- One pulse: t and length in seconds, strength 0-1, side -1 left .. 1 right
 local function P(t, len, s, side) return { t, len, s, side or 0 } end
@@ -152,6 +153,33 @@ local LIB = {
     { "alert", "Alert", "Signals", "hex", Pulses(Row(3, 0, 0.3, 0.16, 0.7, 0.7)) },
     { "whisper", "Whisper", "Signals", "micro", Pulses({ P(0, 0.05, 0.03) }) },
     { "murmur", "Murmur", "Signals", "purr", Pulses({ P(0, 0.05, 0.06), P(0.15, 0.05, 0.04) }) },
+    -- Combat: blows given and taken, faint for the small ones
+    { "strike", "Strike", "Combat", "stab", Pulses({ P(0, 0.05, 0.1) }) },
+    { "whiff", "Whiff", "Combat", "toss", Pulses({ P(0, 0.05, 0.05, -0.7), P(0.08, 0.05, 0.04, 0.7) }) },
+    { "slip", "Slip", "Combat", "whirl", Pulses({ P(0, 0.05, 0.08, 0.6), P(0.12, 0.05, 0.04, 0.9) }) },
+    { "clash", "Clash", "Combat", "latch", Pulses({ P(0, 0.06, 0.35), P(0.1, 0.05, 0.12), P(0.2, 0.05, 0.05) }) },
+    { "shieldThud", "Shield thud", "Combat", "bash", Pulses({ P(0, 0.1, 0.3, -0.1), P(0.18, 0.05, 0.06) }) },
+    { "sidestep", "Sidestep", "Combat", "sweep", Pulses({ P(0, 0.05, 0.12, -1), P(0.1, 0.05, 0.06, 1) }) },
+    { "parryRing", "Parry", "Combat", "judge", Pulses({ P(0, 0.05, 0.15), P(0.06, 0.12, 0.55), P(0.26, 0.05, 0.12),
+        P(0.38, 0.05, 0.05) }) },
+    { "blockThud", "Block", "Combat", "ward", Pulses({ P(0, 0.16, 0.6, -0.6), P(0.26, 0.05, 0.12, -0.6) },
+        { duck = { amount = 0.5, time = 0.2 } }) },
+    { "missedYou", "Missed you", "Combat", "toss", Pulses({ P(0, 0.05, 0.04, 1), P(0.1, 0.05, 0.06), P(0.2, 0.05, 0.03, -1) }) },
+    -- Nature: weather, water, care
+    { "raindrops", "Rain", "Nature", "frost", Pulses({ P(0, 0.05, 0.03, -0.5), P(0.31, 0.05, 0.02, 0.6),
+        P(0.52, 0.05, 0.04, 0.1), P(0.97, 0.05, 0.02, -0.8), P(1.24, 0.05, 0.03, 0.4) }, { loop = true, length = 1.6 }) },
+    { "thunder", "Thunder", "Nature", "static", Pulses({ P(0, 0.06, 0.3), P(0.14, 0.5, 0.22, -0.2), P(0.72, 0.35, 0.14, 0.3),
+        P(1.15, 0.2, 0.07) }) },
+    { "snowflakes", "Snow", "Nature", "shimmer", Pulses({ P(0, 0.05, 0.02, -0.4), P(1.4, 0.05, 0.03, 0.5),
+        P(2.3, 0.05, 0.02) }, { loop = true, length = 3 }) },
+    { "sandgust", "Sand gust", "Nature", "sizzle", Pulses(Row(6, 0, 0.18, 0.05, 0.03, 0.06, -1, 1)) },
+    { "embers", "Embers", "Nature", "kindle", Pulses({ P(0, 0.05, 0.05, 0.3), P(0.09, 0.05, 0.03, 0.4), P(0.9, 0.05, 0.06, -0.5),
+        P(1.5, 0.05, 0.04) }, { loop = true, length = 2 }) },
+    { "bubbles", "Bubbles", "Nature", "bubble", Pulses({ P(0, 0.05, 0.04, -0.2), P(0.3, 0.05, 0.03, 0.1),
+        P(1.5, 0.05, 0.05, 0.3) }, { loop = true, length = 2.4 }) },
+    { "wrap", "Bandage", "Nature", "sew", Pulses({ P(0, 0.05, 0.05), P(0.2, 0.1, 0.09) }, { loop = true, length = 1 }) },
+    { "potion", "Potion", "Nature", "gulp", Pulses({ P(0, 0.05, 0.08), P(0.14, 0.05, 0.1), P(0.3, 0.25, 0.3),
+        P(0.65, 0.05, 0.08) }) },
     -- Extremes: the limits
     { "max", "Full both", "Extremes", "impact", Pulses({ P(0, 0.5, 1) }) },
     { "maxL", "Full left", "Extremes", "bash", Pulses({ P(0, 0.5, 1, -1) }) },
@@ -165,13 +193,48 @@ for _, e in ipairs(LIB) do
     H.AddLibrary(e[1], feel)
 end
 
+-- Rumble's own patterns in the library too, as "r_" + their key: one palette
+-- for every event, each copiable as a base to edit. Grouped: Basics, Moves,
+-- Weapons (shots and swings), Spells, Crafts (gathering, crafting, food)
+do
+    local V = ns.Rumble
+    local SPELL, CRAFT = {}, { chew = true, gulp = true }
+    for _, a in ipairs(V and V.CAST_ACTIONS or {}) do (a.kind == "spell" and SPELL or CRAFT)[a.pattern] = true end
+    for _, p in ipairs(V and V.PATTERNS or {}) do
+        if p.feel and not p.beta then
+            local f = H.Copy(p.feel)
+            f.label, f.icon, f.rumble = p.label, p.icon, p.key
+            f.group = (p.swing or p.weapon) and "Weapons" or p.move and "Moves" or SPELL[p.key] and "Spells"
+                or CRAFT[p.key] and "Crafts" or "Basics"
+            f.loop, f.gap = nil, nil
+            H.AddLibrary("r_" .. p.key, f)
+        end
+    end
+end
+
+-- A Rumble pattern key for a library feel (its own for "r_", else a Beta one)
+function L.PatternFor(key)
+    if not key then return nil end
+    if key:sub(1, 2) == "r_" then return key:sub(3) end
+    return "x_" .. key
+end
+
+-- The library feel for a Rumble pattern key
+function L.FeelFor(pattern)
+    if not pattern then return nil end
+    if pattern:sub(1, 2) == "x_" then return pattern:sub(3) end
+    return "r_" .. pattern
+end
+
 ---------------------------------------------------------------------------
 -- Beta feels in Rumble's pattern grid (while the Beta engine is on)
 ---------------------------------------------------------------------------
 function L.RegisterInRumble()
     local V = ns.Rumble
     if not (V and V.AddFeel) then return end
-    for _, feel in ipairs(H.AllFeels()) do V.AddFeel("x_" .. feel.key, feel) end
+    for _, feel in ipairs(H.AllFeels()) do
+        if not feel.rumble then V.AddFeel("x_" .. feel.key, feel) end
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -423,6 +486,9 @@ function L.Facts()
         { "Vibration CVar", cvar ~= nil and tostring(cvar) or "?" },
         { "Battery", power ~= nil and tostring(power) or "?" },
         { "Pad style", type(state) == "table" and tostring(state.labelStyle) or "?" },
+        { "Weather API", (C_Weather and "C_Weather") or (GetWeatherInfo and "GetWeatherInfo")
+            or (GetCurrentWeather and "GetCurrentWeather") or "none" },
+        { "Zone climate", tostring(L.Climate and L.Climate() or "?") },
         { "Frame rate", GetFramerate and string.format("%.0f fps (faster steps blur)", GetFramerate() or 0) or "?" },
         { "SetVibration", tostring(C_GamePad ~= nil and C_GamePad.SetVibration ~= nil) },
         { "SetLedColor", tostring(C_GamePad ~= nil and C_GamePad.SetLedColor ~= nil) },
@@ -623,41 +689,82 @@ end)
 -- strength, while the Beta engine is on)
 ---------------------------------------------------------------------------
 local ART = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_"
-L.EVENT_GROUPS = { "Combat", "Resources", "Moving", "World", "Social", "Living" }
+-- (groups shared with Rumble's own events on the Rumble tab)
+L.EVENT_GROUPS = { "Attacks", "Defense", "Abilities", "Moving", "Care", "Weather", "Progress", "Social" }
 L.EVENTS = {
-    { key = "hitTaken", icon = ART .. "event_critted", group = "Combat", label = "Hit taken", feel = "thud", on = true },
-    { key = "avoid", icon = ART .. "vibe_ward", group = "Combat", label = "Dodge, parry, block", feel = "flick", on = true },
-    { key = "kill", icon = ART .. "vibe_judge", group = "Combat", label = "Target killed", feel = "boom", on = true },
-    { key = "targetCast", icon = ART .. "event_cast", group = "Combat", label = "Enemy casts at you", feel = "tremor", on = false },
-    { key = "aggro", icon = ART .. "vibe_hex", group = "Combat", label = "Aggro", feel = "swell", on = false },
-    { key = "control", icon = ART .. "vibe_frost", group = "Combat", label = "Lost control", feel = "gravel", on = true },
-    { key = "combo", icon = ART .. "vibe_micro", group = "Resources", label = "Combo point", feel = "pin", on = true },
-    { key = "comboFull", icon = ART .. "vibe_flurry", group = "Resources", label = "Combo points full", feel = "knock", on = true },
-    { key = "full", icon = ART .. "vibe_rise", group = "Resources", label = "Rage or energy full", feel = "ready", on = false },
-    { key = "oom", icon = ART .. "vibe_fade", group = "Resources", label = "Low mana", feel = "dive", on = true },
-    { key = "gcd", icon = ART .. "vibe_tick", group = "Resources", label = "Global cooldown ready", feel = "ready", on = false },
-    { key = "uiError", icon = ART .. "event_interrupted", group = "Resources", label = "Error", feel = "deny", on = true },
-    { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true },
+    -- Attacks: your blows (Rumble adds swings, crits, shots)
+    { key = "hit", icon = ART .. "vibe_stab", group = "Attacks", label = "Hit", feel = "strike", on = true,
+        tip = "A hit lands on your target" },
+    { key = "miss", icon = ART .. "vibe_fade", group = "Attacks", label = "Miss", feel = "whiff", on = true,
+        tip = "Your attack misses" },
+    { key = "targetDodge", icon = ART .. "vibe_whirl", group = "Attacks", label = "Target dodges", feel = "slip", on = true },
+    { key = "targetParry", icon = ART .. "vibe_latch", group = "Attacks", label = "Target parries", feel = "clash", on = true },
+    { key = "targetBlock", icon = ART .. "vibe_bash", group = "Attacks", label = "Target blocks", feel = "shieldThud", on = true },
+    { key = "kill", icon = ART .. "vibe_judge", group = "Attacks", label = "Target killed", feel = "boom", on = true },
+    -- Defense: blows at you
+    { key = "hitTaken", icon = ART .. "event_critted", group = "Defense", label = "Hit taken", feel = "thud", on = true,
+        tip = "Stronger the bigger the hit" },
+    { key = "dodge", icon = ART .. "vibe_sweep", group = "Defense", label = "You dodge", feel = "sidestep", on = true },
+    { key = "parry", icon = ART .. "vibe_judge", group = "Defense", label = "You parry", feel = "parryRing", on = true },
+    { key = "block", icon = ART .. "vibe_ward", group = "Defense", label = "You block", feel = "blockThud", on = true },
+    { key = "missedYou", icon = ART .. "vibe_toss", group = "Defense", label = "Missed you", feel = "missedYou", on = true,
+        tip = "A miss, a resist, an absorb" },
+    { key = "heartbeat", icon = ART .. "vibe_heart", group = "Defense", label = "Heartbeat", feel = "heart60", on = false,
+        live = true, tip = "Under half health: faster as it drops" },
+    { key = "control", icon = ART .. "vibe_frost", group = "Defense", label = "Lost control", feel = "gravel", on = true },
+    { key = "targetCast", icon = ART .. "event_cast", group = "Defense", label = "Enemy casts at you", feel = "tremor", on = false },
+    { key = "aggro", icon = ART .. "vibe_hex", group = "Defense", label = "Aggro", feel = "swell", on = false },
+    -- Abilities: casts' pace, resources
+    { key = "tension", icon = ART .. "vibe_draw", group = "Abilities", label = "Cast tension", feel = "windup", on = false,
+        live = true, tip = "Ticks closer toward the cast's end" },
+    { key = "gcd", icon = ART .. "vibe_tick", group = "Abilities", label = "Global cooldown ready", feel = "ready", on = false },
+    { key = "combo", icon = ART .. "vibe_micro", group = "Abilities", label = "Combo point", feel = "pin", on = true },
+    { key = "comboFull", icon = ART .. "vibe_flurry", group = "Abilities", label = "Combo points full", feel = "knock", on = true },
+    { key = "full", icon = ART .. "vibe_rise", group = "Abilities", label = "Rage or energy full", feel = "ready", on = false },
+    { key = "oom", icon = ART .. "vibe_fade", group = "Abilities", label = "Low mana", feel = "dive", on = true },
+    -- Moving
+    { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
+        tip = "Softer or harder by the time in the air" },
+    { key = "footsteps", icon = ART .. "vibe_tick", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
+    { key = "riding", icon = ART .. "vibe_charge", group = "Moving", label = "Riding", feel = "gallop", on = false, live = true },
     { key = "splash", icon = ART .. "vibe_bubble", group = "Moving", label = "Into water", feel = "splash", on = true },
+    { key = "underwater", icon = ART .. "vibe_bubble", group = "Moving", label = "Underwater", feel = "bubbles", on = true,
+        live = true, tip = "While your breath runs" },
     { key = "mount", icon = ART .. "vibe_charge", group = "Moving", label = "Mount", feel = "swell", on = true },
     { key = "dismount", icon = ART .. "vibe_bash", group = "Moving", label = "Dismount", feel = "thud", on = true },
     { key = "taxi", icon = ART .. "vibe_toss", group = "Moving", label = "Flight path", feel = "whoosh", on = true },
-    { key = "footsteps", icon = ART .. "vibe_tick", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
-    { key = "riding", icon = ART .. "vibe_charge", group = "Moving", label = "Riding", feel = "gallop", on = false, live = true },
-    { key = "loot", icon = ART .. "vibe_click", group = "World", label = "Loot", feel = "coin", on = true },
-    { key = "money", icon = ART .. "vibe_click", group = "World", label = "Money", feel = "coin", on = false },
-    { key = "questAccepted", icon = ART .. "vibe_seal", group = "World", label = "Quest accepted", feel = "notch", on = true },
-    { key = "questDone", icon = ART .. "vibe_radiance", group = "World", label = "Quest done", feel = "chime", on = true },
-    { key = "skillUp", icon = ART .. "event_levelup", group = "World", label = "Skill up", feel = "pin", on = true },
-    { key = "death", icon = ART .. "vibe_shadow", group = "World", label = "Death", feel = "dive", on = true },
-    { key = "alive", icon = ART .. "vibe_mend", group = "World", label = "Back to life", feel = "swell", on = true },
-    { key = "rested", icon = ART .. "vibe_hearth", group = "World", label = "Rested", feel = "breath", on = false },
+    -- Care: eating and drinking are Rumble's; bandages, potions, rest
+    { key = "bandage", icon = ART .. "vibe_sew", group = "Care", label = "Bandage", feel = "wrap", on = true, live = true,
+        tip = "While you bandage" },
+    { key = "potion", icon = ART .. "event_drink", group = "Care", label = "Potion", feel = "potion", on = true },
+    { key = "rested", icon = ART .. "vibe_hearth", group = "Care", label = "Rested", feel = "breath", on = false,
+        tip = "Entering an inn or a city" },
+    -- Weather: by zone and the sky above you (the game tells addons no weather)
+    { key = "rain", icon = ART .. "vibe_frost", group = "Weather", label = "Rain", feel = "raindrops", on = true, live = true,
+        tip = "Rainy zones, outdoors: the game tells addons no weather" },
+    { key = "thunder", icon = ART .. "vibe_static", group = "Weather", label = "Thunder", feel = "thunder", on = true, live = true,
+        tip = "Stormy zones, outdoors: a far roll now and then" },
+    { key = "snow", icon = ART .. "vibe_shimmer", group = "Weather", label = "Snow", feel = "snowflakes", on = true, live = true,
+        tip = "Snowy zones, outdoors" },
+    { key = "sand", icon = ART .. "vibe_sizzle", group = "Weather", label = "Sand", feel = "sandgust", on = true, live = true,
+        tip = "Deserts and dust, outdoors: a gust now and then" },
+    { key = "embers", icon = ART .. "vibe_kindle", group = "Weather", label = "Embers", feel = "embers", on = true, live = true,
+        tip = "Burning lands, outdoors" },
+    -- Progress
+    { key = "loot", icon = ART .. "vibe_click", group = "Progress", label = "Loot", feel = "coin", on = true },
+    { key = "money", icon = ART .. "vibe_click", group = "Progress", label = "Money", feel = "coin", on = false },
+    { key = "questAccepted", icon = ART .. "vibe_seal", group = "Progress", label = "Quest accepted", feel = "notch", on = true },
+    { key = "questDone", icon = ART .. "vibe_radiance", group = "Progress", label = "Quest done", feel = "chime", on = true },
+    { key = "skillUp", icon = ART .. "event_levelup", group = "Progress", label = "Skill up", feel = "pin", on = true },
+    { key = "death", icon = ART .. "vibe_shadow", group = "Progress", label = "Death", feel = "dive", on = true },
+    { key = "alive", icon = ART .. "vibe_mend", group = "Progress", label = "Back to life", feel = "swell", on = true },
+    -- Social and the interface
     { key = "whisper", icon = ART .. "vibe_double", group = "Social", label = "Whisper", feel = "notch", on = true },
     { key = "readyCheck", icon = ART .. "vibe_judge", group = "Social", label = "Ready check", feel = "ratchet", on = true },
     { key = "invite", icon = ART .. "vibe_double", group = "Social", label = "Invites, duels", feel = "chime", on = true },
     { key = "summon", icon = ART .. "vibe_ritual", group = "Social", label = "Summon", feel = "swell", on = true },
-    { key = "heartbeat", icon = ART .. "vibe_heart", group = "Living", label = "Heartbeat", feel = "heart60", on = false, live = true },
-    { key = "tension", icon = ART .. "vibe_draw", group = "Living", label = "Cast tension", feel = "windup", on = false, live = true },
+    { key = "uiError", icon = ART .. "event_interrupted", group = "Social", label = "Error", feel = "deny", on = true,
+        tip = "Not enough mana, out of range..." },
 }
 local EVENT = {}
 for _, e in ipairs(L.EVENTS) do EVENT[e.key] = e end
@@ -673,6 +780,19 @@ function L.EventSettings(key)
     end
     if not H.Feel(s.feel) then s.feel = e.feel end
     return s
+end
+
+-- An event back to the feel it ships with
+function L.EventDefault(key)
+    local e = EVENT[key]
+    local s = L.EventSettings(key)
+    s.on, s.feel = e.on, e.feel
+end
+
+function L.IsEventDefault(key)
+    local e = EVENT[key]
+    local s = L.EventSettings(key)
+    return s.on == e.on and s.feel == e.feel
 end
 
 local function Strength()
@@ -725,7 +845,7 @@ local cast = {}
 ---------------------------------------------------------------------------
 -- Live voices: heartbeat, footsteps, riding, cast tension
 ---------------------------------------------------------------------------
-local live = { heart = false, hp = nil, moving = false, mounted = false, speed = 0 }
+local live = { heart = false, hp = nil, moving = false, mounted = false, speed = 0, weather = {} }
 
 -- A beat every interval seconds (the interval may change as it goes): the
 -- seconds since the last beat, and how many beats so far. Pulses are timed in
@@ -891,6 +1011,8 @@ ListenUnit("UNIT_SPELLCAST_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_DELAYED", "player")
 ListenUnit("UNIT_THREAT_SITUATION_UPDATE", "player")
+ListenUnit("UNIT_SPELLCAST_SUCCEEDED", "player")
+Listen("MIRROR_TIMER_START", "MIRROR_TIMER_STOP")
 Listen("PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING")
 Listen("PLAYER_TARGET_CHANGED", "SPELL_UPDATE_COOLDOWN", "UI_ERROR_MESSAGE", "CHAT_MSG_LOOT", "PLAYER_MONEY",
     "QUEST_ACCEPTED", "QUEST_TURNED_IN", "CHAT_MSG_SKILL", "PLAYER_DEAD", "PLAYER_UNGHOST", "PLAYER_ALIVE",
@@ -898,8 +1020,10 @@ Listen("PLAYER_TARGET_CHANGED", "SPELL_UPDATE_COOLDOWN", "UI_ERROR_MESSAGE", "CH
     "DUEL_REQUESTED", "CONFIRM_SUMMON", "LOSS_OF_CONTROL_ADDED", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD",
     "ADDON_LOADED")
 
-local AVOID = { DODGE = true, PARRY = true, BLOCK = true, MISS = true, RESIST = true, ABSORB = true, EVADE = true,
-    IMMUNE = true, DEFLECT = true }
+-- What a unit's UNIT_COMBAT action means: at you, at your target
+local AT_YOU = { DODGE = "dodge", PARRY = "parry", BLOCK = "block", MISS = "missedYou", RESIST = "missedYou",
+    ABSORB = "missedYou", EVADE = "missedYou", IMMUNE = "missedYou", DEFLECT = "missedYou" }
+local AT_TARGET = { MISS = "miss", DODGE = "targetDodge", PARRY = "targetParry", BLOCK = "targetBlock" }
 local targetDead, combo, powerFull, oomLow, money, resting, threat = nil, 0, false, false, nil, nil, 0
 local gcdEnd = 0
 
@@ -931,6 +1055,34 @@ local function CastTimes(channel)
     return s / 1000, e / 1000
 end
 
+-- Bandages (First Aid's channel) and potions, by their spells' names
+local careNames
+local function CareNames()
+    if careNames then return careNames end
+    careNames = { bandage = {}, potion = {} }
+    local function add(kind, id)
+        local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id) or (GetSpellInfo and GetSpellInfo(id))
+        if name then careNames[kind][name] = true end
+    end
+    for _, id in ipairs({ 746, 1159, 3267, 3268, 7926, 7927, 10838, 10839, 18608, 18610 }) do add("bandage", id) end
+    -- healing, mana, rage, rejuvenation, restorative and other potions' spells
+    for _, id in ipairs({ 439, 440, 441, 2024, 4042, 17534, 437, 438, 2023, 11903, 17530, 17531, 6612, 6613, 17528,
+        22729, 11359, 2379, 6615, 3592, 7242 }) do add("potion", id) end
+    return careNames
+end
+
+local function SpellNameOf(id)
+    if not id or secret(id) then return nil end
+    local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id) or (GetSpellInfo and GetSpellInfo(id))
+    if name and not secret(name) then return name end
+end
+
+local function BandageOn()
+    if not LiveOn("bandage") then return end
+    local s = L.EventSettings("bandage")
+    H.Play(s.feel, { voice = "live_bandage", loop = true, gain = Strength() })
+end
+
 local function CastBegan(channel)
     local s, e = CastTimes(channel)
     if not s then return end
@@ -948,6 +1100,7 @@ end
 local function CastOver()
     cast.start = nil
     H.Stop("live_tension")
+    H.Stop("live_bandage")
 end
 
 local handlers = {}
@@ -961,8 +1114,14 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount)
                 if mx and not secret(mx) and mx > 0 then gain = 0.4 + 0.6 * min(1, amount / (mx * 0.15)) end
             end
             L.Fire("hitTaken", gain)
-        elseif AVOID[action] then
-            L.Fire("avoid")
+        elseif AT_YOU[action] then
+            L.Fire(AT_YOU[action])
+        end
+    elseif unit == "target" and call(UnitCanAttack, "player", "target") then
+        if action == "WOUND" and flag ~= "CRITICAL" then
+            L.Fire("hit")
+        elseif AT_TARGET[action] then
+            L.Fire(AT_TARGET[action])
         end
     end
 end
@@ -1069,8 +1228,12 @@ handlers.UNIT_SPELLCAST_START = function(unit)
         if not secret(onMe) and onMe then L.Fire("targetCast") end
     end
 end
-handlers.UNIT_SPELLCAST_CHANNEL_START = function(unit)
-    if unit == "player" then return CastBegan(true) end
+handlers.UNIT_SPELLCAST_CHANNEL_START = function(unit, _, spellID)
+    if unit == "player" then
+        local name = SpellNameOf(spellID)
+        if name and CareNames().bandage[name] then BandageOn() end
+        return CastBegan(true)
+    end
     handlers.UNIT_SPELLCAST_START(unit)
 end
 handlers.UNIT_SPELLCAST_DELAYED = function()
@@ -1078,6 +1241,13 @@ handlers.UNIT_SPELLCAST_DELAYED = function()
     if s and cast.start then cast.start, cast.finish = s, e end
 end
 handlers.UNIT_SPELLCAST_STOP = function(unit) if unit == "player" then CastOver() end end
+handlers.UNIT_SPELLCAST_SUCCEEDED = function(unit, _, spellID)
+    if unit ~= "player" then return end
+    local name = SpellNameOf(spellID)
+    if name and CareNames().potion[name] then L.Fire("potion") end
+end
+handlers.MIRROR_TIMER_START = function(timer) if timer == "BREATH" then live.underwater = true end end
+handlers.MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then live.underwater = false end end
 handlers.UNIT_SPELLCAST_CHANNEL_STOP = handlers.UNIT_SPELLCAST_STOP
 handlers.PLAYER_STARTED_MOVING = function()
     live.moveStart = Now()
@@ -1106,11 +1276,117 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if fn then fn(...) end
 end)
 
+---------------------------------------------------------------------------
+-- Weather by zone: the game tells addons no weather, so a zone's climate
+-- stands in for it, felt outdoors only (not indoors, under water or dead).
+-- Each a faint, irregular texture (rhythm and contrast: barely there).
+---------------------------------------------------------------------------
+-- Classic zones by map ID (C_Map), then by English name
+local CLIMATE_IDS = {
+    [1429] = "rain", [1431] = "rain", [1433] = "rain", [1437] = "storm", [1434] = "storm", [1435] = "storm",
+    [1440] = "rain", [1439] = "rain", [1438] = "rain", [1444] = "storm", [1445] = "storm", [1424] = "rain",
+    [1417] = "rain", [1420] = "rain", [1421] = "rain", [1425] = "rain", [1450] = "rain", [1448] = "rain",
+    [1449] = "storm", [1447] = "rain", [1430] = "storm",
+    [1426] = "snow", [1452] = "snow", [1416] = "snow",
+    [1446] = "sand", [1451] = "sand", [1418] = "sand", [1443] = "sand", [1441] = "sand", [1413] = "sand", [1411] = "sand",
+    [1428] = "embers", [1427] = "embers", [1419] = "embers",
+}
+local CLIMATE_NAMES = {
+    ["Elwynn Forest"] = "rain", ["Duskwood"] = "rain", ["Redridge Mountains"] = "rain", ["Wetlands"] = "storm",
+    ["Stranglethorn Vale"] = "storm", ["Swamp of Sorrows"] = "storm", ["Ashenvale"] = "rain", ["Darkshore"] = "rain",
+    ["Teldrassil"] = "rain", ["Feralas"] = "storm", ["Dustwallow Marsh"] = "storm", ["Hillsbrad Foothills"] = "rain",
+    ["Arathi Highlands"] = "rain", ["Tirisfal Glades"] = "rain", ["Silverpine Forest"] = "rain",
+    ["The Hinterlands"] = "rain", ["Moonglade"] = "rain", ["Felwood"] = "rain", ["Un'Goro Crater"] = "storm",
+    ["Azshara"] = "rain", ["Deadwind Pass"] = "storm", ["Dun Morogh"] = "snow", ["Winterspring"] = "snow",
+    ["Alterac Mountains"] = "snow", ["Tanaris"] = "sand", ["Silithus"] = "sand", ["Badlands"] = "sand",
+    ["Desolace"] = "sand", ["Thousand Needles"] = "sand", ["The Barrens"] = "sand", ["Durotar"] = "sand",
+    ["Burning Steppes"] = "embers", ["Searing Gorge"] = "embers", ["Blasted Lands"] = "embers",
+}
+-- What each climate brings
+local CLIMATE_EVENTS = { rain = { rain = true }, storm = { rain = true, thunder = true }, snow = { snow = true },
+    sand = { sand = true }, embers = { embers = true } }
+
+function L.Climate()
+    local id = C_Map and C_Map.GetBestMapForUnit and call(C_Map.GetBestMapForUnit, "player")
+    if id and not secret(id) and CLIMATE_IDS[id] then return CLIMATE_IDS[id] end
+    local zone = call(GetRealZoneText) or call(GetZoneText)
+    return zone and not secret(zone) and CLIMATE_NAMES[zone] or nil
+end
+
+local random = math.random
+-- Sparse taps: one every gap0..gap1 s, lo..hi strong, anywhere left to right
+-- (sometimes a second right after it: chance2)
+local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
+    return function(now, v)
+        if not live.weather[key] then return nil end
+        if not v.next then v.next = now + random() * gap1 end
+        if now >= v.next then
+            v.tapEnd, v.level, v.side = now + PULSE, lo + random() * (hi - lo), random() * 2 - 1
+            v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
+            v.next = now + gap0 + random() * (gap1 - gap0)
+        end
+        if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
+        if v.tapEnd and now < v.tapEnd then
+            local s, p = v.level, v.side
+            return s * min(1, 1 - p), s * min(1, 1 + p)
+        end
+        return 0, 0
+    end
+end
+
+-- A far thunder roll now and then: a crack, two rolls, a tail
+local THUNDER = { { 0, 0.06, 0.3, 0 }, { 0.14, 0.5, 0.22, -0.2 }, { 0.72, 0.35, 0.14, 0.3 }, { 1.15, 0.2, 0.07, 0 } }
+local function Thunder(now, v)
+    if not live.weather.thunder then return nil end
+    if not v.next then v.next = now + 8 + random() * 25 end
+    if now >= v.next and not v.roll then v.roll = now; v.scale = 0.6 + random() * 0.5 end
+    if v.roll then
+        local t = now - v.roll
+        if t > 1.4 then v.roll, v.next = nil, now + 18 + random() * 45; return 0, 0 end
+        for _, p in ipairs(THUNDER) do
+            if t >= p[1] and t < p[1] + p[2] then
+                local s = p[3] * v.scale
+                return s * min(1, 1 - p[4]), s * min(1, 1 + p[4])
+            end
+        end
+    end
+    return 0, 0
+end
+
+-- A gust of sand: a handful of faint taps sweeping across, now and then
+local function Gust(now, v)
+    if not live.weather.sand then return nil end
+    if not v.next then v.next = now + 2 + random() * 6 end
+    if now >= v.next and not v.gust then v.gust, v.dir = now, random() < 0.5 and -1 or 1 end
+    if v.gust then
+        local t = now - v.gust
+        if t > 1.2 then v.gust, v.next = nil, now + 5 + random() * 7; return 0, 0 end
+        local i = floor(t / 0.18)
+        if t - i * 0.18 < PULSE then
+            local side = v.dir * (-1 + 2 * i / 6)
+            local s = 0.03 + 0.03 * math.sin(i / 6 * math.pi)
+            return s * min(1, 1 - side), s * min(1, 1 + side)
+        end
+    end
+    return 0, 0
+end
+
+local WEATHER_FN = {
+    rain = Sprinkle("rain", 0.18, 0.7, 0.02, 0.05, 0.15),
+    snow = Sprinkle("snow", 1.2, 3.5, 0.015, 0.03),
+    embers = Sprinkle("embers", 0.5, 1.8, 0.03, 0.07, 0.25),
+    thunder = Thunder,
+    sand = Gust,
+}
+local BUBBLES = Sprinkle("underwater", 0.9, 2.2, 0.03, 0.05, 0.3)
+L.WEATHER_KEYS = { "rain", "thunder", "snow", "sand", "embers" }
+
 -- Ten times a second: falling, water, mount, taxi, moving, low health
 local was = { falling = false, fallStart = 0, swimming = false, mounted = nil, taxi = nil }
 local function Poll()
     if not H.Engine() then
-        H.Stop("live_heartbeat"); H.Stop("live_footsteps"); H.Stop("live_riding")
+        H.Stop("live_heartbeat"); H.Stop("live_footsteps"); H.Stop("live_riding"); H.Stop("live_underwater")
+        for _, k in ipairs(L.WEATHER_KEYS) do H.Stop("live_" .. k) end
         return
     end
     local now = Now()
@@ -1141,6 +1417,18 @@ local function Poll()
     live.heart = (hp and hp < 0.5) or (not hp and warned) or false
     if call(UnitIsDeadOrGhost, "player") then live.heart = false end
     if live.heart then StartLive("heartbeat", Heartbeat) else H.Stop("live_heartbeat") end
+    -- Water: bubbles while the breath runs
+    if live.underwater then StartLive("underwater", BUBBLES) else H.Stop("live_underwater") end
+    live.weather.underwater = live.underwater
+    -- Weather: the zone's climate, outdoors, above water, alive
+    local outdoors = not call(IsIndoors) and not swimming and not live.underwater
+        and not call(UnitIsDeadOrGhost, "player")
+    local climate = outdoors and L.Climate() or nil
+    local brings = climate and CLIMATE_EVENTS[climate] or {}
+    for _, k in ipairs(L.WEATHER_KEYS) do
+        live.weather[k] = brings[k] == true
+        if live.weather[k] then StartLive(k, WEATHER_FN[k]) else H.Stop("live_" .. k) end
+    end
 end
 if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(0.1, Poll) end
 L.Poll = Poll

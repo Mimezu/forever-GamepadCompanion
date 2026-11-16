@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.0 — 2026-11-16
+
+- Debug window (Beta header, /gpc debug): see-through, stays up while playing: both motors and the light bar now, every vibration and light playing with its reason, the last cues; the Beta header shows the latest reason
+- New events: your hit, your miss; the target dodges, parries, blocks; you dodge, parry, block apart; missed you; bandage (while it lasts), potion; underwater (while your breath runs); weather by zone, outdoors: rain, thunder, snow, sand, embers (the game tells addons no weather)
+- New bespoke feels for each (Combat, Nature groups); events regrouped: Attacks, Defense, Abilities, Moving, Care, Weather, Progress, Social
+- One palette: Rumble's own patterns are in the feel library too (Basics, Moves, Weapons, Spells, Crafts), usable on any event; the picker is the grouped palette with big tiles, Off first
+
 ## 0.18.0 — 2026-11-16
 
 - Helper (first version, untested with the pad): an outside program (helper\, Python 3.12, no installs) reading a few pixels the addon draws top left, for what the game can't drive: adaptive triggers, true haptics and the speaker (USB)

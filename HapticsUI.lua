@@ -1,0 +1,406 @@
+-- Haptics UI: the widgets the Rumble and Beta tabs share. A value with - and
+-- +, a row of choices, a grid of choices next to a control (Off first for an
+-- event), a row as on the Rumble tab (icon, name, a second line, its choice on
+-- a plate, Try, Default, Edit), and groups down the left with one shown at a
+-- time. pg: the page using them ({ refresh = {}, Refresh = fn }).
+local _, ns = ...
+local S, Shell, H = ns.OptionsSkin, ns.Shell, ns.Haptics
+local HUI = {}
+ns.HapticsUI = HUI
+local W, PH = Shell.W, Shell.H
+local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
+local RED = { 1, 0.48, 0.36 }
+local floor, min, max = math.floor, math.min, math.max
+HUI.RED = RED
+
+-- A value with - and + (and the mouse wheel)
+function HUI.Stepper(pg, parent, label, x, y, opts)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetPoint("TOPLEFT", x, y)
+    row:SetSize(opts.width or 270, 24)
+    row.label = S.Text(row, label, 0, -5, opts.labelWidth or 110, 12, GOLD)
+    row.label:SetWordWrap(false)
+    local lw = opts.labelWidth or 110
+    local function change(dir)
+        local v = opts.get()
+        if opts.list then
+            local i = 1
+            for k, item in ipairs(opts.list) do if item[1] == v then i = k end end
+            i = max(1, min(#opts.list, i + dir))
+            opts.set(opts.list[i][1])
+        else
+            v = (v or 0) + dir * opts.step
+            v = max(opts.min, min(opts.max, floor(v / opts.step + 0.5) * opts.step))
+            opts.set(v)
+        end
+        pg.Refresh()
+    end
+    row.minus = S.NewButton(row, "-", lw, 0, 24, function() change(-1) end, nil, 13, 24)
+    row.value = S.Text(row, "", lw + 26, -5, 70, 12, YELLOW)
+    row.value:SetJustifyH("CENTER")
+    row.plus = S.NewButton(row, "+", lw + 98, 0, 24, function() change(1) end, nil, 13, 24)
+    row:EnableMouseWheel(true)
+    row:SetScript("OnMouseWheel", function(_, delta) if row.enabled ~= false then change(delta) end end)
+    function row:Update()
+        local v = opts.get()
+        local text
+        if opts.list then
+            text = "?"
+            for _, item in ipairs(opts.list) do if item[1] == v then text = item[2] end end
+        elseif opts.format then
+            text = opts.format(v)
+        else
+            text = string.format("%.2f", v or 0)
+        end
+        row.value:SetText(text)
+    end
+    function row:SetEnabled(on)
+        row.enabled = on
+        row.minus:SetEnabled(on)
+        row.plus:SetEnabled(on)
+        row:SetAlpha(on and 1 or 0.45)
+    end
+    pg.refresh[#pg.refresh + 1] = function() row:Update() end
+    return row
+end
+
+-- Buttons, one of them selected
+function HUI.Choice(pg, parent, label, x, y, list, get, set, width)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetPoint("TOPLEFT", x, y)
+    row:SetSize(600, 26)
+    S.Text(row, label, 0, -6, 110, 12, GOLD)
+    local buttons = {}
+    width = width or 74
+    for i, item in ipairs(list) do
+        buttons[i] = S.NewButton(row, item[2], 112 + (i - 1) * (width + 4), 0, width, function()
+            set(item[1])
+            pg.Refresh()
+        end, nil, 11, 26)
+    end
+    pg.refresh[#pg.refresh + 1] = function()
+        local v = get()
+        for i, item in ipairs(list) do S.SetSelected(buttons[i], item[1] == v) end
+    end
+    return row
+end
+
+-- A grid of choices next to a control (the Rumble tab's pattern grid):
+-- entries { key, label, icon or rgb (a colour swatch) }
+local popup
+function HUI.Popup(anchor, title, entries, current, onPick, cols, tw)
+    if not popup then
+        popup = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
+        popup:SetFrameStrata("DIALOG")
+        popup:SetToplevel(true)
+        popup:EnableMouse(true)
+        S.Panel(popup)
+        popup.title = S.Text(popup, "", 14, -12, 600, 13, YELLOW)
+        popup.tiles = {}
+        popup:Hide()
+        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaFeels"
+    end
+    if popup:IsShown() and popup.anchor == anchor then return popup:Hide() end
+    popup.anchor = anchor
+    cols, tw = cols or 8, tw or 112
+    local th = 28
+    popup.title:SetText(title or "")
+    for _, t in ipairs(popup.tiles) do t:Hide() end
+    for i, e in ipairs(entries) do
+        local t = popup.tiles[i]
+        if not t then
+            t = S.NewButton(popup, "", 0, 0, tw, nil, nil, 11, th)
+            t.icon = t:CreateTexture(nil, "OVERLAY")
+            t.icon:SetSize(20, 20)
+            t.icon:SetPoint("LEFT", 5, 0)
+            t.label:ClearAllPoints()
+            t.label:SetPoint("LEFT", 30, 0)
+            t.label:SetPoint("RIGHT", -3, 0)
+            t.label:SetJustifyH("LEFT")
+            popup.tiles[i] = t
+        end
+        t:SetWidth(tw)
+        local col, row = (i - 1) % cols, floor((i - 1) / cols)
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -36 - row * (th + 3))
+        t.label:SetText(e.label or e.key)
+        if e.rgb then
+            t.icon:SetTexture(nil)
+            t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
+        else
+            t.icon:SetTexture(e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
+        end
+        if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
+        S.SetSelected(t, e.key == current)
+        t:SetScript("OnClick", function()
+            popup:Hide()
+            onPick(e.key)
+        end)
+        t:Show()
+    end
+    local rows = math.ceil(#entries / cols)
+    popup:SetSize(24 + cols * (tw + 3), 48 + rows * (th + 3))
+    popup.title:SetWidth(cols * (tw + 3))
+    popup:ClearAllPoints()
+    popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
+    popup:SetClampedToScreen(true)
+    popup:Show()
+    popup:Raise()
+end
+
+-- A Rumble-tab row: icon, name, a second line, a plate showing the choice
+-- (opens its grid), Try; opts.default / opts.edit add Default and Edit
+HUI.ROW_H = 44
+function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
+    opts = opts or {}
+    local ROW_H = HUI.ROW_H
+    local r = CreateFrame("Frame", nil, parent)
+    r:SetPoint("TOPLEFT", 10, y)
+    r:SetSize(width - 20, ROW_H - 4)
+    local wash = r:CreateTexture(nil, "BACKGROUND")
+    wash:SetAllPoints()
+    wash:SetColorTexture(1, 0.85, 0.55, 0.04)
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetSize(30, 30)
+    r.icon:SetPoint("LEFT", 2, 0)
+    if icon then r.icon:SetTexture(icon) end
+    -- right to left: Edit, Default, Try, the plate
+    local x = width - 20
+    if opts.edit then
+        x = x - 44
+        r.edit = S.NewButton(r, "Edit", x, -5, 42, function() opts.edit() end, nil, 11, 30)
+        S.Tooltip(r.edit, "Edit", "A copy of your own, in the editor")
+        x = x - 4
+    end
+    if opts.default then
+        x = x - 62
+        r.default = S.NewButton(r, "Default", x, -5, 60, function() opts.default() end, nil, 11, 30)
+        S.Tooltip(r.default, "Default", "The feel it ships with")
+        x = x - 4
+    end
+    x = x - 34
+    r.try = S.NewButton(r, "Try", x, -5, 32, function() onTry() end, nil, 11, 30)
+    S.Tooltip(r.try, "Try", label)
+    x = x - 4 - 136
+    r.pick = S.NewButton(r, "", x, -5, 136, nil, nil, 11, 30)
+    r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
+    r.pick.icon:SetSize(20, 20)
+    r.pick.icon:SetPoint("LEFT", 6, 0)
+    r.pick.label:ClearAllPoints()
+    r.pick.label:SetPoint("LEFT", 30, 0)
+    r.pick.label:SetPoint("RIGHT", -6, 0)
+    r.pick.label:SetJustifyH("LEFT")
+    r.pick:SetScript("OnClick", function(self) onPick(self) end)
+    if tip then S.Tooltip(r.pick, label, tip) end
+    r.label = S.Text(r, label, 40, -4, x - 48, 13, GOLD)
+    r.label:SetWordWrap(false)
+    r.sub = S.Text(r, "", 40, -22, x - 48, 11, GREY)
+    r.sub:SetWordWrap(false)
+    -- off: dimmed, the plate's name in red; isDefault: Default greyed
+    function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
+        r.pick.label:SetText(name or "")
+        if rgb then
+            r.pick.icon:SetTexture(nil)
+            r.pick.icon:SetColorTexture(rgb[1], rgb[2], rgb[3], 1)
+        else
+            r.pick.icon:SetTexture(icon2)
+        end
+        r.sub:SetText(sub or "")
+        if off then r.pick.label:SetTextColor(RED[1], RED[2], RED[3]) else r.pick.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
+        r.icon:SetDesaturated(off == true)
+        r.label:SetAlpha(off and 0.6 or 1)
+        if r.default then r.default:SetEnabled(not isDefault) end
+    end
+    return r
+end
+
+-- Groups down the left, one shown at a time on the right. opts: left (a
+-- frame to put the list in, else a card of its own), top (the list's first
+-- y), leftWidth, width (the panels')
+function HUI.GroupBrowser(p, groups, opts)
+    opts = opts or {}
+    local lw = opts.leftWidth or 200
+    local left = opts.left or S.Card(p, nil, 0, 0, lw, PH - 40)
+    local top = opts.top or -12
+    local b = { buttons = {}, panels = {}, current = nil, left = left }
+    for i, g in ipairs(groups) do
+        local btn = S.NewButton(left, g.label, 10, top - (i - 1) * 36, lw - 20, function() b.Select(g.key) end, nil, 13, 32)
+        btn.label:SetJustifyH("LEFT")
+        btn.count = S.Text(btn, "", 0, 0, 60, 11, GREY)
+        btn.count:ClearAllPoints()
+        btn.count:SetPoint("RIGHT", -8, 0)
+        btn.count:SetJustifyH("RIGHT")
+        b.buttons[g.key] = btn
+        local panel = CreateFrame("Frame", nil, p)
+        panel:SetPoint("TOPLEFT", lw + 10, 0)
+        panel:SetSize(opts.width or (W - lw - 10), PH - (opts.pageTop or 40))
+        panel:Hide()
+        b.panels[g.key] = panel
+    end
+    function b.Select(key)
+        b.current = key
+        for k, panel in pairs(b.panels) do panel:SetShown(k == key) end
+        for k, btn in pairs(b.buttons) do S.SetSelected(btn, k == key) end
+        if opts.onSelect then opts.onSelect(key) end
+    end
+    b.Select(groups[1].key)
+    return b
+end
+
+function HUI.HidePopup()
+    if GamepadCompanionBetaFeels then GamepadCompanionBetaFeels:Hide() end
+    if HUI.HidePalette then HUI.HidePalette() end
+end
+
+---------------------------------------------------------------------------
+-- The palette: every feel, by group down the left, as big tiles (icon and
+-- name, as the Rumble tab's grid). specials (Off, Match the...) stay on top.
+-- opts: specials, onPick(key, button), onSelect(key), current() -> key
+---------------------------------------------------------------------------
+local TILE_W, TILE_H = 92, 70
+function HUI.Palette(parent, x, y, w, h, opts)
+    local L = ns.HapticsLab
+    local pal = CreateFrame("Frame", nil, parent)
+    pal:SetPoint("TOPLEFT", x, y)
+    pal:SetSize(w, h)
+    local listW = 150
+    pal.groups = {}
+    for _, g in ipairs(L.GROUPS) do pal.groups[#pal.groups + 1] = g end
+    pal.groups[#pal.groups + 1] = "Yours"
+    pal.buttons, pal.tiles, pal.specialTiles = {}, {}, {}
+    local cols = math.max(1, floor((w - listW - 10) / (TILE_W + 4)))
+    pal.cols = cols
+    for i, g in ipairs(pal.groups) do
+        local b = S.NewButton(pal, g, 0, -(i - 1) * 29, listW - 8, function() pal:ShowGroup(g) end, nil, 11, 27)
+        b.label:SetJustifyH("LEFT")
+        pal.buttons[g] = b
+    end
+    local function Tile(list, i, parentFrame)
+        local t = list[i]
+        if t then return t end
+        t = CreateFrame("Button", nil, parentFrame)
+        t:SetSize(TILE_W, TILE_H)
+        t.bg = t:CreateTexture(nil, "BACKGROUND", nil, 1)
+        t.bg:SetAllPoints()
+        t.bg:SetColorTexture(1, 0.85, 0.55, 0.05)
+        t.sel = t:CreateTexture(nil, "BACKGROUND", nil, 2)
+        t.sel:SetAllPoints()
+        t.sel:SetColorTexture(1, 0.72, 0.2, 0.25)
+        local hover = t:CreateTexture(nil, "HIGHLIGHT")
+        hover:SetAllPoints()
+        hover:SetColorTexture(1, 0.75, 0.3, 0.16)
+        t.icon = t:CreateTexture(nil, "ARTWORK")
+        t.icon:SetSize(36, 36)
+        t.icon:SetPoint("TOP", 0, -6)
+        t.label = t:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        t.label:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
+        t.label:SetPoint("BOTTOMLEFT", 2, 5)
+        t.label:SetPoint("BOTTOMRIGHT", -2, 5)
+        t.label:SetJustifyH("CENTER")
+        t.label:SetWordWrap(false)
+        t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        t:SetScript("OnClick", function(self, button)
+            if self.key and opts.onPick then opts.onPick(self.key, button) end
+            pal:Update()
+        end)
+        list[i] = t
+        return t
+    end
+    local nSpecial = opts.specials and #opts.specials or 0
+    local top = nSpecial > 0 and -(TILE_H + 10) or 0
+    function pal:Update()
+        local current = opts.current and opts.current()
+        for i, t in ipairs(pal.specialTiles) do t.sel:SetShown(t.key == current) end
+        for _, t in ipairs(pal.tiles) do t.sel:SetShown(t:IsShown() and t.key == current) end
+        for g, b in pairs(pal.buttons) do S.SetSelected(b, g == pal.group) end
+    end
+    function pal:ShowGroup(g)
+        pal.group = g
+        local list = {}
+        for _, f in ipairs(H.AllFeels()) do
+            local fg = H.IsOwn(f.key) and "Yours" or f.group or "Yours"
+            if fg == g then list[#list + 1] = f end
+        end
+        for _, t in ipairs(pal.tiles) do t:Hide() end
+        for i, f in ipairs(list) do
+            local t = Tile(pal.tiles, i, pal)
+            local col, row = (i - 1) % cols, floor((i - 1) / cols)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", listW + col * (TILE_W + 4), top - row * (TILE_H + 4))
+            t.key = f.key
+            t.icon:SetTexture(f.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
+            t.label:SetText(f.label or f.key)
+            t.label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
+            t:Show()
+        end
+        pal.rows = math.max(1, math.ceil(#list / cols))
+        if opts.onSelect then opts.onSelect(g) end
+        pal:Update()
+    end
+    -- (Off and Match the... on top)
+    function pal:SetSpecials(specials)
+        for _, t in ipairs(pal.specialTiles) do t:Hide() end
+        for i, e in ipairs(specials or {}) do
+            local t = Tile(pal.specialTiles, i, pal)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", listW + (i - 1) * (TILE_W + 4), 0)
+            t.key = e.key
+            t.icon:SetTexture(e.icon)
+            t.label:SetText(e.label)
+            if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) end
+            t:Show()
+        end
+    end
+    pal:SetSpecials(opts.specials)
+    -- the group of a feel (to open on the current one)
+    function pal:GroupOf(key)
+        local f = key and H.Feel(key)
+        if not f then return nil end
+        return H.IsOwn(key) and "Yours" or f.group
+    end
+    pal.listHeight = #pal.groups * 29
+    return pal
+end
+
+-- The palette next to a control: pick a feel (specials first: Off, Match the...)
+local palWin
+function HUI.PickFeel(anchor, current, onPick, specials, title)
+    if not palWin then
+        palWin = CreateFrame("Frame", "GamepadCompanionPalette", Shell.Window())
+        palWin:SetFrameStrata("DIALOG")
+        palWin:SetToplevel(true)
+        palWin:EnableMouse(true)
+        S.Panel(palWin)
+        palWin.title = S.Text(palWin, "", 14, -12, 700, 13, YELLOW)
+        palWin.pal = HUI.Palette(palWin, 12, -36, 150 + 8 * (TILE_W + 4), 600, {
+            specials = {},
+            current = function() return palWin.current end,
+            onPick = function(key)
+                palWin:Hide()
+                if palWin.onPick then palWin.onPick(key) end
+            end,
+        })
+        palWin:SetScript("OnKeyDown", nil)
+        palWin:Hide()
+        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionPalette"
+    end
+    if palWin:IsShown() and palWin.anchor == anchor then return palWin:Hide() end
+    palWin.anchor, palWin.current, palWin.onPick = anchor, current, onPick
+    palWin.title:SetText(title or "Feels")
+    if type(specials) ~= "table" then
+        specials = specials and { { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } } or {}
+    end
+    palWin.pal:SetSpecials(specials)
+    palWin.pal:ShowGroup(palWin.pal:GroupOf(current) or ns.HapticsLab.GROUPS[1])
+    local tilesH = (#specials > 0 and (TILE_H + 10) or 0) + 3 * (TILE_H + 4)
+    palWin:SetSize(24 + 150 + 8 * (TILE_W + 4), 48 + math.max(palWin.pal.listHeight, tilesH))
+    palWin:ClearAllPoints()
+    palWin:SetPoint("CENTER", Shell.Window(), "CENTER", 0, 0)
+    palWin:SetClampedToScreen(true)
+    palWin:Show()
+    palWin:Raise()
+end
+
+function HUI.HidePalette()
+    if palWin then palWin:Hide() end
+end

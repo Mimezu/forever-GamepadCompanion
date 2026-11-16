@@ -25,77 +25,10 @@ local function Now() return GetTime and GetTime() or 0 end
 ---------------------------------------------------------------------------
 -- Shared widgets
 ---------------------------------------------------------------------------
--- A value with - and + (and the mouse wheel)
-local function Stepper(parent, label, x, y, opts)
-    local row = CreateFrame("Frame", nil, parent)
-    row:SetPoint("TOPLEFT", x, y)
-    row:SetSize(opts.width or 270, 24)
-    row.label = S.Text(row, label, 0, -5, opts.labelWidth or 110, 12, GOLD)
-    row.label:SetWordWrap(false)
-    local lw = opts.labelWidth or 110
-    local function change(dir)
-        local v = opts.get()
-        if opts.list then
-            local i = 1
-            for k, item in ipairs(opts.list) do if item[1] == v then i = k end end
-            i = max(1, min(#opts.list, i + dir))
-            opts.set(opts.list[i][1])
-        else
-            v = (v or 0) + dir * opts.step
-            v = max(opts.min, min(opts.max, floor(v / opts.step + 0.5) * opts.step))
-            opts.set(v)
-        end
-        Refresh()
-    end
-    row.minus = S.NewButton(row, "-", lw, 0, 24, function() change(-1) end, nil, 13, 24)
-    row.value = S.Text(row, "", lw + 26, -5, 70, 12, YELLOW)
-    row.value:SetJustifyH("CENTER")
-    row.plus = S.NewButton(row, "+", lw + 98, 0, 24, function() change(1) end, nil, 13, 24)
-    row:EnableMouseWheel(true)
-    row:SetScript("OnMouseWheel", function(_, delta) if row.enabled ~= false then change(delta) end end)
-    function row:Update()
-        local v = opts.get()
-        local text
-        if opts.list then
-            text = "?"
-            for _, item in ipairs(opts.list) do if item[1] == v then text = item[2] end end
-        elseif opts.format then
-            text = opts.format(v)
-        else
-            text = string.format("%.2f", v or 0)
-        end
-        row.value:SetText(text)
-    end
-    function row:SetEnabled(on)
-        row.enabled = on
-        row.minus:SetEnabled(on)
-        row.plus:SetEnabled(on)
-        row:SetAlpha(on and 1 or 0.45)
-    end
-    ui.refresh[#ui.refresh + 1] = function() row:Update() end
-    return row
-end
-
--- Buttons, one of them selected
-local function Choice(parent, label, x, y, list, get, set, width)
-    local row = CreateFrame("Frame", nil, parent)
-    row:SetPoint("TOPLEFT", x, y)
-    row:SetSize(600, 26)
-    S.Text(row, label, 0, -6, 110, 12, GOLD)
-    local buttons = {}
-    width = width or 74
-    for i, item in ipairs(list) do
-        buttons[i] = S.NewButton(row, item[2], 112 + (i - 1) * (width + 4), 0, width, function()
-            set(item[1])
-            Refresh()
-        end, nil, 11, 26)
-    end
-    ui.refresh[#ui.refresh + 1] = function()
-        local v = get()
-        for i, item in ipairs(list) do S.SetSelected(buttons[i], item[1] == v) end
-    end
-    return row
-end
+-- (the shared widgets: HapticsUI.lua)
+local HUI = ns.HapticsUI
+local function Stepper(...) return HUI.Stepper(ui, ...) end
+local function Choice(...) return HUI.Choice(ui, ...) end
 
 -- Two lanes, mirrored: left grip above the line, right grip below
 local function Graph(parent, x, y, w, h, columns)
@@ -194,151 +127,9 @@ local function TextWindow(title, text, onAccept, acceptLabel)
     textWin.box:HighlightText()
 end
 
--- A grid of choices next to a control (the Rumble tab's pattern grid):
--- entries { key, label, icon or rgb (a colour swatch) }
-local popup
-local function Popup(anchor, title, entries, current, onPick, cols, tw)
-    if not popup then
-        popup = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
-        popup:SetFrameStrata("DIALOG")
-        popup:SetToplevel(true)
-        popup:EnableMouse(true)
-        S.Panel(popup)
-        popup.title = S.Text(popup, "", 14, -12, 600, 13, YELLOW)
-        popup.tiles = {}
-        popup:Hide()
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaFeels"
-    end
-    if popup:IsShown() and popup.anchor == anchor then return popup:Hide() end
-    popup.anchor = anchor
-    cols, tw = cols or 8, tw or 112
-    local th = 28
-    popup.title:SetText(title or "")
-    for _, t in ipairs(popup.tiles) do t:Hide() end
-    for i, e in ipairs(entries) do
-        local t = popup.tiles[i]
-        if not t then
-            t = S.NewButton(popup, "", 0, 0, tw, nil, nil, 11, th)
-            t.icon = t:CreateTexture(nil, "OVERLAY")
-            t.icon:SetSize(20, 20)
-            t.icon:SetPoint("LEFT", 5, 0)
-            t.label:ClearAllPoints()
-            t.label:SetPoint("LEFT", 30, 0)
-            t.label:SetPoint("RIGHT", -3, 0)
-            t.label:SetJustifyH("LEFT")
-            popup.tiles[i] = t
-        end
-        t:SetWidth(tw)
-        local col, row = (i - 1) % cols, floor((i - 1) / cols)
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -36 - row * (th + 3))
-        t.label:SetText(e.label or e.key)
-        if e.rgb then
-            t.icon:SetTexture(nil)
-            t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
-        else
-            t.icon:SetTexture(e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
-        end
-        if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
-        S.SetSelected(t, e.key == current)
-        t:SetScript("OnClick", function()
-            popup:Hide()
-            onPick(e.key)
-        end)
-        t:Show()
-    end
-    local rows = math.ceil(#entries / cols)
-    popup:SetSize(24 + cols * (tw + 3), 48 + rows * (th + 3))
-    popup.title:SetWidth(cols * (tw + 3))
-    popup:ClearAllPoints()
-    popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
-    popup:SetClampedToScreen(true)
-    popup:Show()
-    popup:Raise()
-end
-
--- The feels to pick from (Off first, for an event)
-local function PickFeel(anchor, current, onPick, withOff, title)
-    local entries = {}
-    if withOff then entries[1] = { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } end
-    for _, f in ipairs(H.AllFeels()) do entries[#entries + 1] = { key = f.key, label = f.label or f.key, icon = f.icon } end
-    Popup(anchor, title or "Feels", entries, current, onPick, 6, 112)
-end
-
--- A Rumble-tab row: icon, name, a second line, a plate showing the choice
--- (opens its grid) and Try
-local ROW_H = 44
-local function ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip)
-    local r = CreateFrame("Frame", nil, parent)
-    r:SetPoint("TOPLEFT", 10, y)
-    r:SetSize(width - 20, ROW_H - 4)
-    local wash = r:CreateTexture(nil, "BACKGROUND")
-    wash:SetAllPoints()
-    wash:SetColorTexture(1, 0.85, 0.55, 0.04)
-    r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(30, 30)
-    r.icon:SetPoint("LEFT", 2, 0)
-    if icon then r.icon:SetTexture(icon) end
-    r.label = S.Text(r, label, 40, -4, width - 230, 13, GOLD)
-    r.label:SetWordWrap(false)
-    r.sub = S.Text(r, "", 40, -22, width - 230, 11, GREY)
-    r.sub:SetWordWrap(false)
-    r.pick = S.NewButton(r, "", width - 20 - 156, -5, 120, nil, nil, 11, 30)
-    r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
-    r.pick.icon:SetSize(20, 20)
-    r.pick.icon:SetPoint("LEFT", 6, 0)
-    r.pick.label:ClearAllPoints()
-    r.pick.label:SetPoint("LEFT", 30, 0)
-    r.pick.label:SetPoint("RIGHT", -6, 0)
-    r.pick.label:SetJustifyH("LEFT")
-    r.pick:SetScript("OnClick", function(self) onPick(self) end)
-    if tip then S.Tooltip(r.pick, label, tip) end
-    r.try = S.NewButton(r, "Try", width - 20 - 32, -5, 32, function() onTry() end, nil, 11, 30)
-    S.Tooltip(r.try, "Try", label)
-    -- off: dimmed, the plate's name in red
-    function r:SetChoice(name, icon2, sub, off, rgb)
-        r.pick.label:SetText(name or "")
-        if rgb then
-            r.pick.icon:SetTexture(nil)
-            r.pick.icon:SetColorTexture(rgb[1], rgb[2], rgb[3], 1)
-        else
-            r.pick.icon:SetTexture(icon2)
-        end
-        r.sub:SetText(sub or "")
-        if off then r.pick.label:SetTextColor(RED[1], RED[2], RED[3]) else r.pick.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
-        r.icon:SetDesaturated(off == true)
-        r.label:SetAlpha(off and 0.6 or 1)
-    end
-    return r
-end
-
--- Groups down the left, one shown at a time on the right
-local function GroupBrowser(p, groups, width)
-    local left = S.Card(p, nil, 0, 0, 200, PH - 40)
-    local b = { buttons = {}, panels = {}, current = nil }
-    for i, g in ipairs(groups) do
-        local btn = S.NewButton(left, g.label, 10, -12 - (i - 1) * 36, 180, function() b.Select(g.key) end, nil, 13, 32)
-        btn.label:SetJustifyH("LEFT")
-        btn.count = S.Text(btn, "", 0, 0, 60, 11, GREY)
-        btn.count:ClearAllPoints()
-        btn.count:SetPoint("RIGHT", -8, 0)
-        btn.count:SetJustifyH("RIGHT")
-        b.buttons[g.key] = btn
-        local panel = CreateFrame("Frame", nil, p)
-        panel:SetPoint("TOPLEFT", 210, 0)
-        panel:SetSize(width or (W - 210), PH - 40)
-        panel:Hide()
-        b.panels[g.key] = panel
-    end
-    b.left = left
-    function b.Select(key)
-        b.current = key
-        for k, panel in pairs(b.panels) do panel:SetShown(k == key) end
-        for k, btn in pairs(b.buttons) do S.SetSelected(btn, k == key) end
-    end
-    b.Select(groups[1].key)
-    return b
-end
+local Popup, PickFeel, ROW_H = HUI.Popup, HUI.PickFeel, HUI.ROW_H
+local function ChoiceRow(...) return HUI.ChoiceRow(...) end
+local function GroupBrowser(p, groups, width) return HUI.GroupBrowser(p, groups, { width = width }) end
 
 local function Play(key, loop)
     local feel = H.Feel(key)
@@ -1758,6 +1549,29 @@ local function Build(frame, header)
         Refresh()
     end, 110)
     S.Tooltip(ui.engine, "Beta engine", "Rumble through the mixer, events, light bar")
+    -- Why it vibrates: the debug window, and the latest reason in the header
+    local dbg = S.NewButton(header, "Debug", W - 450, -4, 80, function()
+        if ns.HapticsDebug then ns.HapticsDebug.Show() end
+    end, nil, 12, 26)
+    S.Tooltip(dbg, "Debug", "What vibrates and why, while you play")
+    ui.why = S.Text(header, "", 260, -10, W - 720, 11, GREY)
+    ui.why:SetWordWrap(false)
+    local whyTick = CreateFrame("Frame", nil, header)
+    local whyAcc = 0
+    whyTick:SetScript("OnUpdate", function(_, elapsed)
+        whyAcc = whyAcc + (elapsed or 0)
+        if whyAcc < 0.25 then return end
+        whyAcc = 0
+        local D = ns.HapticsDebug
+        local text, ago
+        if D then text, ago = D.Latest() end
+        local playing = D and #H.ActiveVoices() or 0
+        if text then
+            ui.why:SetText(string.format("%s · %ds ago%s", text, floor(ago), playing > 0 and ("  ·  " .. playing .. " playing") or ""))
+        else
+            ui.why:SetText(playing > 0 and (playing .. " playing: Debug") or "")
+        end
+    end)
     -- A small live meter in the header
     ui.meterL = header:CreateTexture(nil, "ARTWORK")
     ui.meterR = header:CreateTexture(nil, "ARTWORK")
@@ -1814,7 +1628,7 @@ Shell.AddPage({
         L.FpsCap(false)
         if L.Ramping() then L.StopRamp() end
         H.Stop("beta"); H.Stop("editor"); H.Stop("record")
-        if popup then popup:Hide() end
+        HUI.HidePopup()
         if textWin then textWin:Hide() end
     end,
 })
