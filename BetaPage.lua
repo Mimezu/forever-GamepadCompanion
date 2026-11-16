@@ -1628,6 +1628,111 @@ local function BuildTune(p)
 end
 
 ---------------------------------------------------------------------------
+-- Helper: the outside program (helper\) for the triggers, true haptics and
+-- the speaker: the link, the cues, and tries of each
+---------------------------------------------------------------------------
+local function BuildHelper(p)
+    local K, C = ns.HelperLink, ns.HelperCues
+    if not (K and C) then
+        S.Text(p, "Helper link not loaded", 12, -12, 400, 13, RED)
+        return
+    end
+    -- The link
+    local link = S.Card(p, "Link", 0, 0, 330, 250)
+    local on = S.NewCheck(link, "Link on", 12, -38, function(self)
+        K.SetEnabled(self:GetChecked() == true)
+        C.Refresh()
+        Refresh()
+    end, 90)
+    S.Tooltip(on, "Link on", "A few pixels top left, read by the helper")
+    S.Note(link, 12, -72, 306, 4, 11, GREY):SetText("Run helper\\gpc_helper.py --run (Python 3.12)\n"
+        .. "Game windowed or borderless\nUSB for haptics and sounds")
+    Stepper(link, "Cell size", 12, -140, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
+        format = function(v) return v .. " px" end,
+        get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })
+    local state = S.Note(link, 12, -176, 306, 3, 11, DIM)
+
+    -- The cues
+    local cues = S.Card(p, "Cues", 0, -260, 330, PH - 40 - 260)
+    local checks = {}
+    for i, g in ipairs(C.GROUPS) do
+        local c = S.NewCheck(cues, g.label, 12, -38 - (i - 1) * 30, function(self)
+            C.Settings()[g.key] = self:GetChecked() == true
+            C.Refresh()
+        end, 220)
+        S.Tooltip(c, g.label, g.tip)
+        checks[g.key] = c
+    end
+
+    -- Triggers by hand
+    local trig = S.Card(p, "Triggers", 340, 0, 380, PH - 40)
+    local MODES = { { "off", "Off" }, { "resist", "Resistance" }, { "section", "Section" }, { "weapon", "Click" },
+        { "vibrate", "Vibration" }, { "slope", "Slope" } }
+    local hand = { L2 = { mode = "resist", start = 3, finish = 9, force = 8 },
+        R2 = { mode = "weapon", start = 4, finish = 8, force = 7 } }
+    for i, side in ipairs({ "L2", "R2" }) do
+        local y0 = -38 - (i - 1) * 250
+        local h = hand[side]
+        S.Text(trig, side, 12, y0, 60, 13, i == 1 and LEFT_C or RIGHT_C)
+        local function TRow(label, y, opts)
+            opts.labelWidth, opts.width = 110, 356
+            return Stepper(trig, label, 12, y, opts)
+        end
+        TRow("Effect", y0 - 22, { list = MODES, get = function() return h.mode end, set = function(v) h.mode = v end })
+        TRow("Start", y0 - 50, { step = 1, min = 0, max = 15, format = tostring,
+            get = function() return h.start end, set = function(v) h.start = v end })
+        TRow("End, amplitude", y0 - 78, { step = 1, min = 0, max = 15, format = tostring,
+            get = function() return h.finish end, set = function(v) h.finish = v end })
+        TRow("Force, speed", y0 - 106, { step = 1, min = 0, max = 15, format = tostring,
+            get = function() return h.force end, set = function(v) h.force = v end })
+        S.NewButton(trig, "Apply", 12, y0 - 140, 170, function()
+            if not K.Enabled() then return Say("Link is off", true) end
+            K.SetTrigger(side, h.mode, h.start, h.finish, h.force)
+            Say(side .. ": " .. h.mode)
+        end, nil, 12, 30)
+        S.NewButton(trig, "Free", 190, y0 - 140, 170, function()
+            K.SetTrigger(side, "off", 0, 0, 0)
+            Say(side .. ": free")
+        end, nil, 12, 30)
+    end
+
+    -- Haptics and sounds
+    local rx = 730
+    local snd = S.Card(p, "Haptics and sounds", rx, 0, W - rx, PH - 40)
+    local gain = 4
+    Stepper(snd, "Volume", 12, -38, { labelWidth = 90, width = W - rx - 24, step = 1, min = 1, max = 7,
+        format = function(v) return v .. "/7" end, get = function() return gain end, set = function(v) gain = v end })
+    local function Buttons(title, tbl, y)
+        S.Heading(snd, title, 10, y, W - rx - 22)
+        local names = {}
+        for name, id in pairs(tbl) do names[#names + 1] = { name, id } end
+        table.sort(names, function(a, b) return a[2] < b[2] end)
+        local bw = (W - rx - 30) / 2
+        for i, n in ipairs(names) do
+            local col, row = (i - 1) % 2, floor((i - 1) / 2)
+            S.NewButton(snd, n[1]:gsub("_", " "), 12 + col * (bw + 6), y - 24 - row * 30, bw, function()
+                if not K.Enabled() then return Say("Link is off", true) end
+                K.Play(n[1], gain)
+                Say(n[1])
+            end, nil, 11, 26)
+        end
+        return y - 24 - math.ceil(#names / 2) * 30
+    end
+    local y = Buttons("True haptics", K.CLIPS, -72)
+    Buttons("Speaker", K.SOUNDS, y - 12)
+
+    ui.refresh[#ui.refresh + 1] = function()
+        on:SetChecked(K.Enabled())
+        local cs = C.Settings()
+        for key, c in pairs(checks) do c:SetChecked(cs[key] == true) end
+        local st, names = K.state, {}
+        for name, v in pairs(K.MODES) do names[v] = name end
+        state:SetText(K.Enabled() and string.format("L2 %s · R2 %s", names[st.left.mode] or "?", names[st.right.mode] or "?")
+            or "Off")
+    end
+end
+
+---------------------------------------------------------------------------
 -- The page
 ---------------------------------------------------------------------------
 local SECTIONS = {
@@ -1636,6 +1741,7 @@ local SECTIONS = {
     { "feels", "Feels", BuildFeels },
     { "editor", "Editor", BuildEditor },
     { "tune", "Tune", BuildTune },
+    { "helper", "Helper", BuildHelper },
     { "probes", "Probes", BuildProbes },
 }
 

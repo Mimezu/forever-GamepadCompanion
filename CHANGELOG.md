@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0 — 2026-11-16
+
+- Helper (first version, untested with the pad): an outside program (helper\, Python 3.12, no installs) reading a few pixels the addon draws top left, for what the game can't drive: adaptive triggers, true haptics and the speaker (USB)
+- Cues: a cast tightens R2 until released, auto shot clicks R2, low health shakes L2; clips for crits, releases, landings, swings; sounds for loot, quests, errors, whispers; each group on or off
+- Beta, Helper page: link on, cell size, cues, both triggers by hand, every clip and sound to try
+
 ## 0.17.0 — 2026-11-16
 
 - Light: a real feature. A base colour (class, one of 10, or off; brightness; breathing) and 21 light events, each with its effect (flash, base brighter, double blink, strobe, fade, rainbow; glow, build up, heartbeat, breathe while it lasts), colour (base, spell school or one of 10) and strength

@@ -48,6 +48,7 @@ lua5.1 Interface/AddOns/GamepadCompanion/tests/NativeMigration.lua Interface/Add
 ## More
 
 - [Touchpad zones](docs/TOUCHPAD.md)
+- [Helper: triggers, true haptics, speaker](docs/HELPER.md) · [helper\README](helper/README.md)
 - [Adaptive triggers (idea)](docs/ADAPTIVE-TRIGGERS.md)
 - [Edit Mode layouts](docs/EDIT-MODE.md)
 - [Features and tests](docs/FEATURES.md)

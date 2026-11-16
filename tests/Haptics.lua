@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "Lights.lua", "RumblePage.lua", "BetaPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "RumblePage.lua", "BetaPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -417,7 +417,7 @@ ns.Shell.Open("beta")
 local window, tabs = ns.ShellWindow()
 assert(window:IsShown() and ns.Shell.Current() == "beta" and tabs.beta, "Beta tab")
 local ui = ns.BetaPage
-for _, key in ipairs({ "events", "light", "feels", "editor", "tune", "probes" }) do
+for _, key in ipairs({ "events", "light", "feels", "editor", "tune", "helper", "probes" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
@@ -730,4 +730,44 @@ do
     ui.Select("tune")
     assert(visible("Find floor"), "calibration on Tune")
     io.write("PASS: pages: an event Off from its grid, a light effect picked, calibration on Tune\n")
+end
+
+-- Helper cues: casts tighten R2, low health shakes L2, loot and releases queue clips and sounds
+do
+    local K, C = ns.HelperLink, ns.HelperCues
+    H.DB().engine = true
+    K.SetEnabled(true)
+    K.queue = K.queue or {}
+    for i = #K.queue, 1, -1 do K.queue[i] = nil end
+    local cf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_DEAD then cf = f end end
+    assert(cf, "cues listen")
+    UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 2) * 1000 end
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_START", "player")
+    assert(K.state.right.mode == K.MODES.resist, "a cast: R2 resists")
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player")
+    assert(K.state.right.mode == K.MODES.off, "released: R2 free")
+    local queued = {}
+    for _, q in ipairs(K.queue) do queued[#queued + 1] = q[1] end
+    assert(queued[#queued] == K.CLIPS.release_hit, "the release's clip")
+    UnitCastingInfo = nil
+    cf.scripts.OnEvent(cf, "START_AUTOREPEAT_SPELL")
+    assert(K.state.right.mode == K.MODES.weapon, "shooting: R2 clicks")
+    cf.scripts.OnEvent(cf, "STOP_AUTOREPEAT_SPELL")
+    V.Fire("lowHp")
+    assert(K.state.left.mode == K.MODES.vibrate, "low health: L2 shakes")
+    V.EndLoop("lowHp")
+    assert(K.state.left.mode == K.MODES.off, "and stops")
+    now = now + 1
+    L.Fire("loot")
+    local last = K.queue[#K.queue]
+    assert(last and last[1] == K.SOUNDS.coin, "loot: the coin sound")
+    C.Settings().sounds = false
+    local n = #K.queue
+    now = now + 1
+    L.Fire("loot")
+    assert(#K.queue == n, "sounds off: none")
+    C.Settings().sounds = true
+    K.SetEnabled(false)
+    io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
 end
