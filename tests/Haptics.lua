@@ -336,6 +336,10 @@ air.scripts.OnUpdate(air, 0.01)
 assert(fired[1] == "landing", "landing: " .. tostring(fired[1]))
 assert(H.DB().landings[1] == 1, "air time kept: " .. tostring(H.DB().landings[1]))
 assert(H.Playing("ev_landing"), "a landing shaped by its fall")
+local sentText
+L.onLand = function(t, k, sent) if sent then sentText = sent end end
+for _ = 1, 120 do frame(0.01); air.scripts.OnUpdate(air, 0.01) end
+assert(sentText and sentText.peak > 0 and sentText.last > sentText.start, "what was sent, measured")
 assert(L.lastLanding and L.lastLanding.t == 1, "last landing shown")
 H.DB().landMin, H.DB().landMax = 0.4, 0.8
 assert(math.abs(L.LandingWeight(0.6) - 0.5) < 1e-9 and L.LandingWeight(0.9) == 1, "landing range set by hand")

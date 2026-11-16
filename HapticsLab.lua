@@ -677,7 +677,7 @@ end
 
 local lastFire = {}
 -- An event: its feel, if on (gain: 0-1 more or less of it)
-function L.Fire(key, gain, feel)
+function L.Fire(key, gain, feel, absolute)
     if not H.Engine() then return end
     -- (Rumble off, or Improved Forever: Vibration has the motors: quiet too)
     local V = ns.Rumble
@@ -688,7 +688,7 @@ function L.Fire(key, gain, feel)
     local now = Now()
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
-    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = Strength() * (gain or 1) })
+    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = absolute and (gain or 1) or Strength() * (gain or 1) })
     if L.onFire then L.onFire(key) end
 end
 
@@ -1240,6 +1240,17 @@ L.airFrame = air
 local airState = { falling = false, since = 0 }
 air:SetScript("OnUpdate", function()
     if not H.Engine() then airState.falling = false; return end
+    -- (what the motors were sent after the last landing: its peak and length)
+    local sent = L.lastLanding and L.lastLanding.sent
+    if sent and not sent.done then
+        local now = Now()
+        local o = max(H.out.l or 0, H.out.r or 0)
+        if o > 0.01 then sent.peak, sent.last = max(sent.peak, o), now end
+        if now - sent.last > 0.3 and now - sent.start > 0.3 then
+            sent.done = true
+            if L.onLand then L.onLand(L.lastLanding.t, L.lastLanding.k, sent) end
+        end
+    end
     local falling = call(IsFalling) and true or false
     local now = Now()
     if falling and not airState.falling then airState.since = now end
@@ -1255,8 +1266,13 @@ air:SetScript("OnUpdate", function()
             L.lastLanding = { t = t, k = k }
             if L.onLand then L.onLand(t, k) end
             local s = L.EventSettings("landing")
-            if s.feel == EVENT.landing.feel then L.Fire("landing", 1, L.LandingFeel(k))
-            else L.Fire("landing", 0.25 + 0.75 * k) end
+            -- (Rumble's strength for a light one, full output for the heaviest:
+            -- at 70% strength a full landing felt faint)
+            local strength = Strength()
+            local gain = (strength + (1 - strength) * k) * (0.25 + 0.75 * k)
+            if s.feel == EVENT.landing.feel then L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
+            else L.Fire("landing", gain, nil, true) end
+            L.lastLanding.sent = { start = now, peak = 0, last = now }
             -- (the run starts again on landing: footsteps from here)
             if live.moving then live.moveStart = now; H.Stop("live_footsteps") end
         end

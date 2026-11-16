@@ -1278,8 +1278,13 @@ local function BuildEvents(p)
         get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
     local landed = S.Text(sync, "No landing yet", 12, -262, colW - 24, 11, GREY)
     L.onSync = function(text) status:SetText(text) end
-    L.onLand = function(t, k)
-        landed:SetText(string.format("Last landing: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5)))
+    L.onLand = function(t, k, sent)
+        local text = string.format("Last landing: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
+        if sent then
+            text = text .. string.format(" · sent %d%% for %.2f s", floor(sent.peak * 100 + 0.5),
+                max(0, sent.last - sent.start))
+        end
+        landed:SetText(text)
     end
     ui.refresh[#ui.refresh + 1] = function()
         for _, g in ipairs(gaits) do

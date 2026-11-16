@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.5 — 2026-11-16
+
+- Beta, landing: the heaviest reach full output whatever Rumble's strength (a light one still follows it); the card shows what was sent (peak and length)
+
 ## 0.14.4 — 2026-11-16
 
 - Beta, landing: heavier is longer too (a hop 60 ms, a full landing up to 0.4 s, centred), with longer echoes; Landing longest setting
