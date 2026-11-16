@@ -140,11 +140,13 @@ GetBindingKey = function(command) if command == "OPENRADIAL" then return "PADRSH
 local bindings = { PADLSTICK = "TOGGLEAUTORUN" }
 local overridesRead = GetBindingAction
 GetBindingAction = function(key) return bindings[key] or overridesRead(key) end
-local ButtonIndex = { PADLTRIGGER = 1, PADRTRIGGER = 2, PAD1 = 3, PADDUP = 4, PADBACK = 5 }
+-- As the game: binding indexes are 0-based, the state's buttons 1-based
+local ButtonIndex = { PADRSHOULDER = 9, PADLTRIGGER = 10, PADRTRIGGER = 11, PAD1 = 0, PADDUP = 12, PADBACK = 18 }
 C_GamePad.ButtonBindingToIndex = function(key) return ButtonIndex[key] end
 C_GamePad.GetDeviceMappedState = function()
     local buttons = {}
-    for key, index in pairs(ButtonIndex) do buttons[index] = pressed[key] or false end
+    for i = 1, 20 do buttons[i] = false end
+    for key, index in pairs(ButtonIndex) do buttons[index + 1] = pressed[key] or false end
     return { labelStyle = "Shapes", sticks = { [4] = { x = 0, y = 0 } }, buttons = buttons }
 end
 
@@ -219,6 +221,10 @@ eq(C.StorageSlot(3, "both", 8, k), 183, "last slot")
 eq(C.StorageSlot(4, "base", 1, k), nil, "no page 4")
 eq(C.PageUnitSlot("rt", 3), 19, "R2 right is page unit slot 19")
 eq(C.LayerOf(true, true), "both", "both triggers")
+eq(C.PadDown({ false, true }, 1), true, "binding index 1 is buttons[2]")
+eq(C.PadDown({ true, false }, 1), false, "buttons[1] is binding index 0")
+eq(C.PadDown(nil, 1), false, "no state")
+eq(C.PadDown({ true }, nil), false, "no index")
 eq(C.Fixed("base", 8).name, "Jump", "base cross is jump")
 eq(C.Fixed("lt", 8), nil, "L2 cross is a slot")
 eq(C.CommandName("OPENRADIAL"), "Radial", "command names")
@@ -408,6 +414,16 @@ check(not GamepadCompanionOptions:IsShown(), "touchpad toggle closes")
 API.ToggleController()
 
 -- Held triggers and pressed buttons
+pressed.PADLTRIGGER = true
+window.scripts.OnUpdate(window, 1)
+check(ui.layers.lt.selected and not ui.layers.rt.selected, "holding L2 shows L2")
+pressed.PADLTRIGGER, pressed.PADRTRIGGER = nil, true
+window.scripts.OnUpdate(window, 1)
+check(ui.layers.rt.selected and not ui.layers.lt.selected, "holding R2 shows R2")
+pressed.PADRTRIGGER, pressed.PADRSHOULDER = nil, true
+window.scripts.OnUpdate(window, 1)
+check(ui.layers.base.selected, "R1 is no trigger")
+pressed.PADRSHOULDER = nil
 pressed.PADLTRIGGER, pressed.PADRTRIGGER, pressed.PAD1 = true, true, true
 window.scripts.OnUpdate(window, 1)
 check(ui.layers.both.selected, "holding both triggers shows L2 + R2")

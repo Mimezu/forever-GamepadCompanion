@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 — 2026-11-16
+
+- Controller: holding L2 shows the L2 layer, R2 the R2 layer (L2 showed R2, R2 nothing: the pad's buttons were read one off)
+- Controller: pressed buttons light the right button
+- Controller: a trigger held when the window closed no longer sticks on reopening
+
 ## 0.15.0 — 2026-11-16
 
 - Beta, feels retuned for rhythm and contrast: very faint 50 ms micro taps (5-30%) against long rumbles (0.2-0.5 s), often in one feel (taps leading into a rumble, a rumble trailing off in taps)

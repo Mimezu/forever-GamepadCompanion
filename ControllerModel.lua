@@ -141,6 +141,12 @@ function C.Combo(layer, glyph, size)
     return table.concat(parts, " ")
 end
 
+-- Is a button down: buttons from GetDeviceMappedState (1-based), index from
+-- C_GamePad.ButtonBindingToIndex (0-based)
+function C.PadDown(buttons, index)
+    return type(buttons) == "table" and type(index) == "number" and buttons[index + 1] and true or false
+end
+
 -- The layer the held triggers show
 function C.LayerOf(lt, rt)
     return (lt and rt and "both") or (lt and "lt") or (rt and "rt") or "base"

@@ -104,7 +104,7 @@ end
 
 local function Down(buttons, key)
     local index = buttons and C_GamePad and Call(C_GamePad.ButtonBindingToIndex, key)
-    return index and buttons[index] and true or false
+    return C.PadDown(buttons, index)
 end
 
 -- Targets ------------------------------------------------------------------------
@@ -920,7 +920,7 @@ end
 ns.Shell.AddPage({
     key = "controller", name = "Controller", order = 1, icon = "Interface\\Icons\\Trade_Engineering",
     build = Build, refresh = function() Refresh() end,
-    show = function() selectedPage = ActivePage() or selectedPage end,
+    show = function() selectedPage, heldLayer = ActivePage() or selectedPage, nil end,
     hide = function() if ns.Picker then ns.Picker.Close() end end,
 })
 
