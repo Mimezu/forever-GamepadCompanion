@@ -124,7 +124,7 @@ if write then
 else
     local f = io.open(path, "rb")
     assert(f, "fixture missing: run with --write")
-    local old = f:read("*a"); f:close()
+    local old = f:read("*a"):gsub("\r\n", "\n"); f:close()   -- (git may check it out with CRLF)
     assert(old == text, "fixture differs from this encoder: regenerate with --write and rerun the helper selftest")
 end
 
