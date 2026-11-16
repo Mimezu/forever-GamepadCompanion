@@ -23,7 +23,8 @@ local function Now() return GetTime and GetTime() or 0 end
 -- Settings: GamepadCompanionHapticsDB (account: the pad is the same pad)
 ---------------------------------------------------------------------------
 H.DEFAULTS = {
-    engine = false,        -- Beta engine: Rumble through the mixer, beta events, light bar
+    engine = true,         -- Beta engine: Rumble through the mixer, beta events, light bar (on: the
+                           --   player's choice, a DualSense)
     mix = "screen",        -- max | screen | sum
     rate = 0,              -- sends per second at most (0: every frame). Feels are still read every
                            --   frame: a vibration starting goes out at once, changes and stops wait
@@ -73,6 +74,10 @@ function H.DB()
     if db.version < 4 then
         if db.rate == 10 then db.rate = 0 end
         db.version = 4
+    end
+    if db.version < 5 then
+        db.engine = true
+        db.version = 5
     end
     return db
 end

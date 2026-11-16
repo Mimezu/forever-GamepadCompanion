@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.0 — 2026-11-16
+
+- Rumble patterns retuned for rhythm and contrast (with the Beta engine): faint micro taps for small things, long rumbles for big ones, professions and spells as rhythms; the old steps stay for when the engine is off
+- Spell casts: the family's faint rhythm building up, the release a long hit trailing off in taps; channels a pulse per tick; fishing, eating and drinking as pulses
+- Shapes run every frame (were 20 a second, a 50 ms tap could be skipped)
+- Beta engine on by default
+
 ## 0.15.3 — 2026-11-16
 
 - Beta, landing: the lightest 30% barely there (4% to 8%), then steep to full

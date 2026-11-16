@@ -222,6 +222,101 @@ for _, p in ipairs(V.PATTERNS) do
     PATTERN[p.key] = p
 end
 
+-- Each pattern as pulses, for the Beta engine (Haptics.lua): { t, length,
+-- strength, side -1 left .. 1 right }. Rhythm and contrast (the player,
+-- 2026-11-16): faint 50 ms micro taps for small things, long rumbles for big
+-- ones. Through the game a pulse under 50 ms is often lost and a strength
+-- changing while it runs is smoothed away (docs/HAPTICS.md). The steps above
+-- stay for when the engine is off. cycle: a loop's length.
+local function Pu(t, len, s, side) return { t, len, s, side or 0 } end
+local PULSES = {
+    micro = { Pu(0, 0.05, 0.08) },
+    tick = { Pu(0, 0.05, 0.2) },
+    double = { Pu(0, 0.05, 0.3), Pu(0.12, 0.05, 0.3) },
+    pulse = { Pu(0, 0.15, 0.5) },
+    long = { Pu(0, 0.6, 0.6) },
+    heart = { cycle = 0.9, Pu(0, 0.12, 0.7, -0.3), Pu(0.25, 0.05, 0.2, -0.3) },
+    rise = { Pu(0, 0.05, 0.1), Pu(0.15, 0.05, 0.2), Pu(0.28, 0.05, 0.35), Pu(0.4, 0.5, 1) },
+    impact = { Pu(0, 0.25, 1) },
+    triple = { Pu(0, 0.05, 0.25), Pu(0.1, 0.05, 0.25), Pu(0.2, 0.05, 0.25) },
+    purr = { cycle = 0.56, Pu(0, 0.05, 0.06), Pu(0.28, 0.05, 0.04) },
+    sweep = { cycle = 0.6, Pu(0, 0.05, 0.12, -1), Pu(0.15, 0.05, 0.12), Pu(0.3, 0.05, 0.12, 1), Pu(0.45, 0.05, 0.12) },
+    fade = { Pu(0, 0.3, 0.9), Pu(0.4, 0.05, 0.25), Pu(0.52, 0.05, 0.12), Pu(0.64, 0.05, 0.06) },
+    -- Gathering and crafting, while the cast lasts
+    pluck = { cycle = 0.85, Pu(0, 0.05, 0.07, -0.4), Pu(0.11, 0.05, 0.1, 0.4), Pu(0.2, 0.05, 0.06, -0.2),
+        Pu(0.45, 0.12, 0.35) },
+    pickaxe = { cycle = 0.9, Pu(0, 0.15, 0.9), Pu(0.22, 0.05, 0.15), Pu(0.32, 0.05, 0.07) },
+    skin = { cycle = 0.45, Pu(0, 0.05, 0.15, -0.8), Pu(0.15, 0.05, 0.15, 0.8) },
+    reel = { cycle = 1.2, Pu(0, 0.05, 0.05), Pu(0.6, 0.05, 0.05), Pu(0.75, 0.1, 0.25) },
+    click = { cycle = 0.9, Pu(0, 0.05, 0.1), Pu(0.3, 0.05, 0.1), Pu(0.5, 0.12, 0.3) },
+    hammer = { cycle = 0.8, Pu(0, 0.12, 0.9), Pu(0.25, 0.05, 0.25) },
+    sew = { cycle = 0.6, Pu(0, 0.05, 0.1), Pu(0.1, 0.05, 0.1), Pu(0.2, 0.05, 0.1) },
+    punch = { cycle = 0.6, Pu(0, 0.12, 0.6), Pu(0.2, 0.05, 0.1) },
+    bubble = { cycle = 0.7, Pu(0, 0.05, 0.08, -0.6), Pu(0.17, 0.05, 0.12, 0.5), Pu(0.3, 0.05, 0.06, -0.1),
+        Pu(0.5, 0.05, 0.1, 0.7) },
+    sizzle = { cycle = 0.4, Pu(0, 0.05, 0.06, -0.5), Pu(0.1, 0.05, 0.08, 0.5), Pu(0.2, 0.05, 0.05, -0.2),
+        Pu(0.3, 0.05, 0.07, 0.3) },
+    gears = { cycle = 0.4, Pu(0, 0.05, 0.12, -0.6), Pu(0.2, 0.05, 0.12, 0.6) },
+    shimmer = { cycle = 0.84, Pu(0, 0.05, 0.05), Pu(0.12, 0.05, 0.1), Pu(0.24, 0.05, 0.16), Pu(0.36, 0.05, 0.1),
+        Pu(0.48, 0.05, 0.05) },
+    chew = { cycle = 1.9, Pu(0, 0.1, 0.3), Pu(0.25, 0.05, 0.08), Pu(0.55, 0.05, 0.08) },
+    gulp = { cycle = 1.9, Pu(0, 0.05, 0.1), Pu(0.2, 0.1, 0.3) },
+    -- Spell families (a cast's taps follow them, faint, building up)
+    kindle = { cycle = 0.6, Pu(0, 0.05, 0.12, -0.3), Pu(0.09, 0.05, 0.08, 0.4), Pu(0.24, 0.05, 0.18, 0),
+        Pu(0.38, 0.05, 0.1, 0.6) },
+    frost = { cycle = 0.7, Pu(0, 0.05, 0.06, 0.6), Pu(0.35, 0.05, 0.08, 0.8) },
+    arcane = { cycle = 0.3, Pu(0, 0.05, 0.15, -1), Pu(0.15, 0.05, 0.15, 1) },
+    shadow = { cycle = 0.9, Pu(0, 0.2, 0.3, -0.6), Pu(0.45, 0.05, 0.08, -0.6) },
+    radiance = { cycle = 0.8, Pu(0, 0.05, 0.05), Pu(0.15, 0.05, 0.1), Pu(0.3, 0.05, 0.16), Pu(0.45, 0.12, 0.22) },
+    mend = { cycle = 1, Pu(0, 0.08, 0.2), Pu(0.5, 0.05, 0.06) },
+    static = { cycle = 0.5, Pu(0, 0.05, 0.12, -0.7), Pu(0.08, 0.05, 0.2, 0.6), Pu(0.2, 0.05, 0.1, 0),
+        Pu(0.3, 0.05, 0.25, -0.4), Pu(0.41, 0.05, 0.1, 0.8) },
+    draw = { 0.05, 0.08, 0.12, 0.16, 0.2 },   -- (tightening: built below)
+    hearth = { cycle = 1.2, Pu(0, 0.05, 0.04), Pu(0.3, 0.05, 0.08), Pu(0.6, 0.05, 0.12), Pu(0.9, 0.05, 0.15) },
+    ritual = { cycle = 1, Pu(0, 0.15, 0.5, -0.5), Pu(0.5, 0.15, 0.5, 0.5) },
+    -- Shots
+    string = { Pu(0, 0.05, 0.5, 0.6), Pu(0.08, 0.05, 0.15, 0.6), Pu(0.16, 0.05, 0.06, 0.6) },
+    latch = { Pu(0, 0.05, 0.3), Pu(0.1, 0.12, 0.6) },
+    recoil = { Pu(0, 0.2, 1), Pu(0.28, 0.05, 0.15) },
+    zap = { Pu(0, 0.05, 0.3, 0.3), Pu(0.08, 0.05, 0.2, -0.3), Pu(0.16, 0.05, 0.1, 0.3) },
+    toss = { Pu(0, 0.05, 0.08), Pu(0.1, 0.1, 0.45) },
+    -- Moves
+    slash = { Pu(0, 0.05, 0.08), Pu(0.1, 0.18, 0.9), Pu(0.33, 0.05, 0.12) },
+    cleave = { Pu(0, 0.12, 0.7, -1), Pu(0.14, 0.05, 0.3), Pu(0.22, 0.12, 0.7, 1) },
+    stab = { Pu(0, 0.1, 0.6, 0.3) },
+    rend = { Pu(0, 0.05, 0.3, -0.6), Pu(0.08, 0.05, 0.3, 0.6), Pu(0.16, 0.05, 0.25, -0.6), Pu(0.24, 0.05, 0.15, 0.6) },
+    slam = { Pu(0, 0.3, 1), Pu(0.4, 0.05, 0.2), Pu(0.52, 0.05, 0.1), Pu(0.64, 0.05, 0.05) },
+    bash = { Pu(0, 0.2, 1, -0.3), Pu(0.3, 0.05, 0.12) },
+    charge = { Pu(0, 0.05, 0.08), Pu(0.2, 0.05, 0.12), Pu(0.35, 0.05, 0.18), Pu(0.46, 0.05, 0.25), Pu(0.55, 0.15, 1) },
+    whirl = { Pu(0, 0.05, 0.2, -1), Pu(0.1, 0.05, 0.2), Pu(0.2, 0.05, 0.2, 1), Pu(0.3, 0.05, 0.2), Pu(0.4, 0.05, 0.2, -1),
+        Pu(0.5, 0.05, 0.06) },
+    flurry = { Pu(0, 0.05, 0.2, -0.3), Pu(0.1, 0.05, 0.2, 0.3), Pu(0.2, 0.05, 0.25), Pu(0.3, 0.2, 0.9) },
+    shock = { Pu(0, 0.05, 0.3, -0.5), Pu(0.07, 0.08, 0.6, 0.5), Pu(0.2, 0.05, 0.1) },
+    burst = { Pu(0, 0.25, 0.9), Pu(0.35, 0.05, 0.2), Pu(0.47, 0.05, 0.1) },
+    seal = { Pu(0, 0.05, 0.05), Pu(0.12, 0.05, 0.1), Pu(0.24, 0.05, 0.18), Pu(0.36, 0.12, 0.35) },
+    judge = { Pu(0, 0.05, 0.15), Pu(0.1, 0.25, 1), Pu(0.42, 0.05, 0.15) },
+    ward = { Pu(0, 0.05, 0.1), Pu(0.12, 0.3, 0.4) },
+    hex = { Pu(0, 0.05, 0.08, -0.5), Pu(0.2, 0.05, 0.06, -0.5), Pu(0.4, 0.05, 0.1, -0.5), Pu(0.6, 0.05, 0.05, -0.5) },
+}
+-- (draw: an aimed shot, the string tightening: taps closer and stronger)
+do
+    local list, t = { cycle = 1.1 }, 0
+    for i, s in ipairs(PULSES.draw) do
+        list[#list + 1] = Pu(t, 0.05, s)
+        t = t + 0.3 - 0.05 * i
+    end
+    PULSES.draw = list
+end
+for key, list in pairs(PULSES) do
+    local p = PATTERN[key]
+    if p then
+        local pulses = {}
+        for i, pulse in ipairs(list) do pulses[i] = pulse end
+        p.feel = { pulses = pulses, length = list.cycle, gap = list.cycle and 0 or nil, label = p.label, icon = p.icon }
+    end
+end
+V.PULSES = PULSES
+
 -- The events, by group (Easy Controller's groups and naming), each with its
 -- default state and pattern
 V.GROUPS = {
@@ -613,7 +708,6 @@ end
 shaper:SetScript("OnUpdate", function()
     if not shapeFn then return shaper:Hide() end
     local now = GetTime()
-    if now - shapeSent < 0.05 then return end
     shapeSent = now
     local low, high = shapeFn(now)
     if not low then
@@ -685,8 +779,8 @@ function V.Play(key, loop, shape)
     V.Stop()
     -- A Beta feel: the mixer plays it (a loop: over and over; once: then
     -- back to the loop under it)
-    if pattern.feel and not Mixer() then pattern = PATTERN.tick end
-    if pattern.feel then
+    if pattern.beta and not Mixer() then pattern = PATTERN.tick end
+    if pattern.feel and Mixer() then
         ns.Haptics.Play(pattern.feel, { voice = "rumbleFeel", gain = gain, left = left, right = right,
             stretch = stretch, loop = loop and true or false, onDone = function()
                 if not loop and V.looping then Resume(V.looping) end
@@ -749,71 +843,65 @@ local function SpellName(id)
     return GetSpellInfo and (GetSpellInfo(id))
 end
 
-local BUILD_FROM, BUILD_TO = 0.1, 0.8                 -- a cast's start, its release
-local RELEASE_PEAK, RELEASE_HOLD, RELEASE_FADE = 1, 0.1, 0.6
-local HUM = 0.1                                       -- a channel between ticks
-local SWELL_PEAK, SWELL_RISE, SWELL_FALL = 0.75, 0.15, 0.5
+-- (as pulses, rhythm and contrast: a cast's faint taps build up, the release
+-- is a long hit trailing off in taps; a channel's ticks each a short pulse)
+local PULSE = 0.055
+local RELEASE_LONG, RELEASE_END = 0.28, 0.7
+local RELEASE_TAPS = { { 0.38, 0.2 }, { 0.5, 0.1 }, { 0.62, 0.05 } }
 local releasedAt = -math.huge
 
--- A pattern's motors at t seconds into it (looped), each a share of its
--- strongest step
-local function Texture(key, t)
-    local p = PATTERN[key]
-    if not p then return 1, 1 end
-    if not p.length then
-        local length, top = 0, 0
-        for _, step in ipairs(p.steps) do
-            length = length + step[3]
-            top = math.max(top, step[1], step[2])
-        end
-        p.length, p.top = length, top > 0 and top or 1
-    end
-    t = t % p.length
-    for _, step in ipairs(p.steps) do
-        if t < step[3] then return step[1] / p.top, step[2] / p.top end
-        t = t - step[3]
-    end
-    return 0, 0
-end
-
--- The family's ripple over a strength: never below 70% of it
-local function Rippled(env, t)
-    local tl, th = Texture(cast.timing.texture, t)
-    return env * (0.7 + 0.3 * tl), env * (0.7 + 0.3 * th)
-end
-
--- What is left of the last release d seconds on (0 once faded)
+-- What is left of the last release d seconds on: a long hit, then taps
 local function ReleaseEnv(d)
-    if d < 0 or d >= RELEASE_HOLD + RELEASE_FADE then return 0 end
-    if d < RELEASE_HOLD then return RELEASE_PEAK end
-    return RELEASE_PEAK * (1 - (d - RELEASE_HOLD) / RELEASE_FADE) ^ 1.5
+    if d < 0 or d >= RELEASE_END then return 0 end
+    if d < RELEASE_LONG then return 1 end
+    for _, tap in ipairs(RELEASE_TAPS) do
+        if d >= tap[1] and d < tap[1] + PULSE then return tap[2] end
+    end
+    return 0
 end
 
--- A cast: slow at first, steeper toward the release (a cast that runs
--- past its end holds at the top); a release just before still fading
+-- The spell family's own rhythm (fire's crackle, frost's sparse ticks...)
+-- at t seconds into the cast, or nil
+local function Family(t)
+    local key = cast.timing and cast.timing.texture
+    local p = key and PATTERN[key]
+    local H = ns.Haptics
+    if not (p and p.feel and H) then return nil end
+    return H.Sample(p.feel, t % H.Length(p.feel), 1)
+end
+
+-- A cast: the family's faint rhythm, stronger toward the release (plain taps,
+-- closer and closer, when it has none); a release just before trailing off
 local function BuildUp(now)
     local t = cast.timing
     local span = t.finish - t.start
     local p = span > 0 and math.max(0, math.min(1, (now - t.start) / span)) or 1
-    local low, high = Rippled(BUILD_FROM + (BUILD_TO - BUILD_FROM) * p ^ 1.5, now - t.start)
+    local g = 0.35 + 0.65 * p ^ 1.5
+    local low, high = Family(now - t.start)
+    if low then
+        low, high = low * g, high * g
+    else
+        local interval = 0.4 - 0.27 * p
+        if not cast.beatAt or now - cast.beatAt >= interval then cast.beatAt = now end
+        local a = now - cast.beatAt < PULSE and (0.05 + 0.3 * p * p) or 0
+        low, high = a, a
+    end
     local tail = ReleaseEnv(now - releasedAt)
     return math.max(low, tail), math.max(high, tail)
 end
 
--- A channel: a hum, and a swell with each tick (the first one interval in),
--- leaning left and right by turns, as missiles fly from either hand
+-- A channel: the family's rhythm, faint; each tick a short pulse, left and
+-- right by turns, as missiles fly from either hand
 local function Missiles(now)
     local t = cast.timing
     local since = now - t.start
     local ticks = math.floor(since / t.interval)
-    local low, high = Rippled(HUM, since)
-    if ticks >= 1 then
-        local d = since - ticks * t.interval
-        local swell = d < SWELL_RISE and d / SWELL_RISE or math.max(0, 1 - (d - SWELL_RISE) / SWELL_FALL)
-        swell = SWELL_PEAK * swell
-        local left, right = 1, 0.7
-        if ticks % 2 == 0 then left, right = 0.7, 1 end
-        low, high = low + swell * left, high + swell * right
+    local low, high = Family(since)
+    low, high = (low or 0) * 0.4, (high or 0) * 0.4
+    if ticks >= 1 and since - ticks * t.interval < 0.1 then
+        local left, right = 0.6, 0.35
+        if ticks % 2 == 0 then left, right = 0.35, 0.6 end
+        low, high = math.max(low, left), math.max(high, right)
     end
     local tail = ReleaseEnv(now - releasedAt)
     return math.max(low, tail), math.max(high, tail)
@@ -821,7 +909,7 @@ end
 
 local function Release(now)
     local d = now - releasedAt
-    if d >= RELEASE_HOLD + RELEASE_FADE then return nil end
+    if d >= RELEASE_END then return nil end
     local env = ReleaseEnv(d)
     return env, env
 end
@@ -830,15 +918,15 @@ end
 -- running out, the bobber landing), then nothing. (No bite to feel: WoW
 -- Forever tells addons nothing when a fish bites. The bobber's soft
 -- interact state, the events and its cursor icon all stay as they are.)
+local FISHING = { { 0, 0.05, 0.08, 0 }, { 0.15, 0.05, 0.12, 0 }, { 0.35, 0.15, 0.9, 0.8 },
+    { 0.6, 0.05, 0.12, 0.6 }, { 0.72, 0.05, 0.08, 0.6 }, { 0.84, 0.05, 0.05, 0.6 }, { 1.1, 0.1, 0.3, 0.85 } }
 local function Fishing(now)
     local t = now - cast.timing.start
-    if t < 0.35 then return 0.1 + 0.25 * t / 0.35, 0 end
-    if t < 0.5 then return 1, 0.9 end
-    if t < 1.1 then
-        local env = 0.03 + 0.4 * (1 - (t - 0.5) / 0.6) ^ 1.5
-        return env, env * 0.6
+    if t >= 1.25 then return nil end
+    for _, p in ipairs(FISHING) do
+        if t >= p[1] and t < p[1] + p[2] then return p[3], p[3] * p[4] end
     end
-    if t < 1.25 then return 0.35, 0.3 end
+    return 0, 0
 end
 
 -- The cast in progress' shape, or nil: its own pattern loops instead (a
@@ -923,10 +1011,10 @@ local function Munch(m, timer, start)
     return function(now)
         local d, near = MotionAt(m, timer, start, now)
         if not d then return 0, 0 end
-        if d < 0.14 then return 0.55, 0.4 end                     -- the bite
+        if d < 0.1 then return 0.3, 0.2 end                       -- the bite
         if d < near then
-            -- chewing: a small tick every 0.3 s
-            if (d - 0.14) % 0.3 < 0.1 then return 0.18, 0.12 end
+            -- chewing: a faint tap every 0.3 s
+            if (d - 0.1) % 0.3 >= 0.25 then return 0.08, 0.06 end
         end
         return 0, 0
     end
@@ -936,9 +1024,9 @@ local function Gulp(m, timer, start)
     return function(now)
         local d, near = MotionAt(m, timer, start, now)
         if not d then return 0, 0 end
-        if d < 0.2 then return 0.1 + 0.15 * d / 0.2, 0.2 + 0.15 * d / 0.2 end   -- the sip
+        if d < 0.05 then return 0.08, 0.12 end                     -- the sip
         local swallow = d - near / 2
-        if swallow >= 0 and swallow < 0.16 then return 0.3, 0.4 end
+        if swallow >= 0 and swallow < 0.1 then return 0.25, 0.3 end
         return 0, 0
     end
 end
