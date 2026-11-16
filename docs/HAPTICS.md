@@ -47,6 +47,10 @@ pad's rumble emulation, which decides what to keep.
 | Overdrive (5 taps each) | 25 ms: 1-2 plain, 3-4 kicked; 33 ms: 3-4 plain, 1-2 kicked; 40 ms at 25%: 1-2 plain, 3-4 kicked; 8 ms kick: 3-4 | a little help at best, within the noise of 5 taps: not a fix; 50 ms stays the floor |
 | Wobble (30-100%, never off) | 3 to 25 Hz: nearly steady, "very slightly varying" | while running, strength changes are smoothed away; only on / off edges are crisp |
 
+**Design rule (the player, 2026-11-16): rhythm and contrast.** Very faint, short
+micro taps against longer rumbles. Small things and texture: faint 50 ms taps. Big
+moments: long rumbles, often led into or trailed by taps. Sends every frame.
+
 **What this pad is, through the game:** a drum, not a speaker. What you feel is
 pulses of 50 ms or more: their rhythm, their side, and how strong each one starts.
 Changing the strength of a vibration that is already running (swells, wobble,
