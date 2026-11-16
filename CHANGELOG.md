@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.2 — 2026-11-16
+
+- Beta, landing: more contrast: a hop is a faint micro tap (about 7%), strength rises steeply toward heavy landings; a light landing shrinks the chosen feel instead of playing it whole
+
 ## 0.15.1 — 2026-11-16
 
 - Controller: holding L2 shows the L2 layer, R2 the R2 layer (L2 showed R2, R2 nothing: the pad's buttons were read one off)

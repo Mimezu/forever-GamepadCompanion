@@ -1214,6 +1214,12 @@ L.Poll = Poll
 -- with echoes; a big drop, a deep boom. Last air times kept for the report.
 ---------------------------------------------------------------------------
 -- How hard a landing is (0 a plain jump .. 1 a big fall) from its air time
+-- How strong a landing of weight k is (0-1): faint for light ones, steep
+-- toward heavy ones (contrast: a hop is a faint micro tap)
+function L.LandingLevel(k)
+    return 0.07 + 0.93 * k ^ 1.6
+end
+
 -- (air times: soft at landMin or less, full at landMax or more; settings)
 L.LAND_MIN, L.LAND_MAX = 0.5, 1.2
 function L.LandingWeight(t)
@@ -1230,7 +1236,7 @@ end
 L.LAND_LONG = 0.4
 function L.LandingFeel(k)
     local longest = H.DB().landLong or L.LAND_LONG
-    local main = 0.15 + 0.85 * k
+    local main = L.LandingLevel(k)
     local len = 0.06 + max(0, longest - 0.06) * k
     local list = { { 0, len, main, -0.2 * (1 - k) } }
     -- echoes after it: more, longer and stronger the heavier it is
@@ -1277,7 +1283,7 @@ air:SetScript("OnUpdate", function()
             -- (Rumble's strength for a light one, full output for the heaviest:
             -- at 70% strength a full landing felt faint)
             local strength = Strength()
-            local gain = (strength + (1 - strength) * k) * (0.25 + 0.75 * k)
+            local gain = (strength + (1 - strength) * k) * L.LandingLevel(k)
             if s.feel == EVENT.landing.feel then
                 L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
             else
@@ -1286,7 +1292,9 @@ air:SetScript("OnUpdate", function()
                 local f = H.Feel(s.feel)
                 local longest = H.DB().landLong or L.LAND_LONG
                 local want = 0.06 + max(0, longest - 0.06) * k
-                local stretch = f and max(1, want / max(0.06, H.Length(f))) or 1
+                -- (a light landing shrinks the feel toward a micro tap; pulses
+                -- never under the shortest pulse setting)
+                local stretch = f and max(0.4, want / max(0.06, H.Length(f))) or 1
                 -- (its strongest pulse at full for a full landing, whatever the
                 -- feel's own strength: Flick's 80% went out at 74%)
                 local peak = f and H.Peak(f) or 1
