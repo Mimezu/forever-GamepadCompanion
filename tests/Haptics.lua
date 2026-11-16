@@ -808,3 +808,48 @@ do
     D.Show(false)
     io.write("PASS: debug: cues logged, voices named, the window" .. string.char(10))
 end
+
+-- Review fixes (0.20.0): the palette's feels under its specials, a copy of a Rumble feel yours in Rumble,
+-- live voices stop when turned off or Rumble is off, and restart on a new feel
+do
+    local pw = GamepadCompanionPalette
+    pw.pal:SetSpecials({ { key = "off", label = "Off" } })
+    pw.pal:ShowGroup("Basics")
+    local first = pw.pal.tiles[1]
+    assert(first.points[1][5] <= -70, "feels under the specials: " .. tostring(first.points[1][5]))
+    pw.pal:SetSpecials({})
+    pw.pal:ShowGroup("Basics")
+    assert(pw.pal.tiles[1].points[1][5] == 0, "no specials: feels on top")
+    local own = ns.BetaPage.EditCopy(H.Feel("r_tick"), "Tick (mine)")
+    assert(H.Feel(own).rumble == nil, "a copy is yours, not Rumble's")
+    H.DB().feels.ownImported = { label = "Imported", rumble = "tick", pulses = { { 0, 0.05, 0.5, 0 } } }
+    L.RegisterInRumble()
+    assert(V.Pattern("x_" .. own) and V.Pattern("x_ownImported"), "your copies in Rumble's grid")
+    H.DB().feels.ownImported = nil
+    H.DB().engine = true
+    V.Settings().enabled = true
+    local zone = GetRealZoneText
+    GetRealZoneText = function() return "Duskwood" end
+    L.EventSettings("rain").on, L.EventSettings("rain").feel = true, "raindrops"
+    L.Poll()
+    assert(H.Playing("live_rain"), "rain in Duskwood")
+    L.EventSettings("rain").on = false
+    L.Poll()
+    assert(not H.Playing("live_rain"), "rain off: stops while it still rains")
+    L.EventSettings("rain").on = true
+    L.Poll()
+    assert(H.Playing("live_rain"), "and back")
+    V.Settings().enabled = false
+    L.Poll()
+    assert(not H.Playing("live_rain"), "Rumble off: quiet")
+    V.Settings().enabled = true
+    L.Poll()
+    L.EventSettings("rain").feel = "whisper"
+    L.Poll()
+    assert(H.Playing("live_rain"), "another feel: still raining")
+    L.EventDefault("rain")
+    GetRealZoneText = zone
+    L.Poll()
+    assert(not H.Playing("live_rain"), "left the zone: gone")
+    io.write("PASS: review fixes: palette under its specials, your copies in Rumble, live voices stop when off" .. string.char(10))
+end

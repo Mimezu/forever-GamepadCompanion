@@ -233,7 +233,8 @@ function L.RegisterInRumble()
     local V = ns.Rumble
     if not (V and V.AddFeel) then return end
     for _, feel in ipairs(H.AllFeels()) do
-        if not feel.rumble then V.AddFeel("x_" .. feel.key, feel) end
+        -- (Rumble's own "r_" feels are its patterns already; a copy of yours is not)
+        if not feel.rumble or H.IsOwn(feel.key) then V.AddFeel("x_" .. feel.key, feel) end
     end
 end
 
@@ -973,20 +974,30 @@ local function Tension(now)
 end
 
 local function LiveOn(key)
-    return H.Engine() and L.EventSettings(key).on
+    if not H.Engine() then return false end
+    -- (Rumble off, or Improved Forever: Vibration has the motors: quiet, as L.Fire)
+    local V = ns.Rumble
+    local okOn, on = pcall(function() return V.Settings().enabled and not V.Other() end)
+    if okOn and not on then return false end
+    return L.EventSettings(key).on
 end
 
+-- (the feel each live voice was started with: a new pick restarts it)
+local liveFeel = {}
 local function StartLive(key, fn)
-    if not LiveOn(key) then return end
-    -- (a feel other than the default: played looped instead of the live one)
+    local id = "live_" .. key
+    -- (turned off, or Rumble off: stops now, not when the condition ends)
+    if not LiveOn(key) then H.Stop(id); return end
     local s = L.EventSettings(key)
+    if H.Playing(id) and liveFeel[key] ~= s.feel then H.Stop(id) end
+    liveFeel[key] = s.feel
+    if H.Playing(id) then return end
+    -- (a feel other than the default: played looped instead of the live one)
     if s.feel ~= EVENT[key].feel then
-        if not H.Playing("live_" .. key) then
-            H.Play(s.feel, { voice = "live_" .. key, loop = true, gain = Strength() })
-        end
+        H.Play(s.feel, { voice = id, loop = true, gain = Strength() })
         return
     end
-    if not H.Playing("live_" .. key) then H.Fn("live_" .. key, fn, { gain = Strength() }) end
+    H.Fn(id, fn, { gain = Strength() })
 end
 
 ---------------------------------------------------------------------------
@@ -1118,7 +1129,7 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount)
             L.Fire(AT_YOU[action])
         end
     elseif unit == "target" and call(UnitCanAttack, "player", "target") then
-        if action == "WOUND" and flag ~= "CRITICAL" then
+        if action == "WOUND" and not secret(flag) and flag ~= "CRITICAL" then
             L.Fire("hit")
         elseif AT_TARGET[action] then
             L.Fire(AT_TARGET[action])

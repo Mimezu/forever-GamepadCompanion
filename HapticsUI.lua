@@ -306,8 +306,8 @@ function HUI.Palette(parent, x, y, w, h, opts)
         list[i] = t
         return t
     end
-    local nSpecial = opts.specials and #opts.specials or 0
-    local top = nSpecial > 0 and -(TILE_H + 10) or 0
+    -- (the feels start under the specials' row, when there are any: set by SetSpecials)
+    local top = 0
     function pal:Update()
         local current = opts.current and opts.current()
         for i, t in ipairs(pal.specialTiles) do t.sel:SetShown(t.key == current) end
@@ -340,6 +340,7 @@ function HUI.Palette(parent, x, y, w, h, opts)
     -- (Off and Match the... on top)
     function pal:SetSpecials(specials)
         for _, t in ipairs(pal.specialTiles) do t:Hide() end
+        top = (specials and #specials > 0) and -(TILE_H + 10) or 0
         for i, e in ipairs(specials or {}) do
             local t = Tile(pal.specialTiles, i, pal)
             t:ClearAllPoints()

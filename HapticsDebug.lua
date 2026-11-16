@@ -57,7 +57,8 @@ function D.VoiceWhy(id)
     local key = id:match("^ev_(.+)")
     if key then
         local e = L.EVENT[key]
-        return "Beta · " .. (e and e.label or key) .. " → " .. FeelLabel(L.EventSettings(key).feel)
+        if not e then return "Beta · " .. key end
+        return "Beta · " .. e.label .. " → " .. FeelLabel(L.EventSettings(key).feel)
     end
     key = id:match("^live_(.+)")
     if key then

@@ -397,7 +397,7 @@ local function Own() return ed.key and H.IsOwn(ed.key) end
 local function SaveOwn(feel, label)
     local key = H.NewKey()
     feel = H.Copy(feel)
-    feel.key, feel.group = nil, nil
+    feel.key, feel.group, feel.rumble = nil, nil, nil
     feel.label = label or feel.label or "Mine"
     feel.icon = feel.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse"
     H.DB().feels[key] = feel
