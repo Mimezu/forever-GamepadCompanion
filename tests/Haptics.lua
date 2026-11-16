@@ -364,6 +364,9 @@ L.EventSettings("landing").feel = "flick"
 falling = true; air.scripts.OnUpdate(air, 0.01); now = now + 2
 falling = false; air.scripts.OnUpdate(air, 0.01)
 assert(L.lastLanding.feel == "Flick", "the feel played, named")
+assert(math.abs(H.Peak(H.Feel("flick")) - 0.8) < 1e-9, "a feel's peak")
+frame(0.01)
+assert(H.out.l > 0.97 or H.out.r > 0.97, "a full landing: the feel's peak at full: " .. H.out.l .. " " .. H.out.r)
 L.EventSettings("landing").feel = "thud"
 local hop, fall = L.LandingFeel(L.LandingWeight(0.45)), L.LandingFeel(L.LandingWeight(2.5))
 assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.35, "a hop: one soft pulse")

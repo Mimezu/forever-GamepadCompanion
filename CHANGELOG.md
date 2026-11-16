@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.8 — 2026-11-16
+
+- Beta, landing: a full landing plays the chosen feel's strongest pulse at full (Flick's 80% went out at 74%)
+
 ## 0.14.7 — 2026-11-16
 
 - Beta, landing: any feel chosen for Landing is stretched with the landing's weight (up to Landing longest), not only the default Thud; the readout names the feel played

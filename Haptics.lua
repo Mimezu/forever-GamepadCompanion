@@ -121,6 +121,24 @@ local function Keys(list, t)
 end
 H.KeyAt = Keys
 
+-- A feel's strongest moment (0-1): pulses' strongest, keys' highest, else
+-- sampled
+function H.Peak(feel)
+    local top = 0
+    if feel.pulses then
+        for _, p in ipairs(feel.pulses) do top = max(top, p[3] or 1) end
+        return top
+    end
+    local len = H.Length(feel)
+    local plain = feel.loop and Copy(feel) or feel
+    if plain ~= feel then plain.loop = false end
+    for i = 0, 60 do
+        local l, r = H.Sample(plain, len * i / 61, 1)
+        top = max(top, l or 0, r or 0)
+    end
+    return top
+end
+
 function H.Length(feel)
     -- Pulses: to the end of the last one, or the cycle's set length
     if feel.pulses then

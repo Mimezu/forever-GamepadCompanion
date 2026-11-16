@@ -1280,7 +1280,10 @@ air:SetScript("OnUpdate", function()
                 local longest = H.DB().landLong or L.LAND_LONG
                 local want = 0.06 + max(0, longest - 0.06) * k
                 local stretch = f and max(1, want / max(0.06, H.Length(f))) or 1
-                L.Fire("landing", gain, nil, true, stretch)
+                -- (its strongest pulse at full for a full landing, whatever the
+                -- feel's own strength: Flick's 80% went out at 74%)
+                local peak = f and H.Peak(f) or 1
+                L.Fire("landing", gain / max(0.05, peak), nil, true, stretch)
             end
             local played = H.Feel(s.feel)
             L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
