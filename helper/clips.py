@@ -175,47 +175,154 @@ def landing_hard():
 
 # --- Speaker sounds (mono to both speaker channels) -------------------------------------------
 
+WOOD = ((1.0, 0.020, 1.0), (2.31, 0.012, 0.45), (3.87, 0.008, 0.25), (5.9, 0.005, 0.12))
+
+
 def s_click():
-    s = _blank(0.02)
-    _add(s, burst(2000, 0.004, 0.15))
-    _add(s, noise(0.006, 0.05, decay=0.002, seed=3))
-    return _both(s)
+    """A fingertip on a small wooden box: short, dry, woody."""
+    s = resonate(strike(0.0012, 1.0, soft=0.3, seed=3), 0.06, [(820 * m, d, g) for m, d, g in WOOD])
+    return _finish(s, 0.15, size=0.5, mix=0.08, tail=0.12)
+
+
+# Speaker sounds follow WoW's mood: immersive and analog, never chiptune (no clean arpeggios,
+# square waves, pure beeps or arcade pitch jumps). Built like real objects: a short strike of noise
+# (the mallet, the finger, the coin edge) rings a bank of resonant modes (wood, metal, bell, cloth),
+# then a small room, a little warmth (soft saturation, gentle top-end roll-off). The pad's speaker
+# is tiny: low sounds carry their weight in their 150-400 Hz modes, not in a sub fundamental.
+
+def strike(seconds, amp=1.0, soft=0.5, seed=1):
+    """The excitation: a few ms of noise, smoothed (soft 0 = hard/bright, 0.9 = felt mallet)."""
+    rnd = random.Random(seed)
+    n = max(2, _n(seconds))
+    out = array("f", bytes(4 * n))
+    y = 0.0
+    for i in range(n):
+        y = soft * y + (1 - soft) * rnd.uniform(-1, 1)
+        out[i] = amp * y * (0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1)))
+    return out
+
+
+def resonate(excite, seconds, modes):
+    """Modal body: each (freq Hz, decay s, gain) is a two-pole resonator rung by the excitation."""
+    n = _n(seconds)
+    out = array("f", bytes(4 * n))
+    for f, decay, g in modes:
+        if f >= RATE / 2 - 100:
+            continue
+        r = math.exp(-1 / (decay * RATE))
+        c1, c2 = 2 * r * math.cos(2 * math.pi * f / RATE), -r * r
+        gain = g * (1 - r * r) * 40          # roughly level-independent of decay
+        y1 = y2 = 0.0
+        for i in range(n):
+            x = excite[i] if i < len(excite) else 0.0
+            y = c1 * y1 + c2 * y2 + gain * x
+            out[i] += y
+            y2, y1 = y1, y
+    return out
+
+
+def room(sig, size=1.0, mix=0.18, damp=0.45, tail=0.4):
+    """A small wooden room (Schroeder: 4 damped combs + 2 allpasses), mixed under the dry sound."""
+    extra = _n(tail)
+    n = len(sig) + extra
+    dry = array("f", sig) + array("f", bytes(4 * extra))
+    wet = array("f", bytes(4 * n))
+    for d_ms, fb in ((29.7, 0.80), (37.1, 0.78), (41.1, 0.76), (43.7, 0.74)):
+        d = max(1, _n(d_ms * size / 1000))
+        buf = [0.0] * d
+        lp = 0.0
+        for i in range(n):
+            j = i % d
+            out = buf[j]
+            lp = out * (1 - damp) + lp * damp
+            buf[j] = dry[i] + lp * fb
+            wet[i] += out * 0.25
+    for d_ms, g in ((5.0, 0.7), (1.7, 0.7)):
+        d = max(1, _n(d_ms / 1000))
+        buf = [0.0] * d
+        for i in range(n):
+            j = i % d
+            b = buf[j]
+            v = wet[i] + g * b
+            buf[j] = v
+            wet[i] = b - g * v
+    for i in range(n):
+        dry[i] = dry[i] + mix * wet[i]
+    # fade the very end so it lands on silence
+    nf = min(n, _n(0.05))
+    for i in range(nf):
+        dry[n - 1 - i] *= i / nf
+    return dry
+
+
+def warm(sig, drive=1.6, roll=0.25):
+    """Soft saturation and a gentle top-end roll-off: analog, not clinical."""
+    k = math.tanh(drive)
+    y = 0.0
+    out = array("f", bytes(4 * len(sig)))
+    peak = max((abs(v) for v in sig), default=1.0) or 1.0
+    for i, v in enumerate(sig):
+        x = math.tanh(drive * v / peak) / k * peak
+        y = roll * y + (1 - roll) * x
+        out[i] = y
+    return out
+
+
+def _finish(sig, peak=0.2, **room_args):
+    return _both(_fit(warm(room(sig, **room_args)), peak))
+
+
+# Struck metal rings at inharmonic ratios (a free plate / coin: 1, 2.76, 5.40, 8.93).
+COIN = ((1.0, 0.09, 1.0), (2.76, 0.05, 0.6), (5.40, 0.03, 0.35), (8.93, 0.018, 0.2))
 
 
 def s_coin():
+    """A few coins settling in a leather pouch: irregular clinks, muffled by cloth."""
+    rnd = random.Random(11)
     s = _blank(0.45)
-    for at, k in ((0.0, 1.0), (0.09, 0.8)):
-        _add(s, tone(2637, 0.3, attack=0.001, decay=0.06, amp=0.12 * k, harmonics=((1, 1.0), (1.5, 0.6))), at=at)
-    return _both(s)
+    _add(s, noise(0.20, 0.05, decay=0.06, seed=12, lowpass=0.94))            # leather rustle
+    for at, k in ((0.0, 1.0), (0.047, 0.65), (0.081, 0.5), (0.142, 0.35), (0.19, 0.2)):
+        f0 = rnd.uniform(2100, 3200)
+        modes = [(f0 * m, d * rnd.uniform(0.8, 1.2), g) for m, d, g in COIN]
+        _add(s, resonate(strike(0.0015, k, soft=0.2, seed=rnd.randrange(999)), 0.25, modes),
+             at=at + rnd.uniform(0, 0.01))
+    return _finish(s, 0.22, size=0.6, mix=0.12)
 
 
 def s_chime():
-    s = _blank(0.9)
-    for i, f in enumerate((1047, 1319, 1568)):
-        _add(s, tone(f, 0.5, attack=0.003, decay=0.15, amp=0.10, harmonics=((1, 1.0), (2, 0.2))), at=i * 0.15)
-    return _both(s)
+    """One small bronze bell, struck with a felt mallet: hum, strike note and a warm minor-third
+    partial (real bell ratios), two of them slightly detuned so the tail breathes."""
+    modes = ((0.5, 0.9, 0.35), (1.0, 0.7, 1.0), (1.003, 0.7, 0.6), (1.19, 0.5, 0.45),
+             (1.5, 0.35, 0.3), (2.0, 0.25, 0.25), (2.66, 0.15, 0.12))
+    s = resonate(strike(0.004, 1.0, soft=0.8, seed=21), 0.9, [(740 * m, d, g) for m, d, g in modes])
+    return _finish(s, 0.2, size=1.3, mix=0.22, tail=0.5)
 
 
 def s_thud():
-    s = _blank(0.2)
-    _add(s, tone(110, 0.18, attack=0.002, decay=0.04, amp=0.2, freq_to=80, harmonics=((1, 1.0), (2, 0.5), (3, 0.25))))
-    _add(s, noise(0.03, 0.06, decay=0.008, seed=4, lowpass=0.8))
-    return _both(s)
+    """A heavy pack set down on a wooden floor: a padded hit, the boards ringing low."""
+    floor = ((150, 0.06, 1.0), (235, 0.045, 0.7), (370, 0.03, 0.4), (610, 0.015, 0.2))
+    s = resonate(strike(0.008, 1.0, soft=0.85, seed=4), 0.22, floor)
+    _add(s, noise(0.05, 0.08, decay=0.012, seed=6, lowpass=0.9))           # cloth and dust
+    return _finish(s, 0.2, size=0.9, mix=0.15, tail=0.25)
 
 
 def s_heartbeat():
+    """A heartbeat heard from inside: lub-dub, muffled, felt more than heard."""
+    body = ((95, 0.05, 1.0), (165, 0.04, 0.8), (260, 0.025, 0.35))
     s = _blank(0.5)
-    _add(s, tone(120, 0.12, attack=0.004, decay=0.035, amp=0.18, harmonics=((1, 1.0), (2, 0.4), (3, 0.2))))
-    _add(s, tone(110, 0.12, attack=0.004, decay=0.035, amp=0.12, harmonics=((1, 1.0), (2, 0.4), (3, 0.2))), at=0.2)
-    return _both(s)
+    _add(s, resonate(strike(0.012, 1.0, soft=0.9, seed=7), 0.16, body))
+    _add(s, resonate(strike(0.010, 0.7, soft=0.9, seed=8), 0.16, [(f * 1.08, d, g) for f, d, g in body]), at=0.19)
+    return _finish(s, 0.2, size=0.7, mix=0.08, tail=0.15)
 
 
 def s_error():
+    """Two dull knocks on an old door, the second softer: 'no' without a buzzer."""
+    door = [(f * 1.0, d * 1.4, g) for f, d, g in ((230, 0.020, 1.0), (530, 0.012, 0.5),
+                                                  (890, 0.008, 0.25), (1360, 0.005, 0.1))]
     s = _blank(0.32)
-    buzz = ((1, 1.0), (3, 0.33), (5, 0.2), (7, 0.14))   # a soft square
-    _add(s, tone(150, 0.11, attack=0.004, release=0.02, amp=0.10, harmonics=buzz))
-    _add(s, tone(150, 0.11, attack=0.004, release=0.02, amp=0.10, harmonics=buzz), at=0.18)
-    return _both(s)
+    for at, k, seed in ((0.0, 1.0, 5), (0.15, 0.65, 9)):
+        _add(s, resonate(strike(0.003, k, soft=0.6, seed=seed), 0.14, door), at=at)
+    return _finish(s, 0.2, size=1.0, mix=0.16, tail=0.2)
 
 
 # id -> (name, generator). Haptic 1-127, speaker 128-255.
