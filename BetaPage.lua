@@ -291,7 +291,12 @@ local function BuildProbes(p)
         if not step then return end
         probe.playing = true
         Say(pr.label .. ": " .. step[1])
-        L.Run(step[2](), function() probe.playing = false; Refresh() end)
+        local index = probe.step
+        L.Run(step[2](), function()
+            probe.playing = false
+            L.KeepMeasured(pr, index)
+            Refresh()
+        end)
         Refresh()
     end, nil, 14, 34)
     probe.stop = S.NewButton(card, "Stop", 184, -104, 100, function() L.Halt(); probe.playing = false; Refresh() end,
@@ -306,6 +311,16 @@ local function BuildProbes(p)
     probe.next = S.NewButton(card, "Next", 144, -196, 120, function()
         probe.step = min(#L.PROBES[probe.index].steps, probe.step + 1); Refresh()
     end, nil, 12, 28)
+    probe.fps = S.NewButton(card, "Cap 60 fps", 300, -196, 140, function()
+        L.FpsCap(not L.FpsCapped())
+        Say(L.FpsCapped() and "60 fps cap on" or "Frame cap restored")
+        Refresh()
+    end, nil, 12, 28)
+    S.Tooltip(probe.fps, "Cap 60 fps", "Game setting maxFPS · put back on a second click")
+    ui.refresh[#ui.refresh + 1] = function()
+        probe.fps.label:SetText(L.FpsCapped() and "Restore fps" or "Cap 60 fps")
+        S.SetSelected(probe.fps, L.FpsCapped())
+    end
     S.Heading(card, "Answers", 12, -244, W - 340)
     probe.lines = {}
     for i = 1, 10 do
@@ -346,7 +361,8 @@ local function BuildProbes(p)
         probe.next:SetEnabled(probe.step < #pr.steps)
         for i, line in ipairs(probe.lines) do
             local s = pr.steps[i]
-            line:SetText(s and (s[1] .. ":  " .. (answers[i] or "-")) or "")
+            local real = answers.lengths and answers.lengths[i]
+            line:SetText(s and (s[1] .. ":  " .. (answers[i] or "-") .. (real and ("   ·  real " .. real) or "")) or "")
             local c = (s and answers[i]) and GOLD or DIM
             line:SetTextColor(c[1], c[2], c[3])
         end
@@ -1099,18 +1115,20 @@ local function BuildEngine(p)
         function() return db().triggers end, function(v) db().triggers = v; H.Stop() end)
     Choice(card, "Low battery", 12, -200, { { true, "Softer" }, { false, "Same" } },
         function() return db().battery end, function(v) db().battery = v end)
-    S.Heading(card, "Try the mix", 12, -244, 530)
-    S.NewButton(card, "Purr + hits", 12, -268, 170, function()
+    Choice(card, "Shortest pulse", 12, -232, { { 0, "Off" }, { 0.025, "25 ms" }, { 0.033, "33 ms" }, { 0.04, "40 ms" },
+        { 0.05, "50 ms" } }, function() return db().minPulse end, function(v) db().minPulse = v end)
+    S.Heading(card, "Try the mix", 12, -276, 530)
+    S.NewButton(card, "Purr + hits", 12, -300, 170, function()
         H.Play("orbit", { voice = "mixA", loop = true })
         for i = 0, 3 do C_Timer.After(0.5 + i * 0.7, function() H.Play("knock", { voice = "mixB" .. i }) end) end
         C_Timer.After(3.5, function() H.Stop("mixA") end)
     end, nil, 12, 30)
-    S.NewButton(card, "Heart + boom", 190, -268, 170, function()
+    S.NewButton(card, "Heart + boom", 190, -300, 170, function()
         H.Play("heart60", { voice = "mixA", loop = true })
         C_Timer.After(1.3, function() H.Play("boom", { voice = "mixB" }) end)
         C_Timer.After(4, function() H.Stop("mixA") end)
     end, nil, 12, 30)
-    S.NewButton(card, "Stop all", 368, -268, 170, function() H.Stop(); L.Halt(); Say("Stopped") end, nil, 12, 30)
+    S.NewButton(card, "Stop all", 368, -300, 170, function() H.Stop(); L.Halt(); Say("Stopped") end, nil, 12, 30)
 
     local live = S.Card(p, "Live", 570, 0, W - 570, PH - 40)
     local graph = Graph(live, 12, -40, W - 570 - 24, 260, 240)
@@ -1207,6 +1225,7 @@ Shell.AddPage({
     hide = function()
         L.Halt()
         probe.playing = false
+        L.FpsCap(false)
         if L.Ramping() then L.StopRamp() end
         H.Stop("beta"); H.Stop("editor"); H.Stop("record")
         if picker then picker:Hide() end

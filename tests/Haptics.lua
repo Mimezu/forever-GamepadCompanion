@@ -359,12 +359,24 @@ ui.Select("probes")
 local play = assert(button("Play"), "Play")
 vib = {}
 play.scripts.OnClick(play)
-run(0.3)
+run(3.5)
 assert(vib[2] and vib[2][1] == "Low" and vib[2][2] == 1 and vib[#vib][1] == "stop", "probe step played raw and stopped")
-local felt = assert(button("Felt"), "Felt")
-felt.scripts.OnClick(felt)
-assert(L.Answers(L.PROBES[1])[1] == "Felt", "answer kept")
-assert(L.Report():find("16 ms=Felt", 1, true), "in the report")
+local taps = 0
+for _, v in ipairs(vib) do if v[1] == "Low" then taps = taps + 1 end end
+assert(taps == 5, "five taps: " .. taps)
+assert(L.Measured() == "10-20 ms", "real length on 10 ms frames: " .. tostring(L.Measured()))
+local three = assert(button("3-4"), "3-4")
+three.scripts.OnClick(three)
+assert(L.Answers(L.PROBES[1])[1] == "3-4", "answer kept")
+assert(L.Report():find("16 ms=3-4 (10-20 ms)", 1, true) and L.Report():find("Log:", 1, true), "in the report with its real length: " .. L.Report())
+local cvars = { maxFPS = "100" }
+C_CVar = { GetCVar = function(k) return cvars[k] end, SetCVar = function(k, v) cvars[k] = v end }
+local cap = assert(button("Cap 60 fps"), "fps button")
+cap.scripts.OnClick(cap)
+assert(cvars.maxFPS == "60" and L.FpsCapped(), "capped")
+cap.scripts.OnClick(cap)
+assert(cvars.maxFPS == "100" and not L.FpsCapped(), "put back")
+C_CVar = nil
 ui.Select("calibrate")
 local find = assert(button("Find floor"), "Find floor")
 find.scripts.OnClick(find)
@@ -430,5 +442,18 @@ frame()
 for _, v in ipairs(vib) do assert(v[2] ~= 1 or v[1] ~= "High", "mixer quiet during a probe") end
 L.Halt()
 assert(not H.hold, "released")
+H.Stop()
+-- Shortest pulse: a feel shorter than it is held up to it
+H.Stop()
+db.minPulse = 0.05
+H.Play({ hold = 0.01, peak = 1 }, { voice = "short" })
+frame(0.01); assert(H.out.l == 1, "on")
+frame(0.02); assert(H.out.l == 1, "held past its end")
+frame(0.04); assert(H.out.l == 0, "then let go")
+db.minPulse = 0
+-- A feel shorter than a frame is still played
+H.Play({ hold = 0.005, peak = 1 }, { voice = "tiny" })
+frame(0.02)
+assert(H.out.l == 1, "sampled at its start on its first frame")
 H.Stop()
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")

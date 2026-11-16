@@ -37,6 +37,10 @@ local LIB = {
     { "flick", "Flick", "Taps", "click", { decay = 0.12, curve = 2.5, peak = 1 } },
     { "clickL", "Click left", "Taps", "click", { hold = 0.03, peak = 1, pan = -1 } },
     { "clickR", "Click right", "Taps", "click", { hold = 0.03, peak = 1, pan = 1 } },
+    -- (the short ones felt subtle in game: 33 ms felt 2 times in 3, 50 ms always)
+    { "dust", "Dust", "Taps", "micro", { hold = 0.033, peak = 1 } },
+    { "graze", "Graze", "Taps", "tick", { hold = 0.04, peak = 1 } },
+    { "feather", "Feather", "Taps", "micro", { hold = 0.05, peak = 0.5 } },
     -- Grain: the strength flickering fast (amplitude modulation)
     { "purr8", "Purr 8 Hz", "Grain", "purr", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
         grain = { rate = 8, depth = 0.8 } } },
@@ -204,18 +208,53 @@ local function Square(list, at, kind, hz, seconds, v)
     list[#list + 1] = { at + n * half, stop }
 end
 
-local function Tap(ms)
-    return function() return { { 0, both(1) }, { ms / 1000, stop } } end
+-- Taps: n of them, 0.7 s apart, each ms long at v. Their real lengths are
+-- measured (sent and stopped on frames: at 100 fps a 16 ms tap lasts 10 or
+-- 20 ms), kept with the answer.
+local measure = {}
+local function Taps(ms, v, n)
+    return function()
+        wipe(measure)
+        local list = {}
+        for i = 0, (n or 5) - 1 do
+            local at = i * 0.7
+            list[#list + 1] = { at, function()
+                measure.on = Now()
+                H.Send("Low", v or 1)
+                H.Send("High", v or 1)
+            end }
+            list[#list + 1] = { at + ms / 1000, function()
+                measure[#measure + 1] = (Now() - (measure.on or Now())) * 1000
+                stop()
+            end }
+        end
+        return list
+    end
 end
+
+-- The last run's tap lengths, "10-20 ms" (nil: none measured)
+function L.Measured()
+    if #measure == 0 then return nil end
+    local lo, hi = math.huge, 0
+    for _, d in ipairs(measure) do lo, hi = min(lo, d), max(hi, d) end
+    lo, hi = floor(lo + 0.5), floor(hi + 0.5)
+    return lo == hi and (lo .. " ms") or (lo .. "-" .. hi .. " ms")
+end
+
+local OUT_OF_5 = { "5", "3-4", "1-2", "0" }
 
 local function Light(r, g, b)
     return function() return { { 0, function() H.LedSend(r, g, b) end }, { 1.2, function() H.LedClear() end } } end
 end
 
 L.PROBES = {
-    { key = "tap", label = "Shortest tap", ask = "Felt?", answers = { "Felt", "Not felt" }, steps = {
-        { "16 ms", Tap(16) }, { "33 ms", Tap(33) }, { "50 ms", Tap(50) }, { "75 ms", Tap(75) },
-        { "100 ms", Tap(100) }, { "150 ms", Tap(150) } } },
+    { key = "tap2", label = "Shortest tap", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
+        { "16 ms", Taps(16) }, { "20 ms", Taps(20) }, { "25 ms", Taps(25) }, { "33 ms", Taps(33) },
+        { "40 ms", Taps(40) }, { "50 ms", Taps(50) }, { "75 ms", Taps(75) } } },
+    { key = "subtle", label = "Soft short taps", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
+        { "50 ms at 60%", Taps(50, 0.6) }, { "50 ms at 35%", Taps(50, 0.35) },
+        { "33 ms at 60%", Taps(33, 0.6) }, { "33 ms at 35%", Taps(33, 0.35) },
+        { "75 ms at 35%", Taps(75, 0.35) }, { "75 ms at 20%", Taps(75, 0.2) } } },
     { key = "hold", label = "Hold, sent once", ask = "How long?", answers = { "All 3 s", "Faded", "Nothing" }, steps = {
         { "60%, 3 s", function() return { { 0, both(0.6) }, { 3, stop } } end },
         { "100%, 3 s", function() return { { 0, both(1) }, { 3, stop } } end } } },
@@ -267,11 +306,52 @@ L.PROBES = {
 }
 
 -- An answer to a probe's step (saved with the date)
+local function FPS()
+    return GetFramerate and floor((GetFramerate() or 0) + 0.5) or 0
+end
+
+-- An answer to a probe's step (saved with the date), and a log line with the
+-- frame rate and the taps' real lengths, so runs at 60 and 100 fps compare
 function L.Answer(probe, step, answer)
     local db = H.DB().probes
     db[probe.key] = db[probe.key] or {}
-    db[probe.key][step] = answer
-    db[probe.key].at = date and date("%Y-%m-%d %H:%M") or ""
+    local p = db[probe.key]
+    p[step] = answer
+    p.at = date and date("%Y-%m-%d %H:%M") or ""
+    db.log = db.log or {}
+    local real = p.lengths and p.lengths[step]
+    local s = probe.steps[step]
+    table.insert(db.log, string.format("%s %s: %s = %s%s @%d fps", p.at, probe.label, s and s[1] or step, answer,
+        real and (" (real " .. real .. ")") or "", FPS()))
+    while #db.log > 300 do table.remove(db.log, 1) end
+end
+
+-- 60 fps for the probes: the game's frame cap set, then put back
+function L.FpsCap(on)
+    local get = C_CVar and C_CVar.GetCVar or GetCVar
+    local set = C_CVar and C_CVar.SetCVar or SetCVar
+    if not (get and set) then return false end
+    local db = H.DB()
+    if on then
+        if db.savedMaxFPS == nil then db.savedMaxFPS = get("maxFPS") or "0" end
+        pcall(set, "maxFPS", "60")
+    elseif db.savedMaxFPS ~= nil then
+        pcall(set, "maxFPS", db.savedMaxFPS)
+        db.savedMaxFPS = nil
+    end
+    return true
+end
+
+function L.FpsCapped() return H.DB().savedMaxFPS ~= nil end
+
+-- The real tap lengths of a probe's step (after it played)
+function L.KeepMeasured(probe, step)
+    local m = L.Measured()
+    if not m then return end
+    local db = H.DB().probes
+    db[probe.key] = db[probe.key] or {}
+    db[probe.key].lengths = db[probe.key].lengths or {}
+    db[probe.key].lengths[step] = m
 end
 
 function L.Answers(probe)
@@ -303,8 +383,16 @@ function L.Report()
     for _, p in ipairs(L.PROBES) do
         local a = L.Answers(p)
         local parts = {}
-        for i, step in ipairs(p.steps) do parts[#parts + 1] = step[1] .. "=" .. (a[i] or "-") end
+        for i, step in ipairs(p.steps) do
+            local real = a.lengths and a.lengths[i]
+            parts[#parts + 1] = step[1] .. "=" .. (a[i] or "-") .. (real and (" (" .. real .. ")") or "")
+        end
         lines[#lines + 1] = p.label .. ": " .. table.concat(parts, ", ")
+    end
+    local log = H.DB().probes.log
+    if log and #log > 0 then
+        lines[#lines + 1] = "Log:"
+        for _, line in ipairs(log) do lines[#lines + 1] = line end
     end
     return table.concat(lines, "\n")
 end

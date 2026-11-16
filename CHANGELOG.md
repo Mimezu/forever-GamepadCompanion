@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.2 — 2026-11-16
+
+- Beta, Shortest tap: 5 taps per step, "how many felt?", 16 to 75 ms; each tap's real length measured
+- Beta, Soft short taps: 33-75 ms at 20-60%
+- Beta: Cap 60 fps for the probes (put back on a second click or when the tab closes); answers logged with fps in the Report
+- Beta engine: Shortest pulse (Off, 25-50 ms) keeps short taps long enough to be felt; a feel shorter than a frame still plays
+- Feels: Dust (33 ms), Graze (40 ms), Feather (50 ms at 50%): the subtle taps
+
 ## 0.13.1 — 2026-11-16
 
 - Camera keeps the lower framing after Alt+Z

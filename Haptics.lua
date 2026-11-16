@@ -28,6 +28,7 @@ H.DEFAULTS = {
     rate = 0,              -- sends per second at most (0: every frame)
     keepAlive = 0.1,       -- resend an unchanged level after (s; 0: never)
     kick = 0,              -- overdrive: a rise starts with this long at full (s)
+    minPulse = 0,          -- a pulse from rest lasts at least this long (s): shorter ones get lost
     battery = true,        -- softer on a low battery
     light = false,         -- light bar effects
     triggers = "off",      -- off | mirror (grips also on LTrigger / RTrigger) | only
@@ -263,7 +264,8 @@ function H.Play(feel, opts)
     local id = opts.voice or ("v" .. counter)
     local now = Now()
     voices[id] = {
-        id = id, feel = feel, start = now, gain = opts.gain or 1, left = opts.left or 1, right = opts.right or 1,
+        -- (start: its first frame, so a feel shorter than a frame is still sampled)
+        id = id, feel = feel, start = nil, gain = opts.gain or 1, left = opts.left or 1, right = opts.right or 1,
         stretch = opts.stretch or 1, loop = opts.loop == nil and feel.loop or opts.loop, seed = counter * 7 + 1,
         onDone = opts.onDone, target = opts.target or feel.target, raw = opts.raw,
     }
@@ -337,6 +339,7 @@ end
 local function VoiceLevel(v, now)
     if v.level then return v.l, v.r end
     if v.fn then return v.fn(now, v) end
+    v.start = v.start or now
     local t = (now - v.start) / (v.stretch or 1)
     -- (a looping feel played once: one time through)
     if not v.loop and t >= H.Length(v.feel) then return nil end
@@ -390,6 +393,14 @@ driver:SetScript("OnUpdate", function()
         local battery = H.BatteryFactor()
         l, r = H.Calibrated(1, l * battery), H.Calibrated(2, r * battery)
         lt, rt = clamp(lt * battery), clamp(rt * battery)
+        -- Shortest pulse: a side that rose from rest stays up at least db.minPulse
+        -- (taps under ~50 ms were felt only some of the time)
+        if (db.minPulse or 0) > 0 then
+            if l > 0 and out.l <= 0 then out.pulseL = now end
+            if r > 0 and out.r <= 0 then out.pulseR = now end
+            if l > 0 then out.lastL = l elseif out.l > 0 and now - (out.pulseL or 0) < db.minPulse then l = out.lastL or out.l end
+            if r > 0 then out.lastR = r elseif out.r > 0 and now - (out.pulseR or 0) < db.minPulse then r = out.lastR or out.r end
+        end
         -- Overdrive: a side starting from rest begins at full for db.kick s
         if (db.kick or 0) > 0 then
             if l > 0 and out.l <= 0 then out.riseL = now end
