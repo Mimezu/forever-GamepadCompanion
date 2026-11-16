@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.4 — 2026-11-16
+
+- Beta, Trigger test (Probes): a window; each squeeze of L2 or R2 plays the next of 7 variations on that side (trigger full, while held, one tap, pulses, soft, grip check, both); mark each Trigger, Grip or Nothing; live L2 / R2 depth; in the Report
+- Each channel: grips only now
+- Update rate: answers Separate pulses, Rough buzz, Steady no flicker, Nothing (asked again)
+
 ## 0.13.3 — 2026-11-16
 
 - Beta, from the probe results: taps held to 50 ms by default (shorter ones were felt only sometimes); no floor on either grip (5% felt on both)

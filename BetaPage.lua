@@ -255,6 +255,87 @@ local function Play(key, loop)
     Say((feel.label or key) .. (loop and " · looping" or ""))
 end
 
+-- The trigger test window: squeeze L2 or R2, each squeeze the next variation
+local trigWin
+local function TriggerWindow()
+    if not trigWin then
+        local f = CreateFrame("Frame", "GamepadCompanionTriggerTest", Shell.Window())
+        trigWin = f
+        f:SetFrameStrata("DIALOG")
+        f:SetToplevel(true)
+        f:EnableMouse(true)
+        f:SetSize(600, 120 + #L.TRIGGER_TESTS * 34)
+        f:SetPoint("CENTER")
+        S.Panel(f)
+        S.Text(f, "Trigger test", 16, -14, 400, 15, YELLOW)
+        S.Text(f, "Squeeze L2 or R2: each squeeze plays the next one", 16, -38, 560, 12, GREY)
+        f.status = S.Text(f, "", 16, -58, 560, 12, GOLD)
+        -- live depth of each trigger
+        f.bars = {}
+        for side = 1, 2 do
+            S.Text(f, side == 1 and "L2" or "R2", 380 + (side - 1) * 110, -14, 30, 12, GOLD)
+            local bg = f:CreateTexture(nil, "ARTWORK")
+            bg:SetColorTexture(1, 1, 1, 0.12)
+            bg:SetPoint("TOPLEFT", 404 + (side - 1) * 110, -17)
+            bg:SetSize(70, 8)
+            local bar = f:CreateTexture(nil, "OVERLAY")
+            local c = side == 1 and LEFT_C or RIGHT_C
+            bar:SetColorTexture(c[1], c[2], c[3], 0.95)
+            bar:SetPoint("TOPLEFT", 404 + (side - 1) * 110, -17)
+            bar:SetSize(1, 8)
+            f.bars[side] = bar
+        end
+        S.Text(f, "L2", 392, -84, 60, 12, YELLOW)
+        S.Text(f, "R2", 492, -84, 60, 12, YELLOW)
+        f.rows = {}
+        for i, t in ipairs(L.TRIGGER_TESTS) do
+            local y = -104 - (i - 1) * 34
+            local row = { test = t, marks = {} }
+            row.label = S.Text(f, i .. ".  " .. t.label, 16, y - 7, 340, 12, GOLD)
+            for side = 1, 2 do
+                local b = S.NewButton(f, "?", 370 + (side - 1) * 100, y, 92, nil, nil, 11, 28)
+                b:SetScript("OnClick", function()
+                    local cur = L.TriggerAnswers(t.key)[side == 1 and "L2" or "R2"] or "?"
+                    local n = 1
+                    for k, a in ipairs(L.TRIGGER_ANSWERS) do if a == cur then n = k end end
+                    L.TriggerAnswer(t.key, side, L.TRIGGER_ANSWERS[n % #L.TRIGGER_ANSWERS + 1])
+                    trigWin.Update()
+                end)
+                S.Tooltip(b, t.label, "Click: Trigger, Grip, Nothing")
+                row.marks[side] = b
+            end
+            f.rows[i] = row
+        end
+        S.NewButton(f, "Close", 470, -(120 + #L.TRIGGER_TESTS * 34 - 44), 112, function() f:Hide() end, nil, 12, 30)
+        function f.Update()
+            local tt = L.trigger
+            for i, row in ipairs(f.rows) do
+                local a = L.TriggerAnswers(row.test.key)
+                for side = 1, 2 do
+                    local b = row.marks[side]
+                    b.label:SetText(a[side == 1 and "L2" or "R2"] or "?")
+                    S.SetSelected(b, tt.index[side] == i)
+                end
+            end
+            if tt.noAxes then f.status:SetText("|cffff7a5cNo trigger reading from the pad|r") end
+        end
+        f:SetScript("OnUpdate", function()
+            local tt = L.trigger
+            for side = 1, 2 do f.bars[side]:SetWidth(math.max(1, (tt.depth[side] or 0) * 70)) end
+        end)
+        f:SetScript("OnShow", function() L.TriggerTest(true); f.status:SetText(""); f.Update() end)
+        f:SetScript("OnHide", function() L.TriggerTest(false) end)
+        L.onTrigger = function(side, index)
+            f.status:SetText(string.format("%s:  %d. %s", side == 1 and "L2" or "R2", index, L.TRIGGER_TESTS[index].label))
+            f.Update()
+        end
+        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionTriggerTest"
+        f:Hide()
+    end
+    trigWin:Show()
+    trigWin:Raise()
+end
+
 ---------------------------------------------------------------------------
 -- Probes
 ---------------------------------------------------------------------------
@@ -277,6 +358,8 @@ local function BuildProbes(p)
         b.count:SetJustifyH("RIGHT")
         probe.rows[i] = b
     end
+    local trig = S.NewButton(list, "Trigger test", 12, -(PH - 40 - 84), 276, function() TriggerWindow() end, nil, 12, 30)
+    S.Tooltip(trig, "Trigger test", "Squeeze L2 / R2 in a window")
     S.NewButton(list, "Report", 12, -(PH - 40 - 46), 276, function()
         TextWindow("Probe report", L.Report())
     end, nil, 12, 30)
@@ -902,25 +985,7 @@ local function BuildEditor(p)
     -- Recording with the triggers
     local rec = CreateFrame("Frame", nil, p)
     rec:Hide()
-    local function TriggerAxes()
-        if not (C_GamePad and C_GamePad.GetDeviceMappedState) then return nil end
-        local okId, id = pcall(C_GamePad.GetActiveDeviceID)
-        local ok, state = pcall(C_GamePad.GetDeviceMappedState, okId and id or nil)
-        if not (ok and type(state) == "table" and type(state.axes) == "table") then return nil end
-        local li, ri
-        if C_GamePad.AxisIndexToConfigName then
-            for i = 1, #state.axes do
-                local okN, name = pcall(C_GamePad.AxisIndexToConfigName, i - 1)
-                if okN and name == "LTrigger" then li = i elseif okN and name == "RTrigger" then ri = i end
-            end
-        end
-        li, ri = li or 5, ri or 6
-        local l, r = state.axes[li], state.axes[ri]
-        if type(l) ~= "number" or type(r) ~= "number" then return nil end
-        -- (some pads rest at -1)
-        if l < 0 or r < 0 then l, r = (l + 1) / 2, (r + 1) / 2 end
-        return max(0, min(1, l)), max(0, min(1, r))
-    end
+    local TriggerAxes = L.TriggerAxes
     function ed.ToggleRecord()
         if ed.recording then
             rec:Hide()
@@ -1223,6 +1288,7 @@ Shell.AddPage({
     sub = "Haptics lab",
     build = Build, refresh = function() Refresh() end,
     hide = function()
+        if trigWin then trigWin:Hide() end
         L.Halt()
         probe.playing = false
         L.FpsCap(false)

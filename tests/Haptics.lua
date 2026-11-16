@@ -466,4 +466,31 @@ H.Stop()
 L.Run({ { 0, function() end } })
 assert(L.Measured() == nil, "a probe without taps keeps no tap lengths")
 L.Halt()
+-- Trigger test: each squeeze plays the next variation on its side
+ns.Shell.Open("beta"); ns.BetaPage.Select("probes")
+local trigB
+for _, f in ipairs(created) do
+    if type(rawget(f, "label")) == "table" and f.label.text == "Trigger test" and f:IsVisible() then trigB = f end
+end
+assert(trigB, "Trigger test button")
+trigB.scripts.OnClick(trigB)
+local tw = GamepadCompanionTriggerTest
+assert(tw and tw:IsShown() and L.trigger.on and H.hold, "window open, triggers listened to")
+local function tick() now = now + 0.02; for _, f in ipairs(created) do if f ~= H.driver and f.shown and f.scripts.OnUpdate and f.parent == nil then f.scripts.OnUpdate(f, 0.02) end end end
+vib = {}
+axes[5] = 0.9; tick()
+local lt = false
+for _, v in ipairs(vib) do if v[1] == "LTrigger" and v[2] == 1 then lt = true end end
+assert(lt and L.trigger.index[1] == 1, "L2 squeezed: first variation on LTrigger")
+axes[5] = 0; tick()
+axes[5] = 0.9; tick()
+assert(L.trigger.index[1] == 2, "next squeeze: next variation")
+axes[6] = 0.9; tick()
+assert(L.trigger.index[2] == 1, "R2 counts on its own")
+tw.rows[1].marks[1].scripts.OnClick(tw.rows[1].marks[1])
+assert(L.TriggerAnswers("full").L2 == "Trigger", "marked")
+assert(L.Report():find("Trigger, full, 0.5 s=L2 Trigger", 1, true), "in the report")
+tw:Hide()
+assert(not L.trigger.on and not H.hold, "closed: released")
+axes[5], axes[6] = 0, 0
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")

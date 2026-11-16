@@ -261,7 +261,8 @@ L.PROBES = {
     { key = "hold", label = "Hold, sent once", how = "Sent once, then nothing for 3 s", ask = "How long?", answers = { "All 3 s", "Faded", "Nothing" }, steps = {
         { "60%, 3 s", function() return { { 0, both(0.6) }, { 3, stop } } end },
         { "100%, 3 s", function() return { { 0, both(1) }, { 3, stop } } end } } },
-    { key = "rate", label = "Update rate", how = "Left grip switched on and off", ask = "Feels like?", answers = { "Pulses", "Buzz", "Smooth", "Nothing" },
+    { key = "rate2", label = "Update rate", how = "Left grip switched on and off, faster each step", ask = "Feels like?",
+        answers = { "Separate pulses", "Rough buzz", "Steady, no flicker", "Nothing" },
         steps = (function()
             local list = {}
             for _, hz in ipairs({ 5, 10, 20, 30, 45, 60 }) do
@@ -277,11 +278,9 @@ L.PROBES = {
         { "Set to 0", function() return { { 0, both(1) }, { 0.5, both(0) }, { 1, stop } } end },
         { "Stop call", function() return { { 0, both(1) }, { 0.5, stop } } end } } },
     { key = "channels", label = "Each channel", how = "One channel for 1 s. Felt nothing: Nothing", ask = "Where?",
-        answers = { "Left grip", "Right grip", "A trigger", "Nothing" }, steps = {
+        answers = { "Left grip", "Right grip", "Nothing" }, steps = {
         { "Low", function() return { { 0, one("Low", 1) }, { 1, stop } } end },
-        { "High", function() return { { 0, one("High", 1) }, { 1, stop } } end },
-        { "LTrigger", function() return { { 0, one("LTrigger", 1) }, { 1, stop } } end },
-        { "RTrigger", function() return { { 0, one("RTrigger", 1) }, { 1, stop } } end } } },
+        { "High", function() return { { 0, one("High", 1) }, { 1, stop } } end } } },
     { key = "low", label = "Weak levels", how = "One weak level", ask = "Felt?", answers = { "Felt", "Not felt" }, steps = (function()
         local list = {}
         for _, side in ipairs({ "Low", "High" }) do
@@ -392,6 +391,12 @@ function L.Report()
         end
         lines[#lines + 1] = p.label .. ": " .. table.concat(parts, ", ")
     end
+    local parts = {}
+    for _, t in ipairs(L.TRIGGER_TESTS) do
+        local a = L.TriggerAnswers(t.key)
+        parts[#parts + 1] = string.format("%s=L2 %s / R2 %s", t.label, a.L2 or "-", a.R2 or "-")
+    end
+    lines[#lines + 1] = "Trigger test: " .. table.concat(parts, ", ")
     local log = H.DB().probes.log
     if log and #log > 0 then
         lines[#lines + 1] = "Log:"
@@ -437,6 +442,118 @@ ramp:SetScript("OnUpdate", function()
     r.level = r.from + (1 - r.from) * t
     H.Send(r.side == 1 and "Low" or "High", r.level)
     H.Send(r.side == 1 and "High" or "Low", 0)
+end)
+
+---------------------------------------------------------------------------
+-- The triggers: L2 / R2 depth (0-1), and the trigger test: each squeeze of
+-- L2 or R2 plays the next variation on that side, the player marks each
+-- (in the trigger, in the grip, nothing). Answers in probes.triggerTest.
+---------------------------------------------------------------------------
+function L.TriggerAxes()
+    if not (C_GamePad and C_GamePad.GetDeviceMappedState) then return nil end
+    local okId, id = pcall(C_GamePad.GetActiveDeviceID)
+    local ok, state = pcall(C_GamePad.GetDeviceMappedState, okId and id or nil)
+    if not (ok and type(state) == "table" and type(state.axes) == "table") then return nil end
+    local li, ri
+    if C_GamePad.AxisIndexToConfigName then
+        for i = 1, #state.axes do
+            local okN, name = pcall(C_GamePad.AxisIndexToConfigName, i - 1)
+            if okN and name == "LTrigger" then li = i elseif okN and name == "RTrigger" then ri = i end
+        end
+    end
+    li, ri = li or 5, ri or 6
+    local l, r = state.axes[li], state.axes[ri]
+    if type(l) ~= "number" or type(r) ~= "number" then return nil end
+    -- (some pads rest at -1)
+    if l < 0 or r < 0 then l, r = (l + 1) / 2, (r + 1) / 2 end
+    return max(0, min(1, l)), max(0, min(1, r))
+end
+
+-- Each variation: where it plays (trigger, grip, both) and its level t
+-- seconds in (depth: how far the trigger is pressed; nil: done)
+L.TRIGGER_TESTS = {
+    { key = "full", label = "Trigger, full, 0.5 s", on = "trigger", fn = function(t) return t < 0.5 and 1 or nil end },
+    { key = "held", label = "Trigger, while you hold", on = "trigger",
+        fn = function(_, depth, held) return held and max(0.15, depth) or nil end },
+    { key = "tap", label = "Trigger, one tap", on = "trigger", fn = function(t) return t < 0.06 and 1 or nil end },
+    { key = "pulses", label = "Trigger, pulses", on = "trigger",
+        fn = function(t) if t >= 1.25 then return nil end return (t % 0.25) < 0.1 and 1 or 0 end },
+    { key = "soft", label = "Trigger, soft 30%", on = "trigger", fn = function(t) return t < 0.6 and 0.3 or nil end },
+    { key = "grip", label = "Grip only (check)", on = "grip", fn = function(t) return t < 0.3 and 0.6 or nil end },
+    { key = "both", label = "Trigger and grip", on = "both", fn = function(t) return t < 0.5 and 1 or nil end },
+}
+L.TRIGGER_ANSWERS = { "?", "Trigger", "Grip", "Nothing" }
+
+local tt = { on = false, index = { 0, 0 }, down = { false, false }, active = {}, depth = { 0, 0 } }
+L.trigger = tt
+local ttFrame = CreateFrame("Frame")
+ttFrame:Hide()
+
+local CHANNELS = { { trigger = "LTrigger", grip = "Low" }, { trigger = "RTrigger", grip = "High" } }
+
+local function TriggerQuiet()
+    for _, c in ipairs(CHANNELS) do H.Send(c.trigger, 0); H.Send(c.grip, 0) end
+    H.Silence()
+end
+
+function L.TriggerTest(on)
+    if on then
+        L.Halt()
+        if ramp:IsShown() then L.StopRamp() end
+        H.Stop()
+        H.hold = true
+        tt.on, tt.index, tt.down, tt.active = true, { 0, 0 }, { false, false }, {}
+        ttFrame:Show()
+    else
+        ttFrame:Hide()
+        tt.on, tt.active = false, {}
+        TriggerQuiet()
+        Release()
+    end
+end
+
+function L.TriggerAnswer(key, side, answer)
+    local db = H.DB().probes
+    db.triggerTest = db.triggerTest or {}
+    db.triggerTest[key] = db.triggerTest[key] or {}
+    db.triggerTest[key][side == 1 and "L2" or "R2"] = answer
+end
+
+function L.TriggerAnswers(key)
+    local db = H.DB().probes
+    return db.triggerTest and db.triggerTest[key] or {}
+end
+
+ttFrame:SetScript("OnUpdate", function()
+    local l, r = L.TriggerAxes()
+    if not l then tt.noAxes = true; return end
+    tt.noAxes = false
+    tt.depth[1], tt.depth[2] = l, r
+    local now = Now()
+    for side = 1, 2 do
+        local depth = tt.depth[side]
+        local held = depth > 0.15
+        -- A new squeeze: the next variation on this side
+        if not tt.down[side] and depth > 0.5 then
+            tt.down[side] = true
+            tt.index[side] = tt.index[side] % #L.TRIGGER_TESTS + 1
+            tt.active[side] = { test = L.TRIGGER_TESTS[tt.index[side]], start = now }
+            if L.onTrigger then L.onTrigger(side, tt.index[side]) end
+        elseif tt.down[side] and depth < 0.2 then
+            tt.down[side] = false
+        end
+        local a = tt.active[side]
+        local c = CHANNELS[side]
+        if a then
+            local v = a.test.fn(now - a.start, depth, held and tt.down[side])
+            local on = a.test.on
+            local trig = (on == "trigger" or on == "both") and (v or 0) or 0
+            local grip = (on == "grip" or on == "both") and (v or 0) or 0
+            H.Send(c.trigger, trig)
+            H.Send(c.grip, grip)
+            if v == nil then tt.active[side] = nil end
+        end
+    end
 end)
 
 ---------------------------------------------------------------------------
