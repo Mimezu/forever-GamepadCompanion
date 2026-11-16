@@ -1294,9 +1294,9 @@ local function BuildHelper(p)
         C.Refresh()
         Refresh()
     end, 90)
-    S.Tooltip(on, "Link on", "A few pixels top left, read by the helper")
-    S.Note(link, 12, -72, 306, 4, 11, GREY):SetText("Run helper\\gpc_helper.py --run (Python 3.12)\n"
-        .. "Game windowed or borderless\nUSB for haptics and sounds")
+    S.Tooltip(on, "Link on", "A few pixels bottom left, read by WoW Helper")
+    S.Note(link, 12, -72, 306, 4, 11, GREY):SetText("Run WowHelper.exe" .. string.char(10) .. "Game windowed or borderless"
+        .. string.char(10) .. "Bluetooth: triggers, haptics")
     Stepper(link, "Cell size", 12, -140, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
         format = function(v) return v .. " px" end,
         get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })

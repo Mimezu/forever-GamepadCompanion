@@ -146,7 +146,7 @@ assert(K.frame.shown, "shown while on")
 -- pixel-exact size: 4 physical px at 1440p = 4 * 768 / 1440 units
 local unit = 4 * 768 / 1440
 assert(math.abs(K.frame.width - unit * 18) < 1e-9 and math.abs(K.frame.height - unit) < 1e-9, "strip size")
-assert(K.frame.points[1][1] == "TOPLEFT" and K.frame.points[1][4] == 0 and K.frame.points[1][5] == 0, "top-left")
+assert(K.frame.points[1][1] == "BOTTOMLEFT" and K.frame.points[1][4] == 0 and K.frame.points[1][5] == 0, "bottom-left")
 -- the cell textures got their colours: the first is magenta
 local tex1
 for _, f in ipairs(created) do if f.kind == "Texture" and f.parent == K.frame then tex1 = tex1 or f end end

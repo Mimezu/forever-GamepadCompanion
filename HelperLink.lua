@@ -1,5 +1,5 @@
--- HelperLink: signals the outside helper (helper/gpc_helper.py) through a strip
--- of coloured cells at the screen's top-left corner. Addons can't use files,
+-- HelperLink: signals the outside helper (WowHelper.exe, C:\games\WowHelper) through a
+-- strip of coloured cells at the screen's bottom-left corner. Addons can't use files,
 -- the network or processes live, so the helper reads these pixels and drives
 -- the DualSense's adaptive triggers and true haptics (USB audio channels 3-4).
 -- docs/HELPER.md is the protocol, the single source of truth.
@@ -253,11 +253,11 @@ function K.Layout()
     if not frame then return end
     local unit = PixelUnit() * K.CellSize()
     frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", nil, "TOPLEFT", 0, 0)
+    frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
     frame:SetSize(unit * K.CELLS, unit)
     for i, tex in ipairs(textures) do
         tex:ClearAllPoints()
-        tex:SetPoint("TOPLEFT", frame, "TOPLEFT", (i - 1) * unit, 0)
+        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
         tex:SetSize(unit, unit)
     end
 end

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.2 — 2026-11-16
+
+- Helper link: the strip in the bottom-left corner; the helper is now WowHelper.exe (C:\games\WowHelper); the Helper page says so
+
 ## 0.22.1 — 2026-11-16
 
 - The battery is now the minimap icon: the controller's charge drawn in it (green to red, critical blinking, wired in blue); click opens the window, drag moves it round the minimap; its tooltip names the level. The separate gauge is gone

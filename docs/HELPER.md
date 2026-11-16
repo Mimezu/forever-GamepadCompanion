@@ -12,15 +12,17 @@ Background: `ADAPTIVE-TRIGGERS.md`, `HAPTICS.md` section 5.
 
 ## The strip
 
-- 18 cells in one row at the very top-left of the screen (the game window's client area).
+- 18 cells in one row at the very bottom-left of the screen (the game window's client area).
+  The helper is WowHelper.exe (C:\games\WowHelper, Rust); the Python helper in `helper\` was the
+  first version.
 - Each cell is a solid square of **S physical pixels** (S = 4 by default, 1-16; saved as
   `GamepadCompanionHapticsDB.link.cell`). The addon sizes it from `GetPhysicalScreenSize()` and the
   frame's effective scale: one pixel = `(768 / physical height) / effective scale` UI units.
 - Frame: parent nil (shown with the UI hidden), strata `TOOLTIP`, shown only while the link is on.
 - Each colour channel is on or off: **>= 160 on, <= 96 off**, anything between is invalid (the
   whole frame is dropped). So 3 bits per cell (R, G, B), and gamma or brightness don't matter.
-- Cell 0 = magenta (1,0,1) and cell 1 = green (0,1,0) are markers. The helper scans a small area
-  (320 x 40 px) for the magenta block's top-left corner, takes its width as S, checks the green
+- Cell 0 = magenta (1,0,1) and cell 1 = green (0,1,0) are markers. The helper scans 320 x 40 px in
+  the bottom-left corner first, then the top-left, for the magenta block's top-left corner, takes its width as S, checks the green
   cell, and samples every cell's centre (`x + i*S + S/2`, `y + S/2`).
 
 ## The 48 data bits (cells 2-17)
