@@ -194,56 +194,150 @@ local function TextWindow(title, text, onAccept, acceptLabel)
     textWin.box:HighlightText()
 end
 
--- A grid of feels to pick from
-local picker
-local function PickFeel(anchor, current, onPick)
-    if not picker then
-        picker = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
-        picker:SetFrameStrata("DIALOG")
-        picker:SetToplevel(true)
-        picker:EnableMouse(true)
-        S.Panel(picker)
-        picker.tiles = {}
-        picker:Hide()
+-- A grid of choices next to a control (the Rumble tab's pattern grid):
+-- entries { key, label, icon or rgb (a colour swatch) }
+local popup
+local function Popup(anchor, title, entries, current, onPick, cols, tw)
+    if not popup then
+        popup = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
+        popup:SetFrameStrata("DIALOG")
+        popup:SetToplevel(true)
+        popup:EnableMouse(true)
+        S.Panel(popup)
+        popup.title = S.Text(popup, "", 14, -12, 600, 13, YELLOW)
+        popup.tiles = {}
+        popup:Hide()
         UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaFeels"
     end
-    if picker:IsShown() and picker.anchor == anchor then return picker:Hide() end
-    picker.anchor = anchor
-    local feels = H.AllFeels()
-    local cols, tw, th = 8, 104, 26
-    for _, t in ipairs(picker.tiles) do t:Hide() end
-    for i, f in ipairs(feels) do
-        local t = picker.tiles[i]
+    if popup:IsShown() and popup.anchor == anchor then return popup:Hide() end
+    popup.anchor = anchor
+    cols, tw = cols or 8, tw or 112
+    local th = 28
+    popup.title:SetText(title or "")
+    for _, t in ipairs(popup.tiles) do t:Hide() end
+    for i, e in ipairs(entries) do
+        local t = popup.tiles[i]
         if not t then
-            t = S.NewButton(picker, "", 0, 0, tw, nil, nil, 10, th)
+            t = S.NewButton(popup, "", 0, 0, tw, nil, nil, 11, th)
             t.icon = t:CreateTexture(nil, "OVERLAY")
-            t.icon:SetSize(18, 18)
-            t.icon:SetPoint("LEFT", 4, 0)
+            t.icon:SetSize(20, 20)
+            t.icon:SetPoint("LEFT", 5, 0)
             t.label:ClearAllPoints()
-            t.label:SetPoint("LEFT", 24, 0)
+            t.label:SetPoint("LEFT", 30, 0)
             t.label:SetPoint("RIGHT", -3, 0)
             t.label:SetJustifyH("LEFT")
-            picker.tiles[i] = t
+            popup.tiles[i] = t
         end
+        t:SetWidth(tw)
         local col, row = (i - 1) % cols, floor((i - 1) / cols)
         t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -12 - row * (th + 3))
-        t.label:SetText(f.label or f.key)
-        t.icon:SetTexture(f.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
-        S.SetSelected(t, f.key == current)
+        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -36 - row * (th + 3))
+        t.label:SetText(e.label or e.key)
+        if e.rgb then
+            t.icon:SetTexture(nil)
+            t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
+        else
+            t.icon:SetTexture(e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
+        end
+        if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
+        S.SetSelected(t, e.key == current)
         t:SetScript("OnClick", function()
-            picker:Hide()
-            onPick(f.key)
+            popup:Hide()
+            onPick(e.key)
         end)
         t:Show()
     end
-    local rows = math.ceil(#feels / cols)
-    picker:SetSize(24 + cols * (tw + 3), 24 + rows * (th + 3))
-    picker:ClearAllPoints()
-    picker:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
-    picker:SetClampedToScreen(true)
-    picker:Show()
-    picker:Raise()
+    local rows = math.ceil(#entries / cols)
+    popup:SetSize(24 + cols * (tw + 3), 48 + rows * (th + 3))
+    popup.title:SetWidth(cols * (tw + 3))
+    popup:ClearAllPoints()
+    popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
+    popup:SetClampedToScreen(true)
+    popup:Show()
+    popup:Raise()
+end
+
+-- The feels to pick from (Off first, for an event)
+local function PickFeel(anchor, current, onPick, withOff, title)
+    local entries = {}
+    if withOff then entries[1] = { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } end
+    for _, f in ipairs(H.AllFeels()) do entries[#entries + 1] = { key = f.key, label = f.label or f.key, icon = f.icon } end
+    Popup(anchor, title or "Feels", entries, current, onPick, 8, 112)
+end
+
+-- A Rumble-tab row: icon, name, a second line, a plate showing the choice
+-- (opens its grid) and Try
+local ROW_H = 44
+local function ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip)
+    local r = CreateFrame("Frame", nil, parent)
+    r:SetPoint("TOPLEFT", 10, y)
+    r:SetSize(width - 20, ROW_H - 4)
+    local wash = r:CreateTexture(nil, "BACKGROUND")
+    wash:SetAllPoints()
+    wash:SetColorTexture(1, 0.85, 0.55, 0.04)
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetSize(30, 30)
+    r.icon:SetPoint("LEFT", 2, 0)
+    if icon then r.icon:SetTexture(icon) end
+    r.label = S.Text(r, label, 40, -4, width - 230, 13, GOLD)
+    r.label:SetWordWrap(false)
+    r.sub = S.Text(r, "", 40, -22, width - 230, 11, GREY)
+    r.sub:SetWordWrap(false)
+    r.pick = S.NewButton(r, "", width - 20 - 156, -5, 120, nil, nil, 11, 30)
+    r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
+    r.pick.icon:SetSize(20, 20)
+    r.pick.icon:SetPoint("LEFT", 6, 0)
+    r.pick.label:ClearAllPoints()
+    r.pick.label:SetPoint("LEFT", 30, 0)
+    r.pick.label:SetPoint("RIGHT", -6, 0)
+    r.pick.label:SetJustifyH("LEFT")
+    r.pick:SetScript("OnClick", function(self) onPick(self) end)
+    if tip then S.Tooltip(r.pick, label, tip) end
+    r.try = S.NewButton(r, "Try", width - 20 - 32, -5, 32, function() onTry() end, nil, 11, 30)
+    S.Tooltip(r.try, "Try", label)
+    -- off: dimmed, the plate's name in red
+    function r:SetChoice(name, icon2, sub, off, rgb)
+        r.pick.label:SetText(name or "")
+        if rgb then
+            r.pick.icon:SetTexture(nil)
+            r.pick.icon:SetColorTexture(rgb[1], rgb[2], rgb[3], 1)
+        else
+            r.pick.icon:SetTexture(icon2)
+        end
+        r.sub:SetText(sub or "")
+        if off then r.pick.label:SetTextColor(RED[1], RED[2], RED[3]) else r.pick.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
+        r.icon:SetDesaturated(off == true)
+        r.label:SetAlpha(off and 0.6 or 1)
+    end
+    return r
+end
+
+-- Groups down the left, one shown at a time on the right
+local function GroupBrowser(p, groups, width)
+    local left = S.Card(p, nil, 0, 0, 200, PH - 40)
+    local b = { buttons = {}, panels = {}, current = nil }
+    for i, g in ipairs(groups) do
+        local btn = S.NewButton(left, g.label, 10, -12 - (i - 1) * 36, 180, function() b.Select(g.key) end, nil, 13, 32)
+        btn.label:SetJustifyH("LEFT")
+        btn.count = S.Text(btn, "", 0, 0, 60, 11, GREY)
+        btn.count:ClearAllPoints()
+        btn.count:SetPoint("RIGHT", -8, 0)
+        btn.count:SetJustifyH("RIGHT")
+        b.buttons[g.key] = btn
+        local panel = CreateFrame("Frame", nil, p)
+        panel:SetPoint("TOPLEFT", 210, 0)
+        panel:SetSize(width or (W - 210), PH - 40)
+        panel:Hide()
+        b.panels[g.key] = panel
+    end
+    b.left = left
+    function b.Select(key)
+        b.current = key
+        for k, panel in pairs(b.panels) do panel:SetShown(k == key) end
+        for k, btn in pairs(b.buttons) do S.SetSelected(btn, k == key) end
+    end
+    b.Select(groups[1].key)
+    return b
 end
 
 local function Play(key, loop)
@@ -452,100 +546,6 @@ local function BuildProbes(p)
         local facts = L.Facts()
         for i, f in ipairs(probe.facts) do f:SetText(facts[i] and (facts[i][1] .. ":  " .. facts[i][2]) or "") end
     end
-end
-
----------------------------------------------------------------------------
--- Calibrate
----------------------------------------------------------------------------
-local calib = {}
-
-local function BuildCalibrate(p)
-    local db = function() return H.DB() end
-    for side = 1, 2 do
-        local x = (side - 1) * 370
-        local card = S.Card(p, side == 1 and "Left grip" or "Right grip", x, 0, 360, PH - 40)
-        local c = { side = side }
-        calib[side] = c
-        Stepper(card, "Floor", 14, -44, { get = function() return db().floor[side] end,
-            set = function(v) db().floor[side] = min(v, db().ceil[side] - 0.05) end, step = 0.01, min = 0, max = 0.9 })
-        Stepper(card, "Ceiling", 14, -74, { get = function() return db().ceil[side] end,
-            set = function(v) db().ceil[side] = max(v, db().floor[side] + 0.05) end, step = 0.01, min = 0.1, max = 1 })
-        Stepper(card, "Curve", 14, -104, { get = function() return db().gamma[side] end,
-            set = function(v) db().gamma[side] = v end, step = 0.05, min = 0.3, max = 3 })
-        c.find = S.NewButton(card, "Find floor", 14, -144, 160, function()
-            if L.Ramping() and calib.active == c and calib.mode == "floor" then
-                db().floor[side] = floor(L.StopRamp() * 100 + 0.5) / 100
-                if db().ceil[side] <= db().floor[side] then db().ceil[side] = 1 end
-                calib.active = nil
-                Say("Floor: " .. db().floor[side])
-            else
-                calib.active, calib.mode = c, "floor"
-                L.StartRamp(side, 0, 8)
-                Say("Rising: Felt it as soon as you feel it")
-            end
-            Refresh()
-        end, nil, 13, 32)
-        c.ceil = S.NewButton(card, "Find ceiling", 182, -144, 160, function()
-            if L.Ramping() and calib.active == c and calib.mode == "ceil" then
-                db().ceil[side] = max(db().floor[side] + 0.05, floor(L.StopRamp() * 100 + 0.5) / 100)
-                calib.active = nil
-                Say("Ceiling: " .. db().ceil[side])
-            else
-                calib.active, calib.mode = c, "ceil"
-                L.StartRamp(side, db().floor[side], 6)
-                Say("Rising: No stronger when it stops growing")
-            end
-            Refresh()
-        end, nil, 13, 32)
-        S.NewButton(card, "Test steps", 14, -184, 160, function()
-            H.Stop()
-            local keys = {}
-            for i = 0, 9 do keys[#keys + 1] = { i * 0.3, (i + 1) / 10, "hold" } end
-            keys[#keys + 1] = { 3, 0 }
-            local zero = { { 0, 0 }, { 3, 0 } }
-            H.Play({ keys = side == 1 and { left = keys, right = zero } or { left = zero, right = keys } }, { voice = "beta" })
-            Say("10% to 100%: each step stronger?")
-        end, nil, 13, 32)
-        S.NewButton(card, "Reset", 182, -184, 160, function()
-            db().floor[side], db().ceil[side], db().gamma[side] = H.DEFAULTS.floor[side], 1, 1
-            Refresh()
-        end, nil, 13, 32)
-        c.graph = Graph(card, 14, -236, 330, 150, 66)
-        S.Text(card, "Sent for 0 to 100%", 14, -392, 200, 11, DIM)
-        c.level = S.Text(card, "", 14, -420, 330, 14, YELLOW)
-    end
-    L.onRampEnd = function() calib.active = nil; Refresh() end
-    -- Live level while ramping
-    local tick = CreateFrame("Frame", nil, p)
-    tick:SetScript("OnUpdate", function()
-        for side = 1, 2 do
-            local c = calib[side]
-            if L.Ramping() and L.ramp.side == side then
-                c.level:SetText(string.format("Sending %.0f%%", L.ramp.level * 100))
-            else
-                c.level:SetText("")
-            end
-        end
-    end)
-    ui.refresh[#ui.refresh + 1] = function()
-        for side = 1, 2 do
-            local c = calib[side]
-            local active = calib.active == c and L.Ramping()
-            c.find.label:SetText(active and calib.mode == "floor" and "Felt it" or "Find floor")
-            c.ceil.label:SetText(active and calib.mode == "ceil" and "No stronger" or "Find ceiling")
-            S.SetSelected(c.find, active and calib.mode == "floor")
-            S.SetSelected(c.ceil, active and calib.mode == "ceil")
-            c.graph:Draw(function(i)
-                local v = H.Calibrated(side, (i - 1) / (c.graph.columns - 1))
-                if side == 1 then return v, 0 end
-                return 0, v
-            end)
-        end
-    end
-    local info = S.Card(p, "How", 740, 0, W - 740, PH - 40)
-    local lines = { "Find floor: press when first felt", "Find ceiling: press when it stops growing",
-        "Curve: below 1 lifts soft levels", "Test steps: ten even steps", "Used by the Beta engine only" }
-    for i, t in ipairs(lines) do S.Text(info, t, 14, -44 - (i - 1) * 22, W - 770, 12, GREY) end
 end
 
 ---------------------------------------------------------------------------
@@ -1206,88 +1206,110 @@ local function BuildEditor(p)
 end
 
 ---------------------------------------------------------------------------
--- Events
+-- Events: a group at a time, each event a row as on the Rumble tab
 ---------------------------------------------------------------------------
+local function FeelName(key)
+    local f = H.Feel(key)
+    return f and (f.label or f.key) or "?", f and f.icon
+end
+
 local function BuildEvents(p)
-    local cols = { { "Combat", "Resources" }, { "Moving", "World" }, { "Social", "Living" } }
-    local colW = (W - 20) / 3
+    local groups = {}
+    for _, g in ipairs(L.EVENT_GROUPS) do groups[#groups + 1] = { key = g, label = g } end
+    groups[#groups + 1] = { key = "steps", label = "Steps and landing" }
+    local b = GroupBrowser(p, groups)
     local rows = {}
-    for ci, groups in ipairs(cols) do
-        local y = 0
-        for _, g in ipairs(groups) do
-            local events = {}
-            for _, e in ipairs(L.EVENTS) do if e.group == g then events[#events + 1] = e end end
-            local height = 40 + #events * 30
-            local card = S.Card(p, g, (ci - 1) * (colW + 10), -y, colW, height)
-            for i, e in ipairs(events) do
-                local ry = -36 - (i - 1) * 30
-                local check = S.NewCheck(card, e.label, 8, ry, function(self)
-                    L.EventSettings(e.key).on = self:GetChecked() == true
+    for _, g in ipairs(L.EVENT_GROUPS) do
+        local list = {}
+        for _, e in ipairs(L.EVENTS) do if e.group == g then list[#list + 1] = e end end
+        local panel = b.panels[g]
+        local card = S.Card(panel, g, 0, 0, W - 210, 44 + #list * ROW_H)
+        for i, e in ipairs(list) do
+            local row
+            row = ChoiceRow(card, -38 - (i - 1) * ROW_H, W - 210, e.icon, e.label, function(anchor)
+                local s = L.EventSettings(e.key)
+                PickFeel(anchor, s.on and s.feel or "off", function(key)
+                    if key == "off" then s.on = false else s.on, s.feel = true, key; L.Try(e.key) end
                     Refresh()
-                end, 140)
-                local pick = S.NewButton(card, "", colW - 162, ry, 110, nil, nil, 11, 26)
-                pick:SetScript("OnClick", function(self)
-                    PickFeel(self, L.EventSettings(e.key).feel, function(key)
-                        L.EventSettings(e.key).feel = key
-                        L.Try(e.key)
-                        Refresh()
-                    end)
-                end)
-                local try = S.NewButton(card, "Try", colW - 48, ry, 40, function() L.Try(e.key) end, nil, 11, 26)
-                rows[#rows + 1] = { e = e, check = check, pick = pick, try = try }
-            end
-            y = y + height + 10
+                end, true, e.label)
+            end, function() L.Try(e.key) end, e.tip)
+            row.e = e
+            rows[#rows + 1] = row
         end
     end
-    -- Footsteps sync, under Social and Living
-    local fx = 2 * (colW + 10)
-    local fy = -(2 * 40 + 6 * 30 + 20)
-    local sync = S.Card(p, "Steps and landing", fx, fy, colW, 280)
+
+    -- Steps and landing: the footsteps sync and the landing's range
+    local sp = b.panels.steps
+    local sync = S.Card(sp, "Footsteps", 0, 0, 440, 300)
     local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
     for i, g in ipairs(gaits) do
-        local y = -38 - (i - 1) * 32
-        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 100, function()
+        local y = -40 - (i - 1) * 34
+        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 110, function()
             if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
             Refresh()
         end, nil, 12, 28)
-        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), g[1] == "walk" and "Walk on, move, squeeze R2 on each footfall"
-            or "Run, squeeze R2 on each footfall")
-        g.text = S.Text(sync, "", 122, y - 8, colW - 134, 11, GREY)
+        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), "Squeeze R2 on each footfall")
+        g.text = S.Text(sync, "", 132, y - 8, 296, 11, GREY)
     end
-    local status = S.Note(sync, 12, -100, colW - 24, 1, 11, GOLD)
-    local function Row(label, y, opts)
-        opts.labelWidth, opts.width = 110, colW - 24
-        return Stepper(sync, label, 12, y, opts)
+    local status = S.Note(sync, 12, -112, 416, 1, 11, GOLD)
+    local function Row(card, label, y, opts)
+        opts.labelWidth, opts.width = 130, 416
+        return Stepper(card, label, 12, y, opts)
     end
     local function rateRow(label, y, band)
-        Row(label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
+        Row(sync, label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
             get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
     end
-    rateRow("Run steps", -116, "run")
-    rateRow("Walk steps", -140, "walk")
-    Row("Nudge", -164, { step = 0.01, min = -0.5, max = 0.5,
+    rateRow("Run steps", -136, "run")
+    rateRow("Walk steps", -164, "walk")
+    Row(sync, "Nudge", -192, { step = 0.01, min = -0.5, max = 0.5,
         format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
         get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
-    Row("Landing soft at", -188, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
+    S.Note(sync, 12, -228, 416, 3, 11, DIM):SetText("Sync: stand still, start moving, squeeze R2 on each footfall")
+
+    local land = S.Card(sp, "Landing", 450, 0, W - 210 - 450, 300)
+    local lw = W - 210 - 450
+    local function LRow(label, y, opts)
+        opts.labelWidth, opts.width = 130, lw - 24
+        return Stepper(land, label, 12, y, opts)
+    end
+    LRow("Soft at", -40, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
         get = function() return H.DB().landMin or L.LAND_MIN end,
         set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
-    Row("Landing full at", -212, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
+    LRow("Full at", -68, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
         get = function() return H.DB().landMax or L.LAND_MAX end,
         set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
-    Row("Landing longest", -236, { step = 0.05, min = 0.1, max = 1.5, format = function(v) return string.format("%.2f s", v) end,
+    LRow("Longest", -96, { step = 0.05, min = 0.1, max = 1.5, format = function(v) return string.format("%.2f s", v) end,
         get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
-    local landed = S.Text(sync, "No landing yet", 12, -262, colW - 24, 11, GREY)
+    local landed = S.Note(land, 12, -136, lw - 24, 3, 12, GREY)
+    landed:SetText("No landing yet")
     L.onSync = function(text) status:SetText(text) end
     L.onLand = function(t, k, sent)
-        local text = string.format("Last landing: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
+        local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
         if sent then
-            text = text .. string.format(" · sent %d%% for %.2f s", floor(sent.peak * 100 + 0.5),
-                max(0, sent.last - sent.start))
+            text = text .. string.format("\nSent %d%% for %.2f s", floor(sent.peak * 100 + 0.5), max(0, sent.last - sent.start))
             if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
         end
         landed:SetText(text)
     end
+
     ui.refresh[#ui.refresh + 1] = function()
+        local onCount = {}
+        for _, row in ipairs(rows) do
+            local s = L.EventSettings(row.e.key)
+            local name, icon = FeelName(s.feel)
+            if s.on then
+                row:SetChoice(name, icon, row.e.live and "While it lasts" or nil, false)
+                onCount[row.e.group] = (onCount[row.e.group] or 0) + 1
+            else
+                row:SetChoice("Off", ns.Rumble and ns.Rumble.OFF_ICON, nil, true)
+            end
+        end
+        for _, g in ipairs(L.EVENT_GROUPS) do
+            local n = 0
+            for _, e in ipairs(L.EVENTS) do if e.group == g then n = n + 1 end end
+            b.buttons[g].count:SetText((onCount[g] or 0) .. "/" .. n)
+        end
         for _, g in ipairs(gaits) do
             local cal = L.StepCal(g[1])
             g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")
@@ -1296,85 +1318,192 @@ local function BuildEvents(p)
             S.SetSelected(buttons[g[1]], busy and true or false)
         end
     end
-
-    local flash = {}
-    L.onFire = function(key) flash[key] = Now() end
-    ui.refresh[#ui.refresh + 1] = function()
-        for _, r in ipairs(rows) do
-            local s = L.EventSettings(r.e.key)
-            r.check:SetChecked(s.on)
-            local f = H.Feel(s.feel)
-            r.pick.label:SetText(f and (f.label or f.key) or "?")
-            r.pick:SetAlpha(s.on and 1 or 0.5)
-        end
-    end
 end
 
 ---------------------------------------------------------------------------
--- Light
+-- Light: the base colour on the left, the light events by group
 ---------------------------------------------------------------------------
 local function BuildLight(p)
-    local card = S.Card(p, "Light bar", 0, 0, 420, PH - 40)
-    local master = S.NewCheck(card, "Light bar on", 12, -40, function(self)
-        H.DB().light = self:GetChecked() == true
-        H.LightStop()
-        L.ApplyBaseLight()
+    local LT = ns.Lights
+    local base = S.Card(p, "Light bar", 0, 0, 330, PH - 40)
+    local master = S.NewCheck(base, "On", 12, -38, function(self)
+        LT.SetOn(self:GetChecked() == true)
         Refresh()
-    end, 140)
-    local rows = {}
-    for i, l in ipairs(L.LIGHTS) do
-        local c = S.NewCheck(card, l.label, 12, -80 - (i - 1) * 30, function(self)
-            H.DB().lights[l.key] = self:GetChecked() == true
-            if l.key == "class" then L.ApplyBaseLight() end
-            Refresh()
-        end, 180)
-        rows[#rows + 1] = { l = l, check = c }
+    end, 60)
+    S.Tooltip(master, "Light bar", "Off: the game's own colour")
+    -- what the bar shows now
+    local swatch = base:CreateTexture(nil, "ARTWORK")
+    swatch:SetPoint("TOPRIGHT", -14, -38)
+    swatch:SetSize(90, 26)
+    local swatchRim = base:CreateTexture(nil, "BORDER")
+    swatchRim:SetPoint("TOPLEFT", swatch, "TOPLEFT", -1, 1)
+    swatchRim:SetPoint("BOTTOMRIGHT", swatch, "BOTTOMRIGHT", 1, -1)
+    swatchRim:SetColorTexture(0.68, 0.5, 0.26, 0.8)
+    S.Text(base, "Now", 330 - 150, -44, 40, 11, DIM)
+    local tick = CreateFrame("Frame", nil, base)
+    tick:SetScript("OnUpdate", function()
+        local r, g, bb, on = H.LedNow()
+        if on then swatch:SetColorTexture(r, g, bb, 1) else swatch:SetColorTexture(0.08, 0.08, 0.08, 1) end
+    end)
+    S.Heading(base, "Base colour", 10, -78, 308)
+    Choice(base, "", -100, -96, LT.BASE_MODES, function() return LT.Base().mode end, function(v)
+        LT.Base().mode = v
+        LT.ApplyBase()
+    end, 64)
+    -- the palette
+    local swatches = {}
+    local n = 0
+    for _, c in ipairs(LT.PALETTE) do
+        if c.rgb then
+            n = n + 1
+            local col, row = (n - 1) % 5, floor((n - 1) / 5)
+            local sw = CreateFrame("Button", nil, base)
+            sw:SetSize(52, 26)
+            sw:SetPoint("TOPLEFT", 14 + col * 60, -134 - row * 34)
+            sw.tex = sw:CreateTexture(nil, "ARTWORK")
+            sw.tex:SetPoint("TOPLEFT", 3, -3)
+            sw.tex:SetPoint("BOTTOMRIGHT", -3, 3)
+            sw.tex:SetColorTexture(c.rgb[1], c.rgb[2], c.rgb[3], 1)
+            sw.sel = sw:CreateTexture(nil, "BACKGROUND")
+            sw.sel:SetAllPoints()
+            sw.sel:SetColorTexture(1, 0.82, 0, 1)
+            sw:SetScript("OnClick", function()
+                local b = LT.Base()
+                b.mode, b.color = "color", c.key
+                LT.ApplyBase()
+                Refresh()
+            end)
+            sw:SetScript("OnEnter", S.ShowTooltip)
+            sw:SetScript("OnLeave", S.HideTooltip)
+            S.Tooltip(sw, c.label)
+            sw.key = c.key
+            swatches[#swatches + 1] = sw
+        end
     end
-    local test = S.Card(p, "Try colours", 430, 0, 360, PH - 40)
-    local colors = { { "Red", 1, 0, 0 }, { "Green", 0, 1, 0 }, { "Blue", 0, 0, 1 }, { "Gold", 1, 0.8, 0.2 },
-        { "Fire", 1, 0.35, 0 }, { "Frost", 0.3, 0.6, 1 }, { "Shadow", 0.5, 0, 0.8 }, { "White", 1, 1, 1 } }
-    for i, c in ipairs(colors) do
-        local col, row = (i - 1) % 2, floor((i - 1) / 2)
-        S.NewButton(test, c[1], 12 + col * 170, -40 - row * 36, 160, function()
-            H.Flash("test", c[2], c[3], c[4], 1.5, 9)
-        end, nil, 12, 30)
+    local function BRow(label, y, opts)
+        opts.labelWidth, opts.width = 110, 306
+        return Stepper(base, label, 12, y, opts)
     end
-    S.NewButton(test, "Pulse", 12, -200, 160, function()
-        H.Light("test", function(now, v)
-            local t = now - v.start
-            if t > 4 then return nil end
-            local k = 0.5 + 0.5 * math.sin(t * 2 * math.pi * 1.4)
-            return k, 0, 0
-        end, 9)
+    BRow("Brightness", -214, { step = 0.05, min = 0.05, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
+        get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
+    BRow("Breathe", -242, { list = { { false, "No" }, { true, "Yes" } },
+        get = function() return LT.Base().breathe end, set = function(v) LT.Base().breathe = v; LT.ApplyBase() end })
+    S.Heading(base, "Try", 10, -282, 308)
+    S.NewButton(base, "A cast", 12, -306, 146, function() LT.Try("cast") end, nil, 12, 30)
+    S.NewButton(base, "A crit", 166, -306, 146, function() LT.Try("crit") end, nil, 12, 30)
+    S.NewButton(base, "Level up", 12, -342, 146, function() LT.Try("levelUp") end, nil, 12, 30)
+    S.NewButton(base, "Low health", 166, -342, 146, function() LT.Try("lowHp") end, nil, 12, 30)
+    S.NewButton(base, "Stop", 12, -378, 300, function()
+        H.LightStop()
+        LT.ApplyBase()
     end, nil, 12, 30)
-    S.NewButton(test, "Rainbow", 182, -200, 160, function()
-        H.Light("test", function(now, v)
-            local t = now - v.start
-            if t > 4 then return nil end
-            local h = (t / 2) % 1 * 6
-            local x = 1 - math.abs(h % 2 - 1)
-            local seg = floor(h)
-            local rgb = ({ { 1, x, 0 }, { x, 1, 0 }, { 0, 1, x }, { 0, x, 1 }, { x, 0, 1 }, { 1, 0, x } })[seg + 1]
-            return rgb[1], rgb[2], rgb[3]
-        end, 9)
-    end, nil, 12, 30)
-    S.NewButton(test, "Clear", 12, -240, 330, function() H.LightStop(); H.LedClear(); L.ApplyBaseLight() end, nil, 12, 30)
+
+    -- the events, a group at a time
+    local area = CreateFrame("Frame", nil, p)
+    area:SetPoint("TOPLEFT", 340, 0)
+    area:SetSize(W - 340, PH - 40)
+    local tabs, panels, rows = {}, {}, {}
+    local current = LT.GROUPS[1]
+    local function Select(g)
+        current = g
+        for k, panel in pairs(panels) do panel:SetShown(k == g) end
+        for k, t in pairs(tabs) do S.SetSelected(t, k == g) end
+    end
+    local aw = W - 340
+    for i, g in ipairs(LT.GROUPS) do
+        tabs[g] = S.NewButton(area, g, (i - 1) * 124, 0, 120, function() Select(g) end, nil, 12, 28)
+        local list = {}
+        for _, e in ipairs(LT.EVENTS) do if e.group == g then list[#list + 1] = e end end
+        local panel = S.Card(area, nil, 0, -36, aw, 40 + #list * ROW_H)
+        panels[g] = panel
+        for j, e in ipairs(list) do
+            local y = -12 - (j - 1) * ROW_H
+            local r = CreateFrame("Frame", nil, panel)
+            r:SetPoint("TOPLEFT", 10, y)
+            r:SetSize(aw - 20, ROW_H - 4)
+            local wash = r:CreateTexture(nil, "BACKGROUND")
+            wash:SetAllPoints()
+            wash:SetColorTexture(1, 0.85, 0.55, 0.04)
+            r.dot = r:CreateTexture(nil, "ARTWORK")
+            r.dot:SetSize(26, 26)
+            r.dot:SetPoint("LEFT", 4, 0)
+            r.label = S.Text(r, e.label, 40, -4, 200, 13, GOLD)
+            r.label:SetWordWrap(false)
+            r.sub = S.Text(r, "", 40, -22, 200, 11, GREY)
+            r.sub:SetWordWrap(false)
+            -- effect (with Off), colour, strength, Try
+            r.effect = S.NewButton(r, "", 248, -5, 124, function(self)
+                local entries = { { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } }
+                for _, ef in ipairs(LT.EFFECTS) do
+                    entries[#entries + 1] = { key = ef.key, label = ef.label .. (ef.state and " ·" or ""),
+                        icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_" .. (ef.state and "pulse" or "tick") }
+                end
+                local s = LT.Settings(e.key)
+                Popup(self, e.label, entries, s.on and s.effect or "off", function(key)
+                    if key == "off" then s.on = false else s.on, s.effect = true, key; LT.Try(e.key) end
+                    Refresh()
+                end, 2, 150)
+            end, nil, 11, 30)
+            S.Tooltip(r.effect, "Effect", "· lasts while it does")
+            r.color = S.NewButton(r, "", 378, -5, 124, function(self)
+                local entries = {}
+                for _, c in ipairs(LT.PALETTE) do
+                    entries[#entries + 1] = { key = c.key, label = c.label, rgb = c.rgb or (c.key == "base" and LT.BaseRGB())
+                        or (c.key == "school" and { 1, 0.35, 0 }) or { 1, 1, 1 } }
+                end
+                local s = LT.Settings(e.key)
+                Popup(self, e.label, entries, s.color, function(key)
+                    s.color = key
+                    LT.Try(e.key)
+                    Refresh()
+                end, 3, 130)
+            end, nil, 11, 30)
+            r.color.sw = r.color:CreateTexture(nil, "OVERLAY")
+            r.color.sw:SetSize(16, 16)
+            r.color.sw:SetPoint("LEFT", 8, 0)
+            r.color.label:ClearAllPoints()
+            r.color.label:SetPoint("LEFT", 30, 0)
+            r.color.label:SetPoint("RIGHT", -6, 0)
+            r.color.label:SetJustifyH("LEFT")
+            r.level = Stepper(r, "", 500, -8, { labelWidth = 0, width = 130, step = 0.05, min = 0.05, max = 1,
+                format = function(v) return floor(v * 100 + 0.5) .. "%" end,
+                get = function() return LT.Settings(e.key).level end, set = function(v) LT.Settings(e.key).level = v end })
+            r.try = S.NewButton(r, "Try", aw - 20 - 42, -5, 40, function() LT.Try(e.key) end, nil, 11, 30)
+            r.e = e
+            rows[#rows + 1] = r
+        end
+    end
+    Select(current)
+
     ui.refresh[#ui.refresh + 1] = function()
-        local db = H.DB()
-        master:SetChecked(db.light)
+        master:SetChecked(H.DB().light == true)
+        local b = LT.Base()
+        for _, sw in ipairs(swatches) do sw.sel:SetShown(b.mode == "color" and b.color == sw.key) end
         for _, r in ipairs(rows) do
-            local v = db.lights[r.l.key]
-            if v == nil then v = r.l.on end
-            r.check:SetChecked(v)
-            r.check:SetAlpha(db.light and 1 or 0.5)
+            local s = LT.Settings(r.e.key)
+            local ef = LT.Effect(s.effect)
+            local rgb = LT.ColorRGB(s.color)
+            r.dot:SetColorTexture(rgb[1], rgb[2], rgb[3], s.on and 1 or 0.25)
+            r.effect.label:SetText(s.on and ef.label or "Off")
+            if s.on then r.effect.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) else r.effect.label:SetTextColor(RED[1], RED[2], RED[3]) end
+            local c
+            for _, pc in ipairs(LT.PALETTE) do if pc.key == s.color then c = pc end end
+            r.color.label:SetText(c and c.label or s.color)
+            r.color.sw:SetColorTexture(rgb[1], rgb[2], rgb[3], 1)
+            r.sub:SetText(r.e.state and "While it lasts" or "")
+            r.label:SetAlpha(s.on and 1 or 0.6)
+            r.color:SetAlpha(s.on and 1 or 0.5)
+            r.level:SetAlpha(s.on and 1 or 0.5)
         end
     end
 end
 
 ---------------------------------------------------------------------------
--- Engine: mixer settings and the live view
+-- Tune: the mixer, the live view, each grip's calibration
 ---------------------------------------------------------------------------
-local function BuildEngine(p)
+local calib = {}
+
+local function BuildTune(p)
     local card = S.Card(p, "Mixer", 0, 0, 560, PH - 40)
     local db = H.DB
     Choice(card, "Mix", 12, -40, { { "max", "Max" }, { "screen", "Blend" }, { "sum", "Sum" } },
@@ -1383,55 +1512,131 @@ local function BuildEngine(p)
         function() return db().rate end, function(v) db().rate = v end, 76)
     Choice(card, "Resend", 12, -104, { { 0, "Never" }, { 0.05, "0.05 s" }, { 0.1, "0.1 s" }, { 0.25, "0.25 s" }, { 0.5, "0.5 s" } },
         function() return db().keepAlive end, function(v) db().keepAlive = v end)
-    Choice(card, "Overdrive", 12, -136, { { 0, "Off" }, { 0.01, "10 ms" }, { 0.02, "20 ms" }, { 0.03, "30 ms" }, { 0.04, "40 ms" } },
-        function() return db().kick end, function(v) db().kick = v end)
-    Choice(card, "Triggers", 12, -168, { { "off", "Off" }, { "mirror", "Mirror" }, { "only", "Only" } },
-        function() return db().triggers end, function(v) db().triggers = v; H.Stop() end)
-    Choice(card, "Low battery", 12, -200, { { true, "Softer" }, { false, "Same" } },
-        function() return db().battery end, function(v) db().battery = v end)
-    Choice(card, "Shortest pulse", 12, -232, { { 0, "Off" }, { 0.025, "25 ms" }, { 0.033, "33 ms" }, { 0.04, "40 ms" },
+    Choice(card, "Shortest pulse", 12, -136, { { 0, "Off" }, { 0.025, "25 ms" }, { 0.033, "33 ms" }, { 0.04, "40 ms" },
         { 0.05, "50 ms" } }, function() return db().minPulse end, function(v) db().minPulse = v end)
-    S.Heading(card, "Try the mix", 12, -276, 530)
-    S.NewButton(card, "Purr + hits", 12, -300, 170, function()
+    Choice(card, "Low battery", 12, -168, { { true, "Softer" }, { false, "Same" } },
+        function() return db().battery end, function(v) db().battery = v end)
+    Choice(card, "Triggers", 12, -200, { { "off", "Off" }, { "mirror", "Mirror" }, { "only", "Only" } },
+        function() return db().triggers end, function(v) db().triggers = v; H.Stop() end)
+    Choice(card, "Overdrive", 12, -232, { { 0, "Off" }, { 0.01, "10 ms" }, { 0.02, "20 ms" }, { 0.03, "30 ms" }, { 0.04, "40 ms" } },
+        function() return db().kick end, function(v) db().kick = v end)
+    S.Note(card, 12, -266, 530, 2, 11, DIM):SetText("Triggers: Xbox pads only · Overdrive: a full-strength start, off for subtle taps")
+    S.Heading(card, "Try the mix", 12, -306, 530)
+    S.NewButton(card, "Taps + hits", 12, -330, 170, function()
         H.Play("orbit", { voice = "mixA", loop = true })
         for i = 0, 3 do C_Timer.After(0.5 + i * 0.7, function() H.Play("knock", { voice = "mixB" .. i }) end) end
         C_Timer.After(3.5, function() H.Stop("mixA") end)
     end, nil, 12, 30)
-    S.NewButton(card, "Heart + boom", 190, -300, 170, function()
+    S.NewButton(card, "Heart + boom", 190, -330, 170, function()
         H.Play("heart60", { voice = "mixA", loop = true })
         C_Timer.After(1.3, function() H.Play("boom", { voice = "mixB" }) end)
         C_Timer.After(4, function() H.Stop("mixA") end)
     end, nil, 12, 30)
-    S.NewButton(card, "Stop all", 368, -300, 170, function() H.Stop(); L.Halt(); Say("Stopped") end, nil, 12, 30)
+    S.NewButton(card, "Stop all", 368, -330, 170, function() H.Stop(); L.Halt(); Say("Stopped") end, nil, 12, 30)
 
-    local live = S.Card(p, "Live", 570, 0, W - 570, PH - 40)
-    local graph = Graph(live, 12, -40, W - 570 - 24, 260, 240)
-    local info = S.Text(live, "", 12, -312, 400, 12, GREY)
-    local tick = CreateFrame("Frame", nil, live)
+    -- Live
+    local rw = W - 570
+    local live = S.Card(p, "Live", 570, 0, rw, 210)
+    local graph = Graph(live, 12, -38, rw - 24, 130, 200)
+    local info = S.Text(live, "", 12, -180, rw - 24, 12, GREY)
+    local t = CreateFrame("Frame", nil, live)
     local acc = 0
-    tick:SetScript("OnUpdate", function(_, elapsed)
+    t:SetScript("OnUpdate", function(_, elapsed)
         acc = acc + (elapsed or 0)
         if acc < 0.05 then return end
         acc = 0
         local hist = H.History()
-        graph:Draw(function(i) local h = hist[i]; return h[1], h[2] end)
+        local off = #hist - 200
+        graph:Draw(function(i) local h = hist[i + off]; return h[1], h[2] end)
         local o = H.out
-        info:SetText(string.format("Left %d%%  ·  Right %d%%  ·  %d sends/s%s", o.l * 100, o.r * 100, H.SendRate(),
-            (o.lt > 0 or o.rt > 0) and string.format("  ·  Triggers %d / %d%%", o.lt * 100, o.rt * 100) or ""))
+        info:SetText(string.format("Left %d%%  ·  Right %d%%  ·  %d sends/s", o.l * 100, o.r * 100, H.SendRate()))
     end)
+
+    -- Calibration, a column per grip
+    local cal = S.Card(p, "Calibration", 570, -220, rw, PH - 40 - 220)
+    local cw = (rw - 30) / 2
+    for side = 1, 2 do
+        local x = 12 + (side - 1) * (cw + 6)
+        local c = { side = side }
+        calib[side] = c
+        S.Text(cal, side == 1 and "Left grip" or "Right grip", x, -38, cw, 12, side == 1 and LEFT_C or RIGHT_C)
+        local function CRow(label, y, opts)
+            opts.labelWidth, opts.width = 70, cw
+            return Stepper(cal, label, x, y, opts)
+        end
+        CRow("Floor", -58, { get = function() return db().floor[side] end,
+            set = function(v) db().floor[side] = min(v, db().ceil[side] - 0.05) end, step = 0.01, min = 0, max = 0.9 })
+        CRow("Ceiling", -86, { get = function() return db().ceil[side] end,
+            set = function(v) db().ceil[side] = max(v, db().floor[side] + 0.05) end, step = 0.01, min = 0.1, max = 1 })
+        CRow("Curve", -114, { get = function() return db().gamma[side] end,
+            set = function(v) db().gamma[side] = v end, step = 0.05, min = 0.3, max = 3 })
+        c.find = S.NewButton(cal, "Find floor", x, -148, cw / 2 - 3, function()
+            if L.Ramping() and calib.active == c and calib.mode == "floor" then
+                db().floor[side] = floor(L.StopRamp() * 100 + 0.5) / 100
+                if db().ceil[side] <= db().floor[side] then db().ceil[side] = 1 end
+                calib.active = nil
+            else
+                calib.active, calib.mode = c, "floor"
+                L.StartRamp(side, 0, 8)
+                Say("Rising: Felt it as soon as you feel it")
+            end
+            Refresh()
+        end, nil, 11, 28)
+        c.ceil = S.NewButton(cal, "Find ceiling", x + cw / 2 + 3, -148, cw / 2 - 3, function()
+            if L.Ramping() and calib.active == c and calib.mode == "ceil" then
+                db().ceil[side] = max(db().floor[side] + 0.05, floor(L.StopRamp() * 100 + 0.5) / 100)
+                calib.active = nil
+            else
+                calib.active, calib.mode = c, "ceil"
+                L.StartRamp(side, db().floor[side], 6)
+                Say("Rising: No stronger when it stops growing")
+            end
+            Refresh()
+        end, nil, 11, 28)
+        S.NewButton(cal, "Test steps", x, -182, cw / 2 - 3, function()
+            H.Stop()
+            local keys = {}
+            for i = 0, 9 do keys[#keys + 1] = { i * 0.3, (i + 1) / 10, "hold" } end
+            keys[#keys + 1] = { 3, 0 }
+            local zero = { { 0, 0 }, { 3, 0 } }
+            H.Play({ keys = side == 1 and { left = keys, right = zero } or { left = zero, right = keys } }, { voice = "beta" })
+        end, nil, 11, 28)
+        S.NewButton(cal, "Reset", x + cw / 2 + 3, -182, cw / 2 - 3, function()
+            db().floor[side], db().ceil[side], db().gamma[side] = H.DEFAULTS.floor[side], 1, 1
+            Refresh()
+        end, nil, 11, 28)
+        c.level = S.Text(cal, "", x, -218, cw, 12, YELLOW)
+    end
+    L.onRampEnd = function() calib.active = nil; Refresh() end
+    local rt = CreateFrame("Frame", nil, cal)
+    rt:SetScript("OnUpdate", function()
+        for side = 1, 2 do
+            local c = calib[side]
+            c.level:SetText(L.Ramping() and L.ramp.side == side and string.format("Sending %.0f%%", L.ramp.level * 100) or "")
+        end
+    end)
+    ui.refresh[#ui.refresh + 1] = function()
+        for side = 1, 2 do
+            local c = calib[side]
+            local active = calib.active == c and L.Ramping()
+            c.find.label:SetText(active and calib.mode == "floor" and "Felt it" or "Find floor")
+            c.ceil.label:SetText(active and calib.mode == "ceil" and "No stronger" or "Find ceiling")
+            S.SetSelected(c.find, active and calib.mode == "floor")
+            S.SetSelected(c.ceil, active and calib.mode == "ceil")
+        end
+    end
 end
 
 ---------------------------------------------------------------------------
 -- The page
 ---------------------------------------------------------------------------
 local SECTIONS = {
-    { "probes", "Probes", BuildProbes },
-    { "calibrate", "Calibrate", BuildCalibrate },
-    { "feels", "Feels", BuildFeels },
-    { "editor", "Editor", BuildEditor },
     { "events", "Events", BuildEvents },
     { "light", "Light", BuildLight },
-    { "engine", "Engine", BuildEngine },
+    { "feels", "Feels", BuildFeels },
+    { "editor", "Editor", BuildEditor },
+    { "tune", "Tune", BuildTune },
+    { "probes", "Probes", BuildProbes },
 }
 
 function ui.Select(key)
@@ -1475,7 +1680,7 @@ local function Build(frame, header)
         s[3](panel)
     end
     ui.tabs = tabs
-    ui.current = ui.current or "probes"
+    ui.current = ui.current or "events"
 end
 
 Refresh = function()
@@ -1503,7 +1708,7 @@ Shell.AddPage({
         L.FpsCap(false)
         if L.Ramping() then L.StopRamp() end
         H.Stop("beta"); H.Stop("editor"); H.Stop("record")
-        if picker then picker:Hide() end
+        if popup then popup:Hide() end
         if textWin then textWin:Hide() end
     end,
 })

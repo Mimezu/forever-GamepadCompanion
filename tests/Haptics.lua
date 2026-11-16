@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "RumblePage.lua", "BetaPage.lua" }) do
+    "HapticsLab.lua", "Lights.lua", "RumblePage.lua", "BetaPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -219,7 +219,7 @@ local db = H.DB()
 assert(GamepadCompanionHapticsDB == db and db.engine == true, "own saved table, engine on")
 db.engine = false
 near(H.Calibrated(2, 0.5), 0.5, "no floor by default: both grips felt from 5% in game")
-assert(db.minPulse == 0.05 and db.version == 5, "taps held to 50 ms by default")
+assert(db.minPulse == 0.05 and db.version == 6, "taps held to 50 ms by default")
 GamepadCompanionHapticsDB = { minPulse = 0, floor = { 0, 0.5 } }
 local old = H.DB()
 assert(old.minPulse == 0.05 and old.floor[2] == 0, "settings from 0.13.2 moved to the probes' defaults")
@@ -417,7 +417,7 @@ ns.Shell.Open("beta")
 local window, tabs = ns.ShellWindow()
 assert(window:IsShown() and ns.Shell.Current() == "beta" and tabs.beta, "Beta tab")
 local ui = ns.BetaPage
-for _, key in ipairs({ "probes", "calibrate", "feels", "editor", "events", "light", "engine" }) do
+for _, key in ipairs({ "events", "light", "feels", "editor", "tune", "probes" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
@@ -448,7 +448,7 @@ assert(cvars.maxFPS == "60" and L.FpsCapped(), "capped")
 cap.scripts.OnClick(cap)
 assert(cvars.maxFPS == "100" and not L.FpsCapped(), "put back")
 C_CVar = nil
-ui.Select("calibrate")
+ui.Select("tune")
 local find = assert(button("Find floor"), "Find floor")
 find.scripts.OnClick(find)
 assert(L.Ramping(), "ramping")
@@ -600,3 +600,103 @@ V.Fire = realFire
 C_Item = oldItem
 GetInventoryItemID = nil
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")
+
+-- Lights: base, cues from Rumble and the Lab, casts, the pages ------------------------
+do
+    local LT = ns.Lights
+    local db = H.DB()
+    db.engine, db.light = true, true
+    H.Stop()
+    H.LightStop()
+    led = {}
+    LT.ApplyBase()
+    frame(0.05)
+    assert(led[#led] and led[#led].r and led[#led].g > 0.3, "the class colour (rogue yellow) at the base")
+    -- a crit: the base brighter (through Rumble's event, even with its vibration off)
+    V.SetEventPattern("crit", "off")
+    led = {}
+    V.Fire("crit")
+    frame(0.05)
+    assert(led[#led] and led[#led].g > 0.8, "a crit: the base colour near full: " .. tostring(led[#led] and led[#led].g))
+    for _ = 1, 40 do frame(0.05) end
+    -- a cast glows, building, then flashes on release
+    UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 2) * 1000 end
+    local lf
+    for _, f in ipairs(created) do if f.events and f.events.UNIT_SPELLCAST_SUCCEEDED and f.events.PLAYER_REGEN_DISABLED then lf = f end end
+    assert(lf, "lights listen to casts")
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_START", "player")
+    frame(0.05)
+    local early = led[#led] and (led[#led].r + led[#led].g + led[#led].b) or 0
+    for _ = 1, 30 do frame(0.05) end
+    local late = led[#led] and (led[#led].r + led[#led].g + led[#led].b) or 0
+    assert(late > early, "the cast builds: " .. early .. " -> " .. late)
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player")
+    frame(0.05)
+    assert(led[#led] and (led[#led].r + led[#led].g + led[#led].b) > late + 0.3, "released: a bright flash")
+    UnitCastingInfo = nil
+    -- a whisper (a Lab event): purple double blink, even with its vibration off
+    L.EventSettings("whisper").on = false
+    led = {}
+    now = now + 1
+    L.Fire("whisper")
+    frame(0.05)
+    assert(led[#led] and led[#led].b > 0.5 and led[#led].r > 0.3, "whisper: purple")
+    -- off: no event light
+    LT.Settings("whisper").on = false
+    for _ = 1, 30 do frame(0.05) end
+    led = {}
+    now = now + 1
+    L.Fire("whisper")
+    frame(0.05)
+    local purple = false
+    for _, c in ipairs(led) do if type(c) == "table" and c.b > 0.5 and c.r > 0.3 and c.g < 0.5 then purple = true end end
+    assert(not purple, "whisper light off")
+    LT.Settings("whisper").on = true
+    -- a one-off event with a lasting effect glows a moment, then ends
+    LT.Settings("kill").effect = "glow"
+    LT.Fire("kill")
+    assert(H.LightsBusy(), "glowing")
+    for _ = 1, 40 do frame(0.05) end
+    LT.Settings("kill").effect = "flash"
+    io.write("PASS: lights: base, a crit brighter, a cast building then released, a whisper, off, a moment's glow\n")
+end
+
+-- The rebuilt pages: an event set Off from its grid, a light's effect picked
+do
+    ns.Shell.Open("beta")
+    local ui = ns.BetaPage
+    ui.Select("events")
+    local function visible(label)
+        for _, f in ipairs(created) do
+            if type(rawget(f, "label")) == "table" and f.label.text == label and f:IsVisible() then return f end
+        end
+    end
+    local pop = GamepadCompanionBetaFeels
+    -- the Combat group's first row (Hit taken): its plate opens the grid
+    local plate
+    for _, f in ipairs(created) do
+        if rawget(f, "pick") and rawget(f, "e") and f.e.key == "hitTaken" then plate = f.pick end
+    end
+    assert(plate, "Hit taken row")
+    plate.scripts.OnClick(plate)
+    pop = GamepadCompanionBetaFeels
+    assert(pop and pop:IsShown(), "the grid")
+    local off
+    for _, t in ipairs(pop.tiles) do if t.label.text == "Off" and t:IsShown() then off = t end end
+    off.scripts.OnClick(off)
+    assert(L.EventSettings("hitTaken").on == false, "set Off")
+    ui.Select("light")
+    local effectBtn
+    for _, f in ipairs(created) do
+        if rawget(f, "effect") and rawget(f, "e") and f.e.key == "crit" then effectBtn = f.effect end
+    end
+    assert(effectBtn, "crit light row")
+    effectBtn.scripts.OnClick(effectBtn)
+    local strobe
+    for _, t in ipairs(pop.tiles) do if t.label.text == "Strobe" and t:IsShown() then strobe = t end end
+    strobe.scripts.OnClick(strobe)
+    assert(ns.Lights.Settings("crit").effect == "strobe", "effect picked")
+    ui.Select("tune")
+    assert(visible("Find floor"), "calibration on Tune")
+    io.write("PASS: pages: an event Off from its grid, a light effect picked, calibration on Tune\n")
+end

@@ -622,41 +622,42 @@ end)
 -- Beta events: more of the game felt (played on the mixer at Rumble's
 -- strength, while the Beta engine is on)
 ---------------------------------------------------------------------------
+local ART = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_"
 L.EVENT_GROUPS = { "Combat", "Resources", "Moving", "World", "Social", "Living" }
 L.EVENTS = {
-    { key = "hitTaken", group = "Combat", label = "Hit taken", feel = "thud", on = true },
-    { key = "avoid", group = "Combat", label = "Dodge, parry, block", feel = "flick", on = true },
-    { key = "kill", group = "Combat", label = "Target killed", feel = "boom", on = true },
-    { key = "targetCast", group = "Combat", label = "Enemy casts at you", feel = "tremor", on = false },
-    { key = "aggro", group = "Combat", label = "Aggro", feel = "swell", on = false },
-    { key = "control", group = "Combat", label = "Lost control", feel = "gravel", on = true },
-    { key = "combo", group = "Resources", label = "Combo point", feel = "pin", on = true },
-    { key = "comboFull", group = "Resources", label = "Combo points full", feel = "knock", on = true },
-    { key = "full", group = "Resources", label = "Rage or energy full", feel = "ready", on = false },
-    { key = "oom", group = "Resources", label = "Low mana", feel = "dive", on = true },
-    { key = "gcd", group = "Resources", label = "Global cooldown ready", feel = "ready", on = false },
-    { key = "uiError", group = "Resources", label = "Error", feel = "deny", on = true },
-    { key = "landing", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true },
-    { key = "splash", group = "Moving", label = "Into water", feel = "splash", on = true },
-    { key = "mount", group = "Moving", label = "Mount", feel = "swell", on = true },
-    { key = "dismount", group = "Moving", label = "Dismount", feel = "thud", on = true },
-    { key = "taxi", group = "Moving", label = "Flight path", feel = "whoosh", on = true },
-    { key = "footsteps", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
-    { key = "riding", group = "Moving", label = "Riding", feel = "gallop", on = false, live = true },
-    { key = "loot", group = "World", label = "Loot", feel = "coin", on = true },
-    { key = "money", group = "World", label = "Money", feel = "coin", on = false },
-    { key = "questAccepted", group = "World", label = "Quest accepted", feel = "notch", on = true },
-    { key = "questDone", group = "World", label = "Quest done", feel = "chime", on = true },
-    { key = "skillUp", group = "World", label = "Skill up", feel = "pin", on = true },
-    { key = "death", group = "World", label = "Death", feel = "dive", on = true },
-    { key = "alive", group = "World", label = "Back to life", feel = "swell", on = true },
-    { key = "rested", group = "World", label = "Rested", feel = "breath", on = false },
-    { key = "whisper", group = "Social", label = "Whisper", feel = "notch", on = true },
-    { key = "readyCheck", group = "Social", label = "Ready check", feel = "ratchet", on = true },
-    { key = "invite", group = "Social", label = "Invites, duels", feel = "chime", on = true },
-    { key = "summon", group = "Social", label = "Summon", feel = "swell", on = true },
-    { key = "heartbeat", group = "Living", label = "Heartbeat", feel = "heart60", on = false, live = true },
-    { key = "tension", group = "Living", label = "Cast tension", feel = "windup", on = false, live = true },
+    { key = "hitTaken", icon = ART .. "event_critted", group = "Combat", label = "Hit taken", feel = "thud", on = true },
+    { key = "avoid", icon = ART .. "vibe_ward", group = "Combat", label = "Dodge, parry, block", feel = "flick", on = true },
+    { key = "kill", icon = ART .. "vibe_judge", group = "Combat", label = "Target killed", feel = "boom", on = true },
+    { key = "targetCast", icon = ART .. "event_cast", group = "Combat", label = "Enemy casts at you", feel = "tremor", on = false },
+    { key = "aggro", icon = ART .. "vibe_hex", group = "Combat", label = "Aggro", feel = "swell", on = false },
+    { key = "control", icon = ART .. "vibe_frost", group = "Combat", label = "Lost control", feel = "gravel", on = true },
+    { key = "combo", icon = ART .. "vibe_micro", group = "Resources", label = "Combo point", feel = "pin", on = true },
+    { key = "comboFull", icon = ART .. "vibe_flurry", group = "Resources", label = "Combo points full", feel = "knock", on = true },
+    { key = "full", icon = ART .. "vibe_rise", group = "Resources", label = "Rage or energy full", feel = "ready", on = false },
+    { key = "oom", icon = ART .. "vibe_fade", group = "Resources", label = "Low mana", feel = "dive", on = true },
+    { key = "gcd", icon = ART .. "vibe_tick", group = "Resources", label = "Global cooldown ready", feel = "ready", on = false },
+    { key = "uiError", icon = ART .. "event_interrupted", group = "Resources", label = "Error", feel = "deny", on = true },
+    { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true },
+    { key = "splash", icon = ART .. "vibe_bubble", group = "Moving", label = "Into water", feel = "splash", on = true },
+    { key = "mount", icon = ART .. "vibe_charge", group = "Moving", label = "Mount", feel = "swell", on = true },
+    { key = "dismount", icon = ART .. "vibe_bash", group = "Moving", label = "Dismount", feel = "thud", on = true },
+    { key = "taxi", icon = ART .. "vibe_toss", group = "Moving", label = "Flight path", feel = "whoosh", on = true },
+    { key = "footsteps", icon = ART .. "vibe_tick", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
+    { key = "riding", icon = ART .. "vibe_charge", group = "Moving", label = "Riding", feel = "gallop", on = false, live = true },
+    { key = "loot", icon = ART .. "vibe_click", group = "World", label = "Loot", feel = "coin", on = true },
+    { key = "money", icon = ART .. "vibe_click", group = "World", label = "Money", feel = "coin", on = false },
+    { key = "questAccepted", icon = ART .. "vibe_seal", group = "World", label = "Quest accepted", feel = "notch", on = true },
+    { key = "questDone", icon = ART .. "vibe_radiance", group = "World", label = "Quest done", feel = "chime", on = true },
+    { key = "skillUp", icon = ART .. "event_levelup", group = "World", label = "Skill up", feel = "pin", on = true },
+    { key = "death", icon = ART .. "vibe_shadow", group = "World", label = "Death", feel = "dive", on = true },
+    { key = "alive", icon = ART .. "vibe_mend", group = "World", label = "Back to life", feel = "swell", on = true },
+    { key = "rested", icon = ART .. "vibe_hearth", group = "World", label = "Rested", feel = "breath", on = false },
+    { key = "whisper", icon = ART .. "vibe_double", group = "Social", label = "Whisper", feel = "notch", on = true },
+    { key = "readyCheck", icon = ART .. "vibe_judge", group = "Social", label = "Ready check", feel = "ratchet", on = true },
+    { key = "invite", icon = ART .. "vibe_double", group = "Social", label = "Invites, duels", feel = "chime", on = true },
+    { key = "summon", icon = ART .. "vibe_ritual", group = "Social", label = "Summon", feel = "swell", on = true },
+    { key = "heartbeat", icon = ART .. "vibe_heart", group = "Living", label = "Heartbeat", feel = "heart60", on = false, live = true },
+    { key = "tension", icon = ART .. "vibe_draw", group = "Living", label = "Cast tension", feel = "windup", on = false, live = true },
 }
 local EVENT = {}
 for _, e in ipairs(L.EVENTS) do EVENT[e.key] = e end
@@ -714,60 +715,12 @@ function L.Try(key)
     end
 end
 
----------------------------------------------------------------------------
--- Light bar effects
----------------------------------------------------------------------------
-L.LIGHTS = {
-    { key = "class", label = "Class colour", on = true },
-    { key = "school", label = "Cast colour", on = true },
-    { key = "lowHp", label = "Low health pulse", on = true },
-    { key = "levelUp", label = "Level up", on = true },
-    { key = "hit", label = "Hit flash", on = false },
-    { key = "kill", label = "Kill flash", on = true },
-    { key = "whisper", label = "Whisper flash", on = true },
-}
-function L.LightOn(key)
-    local db = H.DB()
-    if not (db.engine and db.light) then return false end
-    local v = db.lights[key]
-    if v == nil then
-        for _, l in ipairs(L.LIGHTS) do if l.key == key then v = l.on end end
-    end
-    return v == true
-end
-
-local SCHOOL = {
-    fire = { 1, 0.35, 0 }, frostSpells = { 0.3, 0.6, 1 }, arcaneSpells = { 0.8, 0.4, 1 },
-    shadowSpells = { 0.5, 0, 0.8 }, holy = { 1, 0.9, 0.5 }, healing = { 0.3, 1, 0.4 }, nature = { 0.4, 1, 0.2 },
-    shots = { 1, 0.8, 0.3 }, travel = { 0.5, 0.8, 1 }, summon = { 0.6, 0, 1 },
-}
-
+-- The light bar: Lights.lua (loaded after this file)
 function L.ApplyBaseLight()
-    if L.LightOn("class") then
-        local class = UnitClass and select(2, UnitClass("player"))
-        local c = class and (RAID_CLASS_COLORS or {})[class]
-        local r, g, b = c and c.r or 1, c and c.g or 1, c and c.b or 1
-        H.Light("class", function() return r * 0.5, g * 0.5, b * 0.5 end, 0)
-    else
-        H.LightStop("class")
-    end
+    if ns.Lights then ns.Lights.ApplyBase() end
 end
 
 local cast = {}
-
-local function CastLight()
-    if not L.LightOn("school") then return end
-    local V = ns.Rumble
-    local action = V and V.castAction
-    local c = SCHOOL[action] or (V and V.castKind ~= "spell" and { 1, 0.7, 0.3 }) or { 1, 1, 1 }
-    H.Light("school", function(now)
-        if not cast.start then return nil end
-        local span = cast.finish - cast.start
-        local p = span > 0 and min(1, max(0, (now - cast.start) / span)) or 1
-        local k = 0.2 + 0.8 * p
-        return c[1] * k, c[2] * k, c[3] * k
-    end, 3)
-end
 
 ---------------------------------------------------------------------------
 -- Live voices: heartbeat, footsteps, riding, cast tension
@@ -990,13 +943,11 @@ local function CastBegan(channel)
             H.Play(st.feel, { voice = "live_tension", gain = Strength() })
         end
     end
-    CastLight()
 end
 
 local function CastOver()
     cast.start = nil
     H.Stop("live_tension")
-    H.LightStop("school")
 end
 
 local handlers = {}
@@ -1010,7 +961,6 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount)
                 if mx and not secret(mx) and mx > 0 then gain = 0.4 + 0.6 * min(1, amount / (mx * 0.15)) end
             end
             L.Fire("hitTaken", gain)
-            if L.LightOn("hit") then H.Flash("hit", 1, 0, 0, 0.4, 4) end
         elseif AVOID[action] then
             L.Fire("avoid")
         end
@@ -1022,7 +972,6 @@ handlers.UNIT_HEALTH = function(unit)
         if secret(dead) then return end
         if dead and targetDead == false and call(UnitCanAttack, "player", "target") then
             L.Fire("kill")
-            if L.LightOn("kill") then H.Flash("kill", 1, 1, 1, 0.6, 6) end
         end
         targetDead = dead and true or false
     elseif unit == "player" then
@@ -1100,7 +1049,6 @@ handlers.PLAYER_UPDATE_RESTING = function()
 end
 handlers.CHAT_MSG_WHISPER = function()
     L.Fire("whisper")
-    if L.LightOn("whisper") then H.Flash("whisper", 0.9, 0.4, 1, 0.8, 4) end
 end
 handlers.CHAT_MSG_BN_WHISPER = handlers.CHAT_MSG_WHISPER
 handlers.READY_CHECK = function() L.Fire("readyCheck") end
@@ -1113,9 +1061,6 @@ handlers.UNIT_THREAT_SITUATION_UPDATE = function()
     if s == nil or secret(s) then return end
     if s >= 2 and threat < 2 then L.Fire("aggro") end
     threat = s
-end
-handlers.PLAYER_LEVEL_UP = function()
-    if L.LightOn("levelUp") then H.Flash("levelUp", 1, 0.8, 0.2, 2, 8) end
 end
 handlers.UNIT_SPELLCAST_START = function(unit)
     if unit == "player" then return CastBegan(false) end
@@ -1196,14 +1141,6 @@ local function Poll()
     live.heart = (hp and hp < 0.5) or (not hp and warned) or false
     if call(UnitIsDeadOrGhost, "player") then live.heart = false end
     if live.heart then StartLive("heartbeat", Heartbeat) else H.Stop("live_heartbeat") end
-    -- Low health light: a red pulse
-    if L.LightOn("lowHp") and live.heart then
-        H.Light("lowHp", function(t)
-            if not live.heart then return nil end
-            local k = 0.5 + 0.5 * sin(t * 2 * pi * 1.4)
-            return 0.2 + 0.8 * k, 0, 0
-        end, 4)
-    end
 end
 if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(0.1, Poll) end
 L.Poll = Poll

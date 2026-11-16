@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.17.0 — 2026-11-16
+
+- Light: a real feature. A base colour (class, one of 10, or off; brightness; breathing) and 21 light events, each with its effect (flash, base brighter, double blink, strobe, fade, rainbow; glow, build up, heartbeat, breathe while it lasts), colour (base, spell school or one of 10) and strength
+- Light choreography: a crit flashes the base colour bright, a cast glows and builds in its school's colour then flashes on release, low health beats red, level up runs a rainbow, a whisper blinks purple; lights play whether or not the event vibrates
+- Beta tab redesigned after the Rumble tab: Events and Light by group, each row with its icon, its choice on a plate opening a grid (Off first), and Try; Engine and Calibrate one Tune page; Steps and landing a group of Events
+- Light on by default
+
 ## 0.16.1 — 2026-11-16
 
 - Rumble, Auto attack: every swing, on the weapon's swing timer, main hand (leaning right) and off hand (left, softer)

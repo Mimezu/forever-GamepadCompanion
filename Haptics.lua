@@ -36,7 +36,7 @@ H.DEFAULTS = {
     minPulse = 0.05,       -- a pulse from rest lasts at least this long (s): in game, under ~45 ms is
                            --   felt only sometimes, 50 ms always
     battery = true,        -- softer on a low battery
-    light = false,         -- light bar effects
+    light = true,          -- light bar effects (Lights.lua)
     triggers = "off",      -- off | mirror (grips also on LTrigger / RTrigger) | only
     floor = { 0, 0 },      -- calibration per side (left, right): first felt (in game: 5% on both)
     ceil = { 1, 1 },       --   no stronger past this
@@ -78,6 +78,10 @@ function H.DB()
     if db.version < 5 then
         db.engine = true
         db.version = 5
+    end
+    if db.version < 6 then
+        db.light = true
+        db.version = 6
     end
     return db
 end
@@ -577,6 +581,11 @@ function H.Flash(id, r, g, b, seconds, prio)
         local k = (1 - t) ^ 1.5
         return r * k, g * k, b * k
     end, prio or 5)
+end
+
+-- What the light bar shows now: r, g, b, and whether it is set
+function H.LedNow()
+    return max(0, led.r), max(0, led.g), max(0, led.b), led.set
 end
 
 function H.LightsBusy()
