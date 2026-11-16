@@ -219,7 +219,7 @@ local db = H.DB()
 assert(GamepadCompanionHapticsDB == db and db.engine == true, "own saved table, engine on")
 db.engine = false
 near(H.Calibrated(2, 0.5), 0.5, "no floor by default: both grips felt from 5% in game")
-assert(db.minPulse == 0.05 and db.version == 7, "taps held to 50 ms by default")
+assert(db.minPulse == 0.05 and db.version == 8, "taps held to 50 ms by default")
 GamepadCompanionHapticsDB = { minPulse = 0, floor = { 0, 0.5 } }
 local old = H.DB()
 assert(old.minPulse == 0.05 and old.floor[2] == 0, "settings from 0.13.2 moved to the probes' defaults")
@@ -852,4 +852,25 @@ do
     L.Poll()
     assert(not H.Playing("live_rain"), "left the zone: gone")
     io.write("PASS: review fixes: palette under its specials, your copies in Rumble, live voices stop when off" .. string.char(10))
+end
+
+-- The game's weather (C_Weather): rain brings rain, heavy rain thunder; clear: nothing
+do
+    if type(Enum) ~= "table" then Enum = {} end
+    Enum.WeatherType = { Clear = 0, Rain = 1, Snow = 2, Sandstorm = 3 }
+    local w = { 1, 0.3 }
+    C_Weather = { GetCurrentWeather = function() return w[1], w[2] end }
+    L.ReadWeather()
+    local brings = L.Sky()
+    assert(brings.rain and not brings.thunder, "light rain")
+    w = { 1, 0.9 }; L.ReadWeather()
+    brings = L.Sky()
+    assert(brings.rain and brings.thunder, "heavy rain: thunder too")
+    w = { 0, 0 }; L.ReadWeather()
+    brings = L.Sky()
+    assert(not brings.rain and not brings.snow, "clear: nothing")
+    w = { 3, 0.5 }; L.ReadWeather()
+    assert(L.Sky().sand, "a sandstorm")
+    C_Weather = nil
+    io.write("PASS: weather: the game's own, rain, heavy rain with thunder, clear, sandstorm" .. string.char(10))
 end

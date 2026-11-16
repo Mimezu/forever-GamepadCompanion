@@ -487,8 +487,8 @@ function L.Facts()
         { "Vibration CVar", cvar ~= nil and tostring(cvar) or "?" },
         { "Battery", power ~= nil and tostring(power) or "?" },
         { "Pad style", type(state) == "table" and tostring(state.labelStyle) or "?" },
-        { "Weather API", (C_Weather and "C_Weather") or (GetWeatherInfo and "GetWeatherInfo")
-            or (GetCurrentWeather and "GetCurrentWeather") or "none" },
+        { "Weather API", (C_Weather and C_Weather.GetCurrentWeather) and ("C_Weather: "
+            .. tostring((L.ReadWeather() or {}).raw)) or "none" },
         { "Zone climate", tostring(L.Climate and L.Climate() or "?") },
         { "Frame rate", GetFramerate and string.format("%.0f fps (faster steps blur)", GetFramerate() or 0) or "?" },
         { "SetVibration", tostring(C_GamePad ~= nil and C_GamePad.SetVibration ~= nil) },
@@ -740,17 +740,17 @@ L.EVENTS = {
     { key = "potion", icon = ART .. "event_drink", group = "Care", label = "Potion", feel = "potion", on = true },
     { key = "rested", icon = ART .. "vibe_hearth", group = "Care", label = "Rested", feel = "breath", on = false,
         tip = "Entering an inn or a city" },
-    -- Weather: by zone and the sky above you (the game tells addons no weather)
-    { key = "rain", icon = ART .. "vibe_frost", group = "Weather", label = "Rain", feel = "raindrops", on = false, live = true,
-        tip = "By zone, not the sky: the game tells addons no weather" },
-    { key = "thunder", icon = ART .. "vibe_static", group = "Weather", label = "Thunder", feel = "thunder", on = false, live = true,
-        tip = "Stormy zones, outdoors: a far roll now and then" },
-    { key = "snow", icon = ART .. "vibe_shimmer", group = "Weather", label = "Snow", feel = "snowflakes", on = false, live = true,
-        tip = "Snowy zones, outdoors" },
-    { key = "sand", icon = ART .. "vibe_sizzle", group = "Weather", label = "Sand", feel = "sandgust", on = false, live = true,
-        tip = "Deserts and dust, outdoors: a gust now and then" },
+    -- Weather: the game's own (C_Weather), outdoors; embers by zone
+    { key = "rain", icon = ART .. "vibe_frost", group = "Weather", label = "Rain", feel = "raindrops", on = true, live = true,
+        tip = "The game's weather, outdoors: denser when heavier" },
+    { key = "thunder", icon = ART .. "vibe_static", group = "Weather", label = "Thunder", feel = "thunder", on = true, live = true,
+        tip = "Heavy rain: a far roll now and then" },
+    { key = "snow", icon = ART .. "vibe_shimmer", group = "Weather", label = "Snow", feel = "snowflakes", on = true, live = true,
+        tip = "The game's weather, outdoors" },
+    { key = "sand", icon = ART .. "vibe_sizzle", group = "Weather", label = "Sand", feel = "sandgust", on = true, live = true,
+        tip = "Sandstorms, outdoors: a gust now and then" },
     { key = "embers", icon = ART .. "vibe_kindle", group = "Weather", label = "Embers", feel = "embers", on = false, live = true,
-        tip = "Burning lands, outdoors" },
+        tip = "Burning lands, by zone: no weather" },
     -- Progress
     { key = "loot", icon = ART .. "vibe_click", group = "Progress", label = "Loot", feel = "coin", on = true },
     { key = "money", icon = ART .. "vibe_click", group = "Progress", label = "Money", feel = "coin", on = false },
@@ -1023,7 +1023,7 @@ ListenUnit("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_DELAYED", "player")
 ListenUnit("UNIT_THREAT_SITUATION_UPDATE", "player")
 ListenUnit("UNIT_SPELLCAST_SUCCEEDED", "player")
-Listen("MIRROR_TIMER_START", "MIRROR_TIMER_STOP")
+Listen("MIRROR_TIMER_START", "MIRROR_TIMER_STOP", "WEATHER_CHANGED", "ZONE_CHANGED_NEW_AREA")
 Listen("PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING")
 Listen("PLAYER_TARGET_CHANGED", "SPELL_UPDATE_COOLDOWN", "UI_ERROR_MESSAGE", "CHAT_MSG_LOOT", "PLAYER_MONEY",
     "QUEST_ACCEPTED", "QUEST_TURNED_IN", "CHAT_MSG_SKILL", "PLAYER_DEAD", "PLAYER_UNGHOST", "PLAYER_ALIVE",
@@ -1257,6 +1257,8 @@ handlers.UNIT_SPELLCAST_SUCCEEDED = function(unit, _, spellID)
     local name = SpellNameOf(spellID)
     if name and CareNames().potion[name] then L.Fire("potion") end
 end
+handlers.WEATHER_CHANGED = function() L.ReadWeather() end
+handlers.ZONE_CHANGED_NEW_AREA = function() L.ReadWeather() end
 handlers.MIRROR_TIMER_START = function(timer) if timer == "BREATH" then live.underwater = true end end
 handlers.MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then live.underwater = false end end
 handlers.UNIT_SPELLCAST_CHANNEL_STOP = handlers.UNIT_SPELLCAST_STOP
@@ -1317,6 +1319,66 @@ local CLIMATE_NAMES = {
 local CLIMATE_EVENTS = { rain = { rain = true }, storm = { rain = true, thunder = true }, snow = { snow = true },
     sand = { sand = true }, embers = { embers = true } }
 
+-- The game's own weather: C_Weather.GetCurrentWeather() (in the client,
+-- unlisted; the wardrobe's outfit conditions use it). Its type (Enum.WeatherType:
+-- Rain, Snow, Sandstorm, else clear) and intensity. nil: no such API.
+-- Read on WEATHER_CHANGED, on zoning, and every few seconds.
+local weatherNow = { at = -math.huge }
+L.weatherNow = weatherNow
+
+local function TypeName(t)
+    if t == nil or secret(t) then return nil end
+    if type(t) == "string" then return t end
+    local E = type(Enum) == "table" and Enum.WeatherType
+    if E then for name, v in pairs(E) do if v == t then return name end end end
+    return tostring(t)
+end
+
+function L.ReadWeather()
+    if not (C_Weather and C_Weather.GetCurrentWeather) then return nil end
+    local ok, a, b = pcall(C_Weather.GetCurrentWeather)
+    if not ok then return nil end
+    local t, intensity = a, b
+    if type(a) == "table" then
+        t = a.weatherType or a.type or a.weather or a[1]
+        intensity = a.intensity or a.density or a[2]
+    end
+    if secret(intensity) then intensity = nil end
+    weatherNow.raw = tostring(t) .. ", " .. tostring(intensity)
+    weatherNow.name = TypeName(t)
+    weatherNow.intensity = tonumber(intensity)
+    weatherNow.at = GetTime and GetTime() or 0
+    local n = weatherNow.name and weatherNow.name:lower() or ""
+    weatherNow.kind = n:find("rain") and "rain" or n:find("snow") and "snow" or n:find("sand") and "sand" or nil
+    return weatherNow
+end
+
+-- What the sky brings now: { rain, thunder, snow, sand, embers = true },
+-- and the intensity (0-1)
+function L.Sky()
+    local api = C_Weather and C_Weather.GetCurrentWeather
+    if api then
+        local now = GetTime and GetTime() or 0
+        if now - weatherNow.at > 3 then L.ReadWeather() end
+        local i = weatherNow.intensity
+        -- (an intensity given 0-1 or 0-100)
+        if i and i > 1 then i = i / 100 end
+        i = i and max(0, min(1, i)) or 0.5
+        local brings = {}
+        if weatherNow.kind == "rain" then
+            brings.rain = true
+            if i >= 0.6 then brings.thunder = true end
+        elseif weatherNow.kind then
+            brings[weatherNow.kind] = true
+        end
+        -- (embers are no weather: burning lands, by zone)
+        if L.Climate() == "embers" then brings.embers = true end
+        return brings, i, true
+    end
+    local climate = L.Climate()
+    return climate and CLIMATE_EVENTS[climate] or {}, 0.5, false
+end
+
 function L.Climate()
     local id = C_Map and C_Map.GetBestMapForUnit and call(C_Map.GetBestMapForUnit, "player")
     if id and not secret(id) and CLIMATE_IDS[id] then return CLIMATE_IDS[id] end
@@ -1331,10 +1393,12 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
     return function(now, v)
         if not live.weather[key] then return nil end
         if not v.next then v.next = now + random() * gap1 end
+        -- (heavier weather: taps closer and a little stronger)
+        local k = key == "underwater" and 0.5 or (live.weatherIntensity or 0.5)
         if now >= v.next then
-            v.tapEnd, v.level, v.side = now + PULSE, lo + random() * (hi - lo), random() * 2 - 1
+            v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * (0.6 + 0.8 * k), random() * 2 - 1
             v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
-            v.next = now + gap0 + random() * (gap1 - gap0)
+            v.next = now + (gap0 + random() * (gap1 - gap0)) * (1.5 - k)
         end
         if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
         if v.tapEnd and now < v.tapEnd then
@@ -1434,8 +1498,9 @@ local function Poll()
     -- Weather: the zone's climate, outdoors, above water, alive
     local outdoors = not call(IsIndoors) and not swimming and not live.underwater
         and not call(UnitIsDeadOrGhost, "player")
-    local climate = outdoors and L.Climate() or nil
-    local brings = climate and CLIMATE_EVENTS[climate] or {}
+    local brings, intensity = {}, 0.5
+    if outdoors then brings, intensity = L.Sky() end
+    live.weatherIntensity = intensity
     for _, k in ipairs(L.WEATHER_KEYS) do
         live.weather[k] = brings[k] == true
         if live.weather[k] then StartLive(k, WEATHER_FN[k]) else H.Stop("live_" .. k) end

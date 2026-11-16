@@ -65,8 +65,12 @@ function D.VoiceWhy(id)
         local e = L.EVENT[key]
         local why = LIVE_WHY[key]
         if not why and e and e.group == "Weather" then
-            local zone = (GetRealZoneText and GetRealZoneText()) or "?"
-            why = zone .. ", outdoors"
+            local w = L.weatherNow
+            if w and w.name and key ~= "embers" then
+                why = "the game: " .. w.name .. (w.intensity and string.format(" %.2f", w.intensity) or "")
+            else
+                why = ((GetRealZoneText and GetRealZoneText()) or "?") .. ", by zone"
+            end
         end
         return "Beta · " .. (e and e.label or key) .. (why and (" (" .. why .. ")") or "")
     end

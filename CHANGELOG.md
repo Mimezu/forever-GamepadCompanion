@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.2 — 2026-11-16
+
+- Weather from the game itself: C_Weather.GetCurrentWeather and WEATHER_CHANGED (in the client, unlisted; the wardrobe's outfit conditions use them). Rain, heavy rain with thunder, snow, sandstorm, outdoors; denser and a little stronger when heavier. On again by default; embers stay by zone, off
+- Debug window: what the game reports (type and intensity) for a weather voice; the Probes report shows the raw values
+
 ## 0.20.1 — 2026-11-16
 
 - Weather by zone off by default (and switched off once): the game tells addons no weather, so it "rained" in sunshine; still there to switch on, labelled by zone, not the sky
