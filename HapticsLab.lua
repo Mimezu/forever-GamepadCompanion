@@ -19,117 +19,140 @@ end
 local ICONS = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_"
 
 ---------------------------------------------------------------------------
--- The library: a vocabulary the old 0.1 s steps could not play
+-- The library: rhythms of pulses. Through the game the pad is a drum (probes,
+-- 2026-11-16, docs/HAPTICS.md): a pulse of 50 ms or more is always felt,
+-- shorter ones only sometimes; fast on / off stays countable; a strength
+-- changing while it runs is smoothed away. So every feel is pulses, each
+-- with its own time, length (50 ms or more), strength and side. Subtle =
+-- 50 ms and soft.
 ---------------------------------------------------------------------------
-L.GROUPS = { "Taps", "Grain", "Texture", "Detents", "Shapes", "Motion", "Life", "Signals", "Extremes" }
+L.GROUPS = { "Taps", "Doubles", "Rolls", "Impacts", "Motion", "Life", "Signals", "Extremes" }
 
-local function heartKeys(period, a, b)
-    return { { 0, a, "out" }, { 0.07, 0 }, { 0.2 * period, 0, "hold" }, { 0.2 * period, b, "out" },
-        { 0.2 * period + 0.07, 0 }, { period, 0 } }
+-- One pulse: t and length in seconds, strength 0-1, side -1 left .. 1 right
+local function P(t, len, s, side) return { t, len, s, side or 0 } end
+
+-- n pulses from t0, gap apart, strength and side going from a to b
+local function Row(n, t0, gap, len, s0, s1, side0, side1)
+    local list = {}
+    for i = 0, n - 1 do
+        local k = n > 1 and i / (n - 1) or 0
+        list[#list + 1] = P(t0 + i * gap, len, s0 + (s1 - s0) * k, (side0 or 0) + ((side1 or side0 or 0) - (side0 or 0)) * k)
+    end
+    return list
+end
+
+-- n pulses whose gaps go from gap0 to gap1 (speeding up or slowing down)
+local function Accel(n, gap0, gap1, len, s0, s1, side)
+    local list, t = {}, 0
+    for i = 0, n - 1 do
+        local k = n > 1 and i / (n - 1) or 0
+        list[#list + 1] = P(t, len, s0 + (s1 - s0) * k, side)
+        t = t + gap0 + (gap1 - gap0) * k
+    end
+    return list
+end
+
+local function Join(...)
+    local list = {}
+    for _, part in ipairs({ ... }) do for _, p in ipairs(part) do list[#list + 1] = p end end
+    return list
+end
+
+local function Pulses(list, extra)
+    local f = extra or {}
+    f.pulses = list
+    return f
 end
 
 local LIB = {
-    -- Taps. In game (probes, 2026-11-16): under ~45 ms a tap is felt only
-    -- some of the time; 50 ms always, even at 20%. So subtle = 50 ms, soft.
-    { "pin", "Pin", "Taps", "micro", { hold = 0.05, peak = 0.25 } },
-    { "tap", "Tap", "Taps", "tick", { hold = 0.05, peak = 0.6 } },
-    { "knock", "Knock", "Taps", "impact", { hold = 0.06, decay = 0.08, peak = 1, kick = 0.03,
-        duck = { amount = 0.7, time = 0.12 } } },
-    { "flick", "Flick", "Taps", "click", { decay = 0.12, curve = 2.5, peak = 1 } },
-    { "clickL", "Click left", "Taps", "click", { hold = 0.05, peak = 0.5, pan = -1 } },
-    { "clickR", "Click right", "Taps", "click", { hold = 0.05, peak = 0.5, pan = 1 } },
-    { "dust", "Dust", "Taps", "micro", { hold = 0.05, peak = 0.15 } },
-    { "graze", "Graze", "Taps", "tick", { hold = 0.05, peak = 0.35 } },
-    { "feather", "Feather", "Taps", "micro", { hold = 0.06, peak = 0.25, pan = 0.4 } },
-    -- Grain: the strength flickering fast (amplitude modulation)
-    { "purr8", "Purr 8 Hz", "Grain", "purr", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
-        grain = { rate = 8, depth = 0.8 } } },
-    { "engine15", "Engine 15 Hz", "Grain", "gears", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
-        grain = { rate = 15, depth = 0.7, wave = "square" } } },
-    { "buzz30", "Buzz 30 Hz", "Grain", "static", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
-        grain = { rate = 30, depth = 0.6, wave = "square" } } },
-    { "flutter45", "Flutter 45 Hz", "Grain", "shimmer", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
-        grain = { rate = 45, depth = 0.9, wave = "square" } } },
-    { "windup", "Wind-up", "Grain", "draw", { attack = 1.6, curve = 2, hold = 0.1, decay = 0.08, peak = 0.9,
-        grain = { rate = 3, rateTo = 30, depth = 0.9, wave = "square", duty = 0.35 } } },
-    { "winddown", "Wind-down", "Grain", "fade", { hold = 0.1, decay = 1.6, peak = 0.9,
-        grain = { rate = 30, rateTo = 3, depth = 0.9, wave = "square", duty = 0.35 } } },
-    -- Texture: noise and sparks
-    { "gravel", "Gravel", "Texture", "pickaxe", { hold = 0.6, decay = 0.1, peak = 0.7, noise = 0.9 } },
-    { "crackle", "Crackle", "Texture", "kindle", { hold = 1, decay = 0.1, peak = 0.7, sparks = 14, bed = 0.1 } },
-    { "rain", "Rain", "Texture", "frost", { hold = 1.5, peak = 0.5, sparks = 6, bed = 0, loop = true } },
-    { "sand", "Sand", "Texture", "sizzle", { hold = 0.8, decay = 0.1, peak = 0.35, noise = 0.6,
-        grain = { rate = 22, depth = 0.3 } } },
-    { "tremor", "Tremor", "Texture", "shadow", { attack = 0.2, hold = 1, decay = 0.3, peak = 0.25, noise = 0.7,
-        grain = { rate = 6, depth = 0.4 } } },
-    { "staticx", "Static", "Texture", "zap", { hold = 0.6, decay = 0.05, peak = 0.6, sparks = 25, bed = 0.2 } },
-    -- Detents: even ticks
-    -- (in game: on / off faster than ~5 Hz is a buzz, so ticks stay at 5 Hz or
-    -- under, each on for 50 ms or more)
-    { "ratchet", "Ratchet", "Detents", "gears", { hold = 0.8, peak = 0.5, grain = { rate = 5, depth = 1,
-        wave = "square", duty = 0.3 } } },
-    { "dial", "Dial", "Detents", "click", { hold = 1, peak = 0.35, grain = { rate = 4, depth = 1, wave = "square",
-        duty = 0.25 } } },
-    { "cogs", "Cogs", "Detents", "whirl", { hold = 1.2, peak = 0.5, grain = { rate = 4, depth = 1, wave = "square",
-        duty = 0.25, alternate = true } } },
-    { "speedup", "Speeding ticks", "Detents", "charge", { hold = 1.5, peak = 0.5, grain = { rate = 1.5, rateTo = 5,
-        depth = 1, wave = "square", duty = 0.35 } } },
-    -- Shapes: curves instead of steps
-    { "swell", "Swell", "Shapes", "rise", { attack = 1.2, curve = 2, hold = 0.1, decay = 0.25, peak = 0.9 } },
-    { "dive", "Dive", "Shapes", "fade", { decay = 1.2, curve = 3, peak = 1 } },
-    { "thud", "Thud", "Shapes", "slam", { hold = 0.05, decay = 0.35, curve = 2.5, peak = 1, pan = -0.6,
-        duck = { amount = 0.6, time = 0.15 } } },
-    { "boom", "Boom", "Shapes", "burst", { kick = 0.04, hold = 0.1, decay = 1.5, curve = 2.5, peak = 1,
-        grain = { rate = 9, depth = 0.3 }, duck = { amount = 0.8, time = 0.3 } } },
-    { "ripple", "Ripple", "Shapes", "sweep", { hold = 0.05, decay = 0.9, peak = 0.9,
-        grain = { rate = 7, rateTo = 2, depth = 0.7 } } },
-    { "breath", "Breath", "Shapes", "mend", { attack = 1.4, curve = 1.5, decay = 1.6, peak = 0.3, loop = true } },
-    -- Motion: across the pad
-    { "passLR", "Pass left-right", "Motion", "sweep", { hold = 0.5, peak = 0.8, pan = -1, panTo = 1 } },
-    { "passRL", "Pass right-left", "Motion", "sweep", { hold = 0.5, peak = 0.8, pan = 1, panTo = -1 } },
-    { "arrow", "Arrow", "Motion", "string", { hold = 0.25, decay = 0.1, peak = 0.9, pan = -1, panTo = 1, kick = 0.02 } },
-    { "whoosh", "Whoosh", "Motion", "toss", { attack = 0.3, curve = 2, decay = 0.4, peak = 0.7, pan = -1, panTo = 1,
-        noise = 0.4 } },
-    { "orbit", "Orbit", "Motion", "whirl", { hold = 2, peak = 0.5, panRate = 1.5, loop = true } },
-    { "pingpong", "Ping-pong", "Motion", "arcane", { hold = 1, peak = 0.7, grain = { rate = 6, depth = 1,
-        wave = "square", alternate = true } } },
-    -- Life: rhythms
-    { "heart60", "Heart 60", "Life", "heart", { loop = true, keys = { left = heartKeys(1, 0.9, 0.6),
-        right = heartKeys(1, 0.6, 0.4) } } },
-    { "heart120", "Heart 120", "Life", "heart", { loop = true, keys = { left = heartKeys(0.5, 0.9, 0.6),
-        right = heartKeys(0.5, 0.6, 0.4) } } },
-    { "gallop", "Gallop", "Life", "charge", { loop = true, keys = { left = { { 0, 0.7, "out" }, { 0.05, 0 },
-        { 0.12, 0, "hold" }, { 0.12, 0.5, "out" }, { 0.17, 0 }, { 0.24, 0, "hold" }, { 0.24, 0.8, "out" },
-        { 0.29, 0 }, { 0.6, 0 } } } } },
-    { "steps", "Footsteps", "Life", "tick", { loop = true, keys = {
-        left = { { 0, 0.4, "out" }, { 0.05, 0 }, { 0.9, 0 } },
-        right = { { 0, 0 }, { 0.45, 0, "hold" }, { 0.45, 0.4, "out" }, { 0.5, 0 }, { 0.9, 0 } } } } },
-    { "splash", "Splash", "Life", "bubble", { kick = 0.03, hold = 0.05, decay = 0.7, peak = 0.9, noise = 0.8 } },
+    -- Taps: one pulse, 50 ms or more; soft is subtle
+    { "dust", "Dust", "Taps", "micro", Pulses({ P(0, 0.05, 0.15) }) },
+    { "pin", "Pin", "Taps", "micro", Pulses({ P(0, 0.05, 0.25) }) },
+    { "graze", "Graze", "Taps", "tick", Pulses({ P(0, 0.05, 0.35) }) },
+    { "tap", "Tap", "Taps", "tick", Pulses({ P(0, 0.06, 0.6) }) },
+    { "knock", "Knock", "Taps", "impact", Pulses({ P(0, 0.07, 1) }, { duck = { amount = 0.7, time = 0.12 } }) },
+    { "feather", "Feather", "Taps", "micro", Pulses({ P(0, 0.06, 0.25, 0.4) }) },
+    { "clickL", "Click left", "Taps", "click", Pulses({ P(0, 0.05, 0.5, -1) }) },
+    { "clickR", "Click right", "Taps", "click", Pulses({ P(0, 0.05, 0.5, 1) }) },
+    { "flick", "Flick", "Taps", "click", Pulses({ P(0, 0.05, 0.8), P(0.1, 0.05, 0.2) }) },
+    -- Doubles: two or three
+    { "notch", "Notch", "Doubles", "double", Pulses({ P(0, 0.05, 0.5), P(0.11, 0.05, 0.5) }) },
+    { "nudge", "Nudge", "Doubles", "double", Pulses({ P(0, 0.05, 0.25), P(0.12, 0.05, 0.25) }) },
+    { "ticktock", "Tick-tock", "Doubles", "click", Pulses({ P(0, 0.05, 0.4, -1), P(0.25, 0.05, 0.4, 1) }) },
+    { "echo", "Echo", "Doubles", "fade", Pulses({ P(0, 0.06, 0.7), P(0.16, 0.05, 0.3), P(0.3, 0.05, 0.12) }) },
+    { "triple", "Triple", "Doubles", "triple", Pulses(Row(3, 0, 0.1, 0.05, 0.4, 0.4)) },
+    { "deny", "Deny", "Doubles", "hex", Pulses({ P(0, 0.08, 0.7, -1), P(0.16, 0.08, 0.7, -1) }) },
+    -- Rolls: many, evenly or speeding up
+    { "ratchet", "Ratchet", "Rolls", "gears", Pulses(Row(8, 0, 0.12, 0.05, 0.4, 0.4)) },
+    { "dial", "Dial", "Rolls", "click", Pulses(Row(6, 0, 0.2, 0.05, 0.25, 0.25)) },
+    { "cogs", "Cogs", "Rolls", "whirl", Pulses((function()
+        local list = {}
+        for i = 0, 7 do list[#list + 1] = P(i * 0.15, 0.05, 0.4, i % 2 == 0 and -1 or 1) end
+        return list
+    end)()) },
+    { "windup", "Wind-up", "Rolls", "draw", Pulses(Join(Accel(10, 0.35, 0.08, 0.05, 0.15, 0.6), { P(2.0, 0.1, 1) })) },
+    { "winddown", "Wind-down", "Rolls", "fade", Pulses(Join({ P(0, 0.1, 1) }, (function()
+        local list = {}
+        for _, p in ipairs(Accel(9, 0.08, 0.35, 0.05, 0.6, 0.12)) do list[#list + 1] = P(p[1] + 0.2, p[2], p[3], p[4]) end
+        return list
+    end)())) },
+    { "speedup", "Speeding up", "Rolls", "charge", Pulses(Accel(10, 0.3, 0.09, 0.05, 0.4, 0.4)) },
+    { "rain", "Rain", "Rolls", "frost", Pulses({ P(0, 0.05, 0.2, -0.6), P(0.17, 0.05, 0.12, 0.7), P(0.41, 0.05, 0.25, 0.1),
+        P(0.58, 0.05, 0.15, -0.9), P(0.86, 0.05, 0.2, 0.5), P(1.02, 0.05, 0.1, -0.2), P(1.27, 0.05, 0.22, 0.9) },
+        { loop = true, length = 1.45 }) },
+    { "crackle", "Crackle", "Rolls", "kindle", Pulses({ P(0, 0.05, 0.5, -0.3), P(0.09, 0.05, 0.3, 0.4), P(0.24, 0.05, 0.6, 0),
+        P(0.31, 0.05, 0.25, -0.8), P(0.47, 0.05, 0.45, 0.6), P(0.6, 0.05, 0.3, -0.2), P(0.69, 0.05, 0.55, 0.3) }) },
+    -- Impacts: a hit and what follows it
+    { "thud", "Thud", "Impacts", "slam", Pulses({ P(0, 0.09, 1, -0.6), P(0.15, 0.05, 0.25, -0.6) },
+        { duck = { amount = 0.6, time = 0.15 } }) },
+    { "boom", "Boom", "Impacts", "burst", Pulses({ P(0, 0.12, 1), P(0.2, 0.06, 0.45), P(0.36, 0.05, 0.2), P(0.55, 0.05, 0.1) },
+        { duck = { amount = 0.8, time = 0.3 } }) },
+    { "shockwave", "Shockwave", "Impacts", "slam", Pulses({ P(0, 0.08, 1), P(0.14, 0.05, 0.5, -1), P(0.14, 0.05, 0.5, 1),
+        P(0.28, 0.05, 0.2, -1), P(0.28, 0.05, 0.2, 1) }) },
+    { "dive", "Dive", "Impacts", "fade", Pulses(Row(5, 0, 0.13, 0.06, 0.8, 0.1)) },
+    { "swell", "Swell", "Impacts", "rise", Pulses(Row(5, 0, 0.15, 0.06, 0.12, 0.85)) },
+    { "splash", "Splash", "Impacts", "bubble", Pulses({ P(0, 0.07, 0.9), P(0.13, 0.05, 0.25, -0.8), P(0.21, 0.05, 0.2, 0.7),
+        P(0.33, 0.05, 0.15, -0.3), P(0.47, 0.05, 0.1, 0.5) }) },
+    { "gravel", "Gravel", "Impacts", "pickaxe", Pulses({ P(0, 0.05, 0.5, -0.4), P(0.1, 0.05, 0.35, 0.3), P(0.17, 0.06, 0.45, -0.1),
+        P(0.3, 0.05, 0.3, 0.5), P(0.38, 0.05, 0.5, -0.6), P(0.5, 0.05, 0.3, 0.2), P(0.6, 0.06, 0.4, -0.3) }) },
+    { "tremor", "Tremor", "Impacts", "shadow", Pulses({ P(0, 0.06, 0.2, -0.5), P(0.22, 0.05, 0.15, 0.4), P(0.38, 0.06, 0.25, -0.1),
+        P(0.62, 0.05, 0.15, 0.6), P(0.8, 0.06, 0.2, -0.4), P(1.05, 0.05, 0.12, 0.2) }) },
+    -- Motion: pulses moving across the pad
+    { "passLR", "Pass left-right", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.06, 0.6, 0.6, -1, 1)) },
+    { "passRL", "Pass right-left", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.06, 0.6, 0.6, 1, -1)) },
+    { "arrow", "Arrow", "Motion", "string", Pulses(Join(Row(3, 0, 0.07, 0.05, 0.5, 0.7, -1, 0.3), { P(0.24, 0.07, 0.9, 1) })) },
+    { "whoosh", "Whoosh", "Motion", "toss", Pulses(Row(5, 0, 0.09, 0.05, 0.15, 0.5, -1, 1)) },
+    { "orbit", "Orbit", "Motion", "whirl", Pulses({ P(0, 0.06, 0.35, -1), P(0.2, 0.06, 0.35, 0), P(0.4, 0.06, 0.35, 1),
+        P(0.6, 0.06, 0.35, 0) }, { loop = true, length = 0.8 }) },
+    { "pingpong", "Ping-pong", "Motion", "arcane", Pulses((function()
+        local list = {}
+        for i = 0, 5 do list[#list + 1] = P(i * 0.18, 0.06, 0.5, i % 2 == 0 and -1 or 1) end
+        return list
+    end)()) },
+    -- Life: rhythms that loop
+    { "heart60", "Heart 60", "Life", "heart", Pulses({ P(0, 0.06, 0.8, -0.3), P(0.2, 0.055, 0.45, -0.3) },
+        { loop = true, length = 1 }) },
+    { "heart120", "Heart 120", "Life", "heart", Pulses({ P(0, 0.06, 0.8, -0.3), P(0.15, 0.055, 0.45, -0.3) },
+        { loop = true, length = 0.5 }) },
+    { "gallop", "Gallop", "Life", "charge", Pulses({ P(0, 0.05, 0.5, -0.3), P(0.12, 0.05, 0.35, 0), P(0.24, 0.06, 0.6, 0.3) },
+        { loop = true, length = 0.6 }) },
+    { "steps", "Footsteps", "Life", "tick", Pulses({ P(0, 0.05, 0.3, -1), P(0.45, 0.05, 0.3, 1) }, { loop = true, length = 0.9 }) },
+    { "purr", "Purr", "Life", "purr", Pulses({ P(0, 0.05, 0.15), P(0.25, 0.05, 0.1) }, { loop = true, length = 0.5 }) },
+    { "breath", "Breath", "Life", "mend", Pulses({ P(0, 0.06, 0.08), P(0.4, 0.06, 0.12), P(0.8, 0.06, 0.08),
+        P(1.8, 0.06, 0.06), P(2.2, 0.06, 0.04) }, { loop = true, length = 3.2 }) },
     -- Signals: short and meaningful
-    { "coin", "Coin", "Signals", "click", { keys = { left = { { 0, 0 }, { 0.16, 0 } },
-        right = { { 0, 0.6, "hold" }, { 0.04, 0, "hold" }, { 0.1, 0, "hold" }, { 0.1, 0.85, "hold" }, { 0.15, 0 } } } } },
-    { "chime", "Chime", "Signals", "radiance", { keys = { left = { { 0, 0 }, { 0.4, 0 } },
-        right = { { 0, 0.3, "hold" }, { 0.05, 0, "hold" }, { 0.14, 0, "hold" }, { 0.14, 0.55, "hold" },
-            { 0.19, 0, "hold" }, { 0.28, 0, "hold" }, { 0.28, 0.85, "hold" }, { 0.34, 0 } } } } },
-    { "deny", "Deny", "Signals", "hex", { keys = { left = { { 0, 0.7, "hold" }, { 0.08, 0, "hold" }, { 0.16, 0, "hold" },
-        { 0.16, 0.7, "hold" }, { 0.24, 0 } }, right = { { 0, 0 }, { 0.24, 0 } } } } },
-    { "ready", "Ready", "Signals", "micro", { hold = 0.05, peak = 0.4, pan = 1 } },
-    { "notch", "Notch", "Signals", "double", { keys = { left = { { 0, 0.5, "hold" }, { 0.03, 0, "hold" },
-        { 0.09, 0, "hold" }, { 0.09, 0.5, "hold" }, { 0.12, 0 } } } } },
-    { "whisper", "Whisper", "Signals", "micro", { hold = 0.2, peak = 0.03 } },
-    { "murmur", "Murmur", "Signals", "purr", { hold = 0.4, peak = 0.1 } },
+    { "coin", "Coin", "Signals", "click", Pulses({ P(0, 0.05, 0.4, 1), P(0.1, 0.05, 0.7, 1) }) },
+    { "chime", "Chime", "Signals", "radiance", Pulses(Row(3, 0, 0.14, 0.05, 0.25, 0.7, 1, 1)) },
+    { "ready", "Ready", "Signals", "micro", Pulses({ P(0, 0.05, 0.4, 1) }) },
+    { "alert", "Alert", "Signals", "hex", Pulses(Row(3, 0, 0.12, 0.06, 0.7, 0.7)) },
+    { "whisper", "Whisper", "Signals", "micro", Pulses({ P(0, 0.05, 0.05) }) },
+    { "murmur", "Murmur", "Signals", "purr", Pulses({ P(0, 0.05, 0.1), P(0.15, 0.05, 0.08) }) },
     -- Extremes: the limits
-    { "max", "Full both", "Extremes", "impact", { hold = 0.5, peak = 1 } },
-    { "maxL", "Full left", "Extremes", "bash", { hold = 0.5, peak = 1, pan = -1 } },
-    { "maxR", "Full right", "Extremes", "stab", { hold = 0.5, peak = 1, pan = 1 } },
-    { "ladder", "Ladder", "Extremes", "rise", { keys = { left = (function()
-        local k = {}
-        for i = 0, 9 do k[#k + 1] = { i * 0.25, (i + 1) / 10, "hold" } end
-        k[#k + 1] = { 2.5, 0 }
-        return k
-    end)() } } },
-    { "sweep60", "1 to 60 Hz", "Extremes", "static", { hold = 4, peak = 0.8, grain = { rate = 1, rateTo = 60,
-        depth = 1, wave = "square" } } },
+    { "max", "Full both", "Extremes", "impact", Pulses({ P(0, 0.5, 1) }) },
+    { "maxL", "Full left", "Extremes", "bash", Pulses({ P(0, 0.5, 1, -1) }) },
+    { "maxR", "Full right", "Extremes", "stab", Pulses({ P(0, 0.5, 1, 1) }) },
+    { "ladder", "Ladder", "Extremes", "rise", Pulses(Row(10, 0, 0.25, 0.08, 0.1, 1)) },
+    { "closest", "Closest pulses", "Extremes", "static", Pulses(Row(16, 0, 0.09, 0.05, 0.5, 0.5)) },
 }
 for _, e in ipairs(LIB) do
     local feel = e[5]
@@ -737,52 +760,61 @@ end
 ---------------------------------------------------------------------------
 local live = { heart = false, hp = nil, moving = false, mounted = false, speed = 0 }
 
+-- A beat every interval seconds (the interval may change as it goes): the
+-- seconds since the last beat, and how many beats so far. Pulses are timed in
+-- seconds from there, never shorter than PULSE (the pad loses shorter ones).
+local PULSE = 0.055
+local function Beat(v, now, interval)
+    if not v.beatAt or now - v.beatAt >= interval then
+        v.beatAt = now
+        v.beats = (v.beats or 0) + 1
+    end
+    return now - v.beatAt, v.beats
+end
+
+-- Lub-dub, faster and stronger as health drops
 local function Heartbeat(now, v)
     if not live.heart then return nil end
-    v.phase = (v.phase or 0) + (now - (v.at or now)) * (v.bpm or 80) / 60
-    v.at = now
     local danger = live.hp and max(0, min(1, 1 - live.hp / 0.5)) or 0.6
-    v.bpm = 70 + 110 * danger
-    local p = v.phase % 1
+    local period = 60 / (70 + 110 * danger)
+    local d = Beat(v, now, period)
     local a = 0.35 + 0.55 * danger
-    if p < 0.07 then return a, a * 0.7 end
-    if p >= 0.2 and p < 0.26 then return a * 0.65, a * 0.45 end
+    local dub = max(0.13, 0.25 * period)
+    if d < PULSE + 0.005 then return a, a * 0.7 end
+    if d >= dub and d < dub + PULSE then return a * 0.65, a * 0.45 end
     return 0, 0
 end
 
+-- A step on each side in turn, quicker with speed
 local function Steps(now, v)
     if not (live.moving and not live.mounted) then return nil end
-    local rate = 2.4 * max(0.5, live.speed / 7)
-    v.phase = (v.phase or 0) + (now - (v.at or now)) * rate
-    v.at = now
-    local p = v.phase % 1
-    local left = floor(v.phase) % 2 == 0
-    if p < 0.12 then return left and 0.3 or 0, left and 0 or 0.3 end
+    local d, n = Beat(v, now, 1 / (2.4 * max(0.5, live.speed / 7)))
+    if d < PULSE then
+        local left = n % 2 == 0
+        return left and 0.3 or 0, left and 0 or 0.3
+    end
     return 0, 0
 end
 
+-- Three hooves, left to right, a stride quicker with speed
 local function Gallop(now, v)
     if not (live.moving and live.mounted) then return nil end
-    local rate = max(0.8, live.speed / 9)
-    v.phase = (v.phase or 0) + (now - (v.at or now)) * rate
-    v.at = now
-    local p = v.phase % 1
-    if p < 0.06 then return 0.35, 0.2 end
-    if p >= 0.14 and p < 0.19 then return 0.25, 0.3 end
-    if p >= 0.28 and p < 0.34 then return 0.45, 0.35 end
+    local d = Beat(v, now, max(0.36, 1 / max(0.8, live.speed / 9)))
+    if d < PULSE then return 0.35, 0.2 end
+    if d >= 0.11 and d < 0.11 + PULSE then return 0.25, 0.3 end
+    if d >= 0.22 and d < 0.22 + PULSE then return 0.45, 0.35 end
     return 0, 0
 end
 
+-- A cast: ticks closer and stronger toward its end
 local function Tension(now)
     if not cast.start then return nil end
     local span = cast.finish - cast.start
     local p = span > 0 and min(1, max(0, (now - cast.start) / span)) or 1
-    local rate = 4 + 24 * p
-    cast.phase = (cast.phase or 0) + (now - (cast.at or now)) * rate
-    cast.at = now
-    local on = cast.phase % 1 < 0.35
-    local a = 0.06 + 0.4 * p * p
-    return on and a or a * 0.2, on and a or a * 0.2
+    local d = Beat(cast, now, 0.4 - 0.29 * p)
+    local a = 0.1 + 0.6 * p * p
+    if d < PULSE then return a, a end
+    return 0, 0
 end
 
 local function LiveOn(key)
@@ -866,7 +898,7 @@ end
 local function CastBegan(channel)
     local s, e = CastTimes(channel)
     if not s then return end
-    cast.start, cast.finish, cast.phase, cast.at = s, e, 0, nil
+    cast.start, cast.finish, cast.beatAt, cast.beats = s, e, nil, nil
     if LiveOn("tension") and not channel then
         local st = L.EventSettings("tension")
         if st.feel == "windup" then

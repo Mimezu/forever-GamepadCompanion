@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0 — 2026-11-16
+
+- Beta: feels rebuilt as rhythms of pulses (each 50 ms or more, with its own strength and side), from the probe results: 54 feels in Taps, Doubles, Rolls, Impacts, Motion, Life, Signals, Extremes
+- Beta, live voices (heartbeat, footsteps, riding, cast tension): fixed-length pulses at any speed
+- Beta, editor: Pulses mode (click to add, drag for time and strength, wheel for length, side of new pulses); converts to and from Keys and Shape
+- Beta, Record L2 R2: tap a rhythm, each squeeze a pulse on its side, as deep as you pressed
+
 ## 0.13.5 — 2026-11-16
 
 - Beta, Overdrive probe redone: count 5 taps, plain against kicked (15 ms at full first), 25-40 ms

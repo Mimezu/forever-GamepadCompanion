@@ -54,6 +54,9 @@ grain, noise) mostly flattens out. Triggers: nothing. Light bar: works. So the
 vocabulary is rhythms of short soft pulses (what the player liked), placed left /
 right, plus the light bar; curves and textures need the helper (true haptics).
 
+0.14.0: the library is rebuilt this way (pulses: time, length 50 ms or more,
+strength, side); the editor has a Pulses mode; recording turns squeezes into pulses.
+
 Applied in 0.13.3: Shortest pulse 50 ms and no floor by default; taps 50 ms and soft;
 detents at 5 Hz or under. Still open: 60 fps run, triggers, overdrive.
 

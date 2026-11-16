@@ -659,6 +659,34 @@ local function View()
 end
 
 -- Shape to keyframes (the envelope sampled, then simplified)
+local SHAPE_FIELDS = { "attack", "hold", "decay", "peak", "curve", "grain", "noise", "sparks", "bed", "pan", "panTo",
+    "panRate", "panDepth", "kick" }
+
+-- A feel's mode in the editor
+local function ModeOf(f)
+    return f and (f.pulses and "pulses" or f.keys and "keys" or "shape") or nil
+end
+
+-- Any feel to pulses: a pulse wherever it is felt, on a 60 ms grid
+local function ToPulses(f)
+    local len = H.Length(f)
+    local plain = H.Copy(f)
+    plain.loop = false
+    local list = {}
+    for t = 0, len - 0.001, 0.06 do
+        local l, r = H.Sample(plain, t + 0.001, 1)
+        local s = max(l or 0, r or 0)
+        if s > 0.04 then
+            local side = s > 0 and ((r or 0) - (l or 0)) / s or 0
+            list[#list + 1] = { t, 0.05, s, max(-1, min(1, side)) }
+        end
+    end
+    if #list == 0 then list[1] = { 0, 0.06, 0.4, 0 } end
+    for _, k in ipairs(SHAPE_FIELDS) do f[k] = nil end
+    f.keys, f.pulses = nil, list
+    if f.loop then f.length = len end
+end
+
 local function ToKeys(f)
     local len = H.Length(f)
     local plain = H.Copy(f)
@@ -673,6 +701,7 @@ local function ToKeys(f)
     end
     f.keys = { left = H.Simplify(left, 0.01), right = H.Simplify(right, 0.01) }
     f.pan, f.panTo, f.panRate, f.kick = nil, nil, nil, nil
+    f.pulses, f.length = nil, nil
 end
 
 local DRAG_R = 6
@@ -709,11 +738,12 @@ local function BuildEditor(p)
     for i = 1, 12 do
         local b = S.NewButton(list, "", 10, -38 - (i - 1) * 30, 190, nil, nil, 11, 28)
         b.label:SetJustifyH("LEFT")
-        b:SetScript("OnClick", function(self) if self.key then ed.key = self.key; Refresh() end end)
+        b:SetScript("OnClick", function(self) if self.key then ed.key, ed.sel = self.key, nil; Refresh() end end)
         ed.items[i] = b
     end
     S.NewButton(list, "New", 10, -(PH - 40 - 116), 92, function()
-        ed.key = SaveOwn({ label = "New feel", attack = 0.05, hold = 0.3, decay = 0.2, peak = 0.7 }, "New feel")
+        ed.key = SaveOwn({ label = "New feel", pulses = { { 0, 0.06, 0.4, 0 } } }, "New feel")
+        ed.sel = nil
         Refresh()
     end, nil, 12, 28)
     S.NewButton(list, "Copy", 108, -(PH - 40 - 116), 92, function()
@@ -750,19 +780,20 @@ local function BuildEditor(p)
         if Own() then Feel().label = self:GetText(); if L.RegisterInRumble then L.RegisterInRumble() end end
         Refresh()
     end)
-    ed.length = S.Text(mid, "", 410, -15, 140, 12, GREY)
-    ed.mode = Choice(mid, "", 140, -8, { { "shape", "Shape" }, { "keys", "Keys" } }, function()
-        local f = Feel()
-        return f and (f.keys and "keys" or "shape")
+    ed.length = S.Text(mid, "", 452, -15, 100, 12, GREY)
+    ed.mode = Choice(mid, "", 132, -8, { { "pulses", "Pulses" }, { "keys", "Keys" }, { "shape", "Shape" } }, function()
+        return ModeOf(Feel())
     end, function(v)
         local f = Feel()
-        if not (f and Own()) then return end
-        if v == "keys" and not f.keys then ToKeys(f)
-        elseif v == "shape" and f.keys then
-            f.keys = nil
+        if not (f and Own()) or v == ModeOf(f) then return end
+        ed.sel = nil
+        if v == "pulses" then ToPulses(f)
+        elseif v == "keys" then ToKeys(f)
+        else
+            f.keys, f.pulses, f.length = nil, nil, nil
             f.attack, f.hold, f.decay, f.peak = f.attack or 0.05, f.hold or 0.3, f.decay or 0.2, f.peak or 0.7
         end
-    end, 60)
+    end, 54)
     ed.canvas = Graph(mid, 10, -44, 540, 300, 180)
     ed.canvas:EnableMouse(true)
     ed.canvas.points = {}
@@ -776,8 +807,27 @@ local function BuildEditor(p)
         return "right", min(1, max(0, (0.5 - fy) * 2))
     end
 
+    -- (a pulse's handle: its start and strength, above the line for the left
+    -- grip or both, below for the right)
+    local function PulseY(p, hgt)
+        local up = (p[4] or 0) <= 0
+        return up and (hgt / 2 + p[3] * (hgt / 2 - 2)) or (hgt / 2 - p[3] * (hgt / 2 - 2))
+    end
+
     ed.canvas:SetScript("OnMouseDown", function(self, button)
         local f = Feel()
+        if f and f.pulses and Own() and button == "LeftButton" then
+            local fx, fy = CanvasPoint(self)
+            local view = View()
+            local side = ed.newSide or 0
+            local p = { max(0, fx * view), 0.06, max(0.05, min(1, math.abs(fy - 0.5) * 2)), side }
+            f.pulses[#f.pulses + 1] = p
+            table.sort(f.pulses, function(a, b) return a[1] < b[1] end)
+            ed.sel = p
+            ed.drag = { pulse = p, view = view }
+            Refresh()
+            return
+        end
         if not (f and f.keys and Own()) or button ~= "LeftButton" then return end
         local fx, fy = CanvasPoint(self)
         local side, v = ValueAt(fy)
@@ -792,7 +842,14 @@ local function BuildEditor(p)
     ed.canvas:SetScript("OnMouseUp", function() ed.drag = nil end)
     ed.canvas:SetScript("OnUpdate", function(self)
         local d = ed.drag
-        if d and IsMouseButtonDown and IsMouseButtonDown("LeftButton") then
+        if d and d.pulse and IsMouseButtonDown and IsMouseButtonDown("LeftButton") then
+            local fx, fy = CanvasPoint(self)
+            d.pulse[1] = max(0, min(30, fx * View()))
+            d.pulse[3] = max(0.05, min(1, math.abs(fy - 0.5) * 2))
+            local f = Feel()
+            if f and f.pulses then table.sort(f.pulses, function(a, b) return a[1] < b[1] end) end
+            ed.Draw()
+        elseif d and IsMouseButtonDown and IsMouseButtonDown("LeftButton") then
             local fx, fy = CanvasPoint(self)
             local _, v = ValueAt(fy)
             if d.side == "right" then v = min(1, max(0, (0.5 - fy) * 2)) else v = min(1, max(0, (fy - 0.5) * 2)) end
@@ -827,19 +884,33 @@ local function BuildEditor(p)
         h.tex:SetColorTexture(1, 1, 1, 0.9)
         h:RegisterForClicks("RightButtonUp")
         h:SetScript("OnMouseDown", function(self, button)
-            if button == "LeftButton" then
-                ed.drag = { list = self.list, key = self.key, side = self.side, view = View() }
+            if button ~= "LeftButton" then return end
+            if self.pulse then
+                ed.sel = self.pulse
+                ed.drag = { pulse = self.pulse, view = View() }
+                Refresh()
+                return
             end
+            ed.drag = { list = self.list, key = self.key, side = self.side, view = View() }
         end)
         h:SetScript("OnClick", function(self)
             for k, key in ipairs(self.list) do
-                if key == self.key and #self.list > 1 then table.remove(self.list, k); break end
+                if key == (self.pulse or self.key) and #self.list > 1 then table.remove(self.list, k); break end
             end
+            if ed.sel == self.pulse then ed.sel = nil end
             Refresh()
         end)
         h:SetScript("OnEnter", function(self)
             if not GameTooltip then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if self.pulse then
+                local p = self.pulse
+                GameTooltip:SetText(string.format("%.2f s  ·  %d ms  ·  %d%%", p[1], p[2] * 1000 + 0.5, p[3] * 100 + 0.5),
+                    1, 0.82, 0)
+                GameTooltip:AddLine("Drag · Right-click: delete · Wheel: length", 1, 1, 1)
+                GameTooltip:Show()
+                return
+            end
             GameTooltip:SetText(string.format("%.2f s  ·  %d%%", self.key[1], self.key[2] * 100), 1, 0.82, 0)
             GameTooltip:AddLine("Drag · Right-click: delete · Wheel: ease", 1, 1, 1)
             GameTooltip:Show()
@@ -847,6 +918,12 @@ local function BuildEditor(p)
         h:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         h:EnableMouseWheel(true)
         h:SetScript("OnMouseWheel", function(self, delta)
+            if self.pulse then
+                self.pulse[2] = max(0.05, min(2, self.pulse[2] + (delta > 0 and 0.01 or -0.01)))
+                Say(string.format("Length: %d ms", self.pulse[2] * 1000 + 0.5))
+                Refresh()
+                return
+            end
             local eases = H.EASES
             local cur = 1
             for k, e in ipairs(eases) do if e == (self.key[3] or "linear") then cur = k end end
@@ -875,7 +952,20 @@ local function BuildEditor(p)
             end)
         end
         for _, h in ipairs(ed.canvas.points) do h:Hide() end
-        if f and f.keys and Own() then
+        if f and f.pulses and Own() then
+            local w, hgt = ed.canvas:GetWidth(), ed.canvas:GetHeight()
+            for n, p in ipairs(f.pulses) do
+                local h = Handle(n)
+                h.list, h.pulse, h.key, h.side = f.pulses, p, nil, nil
+                h:ClearAllPoints()
+                h:SetPoint("CENTER", ed.canvas, "BOTTOMLEFT", p[1] / view * w, PulseY(p, hgt))
+                local side = p[4] or 0
+                local c = side < -0.3 and LEFT_C or side > 0.3 and RIGHT_C or { 1, 1, 1 }
+                h.tex:SetColorTexture(c[1], c[2], c[3], 1)
+                h:SetSize(ed.sel == p and DRAG_R * 3 or DRAG_R * 2, ed.sel == p and DRAG_R * 3 or DRAG_R * 2)
+                h:Show()
+            end
+        elseif f and f.keys and Own() then
             local n, w, hgt = 0, ed.canvas:GetWidth(), ed.canvas:GetHeight()
             for _, side in ipairs({ "left", "right" }) do
                 local list = f.keys[side]
@@ -883,7 +973,8 @@ local function BuildEditor(p)
                     for _, key in ipairs(list) do
                         n = n + 1
                         local h = Handle(n)
-                        h.list, h.key, h.side = list, key, side
+                        h.list, h.key, h.side, h.pulse = list, key, side, nil
+                        h:SetSize(DRAG_R * 2, DRAG_R * 2)
                         local y = side == "left" and (hgt / 2 + key[2] * (hgt / 2 - 2)) or (hgt / 2 - key[2] * (hgt / 2 - 2))
                         h:ClearAllPoints()
                         h:SetPoint("CENTER", ed.canvas, "BOTTOMLEFT", key[1] / view * w, y)
@@ -907,12 +998,15 @@ local function BuildEditor(p)
     S.NewButton(mid, "Stop", 202, ty, 80, function() H.Stop("editor"); H.Stop("record"); ed.recording = nil; Refresh() end,
         nil, 12, 32)
     ed.recB = S.NewButton(mid, "Record L2 R2", 288, ty, 140, function() ed.ToggleRecord() end, nil, 12, 32)
-    S.Tooltip(ed.recB, "Record", "Squeeze L2 / R2: left / right grip · 6 s")
+    S.Tooltip(ed.recB, "Record", "Tap a rhythm on L2 / R2: each squeeze a pulse · 6 s")
     ed.recInfo = S.Text(mid, "", 436, ty - 9, 120, 12, YELLOW)
-    ed.assign = S.Text(mid, "", 10, ty - 44, 540, 11, DIM)
+    ed.sideRow = Choice(mid, "New pulses", 10, ty - 42, { { -1, "Left" }, { 0, "Both" }, { 1, "Right" } },
+        function() return ed.newSide or 0 end, function(v) ed.newSide = v end, 70)
+    ed.assign = S.Text(mid, "", 10, ty - 80, 540, 11, DIM)
 
     -- Right: parameters
     local right = S.Card(p, "Shape", 790, 0, W - 790, PH - 40)
+    ed.right = right
     local function param(field, sub)
         return function()
             local f = Feel()
@@ -935,7 +1029,7 @@ local function BuildEditor(p)
         local get, set = param(field, sub)
         local row = Stepper(right, label, 10, y, { get = get, set = set, step = step, min = lo, max = hi, format = fmt,
             labelWidth = 92, width = 300 })
-        row.shapeOnly = shapeOnly
+        row.modes = shapeOnly and { shape = true } or { shape = true, keys = true }
         ed.params = ed.params or {}
         ed.params[#ed.params + 1] = row
         return row
@@ -958,12 +1052,14 @@ local function BuildEditor(p)
         list = { { "sine", "Sine" }, { "square", "Square" }, { "tri", "Triangle" }, { "saw", "Saw" }, { "ramp", "Ramp" } },
         get = function() local f = Feel(); return f and f.grain and f.grain.wave or "sine" end,
         set = function(v) local f = Feel(); if f and Own() then f.grain = f.grain or { rate = 0, depth = 0 }; f.grain.wave = v end end })
+    wave.modes = { shape = true, keys = true }
     ed.params[#ed.params + 1] = wave
     P("Duty", nexty(), "duty", "grain", 0.05, 0.05, 0.95, pct)
     local alt = Stepper(right, "Alternate", 10, nexty(), { labelWidth = 92, width = 300,
         list = { { false, "Off" }, { true, "L / R" } },
         get = function() local f = Feel(); return f and f.grain and f.grain.alternate == true or false end,
         set = function(v) local f = Feel(); if f and Own() then f.grain = f.grain or { rate = 0, depth = 0 }; f.grain.alternate = v end end })
+    alt.modes = { shape = true, keys = true }
     ed.params[#ed.params + 1] = alt
     P("Noise", nexty(), "noise", nil, 0.05, 0, 1, pct)
     P("Sparks", nexty(), "sparks", nil, 1, 0, 40, function(v) return v .. "/s" end)
@@ -975,12 +1071,41 @@ local function BuildEditor(p)
         list = { { false, "No" }, { true, "Yes" } },
         get = function() local f = Feel(); return f and f.loop == true or false end,
         set = function(v) local f = Feel(); if f and Own() then f.loop = v end end })
+    loopRow.modes = { shape = true, keys = true, pulses = true }
     ed.params[#ed.params + 1] = loopRow
     local duck = Stepper(right, "Ducks others", 10, nexty(), { labelWidth = 92, width = 300,
         list = { { 0, "No" }, { 0.4, "40%" }, { 0.7, "70%" }, { 1, "Fully" } },
         get = function() local f = Feel(); return f and f.duck and f.duck.amount or 0 end,
         set = function(v) local f = Feel(); if f and Own() then f.duck = v > 0 and { amount = v, time = 0.2 } or nil end end })
+    duck.modes = { shape = true, keys = true, pulses = true }
     ed.params[#ed.params + 1] = duck
+
+    -- Pulses: the one picked on the canvas, and the cycle
+    local function pulseField(i)
+        return function() return ed.sel and ed.sel[i] or 0 end,
+            function(v) if ed.sel and Own() then ed.sel[i] = v end end
+    end
+    local function PR(label, py, i, step, lo, hi, fmt, list)
+        local get, set = pulseField(i)
+        local row = Stepper(right, label, 10, py, { get = get, set = set, step = step, min = lo, max = hi, format = fmt,
+            list = list, labelWidth = 92, width = 300 })
+        row.modes, row.needsPulse = { pulses = true }, true
+        ed.params[#ed.params + 1] = row
+    end
+    PR("Time", -38, 1, 0.01, 0, 30, secs)
+    PR("Length", -63, 2, 0.01, 0.05, 2, function(v) return string.format("%d ms", v * 1000 + 0.5) end)
+    PR("Strength", -88, 3, 0.05, 0.05, 1, pct)
+    PR("Side", -113, 4, 0.5, -1, 1, function(v)
+        return v <= -0.75 and "Left" or v >= 0.75 and "Right" or math.abs(v) < 0.25 and "Both"
+            or (v < 0 and "More left" or "More right")
+    end)
+    local cycle = Stepper(right, "Cycle", 10, -148, { labelWidth = 92, width = 300, step = 0.05, min = 0, max = 10,
+        format = function(v) return v > 0 and string.format("%.2f s", v) or "To last" end,
+        get = function() local f = Feel(); return f and f.length or 0 end,
+        set = function(v) local f = Feel(); if f and Own() then f.length = v > 0 and v or nil end end })
+    cycle.modes = { pulses = true }
+    ed.params[#ed.params + 1] = cycle
+    S.Tooltip(cycle, "Cycle", "A loop's length: silence after the last pulse")
 
     -- Recording with the triggers
     local rec = CreateFrame("Frame", nil, p)
@@ -992,10 +1117,30 @@ local function BuildEditor(p)
             H.Stop("record")
             local r = ed.recording
             ed.recording = nil
-            if #r.left < 2 then return Refresh() end
-            local feel = { label = "Recorded", keys = { left = H.Simplify(r.left, 0.02), right = H.Simplify(r.right, 0.02) } }
-            ed.key = SaveOwn(feel, "Recorded " .. date("%H:%M"))
-            Say("Recorded: " .. #feel.keys.left + #feel.keys.right .. " keys")
+            -- Each squeeze a pulse: where it starts, how long, how deep; L2
+            -- the left grip, R2 the right
+            local pulses = {}
+            for side, samples in ipairs({ r.left, r.right }) do
+                local from, top
+                for i = 1, #samples + 1 do
+                    local s = samples[i]
+                    local down = s and s[2] > 0.15
+                    if down and not from then from, top = s[1], s[2]
+                    elseif down then top = max(top, s[2])
+                    elseif from then
+                        local to = samples[i - 1][1]
+                        pulses[#pulses + 1] = { from, max(0.05, to - from), top, side == 1 and -1 or 1 }
+                        from = nil
+                    end
+                end
+            end
+            if #pulses == 0 then Say("Nothing squeezed", true); return Refresh() end
+            table.sort(pulses, function(a, b) return a[1] < b[1] end)
+            local first = pulses[1][1]
+            for _, pl in ipairs(pulses) do pl[1] = pl[1] - first end
+            ed.key = SaveOwn({ label = "Recorded", pulses = pulses }, "Recorded " .. date("%H:%M"))
+            ed.sel = nil
+            Say("Recorded: " .. #pulses .. " pulses")
             Refresh()
             return
         end
@@ -1039,16 +1184,22 @@ local function BuildEditor(p)
         ed.name:SetEnabled(own_ and true or false)
         ed.length:SetText(f and string.format("%.2f s%s", H.Length(f), f.loop and " · loop" or "") or "")
         ed.delete:SetEnabled(own_ and true or false)
+        local mode = ModeOf(f) or "pulses"
+        if ed.sel and not (f and f.pulses) then ed.sel = nil end
         for _, row in ipairs(ed.params or {}) do
-            row:SetEnabled((own_ and not (row.shapeOnly and f and f.keys)) and true or false)
+            row:SetShown(row.modes[mode] == true)
+            row:SetEnabled((own_ and (not row.needsPulse or ed.sel ~= nil)) and true or false)
         end
+        ed.right.title:SetText(mode == "pulses" and "Pulse" or mode == "keys" and "Keys" or "Shape")
+        ed.sideRow:SetShown(mode == "pulses" and own_ and true or false)
         S.SetSelected(ed.loopB, ed.loop)
         ed.recB.label:SetText(ed.recording and "Stop recording" or "Record L2 R2")
         S.SetSelected(ed.recB, ed.recording ~= nil)
         if not ed.recording then ed.recInfo:SetText("") end
         ed.hint:SetText(not f and "New, or pick one" or not own_ and "Library feel: Copy to edit"
+            or f.pulses and "Click: add a pulse · Drag: time, strength · Right-click: delete · Wheel: length"
             or f.keys and "Click: add · Drag · Right-click: delete · Wheel on a point: ease"
-            or "Keys: draw it by hand")
+            or "Pulses: what the pad keeps best")
         ed.assign:SetText(f and own_ and "In Rumble's grid and Events while the Beta engine is on" or "")
         ed.Draw()
     end

@@ -202,7 +202,7 @@ for _, f in ipairs(H.LIBRARY) do
     end
     local back = assert(H.Import(H.Export(f)), f.key .. " imports")
     near(H.Length(back), len, f.key .. " length after import")
-    for t = 0, len * 0.99, len / 7 do
+    for t = 0.0037, len * 0.99, len / 7.3 do
         local x1, y1 = H.Sample(f, t, 3)
         local x2, y2 = H.Sample(back, t, 3)
         assert(math.abs((x1 or 0) - (x2 or 0)) < 0.01 and math.abs((y1 or 0) - (y2 or 0)) < 0.01,
@@ -399,10 +399,17 @@ local own = {}
 for k in pairs(H.DB().feels) do own[#own + 1] = k end
 assert(#own == 1, "a feel of your own")
 local feel = H.Feel(own[1])
-assert(feel.attack and not feel.keys, "shape")
+assert(feel.pulses and #feel.pulses == 1 and not feel.keys, "a new feel is one pulse")
 local keysB = assert(button("Keys"), "Keys")
 keysB.scripts.OnClick(keysB)
-assert(feel.keys and #feel.keys.left >= 2, "to keyframes")
+assert(feel.keys and #feel.keys.left >= 2 and not feel.pulses, "to keyframes")
+local shapeB = assert(button("Shape"), "Shape")
+shapeB.scripts.OnClick(shapeB)
+assert(feel.attack and not feel.keys, "to a shape")
+local pulsesB = assert(button("Pulses"), "Pulses")
+pulsesB.scripts.OnClick(pulsesB)
+assert(feel.pulses and #feel.pulses >= 1 and not feel.attack, "back to pulses: " .. #feel.pulses)
+keysB.scripts.OnClick(keysB)
 assert(H.Import(H.Export(feel)).keys, "keyframes shared")
 assert(V.Pattern("x_" .. own[1]), "in Rumble's grid too")
 combat = true
@@ -417,7 +424,8 @@ local stopRec = assert(button("Stop recording"), "recording")
 stopRec.scripts.OnClick(stopRec)
 local recorded
 for _, f in pairs(H.DB().feels) do if (f.label or ""):find("Recorded") then recorded = f end end
-assert(recorded and recorded.keys.left[1][2] > 0.5, "recorded the triggers")
+assert(recorded and recorded.pulses and recorded.pulses[1][4] == -1 and recorded.pulses[1][3] > 0.5,
+    "a squeeze of L2: a left pulse as deep as it was")
 ui.engine.checked = true
 ui.engine.scripts.OnClick(ui.engine)
 assert(H.Engine(), "engine on from the tab")

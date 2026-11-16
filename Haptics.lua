@@ -115,6 +115,12 @@ end
 H.KeyAt = Keys
 
 function H.Length(feel)
+    -- Pulses: to the end of the last one, or the cycle's set length
+    if feel.pulses then
+        local len = 0
+        for _, p in ipairs(feel.pulses) do len = max(len, (p[1] or 0) + (p[2] or 0)) end
+        return max(0.02, len, feel.length or 0)
+    end
     if feel.keys then
         local len = 0
         for _, side in pairs(feel.keys) do
@@ -161,6 +167,18 @@ function H.Sample(feel, t, seed)
     if t >= len then
         if not feel.loop then return nil end
         t = t % len
+    end
+    -- Pulses (what the pad keeps, through the game): each { t, length,
+    -- strength, side -1 left .. 1 right }; overlapping ones: the stronger
+    if feel.pulses then
+        local l, r = 0, 0
+        for _, p in ipairs(feel.pulses) do
+            if t >= p[1] and t < p[1] + p[2] then
+                local s, pan = p[3] or 1, p[4] or 0
+                l, r = max(l, s * min(1, 1 - pan)), max(r, s * min(1, 1 + pan))
+            end
+        end
+        return clamp(l), clamp(r)
     end
     local l, r
     if feel.keys then
@@ -675,7 +693,7 @@ end
 -- Only known fields, in range (an imported or recorded feel)
 local NUM = { attack = { 0, 10 }, hold = { 0, 10 }, decay = { 0, 10 }, peak = { 0, 1 }, curve = { 0.2, 5 },
     noise = { 0, 1 }, sparks = { 0, 60 }, bed = { 0, 1 }, pan = { -1, 1 }, panTo = { -1, 1 }, panRate = { 0, 20 },
-    panDepth = { 0, 1 }, kick = { 0, 0.2 }, gap = { 0, 5 } }
+    panDepth = { 0, 1 }, kick = { 0, 0.2 }, gap = { 0, 5 }, length = { 0, 30 } }
 local WAVES = { sine = true, square = true, saw = true, ramp = true, tri = true }
 function H.Clean(src)
     local f = { label = type(src.label) == "string" and src.label:sub(1, 24) or "Imported", loop = src.loop == true }
@@ -693,7 +711,19 @@ function H.Clean(src)
     if type(src.duck) == "table" then
         f.duck = { amount = clamp(tonumber(src.duck.amount) or 0), time = max(0, min(2, tonumber(src.duck.time) or 0.2)) }
     end
-    if type(src.keys) == "table" then
+    if type(src.pulses) == "table" then
+        local list = {}
+        for i = 1, min(#src.pulses, 200) do
+            local p = src.pulses[i]
+            if type(p) == "table" and tonumber(p[1]) and tonumber(p[2]) then
+                list[#list + 1] = { max(0, min(30, tonumber(p[1]))), max(0.02, min(5, tonumber(p[2]))),
+                    clamp(tonumber(p[3]) or 1), max(-1, min(1, tonumber(p[4]) or 0)) }
+            end
+        end
+        if #list == 0 then return nil, "no pulses" end
+        table.sort(list, function(a, b) return a[1] < b[1] end)
+        f.pulses = list
+    elseif type(src.keys) == "table" then
         f.keys = {}
         for _, side in ipairs({ "left", "right" }) do
             local list = src.keys[side]
