@@ -677,7 +677,7 @@ end
 
 local lastFire = {}
 -- An event: its feel, if on (gain: 0-1 more or less of it)
-function L.Fire(key, gain, feel, absolute)
+function L.Fire(key, gain, feel, absolute, stretch)
     if not H.Engine() then return end
     -- (Rumble off, or Improved Forever: Vibration has the motors: quiet too)
     local V = ns.Rumble
@@ -688,7 +688,8 @@ function L.Fire(key, gain, feel, absolute)
     local now = Now()
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
-    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = absolute and (gain or 1) or Strength() * (gain or 1) })
+    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = absolute and (gain or 1) or Strength() * (gain or 1),
+        stretch = stretch })
     if L.onFire then L.onFire(key) end
 end
 
@@ -1270,8 +1271,19 @@ air:SetScript("OnUpdate", function()
             -- at 70% strength a full landing felt faint)
             local strength = Strength()
             local gain = (strength + (1 - strength) * k) * (0.25 + 0.75 * k)
-            if s.feel == EVENT.landing.feel then L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
-            else L.Fire("landing", gain, nil, true) end
+            if s.feel == EVENT.landing.feel then
+                L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
+            else
+                -- (another feel: as strong, and stretched as long, as the landing
+                -- is heavy: in game a short one felt faint whatever its strength)
+                local f = H.Feel(s.feel)
+                local longest = H.DB().landLong or L.LAND_LONG
+                local want = 0.06 + max(0, longest - 0.06) * k
+                local stretch = f and max(1, want / max(0.06, H.Length(f))) or 1
+                L.Fire("landing", gain, nil, true, stretch)
+            end
+            local played = H.Feel(s.feel)
+            L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
             L.lastLanding.sent = { start = now, peak = 0, last = now }
             -- (the run starts again on landing: footsteps from here)
             if live.moving then live.moveStart = now; H.Stop("live_footsteps") end

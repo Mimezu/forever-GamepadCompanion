@@ -359,6 +359,12 @@ H.DB().landMin, H.DB().landMax = nil, nil
 L.SetStepRate("walk", 1.5)
 assert(L.StepRate("walk") == 1.5 and select(3, L.StepTiming(2.5)), "walk steps set by hand")
 H.DB().stepSync = {}
+-- Another feel on Landing: stretched with the landing's weight
+L.EventSettings("landing").feel = "flick"
+falling = true; air.scripts.OnUpdate(air, 0.01); now = now + 2
+falling = false; air.scripts.OnUpdate(air, 0.01)
+assert(L.lastLanding.feel == "Flick", "the feel played, named")
+L.EventSettings("landing").feel = "thud"
 local hop, fall = L.LandingFeel(L.LandingWeight(0.45)), L.LandingFeel(L.LandingWeight(2.5))
 assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.35, "a hop: one soft pulse")
 assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9 and fall.pulses[1][2] >= 0.39, "a big fall: strong, long, echoes")

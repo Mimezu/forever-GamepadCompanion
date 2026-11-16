@@ -1283,6 +1283,7 @@ local function BuildEvents(p)
         if sent then
             text = text .. string.format(" · sent %d%% for %.2f s", floor(sent.peak * 100 + 0.5),
                 max(0, sent.last - sent.start))
+            if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
         end
         landed:SetText(text)
     end

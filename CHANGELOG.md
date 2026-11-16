@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.7 — 2026-11-16
+
+- Beta, landing: any feel chosen for Landing is stretched with the landing's weight (up to Landing longest), not only the default Thud; the readout names the feel played
+
 ## 0.14.6 — 2026-11-16
 
 - Beta engine: feels read every frame, sends limited (10/s by default): a vibration starting goes out at once (none missed), changes and stops wait for the next send, so each pulse lasts at least a send's interval (felt much stronger in game)
