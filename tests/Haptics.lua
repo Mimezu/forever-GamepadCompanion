@@ -371,7 +371,8 @@ assert(H.out.l > 0.97 or H.out.r > 0.97, "a full landing: the feel's peak at ful
 L.EventSettings("landing").feel = "thud"
 local hop, fall = L.LandingFeel(L.LandingWeight(0.45)), L.LandingFeel(L.LandingWeight(2.5))
 assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.12, "a hop: one faint pulse")
-assert(L.LandingLevel(0) < 0.1 and L.LandingLevel(1) == 1 and L.LandingLevel(0.5) < 0.4, "contrast: faint, then steep")
+assert(L.LandingLevel(0) < 0.05 and L.LandingLevel(0.29) < 0.09 and L.LandingLevel(1) == 1 and L.LandingLevel(0.5) < 0.3,
+    "contrast: the lightest 30% barely there, then steep")
 assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9 and fall.pulses[1][2] >= 0.39, "a big fall: strong, long, echoes")
 assert(hop.pulses[1][2] <= 0.07, "a hop: short")
 H.DB().landLong = 0.8

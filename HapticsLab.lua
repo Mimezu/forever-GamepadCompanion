@@ -1216,8 +1216,10 @@ L.Poll = Poll
 -- How hard a landing is (0 a plain jump .. 1 a big fall) from its air time
 -- How strong a landing of weight k is (0-1): faint for light ones, steep
 -- toward heavy ones (contrast: a hop is a faint micro tap)
+-- The lightest 30%: barely there (4% to 8%); then steep to full
 function L.LandingLevel(k)
-    return 0.07 + 0.93 * k ^ 1.6
+    if k < 0.3 then return 0.04 + 0.04 * k / 0.3 end
+    return 0.08 + 0.92 * ((k - 0.3) / 0.7) ^ 1.4
 end
 
 -- (air times: soft at landMin or less, full at landMax or more; settings)

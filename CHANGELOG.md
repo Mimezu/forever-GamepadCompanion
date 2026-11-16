@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.3 — 2026-11-16
+
+- Beta, landing: the lightest 30% barely there (4% to 8%), then steep to full
+
 ## 0.15.2 — 2026-11-16
 
 - Beta, landing: more contrast: a hop is a faint micro tap (about 7%), strength rises steeply toward heavy landings; a light landing shrinks the chosen feel instead of playing it whole
