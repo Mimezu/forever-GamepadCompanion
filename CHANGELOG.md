@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.0 — 2026-11-16
+
+- Rumble tab: every vibration in one place. Strength and the motors, then 8 groups (Attacks, Defense, Abilities, Moving, Care, Weather, Progress, Social) and Steps and landing; Rumble's events, the Beta engine's and the cast sets side by side
+- Each row: its feel from the one palette (Off and Match the... first, then every feel by group), Try, Default (the feel it ships with), Edit (a copy of your own, assigned, open in the editor)
+- Debug button and the latest reason in the Rumble tab's header
+- Beta tab: Events moved to the Rumble tab; Feels is the palette with a preview, Play, Loop, Edit a copy
+
 ## 0.19.0 — 2026-11-16
 
 - Debug window (Beta header, /gpc debug): see-through, stays up while playing: both motors and the light bar now, every vibration and light playing with its reason, the last cues; the Beta header shows the latest reason

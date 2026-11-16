@@ -417,7 +417,7 @@ ns.Shell.Open("beta")
 local window, tabs = ns.ShellWindow()
 assert(window:IsShown() and ns.Shell.Current() == "beta" and tabs.beta, "Beta tab")
 local ui = ns.BetaPage
-for _, key in ipairs({ "events", "light", "feels", "editor", "tune", "helper", "probes" }) do
+for _, key in ipairs({ "light", "feels", "editor", "tune", "helper", "probes" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
@@ -694,9 +694,9 @@ end
 
 -- The rebuilt pages: an event set Off from its grid, a light's effect picked
 do
-    ns.Shell.Open("beta")
+    ns.Shell.Open("rumble")
+    ns.RumblePage.browser.Select("Defense")
     local ui = ns.BetaPage
-    ui.Select("events")
     local function visible(label)
         for _, f in ipairs(created) do
             if type(rawget(f, "label")) == "table" and f.label.text == label and f:IsVisible() then return f end
@@ -705,7 +705,7 @@ do
     -- an event row (Hit taken): its plate opens the palette, Off on top
     local plate
     for _, f in ipairs(created) do
-        if rawget(f, "pick") and rawget(f, "e") and f.e.key == "hitTaken" then plate = f.pick end
+        if rawget(f, "pick") and rawget(f, "kind") and f.key == "hitTaken" then plate = f.pick end
     end
     assert(plate, "Hit taken row")
     plate.scripts.OnClick(plate)
@@ -722,6 +722,19 @@ do
     assert(tick, "Rumble's Tick in the palette (Basics)")
     tick.scripts.OnClick(tick, "LeftButton")
     assert(L.EventSettings("hitTaken").on and L.EventSettings("hitTaken").feel == "r_tick", "a Rumble pattern on a Beta event")
+    -- Default: back to the shipped feel
+    for _, f in ipairs(created) do
+        if rawget(f, "default") and rawget(f, "key") == "hitTaken" then f.default.scripts.OnClick(f.default) end
+    end
+    assert(L.IsEventDefault("hitTaken"), "Default")
+    -- Edit: a copy of the feel, assigned, open in the editor
+    for _, f in ipairs(created) do
+        if rawget(f, "edit") and rawget(f, "key") == "critted" then f.edit.scripts.OnClick(f.edit) end
+    end
+    local ownCrit = V.EventChoice("critted")
+    assert(ownCrit:match("^x_own"), "Critical hit taken: your copy " .. ownCrit)
+    assert(H.IsOwn(ownCrit:sub(3)) and ns.Shell.Current() == "beta", "in the editor")
+    ns.Shell.Open("beta")
     ui.Select("light")
     local effectBtn
     for _, f in ipairs(created) do

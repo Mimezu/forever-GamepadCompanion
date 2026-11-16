@@ -1,16 +1,22 @@
--- The Rumble page: the controller's motors on game events and casts
--- (Rumble.lua, ported from Improved Forever: Vibration). On / off and
--- strength; each event's pattern, or each kind of cast's set, chosen from a
--- grid of patterns; Try plays it as the game would.
+-- The Rumble tab: every vibration in one place. Strength and the motors on
+-- the left with the groups under them; a group's events on the right, each
+-- a row: its feel on a plate (opens the palette: Off and Match the... first,
+-- then every feel by group), Try, Default (the feel it ships with) and Edit
+-- (a copy of your own, in the Beta tab's editor). Rumble's own events
+-- (Rumble.lua, ported from Improved Forever: Vibration), the Beta engine's
+-- (HapticsLab.lua) and the cast sets share the rows.
 local _, ns = ...
-local S, Shell, V = ns.OptionsSkin, ns.Shell, ns.Rumble
+local S, Shell, V, H, L, HUI = ns.OptionsSkin, ns.Shell, ns.Rumble, ns.Haptics, ns.HapticsLab, ns.HapticsUI
 local API = GamepadCompanionAPI
-local W, H = Shell.W, Shell.H
+local W, PH = Shell.W, Shell.H
 local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
-local FONT = "Fonts\\FRIZQT__.TTF"
+local RED = { 1, 0.48, 0.36 }
+local floor, max, min = math.floor, math.max, math.min
 
 local ui = { rows = {} }
+local pg = { refresh = {} }
 local Refresh
+pg.Refresh = function() Refresh() end
 
 local function Say(text, warn)
     Shell.SetStatus(warn and ("|cffff7a5c" .. text .. "|r") or text, true)
@@ -23,246 +29,302 @@ local function On()
     return false
 end
 
--- Rows: each event, and each kind of cast (a set for its four moments) --------------
+---------------------------------------------------------------------------
+-- The groups and what is in each: r Rumble's events, c the cast sets, l the
+-- Beta engine's events
+---------------------------------------------------------------------------
+local GROUPS = {
+    { key = "Attacks", items = { { "r", "autoAttack" }, { "l", "hit" }, { "r", "crit" }, { "r", "critRanged" }, { "r", "shot" },
+        { "l", "miss" }, { "l", "targetDodge" }, { "l", "targetParry" }, { "l", "targetBlock" }, { "l", "kill" } } },
+    { key = "Defense", items = { { "l", "hitTaken" }, { "r", "critted" }, { "l", "dodge" }, { "l", "parry" }, { "l", "block" },
+        { "l", "missedYou" }, { "r", "lowHp" }, { "l", "heartbeat" }, { "l", "control" }, { "l", "targetCast" }, { "l", "aggro" } } },
+    { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "r", "instant" }, { "l", "tension" },
+        { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" } } },
+    { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "riding" }, { "l", "splash" },
+        { "l", "underwater" }, { "l", "mount" }, { "l", "dismount" }, { "l", "taxi" } } },
+    { key = "Care", items = { { "r", "eat" }, { "r", "drink" }, { "l", "bandage" }, { "l", "potion" }, { "l", "rested" } } },
+    { key = "Weather", items = { { "l", "rain" }, { "l", "thunder" }, { "l", "snow" }, { "l", "sand" }, { "l", "embers" } } },
+    { key = "Progress", items = { { "r", "levelUp" }, { "l", "loot" }, { "l", "money" }, { "l", "questAccepted" },
+        { "l", "questDone" }, { "l", "skillUp" }, { "l", "death" }, { "l", "alive" } } },
+    { key = "Social", items = { { "l", "whisper" }, { "l", "readyCheck" }, { "l", "invite" }, { "l", "summon" }, { "l", "uiError" },
+        { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" } } },
+}
+ui.GROUPS = GROUPS
 
-local SECTION = {}
-for _, g in ipairs(V.GROUPS) do SECTION[g.key] = g.label end
+local REVENT, KIND = {}, {}
+for _, e in ipairs(V.EVENTS) do REVENT[e.key] = e end
+for _, k in ipairs(V.CAST_KINDS) do KIND[k.key] = k end
 
--- An event's choices: Off, its Match the..., its family's patterns, the general ones
-local function Patterns(event)
-    local entries = { { action = "off", name = "Off", icon = V.OFF_ICON } }
-    if event.auto then entries[#entries + 1] = { action = "auto", name = event.auto, icon = event.icon } end
-    for _, p in ipairs(V.PATTERNS) do
-        if event.family and p[event.family] then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
-    end
-    for _, p in ipairs(V.PATTERNS) do
-        if not p.action and not p.beta then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
-    end
-    -- (Beta feels, while the Beta engine is on)
-    if ns.Haptics and ns.Haptics.Engine() then
-        for _, p in ipairs(V.PATTERNS) do
-            if p.beta then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon, beta = true } end
+local OFF = { key = "off", label = "Off", icon = V.OFF_ICON }
+
+---------------------------------------------------------------------------
+-- Each kind of row: what it shows, how it is picked, tried, reset, copied
+---------------------------------------------------------------------------
+local ITEM = {}
+
+-- Rumble's events: a pattern (any feel of the palette: "r_" Rumble's own,
+-- else a Beta feel registered as "x_"), Match the..., or Off
+ITEM.r = {
+    label = function(key) return REVENT[key].label end,
+    icon = function(key) return REVENT[key].icon end,
+    tip = function(key) return REVENT[key].tip end,
+    show = function(key)
+        local e = REVENT[key]
+        local choice = V.EventChoice(key)
+        if choice == "off" then return "Off", V.OFF_ICON, nil, true end
+        if choice == "auto" then
+            local now = e.family ~= "move" and V.Pattern(V.EventPattern(key))
+            return e.auto, e.icon, now and ("Now: " .. now.label) or "Each one its own feel"
         end
-    end
-    return entries
-end
+        local p = V.Pattern(choice)
+        return p and p.label or choice, p and p.icon, e.loop and "While it lasts" or nil
+    end,
+    current = function(key)
+        local choice = V.EventChoice(key)
+        if choice == "off" or choice == "auto" then return choice end
+        return L.FeelFor(choice)
+    end,
+    specials = function(key)
+        local e = REVENT[key]
+        local list = { OFF }
+        if e.auto then list[2] = { key = "auto", label = e.auto, icon = e.icon } end
+        return list
+    end,
+    pick = function(key, feel)
+        local pattern = feel
+        if feel ~= "off" and feel ~= "auto" then
+            L.RegisterInRumble()
+            pattern = L.PatternFor(feel)
+        end
+        V.SetEventPattern(key, pattern)
+        if pattern ~= "off" and V.Settings().enabled then
+            local now = V.EventPattern(key)
+            if now then V.Play(now) end
+        end
+    end,
+    isDefault = function(key)
+        local e = REVENT[key]
+        local cfg = V.Settings().events[key]
+        return cfg.on == e.on and cfg.pattern == e.pattern
+    end,
+    default = function(key)
+        local e = REVENT[key]
+        local cfg = V.Settings().events[key]
+        cfg.on, cfg.pattern = e.on, e.pattern
+    end,
+    -- the feel to copy: the one playing now (Match the...: the current match)
+    feel = function(key)
+        local p = V.Pattern(V.EventPattern(key))
+        return p and p.feel, p and p.label
+    end,
+    assign = function(key, ownKey)
+        L.RegisterInRumble()
+        V.SetEventPattern(key, "x_" .. ownKey)
+    end,
+    try = function(key)
+        if not On() then return end
+        local e = REVENT[key]
+        local pattern = V.EventPattern(key)
+        if e.family == "move" and V.EventChoice(key) ~= "off" then
+            V.SimulateMoves(key, function(name)
+                local feel = V.Pattern(V.EventPattern(key))
+                Say(name .. (feel and ": " .. feel.label or ""))
+            end)
+        elseif not pattern then
+            Say(e.label .. " is off", true)
+        elseif e.loop then
+            if V.SimulateLoop(key, 6) then Say(e.label .. ": playing · Try again stops") else Say(e.label .. ": stopped") end
+        elseif key == "shot" or key == "autoAttack" then
+            V.SimulateShots(key, function(n)
+                local p = V.Pattern(V.EventPattern(key))
+                Say(e.label .. ": " .. (p and p.label or "") .. (n > 1 and " x" .. n or ""))
+            end)
+        elseif e.combo then
+            V.SimulateCombo(key, function(n) Say(e.label .. (n > 1 and " x" .. n or "")) end)
+        else
+            V.Play(pattern)
+        end
+    end,
+}
 
+-- The cast sets (spells, gathering, crafting): a set for the four moments
+ITEM.c = {
+    label = function(key) return KIND[key].label end,
+    icon = function(key) return KIND[key].icon end,
+    tip = function(key) return KIND[key].tip end,
+    show = function(key)
+        local preset = V.Preset(V.CastPreset(key))
+        if not preset or preset.key == "off" then return "Off", V.OFF_ICON, nil, true end
+        if preset.auto then return preset.label, preset.icon, "Each action its own feel" end
+        local parts = {}
+        for _, phase in ipairs(V.CAST_PHASES) do
+            local p = V.Pattern(preset[phase])
+            if p then parts[#parts + 1] = p.label end
+        end
+        return preset.label, preset.icon, table.concat(parts, " · ")
+    end,
+    isDefault = function(key) return V.CastPreset(key) == KIND[key].preset end,
+    default = function(key) V.SetCastPreset(key, KIND[key].preset) end,
+    try = function(key)
+        if not On() then return end
+        if V.CastPreset(key) == "off" then return Say(KIND[key].label .. " is off", true) end
+        V.SimulateCast(function(label) if label then Say(KIND[key].label .. ": " .. label) end end, key)
+    end,
+}
+
+-- The Beta engine's events: a feel of the palette, or Off
+ITEM.l = {
+    label = function(key) return L.EVENT[key].label end,
+    icon = function(key) return L.EVENT[key].icon end,
+    tip = function(key) return L.EVENT[key].tip end,
+    show = function(key)
+        local e = L.EVENT[key]
+        local s = L.EventSettings(key)
+        if not s.on then return "Off", V.OFF_ICON, nil, true end
+        local f = H.Feel(s.feel)
+        local sub = e.live and "While it lasts" or nil
+        if not H.Engine() then sub = "Needs the Beta engine" end
+        return f and (f.label or f.key) or "?", f and f.icon, sub
+    end,
+    current = function(key)
+        local s = L.EventSettings(key)
+        return s.on and s.feel or "off"
+    end,
+    specials = function() return { OFF } end,
+    pick = function(key, feel)
+        local s = L.EventSettings(key)
+        if feel == "off" then s.on = false else s.on, s.feel = true, feel; L.Try(key) end
+    end,
+    isDefault = function(key) return L.IsEventDefault(key) end,
+    default = function(key) L.EventDefault(key) end,
+    feel = function(key)
+        local f = H.Feel(L.EventSettings(key).feel)
+        return f, f and f.label
+    end,
+    assign = function(key, ownKey)
+        local s = L.EventSettings(key)
+        s.on, s.feel = true, ownKey
+    end,
+    try = function(key) L.Try(key) end,
+}
+
+---------------------------------------------------------------------------
+-- A row
+---------------------------------------------------------------------------
 local function CastSets()
     local entries = {}
     for _, p in ipairs(V.CAST_PRESETS) do
-        if not p.action then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
+        if not p.action then entries[#entries + 1] = { key = p.key, label = p.label, icon = p.icon } end
     end
     return entries
 end
 
-local function PhaseName(phase)
-    return phase == "cast" and "Casting" or phase == "pushback" and "Pushed back" or (phase:sub(1, 1):upper() .. phase:sub(2))
-end
-
--- What a row shows: its choice, a second line, the choice's icon, whether it is off
-local function Describe(rail)
-    if rail.castKind then
-        local preset = V.Preset(V.CastPreset(rail.castKind))
-        if not preset or preset.key == "off" then return "Off", nil, V.OFF_ICON, true end
-        if preset.auto then return preset.label, "Each action its own feel", preset.icon end
-        local parts = {}
-        for _, phase in ipairs(V.CAST_PHASES) do
-            local pattern = V.Pattern(preset[phase])
-            if pattern then parts[#parts + 1] = PhaseName(phase) .. ": " .. pattern.label end
+local function MakeRow(parent, y, width, kind, key)
+    local I = ITEM[kind]
+    local label = I.label(key)
+    local function Edit()
+        local feel, name = I.feel(key)
+        if not feel then return Say("Nothing to copy: pick a feel first", true) end
+        local beta = ns.BetaPage
+        if not (beta and beta.EditCopy) then return end
+        local own = beta.EditCopy(feel, (name or label) .. " (mine)")
+        I.assign(key, own)
+        Say(label .. ": your copy, in the editor")
+    end
+    local row = HUI.ChoiceRow(parent, y, width, I.icon(key), label, function(anchor)
+        if kind == "c" then
+            HUI.Popup(anchor, label, CastSets(), V.CastPreset(key), function(preset)
+                V.SetCastPreset(key, preset)
+                Refresh()
+                if preset ~= "off" then I.try(key) end
+            end, 3, 150)
+            return
         end
-        return preset.label, table.concat(parts, " · "), preset.icon
+        HUI.PickFeel(anchor, I.current(key), function(feel)
+            I.pick(key, feel)
+            Refresh()
+        end, I.specials(key), label)
+    end, function() I.try(key) end, I.tip(key), {
+        default = function()
+            I.default(key)
+            Say(label .. ": its default")
+            Refresh()
+        end,
+        edit = I.feel and Edit or nil,
+    })
+    row.kind, row.key = kind, key
+    ui.rows[#ui.rows + 1] = row
+    return row
+end
+
+---------------------------------------------------------------------------
+-- Steps and landing: the footsteps sync, the landing's range
+---------------------------------------------------------------------------
+local function BuildSteps(sp, width)
+    local function Stepper(...) return HUI.Stepper(pg, ...) end
+    local sync = S.Card(sp, "Footsteps", 0, 0, 420, 300)
+    local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
+    for i, g in ipairs(gaits) do
+        local y = -40 - (i - 1) * 34
+        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 110, function()
+            if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
+            Refresh()
+        end, nil, 12, 28)
+        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), "Squeeze R2 on each footfall")
+        g.text = S.Text(sync, "", 132, y - 8, 276, 11, GREY)
     end
-    local event = rail.subs[1]
-    local choice = V.EventChoice(event.key)
-    if choice == "auto" and event.family == "move" then return event.auto, "Each ability its own feel", event.icon end
-    local pattern = V.Pattern(V.EventPattern(event.key))
-    if not pattern then return "Off", nil, V.OFF_ICON, true end
-    if choice == "auto" then return event.auto, "Now: " .. pattern.label, pattern.icon end
-    return pattern.label, nil, pattern.icon
-end
-
-local function Choose(rail, action)
-    if rail.castKind then
-        V.SetCastPreset(rail.castKind, action)
-        local preset = V.Preset(action)
-        Say(rail.label .. ": " .. (preset and preset.label or action))
-        Refresh()
-        if action ~= "off" and V.Settings().enabled then rail.try() end
-        return
+    local status = S.Note(sync, 12, -112, 396, 1, 11, GOLD)
+    local function Row(card, label, y, w, opts)
+        opts.labelWidth, opts.width = 120, w
+        return Stepper(card, label, 12, y, opts)
     end
-    local event = rail.subs[1]
-    V.SetEventPattern(event.key, action)
-    local key = not (action == "auto" and event.family == "move") and V.EventPattern(event.key)
-    if key and V.Settings().enabled then V.Play(key) end
-    local pattern = V.Pattern(key)
-    Say(event.label .. ": " .. (action == "auto" and (event.auto .. (pattern and " (" .. pattern.label .. ")" or ""))
-        or (pattern and pattern.label or "Off")))
-    Refresh()
-end
-
--- Try: felt as the game would play it (a cast's moments, a run of crits, a loop...)
-local function Try(rail)
-    if not On() then return end
-    if rail.castKind then
-        if V.CastPreset(rail.castKind) == "off" then return Say(rail.label .. " is off", true) end
-        V.SimulateCast(function(label) if label then Say(rail.label .. ": " .. label) end end, rail.castKind)
-        return
+    local function rateRow(label, y, band)
+        Row(sync, label, y, 396, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
+            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
     end
-    local event = rail.subs[1]
-    local pattern = V.EventPattern(event.key)
-    if event.family == "move" and V.EventChoice(event.key) ~= "off" then
-        V.SimulateMoves(event.key, function(name)
-            local feel = V.Pattern(V.EventPattern(event.key))
-            Say(name .. (feel and ": " .. feel.label or ""))
-        end)
-    elseif not pattern then
-        Say(event.label .. " is off", true)
-    elseif event.loop then
-        if V.SimulateLoop(event.key, 6) then Say(event.label .. ": playing · Try again stops")
-        else Say(event.label .. ": stopped") end
-    elseif event.key == "shot" or event.key == "autoAttack" then
-        V.SimulateShots(event.key, function(n)
-            Say(event.label .. ": " .. V.Pattern(pattern).label .. (n > 1 and " x" .. n or ""))
-        end)
-    elseif event.combo then
-        V.SimulateCombo(event.key, function(n) Say(event.label .. (n > 1 and " x" .. n or "")) end)
-    else
-        V.Play(pattern)
+    rateRow("Run steps", -136, "run")
+    rateRow("Walk steps", -164, "walk")
+    Row(sync, "Nudge", -192, 396, { step = 0.01, min = -0.5, max = 0.5,
+        format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
+        get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
+    S.Note(sync, 12, -228, 396, 3, 11, DIM):SetText("Sync: stand still, start moving, squeeze R2 on each footfall")
+
+    local lw = width - 430
+    local land = S.Card(sp, "Landing", 430, 0, lw, 300)
+    Row(land, "Soft at", -40, lw - 24, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
+        get = function() return H.DB().landMin or L.LAND_MIN end,
+        set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
+    Row(land, "Full at", -68, lw - 24, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
+        get = function() return H.DB().landMax or L.LAND_MAX end,
+        set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
+    Row(land, "Longest", -96, lw - 24, { step = 0.05, min = 0.1, max = 1.5, format = function(v) return string.format("%.2f s", v) end,
+        get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
+    local landed = S.Note(land, 12, -136, lw - 24, 3, 12, GREY)
+    landed:SetText("No landing yet")
+    L.onSync = function(text) status:SetText(text) end
+    L.onLand = function(t, k, sent)
+        local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
+        if sent then
+            text = text .. string.format("\nSent %d%% for %.2f s", floor(sent.peak * 100 + 0.5), max(0, sent.last - sent.start))
+            if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
+        end
+        landed:SetText(text)
     end
-end
-
--- The pattern grid ----------------------------------------------------------------
-
-local COLS, TILE_W, TILE_H = 4, 92, 70
-local grid
-
-local function BuildGrid()
-    grid = CreateFrame("Frame", "GamepadCompanionRumbleChoices", Shell.Window())
-    grid:SetFrameStrata("DIALOG")
-    grid:SetToplevel(true)
-    grid:EnableMouse(true)
-    S.Panel(grid)
-    grid.title = S.Text(grid, "", 14, -12, COLS * (TILE_W + 4), 13, YELLOW)
-    grid.tiles = {}
-    grid:Hide()
-    grid:SetScript("OnHide", function() grid.rail = nil end)
-    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionRumbleChoices"
-end
-
-local function Tile(index)
-    local t = grid.tiles[index]
-    if t then return t end
-    t = CreateFrame("Button", nil, grid)
-    t:SetSize(TILE_W, TILE_H)
-    t.bg = t:CreateTexture(nil, "BACKGROUND", nil, 1)
-    t.bg:SetAllPoints()
-    t.bg:SetColorTexture(1, 0.85, 0.55, 0.05)
-    t.selection = t:CreateTexture(nil, "BACKGROUND", nil, 2)
-    t.selection:SetAllPoints()
-    t.selection:SetColorTexture(1, 0.72, 0.2, 0.25)
-    local hover = t:CreateTexture(nil, "HIGHLIGHT")
-    hover:SetAllPoints()
-    hover:SetColorTexture(1, 0.75, 0.3, 0.16)
-    t.icon = t:CreateTexture(nil, "ARTWORK")
-    t.icon:SetSize(38, 38)
-    t.icon:SetPoint("TOP", 0, -5)
-    t.label = t:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    t.label:SetFont(FONT, 10, "")
-    t.label:SetPoint("BOTTOMLEFT", 2, 5)
-    t.label:SetPoint("BOTTOMRIGHT", -2, 5)
-    t.label:SetJustifyH("CENTER")
-    t.label:SetWordWrap(false)
-    t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    t:RegisterForClicks("LeftButtonUp")
-    t:SetScript("OnClick", function(self)
-        local rail = grid.rail
-        grid:Hide()
-        if rail and self.entry then Choose(rail, self.entry.action) end
-    end)
-    grid.tiles[index] = t
-    return t
-end
-
-local function OpenGrid(rail, anchor)
-    if not grid then BuildGrid() end
-    if grid:IsShown() and grid.rail == rail then grid:Hide(); return end
-    grid.rail = rail
-    local entries = rail.castKind and CastSets() or Patterns(rail.subs[1])
-    local current = rail.castKind and V.CastPreset(rail.castKind) or V.EventChoice(rail.subs[1].key)
-    grid.title:SetText(rail.label)
-    for _, t in ipairs(grid.tiles) do t:Hide() end
-    -- (wider with the Beta feels, so it stays on screen)
-    local cols = (ns.Haptics and ns.Haptics.Engine()) and math.max(COLS, math.ceil(#entries / 7)) or COLS
-    for i, e in ipairs(entries) do
-        local t = Tile(i)
-        local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", 12 + col * (TILE_W + 4), -36 - row * (TILE_H + 4))
-        t.entry = e
-        t.icon:SetTexture(e.icon)
-        t.label:SetText(e.name)
-        t.selection:SetShown(e.action == current)
-        t:Show()
-    end
-    local rows = math.ceil(#entries / cols)
-    grid:SetSize(24 + cols * (TILE_W + 4) - 4, 48 + rows * (TILE_H + 4))
-    grid.title:SetWidth(cols * (TILE_W + 4))
-    grid:ClearAllPoints()
-    grid:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
-    grid:SetClampedToScreen(true)
-    grid:Show()
-    grid:Raise()
-end
-
--- Build ---------------------------------------------------------------------------
-
-local ROW_H = 44
-
-local function Row(parent, rail, y, width)
-    local r = CreateFrame("Frame", nil, parent)
-    r:SetPoint("TOPLEFT", 10, y)
-    r:SetSize(width - 20, ROW_H - 4)
-    local hover = r:CreateTexture(nil, "BACKGROUND")
-    hover:SetAllPoints()
-    hover:SetColorTexture(1, 0.85, 0.55, 0.04)
-    r.eventIcon = r:CreateTexture(nil, "ARTWORK")
-    r.eventIcon:SetSize(30, 30)
-    r.eventIcon:SetPoint("LEFT", 2, 0)
-    r.eventIcon:SetTexture(rail.icon)
-    r.label = S.Text(r, rail.label, 40, -4, 140, 13, GOLD)
-    r.label:SetWordWrap(false)
-    r.choice = S.Text(r, "", 40, -22, width - 20 - 40 - 150, 11, GREY)
-    r.choice:SetWordWrap(false)
-    -- The pattern: its icon and name on a plate that opens the grid
-    r.pick = S.NewButton(r, "", width - 20 - 146, -5, 110, nil, nil, 11, 30)
-    r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
-    r.pick.icon:SetSize(20, 20)
-    r.pick.icon:SetPoint("LEFT", 6, 0)
-    r.pick.label:ClearAllPoints()
-    r.pick.label:SetPoint("LEFT", 30, 0)
-    r.pick.label:SetPoint("RIGHT", -6, 0)
-    r.pick.label:SetJustifyH("LEFT")
-    r.pick:SetScript("OnClick", function(self) OpenGrid(rail, self) end)
-    S.Tooltip(r.pick, rail.label, rail.tip or (rail.subs and rail.subs[1].tip))
-    r.try = S.NewButton(r, "Try", width - 20 - 32, -5, 32, function() Try(rail) end, nil, 11, 30)
-    S.Tooltip(r.try, "Try", rail.label)
-    rail.try = function() Try(rail) end
-    r.rail = rail
-    ui.rows[#ui.rows + 1] = r
-    return r
-end
-
-local function Column(frame, groups, x, width)
-    local y = 0
-    for _, g in ipairs(groups) do
-        local rails = {}
-        for _, rail in ipairs(V.RAIL) do if rail.group == g then rails[#rails + 1] = rail end end
-        local height = 40 + #rails * ROW_H
-        local card = S.Card(frame, SECTION[g], x, -y, width, height)
-        for i, rail in ipairs(rails) do Row(card, rail, -36 - (i - 1) * ROW_H, width) end
-        y = y + height + 10
+    pg.refresh[#pg.refresh + 1] = function()
+        for _, g in ipairs(gaits) do
+            local cal = L.StepCal(g[1])
+            g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")
+            local busy = L.sync and L.sync.band == g[1]
+            buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
+            S.SetSelected(buttons[g[1]], busy and true or false)
+        end
     end
 end
+
+---------------------------------------------------------------------------
+-- Build
+---------------------------------------------------------------------------
+local LEFT_W = 300
 
 local function Build(frame, header)
     ui.enable = S.NewCheck(header, "Rumble", W - 110, -4, function(self)
@@ -270,48 +332,77 @@ local function Build(frame, header)
         if V.Settings().enabled then V.Play("pulse") else V.Stop() end
         Refresh()
     end, 70)
-    S.Tooltip(ui.enable, "Rumble", "Off: no event rumbles")
+    S.Tooltip(ui.enable, "Rumble", "Off: nothing vibrates")
+    local dbg = S.NewButton(header, "Debug", W - 220, -4, 80, function()
+        if ns.HapticsDebug then ns.HapticsDebug.Show() end
+    end, nil, 12, 26)
+    S.Tooltip(dbg, "Debug", "What vibrates and why, while you play")
+    ui.why = S.Text(header, "", 140, -10, W - 380, 11, GREY)
+    ui.why:SetWordWrap(false)
+    local whyTick = CreateFrame("Frame", nil, header)
+    local whyAcc = 0
+    whyTick:SetScript("OnUpdate", function(_, elapsed)
+        whyAcc = whyAcc + (elapsed or 0)
+        if whyAcc < 0.25 then return end
+        whyAcc = 0
+        local D = ns.HapticsDebug
+        local text, ago
+        if D then text, ago = D.Latest() end
+        ui.why:SetText(text and string.format("%s · %ds ago", text, floor(ago)) or "")
+    end)
 
-    -- Left: strength, the motors, the other addon
-    local left = S.Card(frame, "Feel", 0, 0, 300, H)
-    S.Text(left, "Strength", 14, -48, 100, 13, GOLD)
-    ui.minus = S.NewButton(left, "-", 120, -40, 34, function()
+    -- Left: strength, the motors, then the groups
+    local left = S.Card(frame, "Feel", 0, 0, LEFT_W, PH)
+    S.Text(left, "Strength", 14, -46, 100, 13, GOLD)
+    ui.minus = S.NewButton(left, "-", 120, -38, 34, function()
         local s = V.Settings()
-        s.intensity = math.max(0.1, math.floor(s.intensity * 10 + 0.5) / 10 - 0.1)
+        s.intensity = max(0.1, floor(s.intensity * 10 + 0.5) / 10 - 0.1)
         V.Play("pulse")
         Refresh()
     end, nil, 16, 30)
-    ui.strength = S.Text(left, "", 156, -47, 70, 14, YELLOW)
+    ui.strength = S.Text(left, "", 156, -45, 70, 14, YELLOW)
     ui.strength:SetJustifyH("CENTER")
-    ui.plus = S.NewButton(left, "+", 228, -40, 34, function()
+    ui.plus = S.NewButton(left, "+", 228, -38, 34, function()
         local s = V.Settings()
-        s.intensity = math.min(1, math.floor(s.intensity * 10 + 0.5) / 10 + 0.1)
+        s.intensity = min(1, floor(s.intensity * 10 + 0.5) / 10 + 0.1)
         V.Play("pulse")
         Refresh()
     end, nil, 16, 30)
-    -- (ten notches, lit up to the strength)
     ui.bar = {}
     for i = 1, 10 do
         local t = left:CreateTexture(nil, "ARTWORK")
-        t:SetPoint("TOPLEFT", 14 + (i - 1) * 27, -84)
+        t:SetPoint("TOPLEFT", 14 + (i - 1) * 27, -78)
         t:SetSize(23, 8)
         ui.bar[i] = t
     end
-    ui.pulse = S.NewButton(left, "Feel it", 14, -106, 272, function() if On() then V.Play("pulse") end end, nil, 13, 32)
-    S.Text(left, "Motors", 14, -164, 260, 13, GOLD)
-    ui.sides = S.NewButton(left, "Test each motor", 14, -186, 272, function() V.TestSides() end, nil, 13, 32)
+    ui.pulse = S.NewButton(left, "Feel it", 14, -96, 86, function() if On() then V.Play("pulse") end end, nil, 12, 28)
+    ui.sides = S.NewButton(left, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
     S.Tooltip(ui.sides, "Test each motor", "Left grip, right grip, triggers · in chat")
-    ui.stop = S.NewButton(left, "Stop", 14, -224, 272, function() V.StopSimulation(); V.Stop(); Say("Stopped") end, nil, 13, 32)
-    ui.other = S.Text(left, "", 14, -280, 272, 12, { 1, 0.48, 0.36 })
-    ui.other:SetHeight(60)
-    ui.other:SetJustifyV("TOP")
-    ui.credit = S.Text(left, "Patterns: Improved Forever: Vibration (markg) and Easy Controller (moust4ki), MIT",
-        14, -(H - 60), 272, 10, DIM)
+    ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
+        V.StopSimulation(); V.Stop(); if H then H.Stop() end; Say("Stopped")
+    end, nil, 12, 28)
+    S.Heading(left, "Events", 10, -136, LEFT_W - 20)
 
-    -- Right: the events, in two columns
-    local colW = (W - 312 - 10) / 2
-    Column(frame, { "combat", "progress" }, 312, colW)
-    Column(frame, { "casting", "rest", "wheel" }, 312 + colW + 10, colW)
+    local groups = {}
+    for _, g in ipairs(GROUPS) do groups[#groups + 1] = { key = g.key, label = g.key } end
+    groups[#groups + 1] = { key = "steps", label = "Steps and landing" }
+    local list = CreateFrame("Frame", nil, left)
+    list:SetPoint("TOPLEFT", 0, -150)
+    list:SetSize(LEFT_W, PH - 150)
+    local b = HUI.GroupBrowser(frame, groups, { left = list, leftWidth = LEFT_W, top = -8, width = W - LEFT_W - 10,
+        pageTop = 0 })
+    ui.browser = b
+    for _, g in ipairs(GROUPS) do
+        local panel = b.panels[g.key]
+        local card = S.Card(panel, g.key, 0, 0, W - LEFT_W - 10, 44 + #g.items * HUI.ROW_H)
+        for i, item in ipairs(g.items) do
+            MakeRow(card, -38 - (i - 1) * HUI.ROW_H, W - LEFT_W - 10, item[1], item[2])
+        end
+    end
+    BuildSteps(b.panels.steps, W - LEFT_W - 10)
+    ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
+    ui.credit = S.Text(left, "Patterns: Improved Forever: Vibration (markg) and Easy Controller (moust4ki), MIT",
+        14, -(PH - 46), LEFT_W - 28, 9, DIM)
 end
 
 Refresh = function()
@@ -320,32 +411,40 @@ Refresh = function()
     local other = V.Other()
     ui.enable:SetChecked(s.enabled and not other)
     ui.enable:SetEnabled(not other)
-    local n = math.floor(s.intensity * 10 + 0.5)
+    local n = floor(s.intensity * 10 + 0.5)
     ui.strength:SetText((n * 10) .. "%")
     ui.minus:SetEnabled(n > 1)
     ui.plus:SetEnabled(n < 10)
     for i, t in ipairs(ui.bar) do
         if i <= n then t:SetColorTexture(1, 0.78, 0.25, 0.9) else t:SetColorTexture(1, 1, 1, 0.12) end
     end
-    ui.other:SetText(other and "Improved Forever: Vibration is on: it rumbles, Companion stays off" or "")
-    for _, r in ipairs(ui.rows) do
-        local name, line, icon, off = Describe(r.rail)
-        r.pick.label:SetText(name)
-        r.pick.icon:SetTexture(icon)
-        r.choice:SetText(line or "")
-        if off then r.pick.label:SetTextColor(1, 0.48, 0.36) else r.pick.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
-        r.eventIcon:SetDesaturated(off == true)
-        r:SetAlpha((s.enabled and not other) and 1 or 0.55)
+    ui.other:SetText(other and "Improved Forever: Vibration is on: Companion stays off" or "")
+    for _, row in ipairs(ui.rows) do
+        local I = ITEM[row.kind]
+        local name, icon, sub, off = I.show(row.key)
+        row:SetChoice(name, icon, sub, off, nil, I.isDefault(row.key))
+        row:SetAlpha((s.enabled and not other) and 1 or 0.55)
     end
+    for _, g in ipairs(GROUPS) do
+        local on = 0
+        for _, item in ipairs(g.items) do
+            local _, _, _, off = ITEM[item[1]].show(item[2])
+            if not off then on = on + 1 end
+        end
+        ui.browser.buttons[g.key].count:SetText(on .. "/" .. #g.items)
+    end
+    for _, fn in ipairs(pg.refresh) do fn() end
     Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Rumble off"))
 end
+ui.Refresh = function() Refresh() end
+ns.RumblePage = ui
 
 Shell.AddPage({
     key = "rumble", name = "Rumble", order = 2, icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration",
     build = Build, refresh = function() Refresh() end,
     hide = function()
         V.StopSimulation()
-        if grid then grid:Hide() end
+        HUI.HidePopup()
     end,
 })
 

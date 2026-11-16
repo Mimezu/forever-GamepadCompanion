@@ -128,13 +128,17 @@ GamepadCompanionCharDB = nil
 local haloListeners = {}
 Halo = { On = function(kind, fn) haloListeners[kind] = haloListeners[kind] or {}; table.insert(haloListeners[kind], fn) end }
 local function HaloFire(kind, ...) for _, fn in ipairs(haloListeners[kind] or {}) do fn(...) end end
-for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "RumblePage.lua" }) do
+for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "RumblePage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V = ns.Rumble
 for _, f in ipairs(created) do
     if f.events and f.events.ADDON_LOADED and f.scripts.OnEvent then f.scripts.OnEvent(f, "ADDON_LOADED", "GamepadCompanion") end
 end
+
+-- (the original engine's path: the Beta engine off)
+ns.Haptics.DB().engine = false
 
 -- Engine -----------------------------------------------------------------------------
 local s = V.Settings()
@@ -188,28 +192,45 @@ local function button(label)
 end
 button("+").scripts.OnClick(button("+"))
 assert(math.abs(V.Settings().intensity - 0.9) < 1e-9 and strength.text == "90%", "stronger")
--- Each row: its choice; the grid chooses
+-- Rows by key, groups down the left
+local page = ns.RumblePage
 local rowFor = {}
-for _, f in ipairs(created) do if rawget(f, "rail") then rowFor[f.rail.key] = f end end
+for _, f in ipairs(created) do if rawget(f, "kind") and rawget(f, "pick") then rowFor[f.key] = f end end
+assert(rowFor.levelUp and rowFor.hit and rowFor.gather and rowFor.rain, "Rumble's, the Beta engine's and the cast sets' rows")
+page.browser.Select("Progress")
 local level = rowFor.levelUp
-assert(level and level.pick.label.text == "Crescendo", tostring(level and level.pick.label.text))
+assert(level:IsVisible() and level.pick.label.text == "Crescendo", tostring(level.pick.label.text))
+-- the palette: Off first
 level.pick.scripts.OnClick(level.pick)
-local grid = GamepadCompanionRumbleChoices
-assert(grid and grid:IsShown(), "pattern grid")
-local off
-for _, t in ipairs(grid.tiles) do if t.entry and t.entry.action == "off" then off = t end end
-off.scripts.OnClick(off)
-assert(not grid:IsShown() and V.EventChoice("levelUp") == "off" and level.pick.label.text == "Off", "set off")
-local gather = rowFor.cast_gather
+local pal = GamepadCompanionPalette
+assert(pal and pal:IsShown(), "the palette")
+local off = pal.pal.specialTiles[1]
+off.scripts.OnClick(off, "LeftButton")
+assert(not pal:IsShown() and V.EventChoice("levelUp") == "off" and level.pick.label.text == "Off", "set off")
+-- Default: back to Crescendo
+level.default.scripts.OnClick(level.default)
+assert(V.EventChoice("levelUp") == "rise" and level.pick.label.text == "Crescendo", "default")
+-- a Beta feel on a Rumble event (any feel of the palette)
+level.pick.scripts.OnClick(level.pick)
+pal.pal:ShowGroup("Impacts")
+local boom
+for _, t in ipairs(pal.pal.tiles) do if t:IsShown() and t.key == "boom" then boom = t end end
+boom.scripts.OnClick(boom, "LeftButton")
+assert(V.EventChoice("levelUp") == "x_boom", "Boom on level up: " .. tostring(V.EventChoice("levelUp")))
+level.default.scripts.OnClick(level.default)
+-- the cast sets: their own grid
+page.browser.Select("Abilities")
+local gather = rowFor.gather
 gather.pick.scripts.OnClick(gather.pick)
+local grid = GamepadCompanionBetaFeels
 local pulse
-for _, t in ipairs(grid.tiles) do if t.entry and t.entry.action == "pulse" and t:IsShown() then pulse = t end end
+for _, t in ipairs(grid.tiles) do if t.label.text == "Pulse" and t:IsShown() then pulse = t end end
 pulse.scripts.OnClick(pulse)
 assert(V.CastPreset("gather") == "pulse" and gather.pick.label.text == "Pulse", "gathering: the Pulse set")
-assert(gather.choice.text:find("Casting: Pulse", 1, true), "its moments shown")
+assert(gather.sub.text:find("Pulse", 1, true), "its moments shown")
 -- Off, and the other addon
 local enable
-for _, f in ipairs(created) do if f.kind == "CheckButton" and f:IsVisible() then enable = f end end
+for _, f in ipairs(created) do if f.kind == "CheckButton" and f:IsVisible() and f.label and f.label.text == "Rumble" then enable = f end end
 enable.checked = false
 enable.scripts.OnClick(enable)
 assert(V.Settings().enabled == false and not V.Active(), "switched off")
@@ -219,4 +240,4 @@ otherLoaded = true
 ns.Shell.Refresh()
 assert(not enable.enabled and not enable.checked, "the other addon has the motors")
 otherLoaded = false
-io.write("PASS: Rumble page: strength, pattern grid, cast sets, on / off, beside the original\n")
+io.write("PASS: Rumble page: strength, groups, the palette (Off, Default, a Beta feel), cast sets, on / off, beside the original\n")

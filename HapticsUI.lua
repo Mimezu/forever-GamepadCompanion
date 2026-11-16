@@ -248,7 +248,7 @@ function HUI.GroupBrowser(p, groups, opts)
 end
 
 function HUI.HidePopup()
-    if GamepadCompanionBetaFeels then GamepadCompanionBetaFeels:Hide() end
+    if popup then popup:Hide() end
     if HUI.HidePalette then HUI.HidePalette() end
 end
 

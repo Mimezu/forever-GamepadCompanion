@@ -128,8 +128,6 @@ local function TextWindow(title, text, onAccept, acceptLabel)
 end
 
 local Popup, PickFeel, ROW_H = HUI.Popup, HUI.PickFeel, HUI.ROW_H
-local function ChoiceRow(...) return HUI.ChoiceRow(...) end
-local function GroupBrowser(p, groups, width) return HUI.GroupBrowser(p, groups, { width = width }) end
 
 local function Play(key, loop)
     local feel = H.Feel(key)
@@ -344,71 +342,46 @@ end
 ---------------------------------------------------------------------------
 local feelsUI = {}
 
-local function FeelTile(parent, x, y, w)
-    local t = S.NewButton(parent, "", x, y, w, nil, nil, 11, 30)
-    t.icon = t:CreateTexture(nil, "OVERLAY")
-    t.icon:SetSize(20, 20)
-    t.icon:SetPoint("LEFT", 5, 0)
-    t.label:ClearAllPoints()
-    t.label:SetPoint("LEFT", 28, 0)
-    t.label:SetPoint("RIGHT", -3, 0)
-    t.label:SetJustifyH("LEFT")
-    t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    return t
-end
-
 local OpenEditor   -- set below
 
 local function BuildFeels(p)
-    local groups = {}
-    for _, g in ipairs(L.GROUPS) do groups[#groups + 1] = g end
-    groups[#groups + 1] = "Yours"
-    local tw, cols = 108, 9
-    feelsUI.rows = {}
-    for gi, g in ipairs(groups) do
-        local y = -(gi - 1) * 40
-        S.Text(p, g, 4, y - 9, 86, 12, YELLOW)
-        local row = { group = g, tiles = {} }
-        for c = 1, cols do
-            local t = FeelTile(p, 92 + (c - 1) * (tw + 3), y, tw)
-            t:SetScript("OnClick", function(self, button)
-                if not self.key then return end
-                if button == "RightButton" then return OpenEditor(self.key) end
-                Play(self.key, (IsShiftKeyDown and IsShiftKeyDown()) or nil)
-                feelsUI.selected = self.key
-                Refresh()
-            end)
-            row.tiles[c] = t
-        end
-        feelsUI.rows[gi] = row
-    end
-    local y = -(#groups) * 40 - 6
-    S.NewButton(p, "Stop", 92, y, 120, function() H.Stop("beta"); Say("Stopped") end, nil, 12, 28)
-    S.NewButton(p, "Edit a copy", 220, y, 120, function()
+    local cardW = 290
+    feelsUI.pal = HUI.Palette(p, 0, -4, W - cardW - 10, PH - 44, {
+        current = function() return feelsUI.selected end,
+        onPick = function(key, button)
+            if button == "RightButton" then return OpenEditor(key) end
+            feelsUI.selected = key
+            Play(key, (IsShiftKeyDown and IsShiftKeyDown()) or nil)
+            Refresh()
+        end,
+    })
+    feelsUI.pal:ShowGroup(L.GROUPS[1])
+    local card = S.Card(p, "", W - cardW, 0, cardW, PH - 40)
+    feelsUI.name = S.Text(card, "Pick a feel", 14, -14, cardW - 28, 14, YELLOW)
+    feelsUI.info = S.Text(card, "", 14, -38, cardW - 28, 11, GREY)
+    feelsUI.graph = Graph(card, 14, -62, cardW - 28, 120, 80)
+    S.NewButton(card, "Play", 14, -196, 84, function() if feelsUI.selected then Play(feelsUI.selected) end end, nil, 12, 28)
+    S.NewButton(card, "Loop", 102, -196, 84, function() if feelsUI.selected then Play(feelsUI.selected, true) end end,
+        nil, 12, 28)
+    S.NewButton(card, "Stop", 190, -196, 84, function() H.Stop("beta"); Say("Stopped") end, nil, 12, 28)
+    S.NewButton(card, "Edit a copy", 14, -232, cardW - 28, function()
         if feelsUI.selected then OpenEditor(feelsUI.selected, true) end
-    end, nil, 12, 28)
-    feelsUI.note = S.Text(p, "Click: play · Shift: loop · Right-click: edit", 352, y - 7, 500, 11, DIM)
+    end, nil, 12, 30)
+    S.Note(card, 14, -276, cardW - 28, 3, 11, DIM):SetText("Click: play · Shift: loop · Right-click: edit a copy")
     ui.refresh[#ui.refresh + 1] = function()
-        local byGroup = {}
-        for _, f in ipairs(H.AllFeels()) do
-            local g = H.IsOwn(f.key) and "Yours" or f.group or "Yours"
-            byGroup[g] = byGroup[g] or {}
-            table.insert(byGroup[g], f)
-        end
-        for _, row in ipairs(feelsUI.rows) do
-            local list = byGroup[row.group] or {}
-            for c, t in ipairs(row.tiles) do
-                local f = list[c]
-                t:SetShown(f ~= nil)
-                if f then
-                    t.key = f.key
-                    t.label:SetText(f.label or f.key)
-                    t.icon:SetTexture(f.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
-                    S.SetSelected(t, f.key == feelsUI.selected)
-                    S.Tooltip(t, f.label or f.key, string.format("%.2f s%s", H.Length(f), f.loop and " · loop" or ""))
-                end
-            end
-        end
+        local f = feelsUI.selected and H.Feel(feelsUI.selected)
+        feelsUI.name:SetText(f and (f.label or f.key) or "Pick a feel")
+        feelsUI.info:SetText(f and string.format("%.2f s%s%s", H.Length(f), f.loop and " · loops" or "",
+            H.IsOwn(feelsUI.selected) and " · yours" or (f.rumble and " · Rumble's" or "")) or "")
+        local view = f and math.max(0.5, H.Length(f) * 1.1) or 1
+        local plain = f and H.Copy(f)
+        if plain then plain.loop = false end
+        feelsUI.graph:Draw(function(i)
+            if not plain then return 0, 0 end
+            local l, r = H.Sample(plain, (i - 0.5) / 80 * view, 1)
+            return l or 0, r or 0
+        end)
+        feelsUI.pal:ShowGroup(feelsUI.pal.group or L.GROUPS[1])
     end
 end
 
@@ -997,121 +970,6 @@ local function BuildEditor(p)
 end
 
 ---------------------------------------------------------------------------
--- Events: a group at a time, each event a row as on the Rumble tab
----------------------------------------------------------------------------
-local function FeelName(key)
-    local f = H.Feel(key)
-    return f and (f.label or f.key) or "?", f and f.icon
-end
-
-local function BuildEvents(p)
-    local groups = {}
-    for _, g in ipairs(L.EVENT_GROUPS) do groups[#groups + 1] = { key = g, label = g } end
-    groups[#groups + 1] = { key = "steps", label = "Steps and landing" }
-    local b = GroupBrowser(p, groups)
-    local rows = {}
-    for _, g in ipairs(L.EVENT_GROUPS) do
-        local list = {}
-        for _, e in ipairs(L.EVENTS) do if e.group == g then list[#list + 1] = e end end
-        local panel = b.panels[g]
-        local card = S.Card(panel, g, 0, 0, W - 210, 44 + #list * ROW_H)
-        for i, e in ipairs(list) do
-            local row
-            row = ChoiceRow(card, -38 - (i - 1) * ROW_H, W - 210, e.icon, e.label, function(anchor)
-                local s = L.EventSettings(e.key)
-                PickFeel(anchor, s.on and s.feel or "off", function(key)
-                    if key == "off" then s.on = false else s.on, s.feel = true, key; L.Try(e.key) end
-                    Refresh()
-                end, true, e.label)
-            end, function() L.Try(e.key) end, e.tip)
-            row.e = e
-            rows[#rows + 1] = row
-        end
-    end
-
-    -- Steps and landing: the footsteps sync and the landing's range
-    local sp = b.panels.steps
-    local sync = S.Card(sp, "Footsteps", 0, 0, 440, 300)
-    local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
-    for i, g in ipairs(gaits) do
-        local y = -40 - (i - 1) * 34
-        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 110, function()
-            if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
-            Refresh()
-        end, nil, 12, 28)
-        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), "Squeeze R2 on each footfall")
-        g.text = S.Text(sync, "", 132, y - 8, 296, 11, GREY)
-    end
-    local status = S.Note(sync, 12, -112, 416, 1, 11, GOLD)
-    local function Row(card, label, y, opts)
-        opts.labelWidth, opts.width = 130, 416
-        return Stepper(card, label, 12, y, opts)
-    end
-    local function rateRow(label, y, band)
-        Row(sync, label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
-            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
-    end
-    rateRow("Run steps", -136, "run")
-    rateRow("Walk steps", -164, "walk")
-    Row(sync, "Nudge", -192, { step = 0.01, min = -0.5, max = 0.5,
-        format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
-        get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
-    S.Note(sync, 12, -228, 416, 3, 11, DIM):SetText("Sync: stand still, start moving, squeeze R2 on each footfall")
-
-    local land = S.Card(sp, "Landing", 450, 0, W - 210 - 450, 300)
-    local lw = W - 210 - 450
-    local function LRow(label, y, opts)
-        opts.labelWidth, opts.width = 130, lw - 24
-        return Stepper(land, label, 12, y, opts)
-    end
-    LRow("Soft at", -40, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landMin or L.LAND_MIN end,
-        set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
-    LRow("Full at", -68, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landMax or L.LAND_MAX end,
-        set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
-    LRow("Longest", -96, { step = 0.05, min = 0.1, max = 1.5, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
-    local landed = S.Note(land, 12, -136, lw - 24, 3, 12, GREY)
-    landed:SetText("No landing yet")
-    L.onSync = function(text) status:SetText(text) end
-    L.onLand = function(t, k, sent)
-        local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
-        if sent then
-            text = text .. string.format("\nSent %d%% for %.2f s", floor(sent.peak * 100 + 0.5), max(0, sent.last - sent.start))
-            if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
-        end
-        landed:SetText(text)
-    end
-
-    ui.refresh[#ui.refresh + 1] = function()
-        local onCount = {}
-        for _, row in ipairs(rows) do
-            local s = L.EventSettings(row.e.key)
-            local name, icon = FeelName(s.feel)
-            if s.on then
-                row:SetChoice(name, icon, row.e.live and "While it lasts" or nil, false)
-                onCount[row.e.group] = (onCount[row.e.group] or 0) + 1
-            else
-                row:SetChoice("Off", ns.Rumble and ns.Rumble.OFF_ICON, nil, true)
-            end
-        end
-        for _, g in ipairs(L.EVENT_GROUPS) do
-            local n = 0
-            for _, e in ipairs(L.EVENTS) do if e.group == g then n = n + 1 end end
-            b.buttons[g].count:SetText((onCount[g] or 0) .. "/" .. n)
-        end
-        for _, g in ipairs(gaits) do
-            local cal = L.StepCal(g[1])
-            g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")
-            local busy = L.sync and L.sync.band == g[1]
-            buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
-            S.SetSelected(buttons[g[1]], busy and true or false)
-        end
-    end
-end
-
----------------------------------------------------------------------------
 -- Light: the base colour on the left, the light events by group
 ---------------------------------------------------------------------------
 local function BuildLight(p)
@@ -1527,7 +1385,6 @@ end
 -- The page
 ---------------------------------------------------------------------------
 local SECTIONS = {
-    { "events", "Events", BuildEvents },
     { "light", "Light", BuildLight },
     { "feels", "Feels", BuildFeels },
     { "editor", "Editor", BuildEditor },
@@ -1535,6 +1392,15 @@ local SECTIONS = {
     { "helper", "Helper", BuildHelper },
     { "probes", "Probes", BuildProbes },
 }
+
+-- A copy of a feel, yours, open in the editor (the Rumble tab's Edit)
+function ui.EditCopy(feel, label)
+    Shell.Open("beta")
+    local key = SaveOwn(feel, label)
+    ed.key, ed.sel = key, nil
+    ui.Select("editor")
+    return key
+end
 
 function ui.Select(key)
     ui.current = key
@@ -1600,7 +1466,7 @@ local function Build(frame, header)
         s[3](panel)
     end
     ui.tabs = tabs
-    ui.current = ui.current or "events"
+    ui.current = ui.current or "light"
 end
 
 Refresh = function()
