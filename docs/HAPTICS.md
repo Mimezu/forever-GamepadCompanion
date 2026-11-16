@@ -44,6 +44,15 @@ pad's rumble emulation, which decides what to keep.
 | Triggers (squeeze test) | every trigger-only variation: nothing; trigger and grip: grip only | LTrigger / RTrigger do nothing on a DualSense: trigger effects need the helper |
 | Update rate (asked again) | 5 to 60 Hz: countable pulses, even when very close | no blending: on / off never becomes a buzz; texture must come another way |
 | Overdrive (first version) | mostly only B felt (15 ms full, then 40%), A (40 ms at 40%) missed | a kick may save short soft taps: counted in 0.13.5 |
+| Overdrive (5 taps each) | 25 ms: 1-2 plain, 3-4 kicked; 33 ms: 3-4 plain, 1-2 kicked; 40 ms at 25%: 1-2 plain, 3-4 kicked; 8 ms kick: 3-4 | a little help at best, within the noise of 5 taps: not a fix; 50 ms stays the floor |
+| Wobble (30-100%, never off) | 3 to 25 Hz: nearly steady, "very slightly varying" | while running, strength changes are smoothed away; only on / off edges are crisp |
+
+**What this pad is, through the game:** a drum, not a speaker. What you feel is
+pulses of 50 ms or more: their rhythm, their side, and how strong each one starts.
+Changing the strength of a vibration that is already running (swells, wobble,
+grain, noise) mostly flattens out. Triggers: nothing. Light bar: works. So the
+vocabulary is rhythms of short soft pulses (what the player liked), placed left /
+right, plus the light bar; curves and textures need the helper (true haptics).
 
 Applied in 0.13.3: Shortest pulse 50 ms and no floor by default; taps 50 ms and soft;
 detents at 5 Hz or under. Still open: 60 fps run, triggers, overdrive.
