@@ -147,6 +147,8 @@ function T.Normalize(raw)
         tapMsSaved = raw.tapMsSaved,
         overWindows = raw.overWindows ~= false,
         tapSaved = raw.tapSaved,
+        -- (a modifier lent to the chord button while a window was open: given back at login)
+        chordSaved = type(raw.chordSaved) == "table" and raw.chordSaved or nil,
         chordButton = type(raw.chordButton) == "string" and raw.chordButton or T.DEFAULT_CHORD_BUTTON,
         actions = {},
         split = type(raw.split) == "table" and Copy(raw.split) or {},

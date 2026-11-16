@@ -144,6 +144,42 @@ local function Emulate()
 end
 
 ---------------------------------------------------------------------------
+-- The chord only while a window is open: when the chord button (L1) is no
+-- modifier of its own (it keeps its targeting), a free modifier (Alt) is put
+-- on it while a gamepad window is open, so L1 + touchpad focuses that window
+-- while plain touches stay zones; closed, it goes back as it was. The
+-- player's ask: L1 + touch for Focus UI, the click kept for zones.
+---------------------------------------------------------------------------
+local chordLent   -- the modifier lent to the chord button now, or nil
+
+local function WindowOpen()
+    return GamepadUI() and WindowsShown() > 0
+end
+
+-- Lend (true) or give back (false) a modifier to the chord button
+function Touch.LendChord(on)
+    local emulate = Emulate()
+    if on then
+        if chordLent or settings.mode ~= "chord" or not settings.enabled then return false end
+        if T.ModifierFor(settings.chordButton, emulate) then return false end   -- (it has one already)
+        for _, mod in ipairs(T.MODIFIERS) do
+            local v = emulate[mod]
+            if v == nil or v == "" or v == "none" or v == "NONE" then
+                settings.chordSaved = { mod = mod, value = v or "none" }
+                SetCVarSafe(T.EMULATE_CVARS[mod], settings.chordButton)
+                chordLent = mod
+                return true
+            end
+        end
+        return false
+    end
+    local saved = settings.chordSaved
+    if saved and saved.mod then SetCVarSafe(T.EMULATE_CVARS[saved.mod], saved.value or "none") end
+    settings.chordSaved, chordLent = nil, nil
+    return true
+end
+
+---------------------------------------------------------------------------
 -- Split mode: the right half on PAD6 (a gamepad config for this controller)
 ---------------------------------------------------------------------------
 local function GetConfig(id)
@@ -797,6 +833,16 @@ watcher:SetScript("OnUpdate", function(_, elapsed)
     if settings.mode == "chord" and Touch.WorldHasPad() ~= lastOurs then
         if InCombat() then pending = true else Touch.Apply() end
     end
+    -- (a window opened or closed: lend the chord its modifier, or give it back)
+    if settings.mode == "chord" and not InCombat() then
+        local open = WindowOpen()
+        if open and not chordLent then
+            if Touch.LendChord(true) then Touch.Apply() end
+        elseif not open and chordLent then
+            Touch.LendChord(false)
+            Touch.Apply()
+        end
+    end
     if not settings.preview or PadStyle() ~= "Shapes" then return UpdatePreview(0, 0, false) end
     local x, y = Finger()
     if not x then return UpdatePreview(0, 0, false) end
@@ -826,10 +872,12 @@ events:SetScript("OnEvent", function(_, event, arg)
         char.touch = settings
         GamepadCompanionTouchDB = account
         loaded = true
+        if settings.chordSaved then Touch.LendChord(false) end
         return
     end
     if not loaded then return end
     if event == "PLAYER_LOGOUT" then
+        if chordLent or settings.chordSaved then Touch.LendChord(false) end
         BlockTouchCursor(false)
         TapToClick(false)
         for _, key in ipairs(T.DEVICE_FIELDS) do GamepadCompanionTouchDB[key] = T.Copy(settings[key]) end
