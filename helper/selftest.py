@@ -105,6 +105,11 @@ def test_strip():
         check(protocol.decode(got) == s, "strip decodes")
         got2, where2 = screen.read_strip(buf, w, h, hint=where)
         check(where2 == where, "hint")
+    # a stale hint one pixel inside the block (the strip shrank from 4 px to 2 px cells in game):
+    # must not lock onto it, the real corner is found instead
+    buf, w, h = image(cells, 2, 0, 0)
+    got, where = screen.read_strip(buf, w, h, hint=(1, 1, 1))
+    check(where == (0, 0, 2) and protocol.decode(got) == s, f"stale inner hint: {where}")
     # gamma / brightness: 'on' at 170, 'off' at 90 still reads
     buf, w, h = image(cells, 4, 0, 0, on=170, off=90)
     got, _ = screen.read_strip(buf, w, h)

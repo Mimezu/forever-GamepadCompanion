@@ -194,6 +194,10 @@ def read_strip(buf, w, h, hint=None, max_cell=16):
     width (= the cell size), checks the green marker beside it, then samples every cell's centre.
     Tries the last position first (hint)."""
     def at(x, y):
+        # top-left corner of the magenta block only (also for the hint: a hint one pixel inside
+        # the block would sample every cell off-centre and fail every checksum)
+        if (x > 0 and _is(buf, w, x - 1, y, MARKERS[0])) or (y > 0 and _is(buf, w, x, y - 1, MARKERS[0])):
+            return None
         size = 0
         while x + size < w and _is(buf, w, x + size, y, MARKERS[0]):
             size += 1
@@ -220,10 +224,6 @@ def read_strip(buf, w, h, hint=None, max_cell=16):
     for y in range(h):
         for x in range(w):
             if not _is(buf, w, x, y, MARKERS[0]):
-                continue
-            if x > 0 and _is(buf, w, x - 1, y, MARKERS[0]):
-                continue
-            if y > 0 and _is(buf, w, x, y - 1, MARKERS[0]):
                 continue
             r = at(x, y)
             if r:
@@ -264,6 +264,10 @@ class StripReader:
             return None, where
         self.hint = where
         return cells, where
+
+    def forget(self):
+        """Drop the last position (the frame there did not decode): scan afresh next read."""
+        self.hint = None
 
     def close(self):
         self.grabber.close()

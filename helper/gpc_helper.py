@@ -186,7 +186,7 @@ def run_loop(args, dry):
     last_valid = last_window = last_pad_try = last_stats = now
     lost = True
     shown = None
-    reads = valid = 0
+    reads = valid = bad = 0
     log("dry run: reading only, nothing is sent" if dry else "running: Ctrl+C to stop")
     try:
         while not s.stop.is_set():
@@ -204,8 +204,13 @@ def run_loop(args, dry):
                 try:
                     state = protocol.decode(cells)
                 except DecodeError as e:
-                    vlog(f"invalid frame: {e}")
+                    bad += 1
+                    if bad in (1, 60) or bad % 600 == 0:
+                        vlog(f"invalid frame at {info}: {e} ({bad} in a row)")
+                    if bad % 30 == 0:
+                        reader.forget()   # stuck on a wrong spot: scan the corner again
             if state:
+                bad = 0
                 valid += 1
                 last_valid = t0
                 if lost:
@@ -285,28 +290,39 @@ def do_demo_triggers(args):
         print("No DualSense found.")
         return 1
     print(f"{pads[0]['name']} over {pads[0]['transport'].upper()}.")
-    if not ask_enter("Demo: each trigger effect for 4 s on R2, then on L2, then off. Squeeze to feel it."):
+    D = dualsense
+    # Numbered so the player can report which ones they felt: 1-5 the multi-position formats
+    # (0x21/0x25/0x26), 6-8 the legacy raw modes (0x01/0x02/0x06). R2 only, then one L2 check.
+    steps = [("R2", "1 resistance from the middle (0x21)", D.effect_feedback(4, 6)),
+             ("R2", "2 resistance only in the middle (0x21 zones)", D.effect_multi_feedback([0, 0, 0, 6, 6, 6, 6, 0, 0, 0])),
+             ("R2", "3 weapon click (0x25)", D.effect_weapon(3, 6, 8)),
+             ("R2", "4 vibration 30 Hz (0x26)", D.effect_vibration(0, 6, 30)),
+             ("R2", "5 slope, light to hard (0x21)", D.effect_slope(0, 9, 1, 8)),
+             ("R2", "6 legacy resistance (0x01)", D.legacy_resistance(100, 200)),
+             ("R2", "7 legacy section (0x02)", D.legacy_section(60, 160, 200)),
+             ("R2", "8 legacy vibration (0x06)", D.legacy_vibration(30, 200, 0)),
+             ("L2", "9 L2 resistance from the middle (0x21)", D.effect_feedback(4, 6))]
+    if args.legacy_triggers:
+        steps = [st for st in steps if "legacy" in st[1]]
+    hold = 5
+    if not ask_enter(f"Demo: {len(steps)} trigger effects, {hold} s each, numbered. "
+                     "Keep squeezing slowly in and out; note which numbers you feel."):
         return 0
     s = Session()
     s.install()
     s.pad = dualsense.Pad(pads[0], transport=args.transport)
-    s.out = out = dualsense.TriggerOutput(s.pad, legacy=args.legacy_triggers, log=log)
-    steps = [("resistance from the middle", Trigger(1, 7, 0, 10)),
-             ("section resistance", Trigger(2, 4, 10, 12)),
-             ("weapon click", Trigger(3, 4, 10, 15)),
-             ("vibration 30 Hz", Trigger(4, 0, 10, 7)),
-             ("slope (progress)", Trigger(5, 0, 15, 15))]
+    s.out = out = dualsense.TriggerOutput(s.pad, log=log)
+    off = D.effect_off()
     try:
-        for side in ("R2", "L2"):
-            for label, t in steps:
-                print(f"{side}: {label}")
-                out.set(t if side == "L2" else Trigger(), t if side == "R2" else Trigger())
-                out.tick()
-                end = time.perf_counter() + 4
-                while time.perf_counter() < end and not s.stop.is_set():
-                    time.sleep(0.05)
-                if s.stop.is_set():
-                    raise KeyboardInterrupt
+        for side, label, eff in steps:
+            print(f"{side}: {label}")
+            out.wanted = (eff, off) if side == "L2" else (off, eff)
+            out.tick(time.perf_counter() + 1)
+            end = time.perf_counter() + hold
+            while time.perf_counter() < end and not s.stop.is_set():
+                time.sleep(0.05)
+            if s.stop.is_set():
+                raise KeyboardInterrupt
     except KeyboardInterrupt:
         pass
     finally:
