@@ -284,7 +284,7 @@ local function BuildProbes(p)
     local card = S.Card(p, "", 312, 0, W - 312, PH - 40)
     probe.title = S.Text(card, "", 16, -14, 600, 16, YELLOW)
     probe.stepName = S.Text(card, "", 16, -48, 500, 14, GOLD)
-    probe.ask = S.Text(card, "", 16, -74, 500, 13, GREY)
+    probe.ask = S.Text(card, "", 16, -74, 900, 13, GREY)
     probe.play = S.NewButton(card, "Play", 16, -104, 160, function()
         local pr = L.PROBES[probe.index]
         local step = pr.steps[probe.step]
@@ -342,7 +342,7 @@ local function BuildProbes(p)
         local step = pr.steps[probe.step]
         probe.title:SetText(pr.label)
         probe.stepName:SetText(string.format("%d/%d  %s", probe.step, #pr.steps, step and step[1] or ""))
-        probe.ask:SetText(pr.ask)
+        probe.ask:SetText((pr.how and (pr.how .. "   ·   ") or "") .. pr.ask)
         probe.play.label:SetText(probe.playing and "Playing..." or (answers[probe.step] and "Play again" or "Play"))
         for i, b in ipairs(probe.answers) do
             local text = pr.answers[i]

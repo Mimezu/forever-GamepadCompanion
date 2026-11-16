@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.3 — 2026-11-16
+
+- Beta, from the probe results: taps held to 50 ms by default (shorter ones were felt only sometimes); no floor on either grip (5% felt on both)
+- Taps 50 ms and soft (Pin, Dust, Graze, Feather, Clicks, Ready); detents at 5 Hz or under (faster felt as a buzz)
+- Probes: a what-to-do line on each; tap lengths no longer copied onto other probes
+
 ## 0.13.2 — 2026-11-16
 
 - Beta, Shortest tap: 5 taps per step, "how many felt?", 16 to 75 ms; each tap's real length measured

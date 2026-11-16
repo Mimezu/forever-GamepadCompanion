@@ -28,11 +28,12 @@ H.DEFAULTS = {
     rate = 0,              -- sends per second at most (0: every frame)
     keepAlive = 0.1,       -- resend an unchanged level after (s; 0: never)
     kick = 0,              -- overdrive: a rise starts with this long at full (s)
-    minPulse = 0,          -- a pulse from rest lasts at least this long (s): shorter ones get lost
+    minPulse = 0.05,       -- a pulse from rest lasts at least this long (s): in game, under ~45 ms is
+                           --   felt only sometimes, 50 ms always
     battery = true,        -- softer on a low battery
     light = false,         -- light bar effects
     triggers = "off",      -- off | mirror (grips also on LTrigger / RTrigger) | only
-    floor = { 0, 0.5 },    -- calibration per side (left, right): first felt
+    floor = { 0, 0 },      -- calibration per side (left, right): first felt (in game: 5% on both)
     ceil = { 1, 1 },       --   no stronger past this
     gamma = { 1, 1 },      --   curve between them
 }
@@ -56,6 +57,12 @@ function H.DB()
     end
     for _, k in ipairs({ "feels", "probes", "events", "lights" }) do
         if type(db[k]) ~= "table" then db[k] = {} end
+    end
+    -- (0.13.3: the probes' answers become the defaults, once)
+    if (db.version or 0) < 2 then
+        if db.minPulse == 0 then db.minPulse = 0.05 end
+        if db.floor[2] == 0.5 then db.floor[2] = 0 end
+        db.version = 2
     end
     return db
 end

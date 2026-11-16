@@ -29,18 +29,18 @@ local function heartKeys(period, a, b)
 end
 
 local LIB = {
-    -- Taps: shorter than the old 0.1 s floor (does the pad keep them? probe 1)
-    { "pin", "Pin", "Taps", "micro", { hold = 0.02, peak = 1 } },
-    { "tap", "Tap", "Taps", "tick", { hold = 0.04, peak = 0.8, kick = 0.02 } },
+    -- Taps. In game (probes, 2026-11-16): under ~45 ms a tap is felt only
+    -- some of the time; 50 ms always, even at 20%. So subtle = 50 ms, soft.
+    { "pin", "Pin", "Taps", "micro", { hold = 0.05, peak = 0.25 } },
+    { "tap", "Tap", "Taps", "tick", { hold = 0.05, peak = 0.6 } },
     { "knock", "Knock", "Taps", "impact", { hold = 0.06, decay = 0.08, peak = 1, kick = 0.03,
         duck = { amount = 0.7, time = 0.12 } } },
     { "flick", "Flick", "Taps", "click", { decay = 0.12, curve = 2.5, peak = 1 } },
-    { "clickL", "Click left", "Taps", "click", { hold = 0.03, peak = 1, pan = -1 } },
-    { "clickR", "Click right", "Taps", "click", { hold = 0.03, peak = 1, pan = 1 } },
-    -- (the short ones felt subtle in game: 33 ms felt 2 times in 3, 50 ms always)
-    { "dust", "Dust", "Taps", "micro", { hold = 0.033, peak = 1 } },
-    { "graze", "Graze", "Taps", "tick", { hold = 0.04, peak = 1 } },
-    { "feather", "Feather", "Taps", "micro", { hold = 0.05, peak = 0.5 } },
+    { "clickL", "Click left", "Taps", "click", { hold = 0.05, peak = 0.5, pan = -1 } },
+    { "clickR", "Click right", "Taps", "click", { hold = 0.05, peak = 0.5, pan = 1 } },
+    { "dust", "Dust", "Taps", "micro", { hold = 0.05, peak = 0.15 } },
+    { "graze", "Graze", "Taps", "tick", { hold = 0.05, peak = 0.35 } },
+    { "feather", "Feather", "Taps", "micro", { hold = 0.06, peak = 0.25, pan = 0.4 } },
     -- Grain: the strength flickering fast (amplitude modulation)
     { "purr8", "Purr 8 Hz", "Grain", "purr", { attack = 0.05, hold = 0.6, decay = 0.15, peak = 0.6,
         grain = { rate = 8, depth = 0.8 } } },
@@ -64,14 +64,16 @@ local LIB = {
         grain = { rate = 6, depth = 0.4 } } },
     { "staticx", "Static", "Texture", "zap", { hold = 0.6, decay = 0.05, peak = 0.6, sparks = 25, bed = 0.2 } },
     -- Detents: even ticks
-    { "ratchet", "Ratchet", "Detents", "gears", { hold = 0.8, peak = 0.7, grain = { rate = 12, depth = 1,
-        wave = "square", duty = 0.25 } } },
-    { "dial", "Dial", "Detents", "click", { hold = 1, peak = 0.5, grain = { rate = 6, depth = 1, wave = "square",
-        duty = 0.2 } } },
-    { "cogs", "Cogs", "Detents", "whirl", { hold = 1, peak = 0.6, grain = { rate = 5, depth = 1, wave = "square",
+    -- (in game: on / off faster than ~5 Hz is a buzz, so ticks stay at 5 Hz or
+    -- under, each on for 50 ms or more)
+    { "ratchet", "Ratchet", "Detents", "gears", { hold = 0.8, peak = 0.5, grain = { rate = 5, depth = 1,
+        wave = "square", duty = 0.3 } } },
+    { "dial", "Dial", "Detents", "click", { hold = 1, peak = 0.35, grain = { rate = 4, depth = 1, wave = "square",
+        duty = 0.25 } } },
+    { "cogs", "Cogs", "Detents", "whirl", { hold = 1.2, peak = 0.5, grain = { rate = 4, depth = 1, wave = "square",
         duty = 0.25, alternate = true } } },
-    { "speedup", "Speeding ticks", "Detents", "charge", { hold = 1.5, peak = 0.6, grain = { rate = 2, rateTo = 20,
-        depth = 1, wave = "square", duty = 0.3 } } },
+    { "speedup", "Speeding ticks", "Detents", "charge", { hold = 1.5, peak = 0.5, grain = { rate = 1.5, rateTo = 5,
+        depth = 1, wave = "square", duty = 0.35 } } },
     -- Shapes: curves instead of steps
     { "swell", "Swell", "Shapes", "rise", { attack = 1.2, curve = 2, hold = 0.1, decay = 0.25, peak = 0.9 } },
     { "dive", "Dive", "Shapes", "fade", { decay = 1.2, curve = 3, peak = 1 } },
@@ -111,7 +113,7 @@ local LIB = {
             { 0.19, 0, "hold" }, { 0.28, 0, "hold" }, { 0.28, 0.85, "hold" }, { 0.34, 0 } } } } },
     { "deny", "Deny", "Signals", "hex", { keys = { left = { { 0, 0.7, "hold" }, { 0.08, 0, "hold" }, { 0.16, 0, "hold" },
         { 0.16, 0.7, "hold" }, { 0.24, 0 } }, right = { { 0, 0 }, { 0.24, 0 } } } } },
-    { "ready", "Ready", "Signals", "micro", { hold = 0.03, peak = 0.9, pan = 1, kick = 0.02 } },
+    { "ready", "Ready", "Signals", "micro", { hold = 0.05, peak = 0.4, pan = 1 } },
     { "notch", "Notch", "Signals", "double", { keys = { left = { { 0, 0.5, "hold" }, { 0.03, 0, "hold" },
         { 0.09, 0, "hold" }, { 0.09, 0.5, "hold" }, { 0.12, 0 } } } } },
     { "whisper", "Whisper", "Signals", "micro", { hold = 0.2, peak = 0.03 } },
@@ -153,6 +155,7 @@ seq:Hide()
 local seqList, seqStart, seqIndex, seqDone
 
 local ramp   -- (the calibration ramp, below: one at a time)
+L.measure = {}   -- (tap lengths of the run playing: Taps fills it)
 
 -- The motors and light back to the mixer
 local function Release()
@@ -164,6 +167,7 @@ local function Run(list, onDone)
     if ramp:IsShown() then ramp:Hide() end
     H.Stop()
     H.hold = true
+    wipe(L.measure)
     seqList, seqStart, seqIndex, seqDone = list, Now(), 1, onDone
     seq:Show()
 end
@@ -211,10 +215,9 @@ end
 -- Taps: n of them, 0.7 s apart, each ms long at v. Their real lengths are
 -- measured (sent and stopped on frames: at 100 fps a 16 ms tap lasts 10 or
 -- 20 ms), kept with the answer.
-local measure = {}
+local measure = L.measure
 local function Taps(ms, v, n)
     return function()
-        wipe(measure)
         local list = {}
         for i = 0, (n or 5) - 1 do
             local at = i * 0.7
@@ -248,17 +251,17 @@ local function Light(r, g, b)
 end
 
 L.PROBES = {
-    { key = "tap2", label = "Shortest tap", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
+    { key = "tap2", label = "Shortest tap", how = "Play, count the taps. Then Cap 60 fps and again", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
         { "16 ms", Taps(16) }, { "20 ms", Taps(20) }, { "25 ms", Taps(25) }, { "33 ms", Taps(33) },
         { "40 ms", Taps(40) }, { "50 ms", Taps(50) }, { "75 ms", Taps(75) } } },
-    { key = "subtle", label = "Soft short taps", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
+    { key = "subtle", label = "Soft short taps", how = "Play, count the taps", ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
         { "50 ms at 60%", Taps(50, 0.6) }, { "50 ms at 35%", Taps(50, 0.35) },
         { "33 ms at 60%", Taps(33, 0.6) }, { "33 ms at 35%", Taps(33, 0.35) },
         { "75 ms at 35%", Taps(75, 0.35) }, { "75 ms at 20%", Taps(75, 0.2) } } },
-    { key = "hold", label = "Hold, sent once", ask = "How long?", answers = { "All 3 s", "Faded", "Nothing" }, steps = {
+    { key = "hold", label = "Hold, sent once", how = "Sent once, then nothing for 3 s", ask = "How long?", answers = { "All 3 s", "Faded", "Nothing" }, steps = {
         { "60%, 3 s", function() return { { 0, both(0.6) }, { 3, stop } } end },
         { "100%, 3 s", function() return { { 0, both(1) }, { 3, stop } } end } } },
-    { key = "rate", label = "Update rate", ask = "Feels like?", answers = { "Pulses", "Buzz", "Smooth", "Nothing" },
+    { key = "rate", label = "Update rate", how = "Left grip switched on and off", ask = "Feels like?", answers = { "Pulses", "Buzz", "Smooth", "Nothing" },
         steps = (function()
             local list = {}
             for _, hz in ipairs({ 5, 10, 20, 30, 45, 60 }) do
@@ -270,16 +273,16 @@ L.PROBES = {
             end
             return list
         end)() },
-    { key = "ends", label = "Stopping", ask = "Tail?", answers = { "Clean", "Tail" }, steps = {
+    { key = "ends", label = "Stopping", how = "On for 0.5 s, then stopped", ask = "Tail?", answers = { "Clean", "Tail" }, steps = {
         { "Set to 0", function() return { { 0, both(1) }, { 0.5, both(0) }, { 1, stop } } end },
         { "Stop call", function() return { { 0, both(1) }, { 0.5, stop } } end } } },
-    { key = "channels", label = "Each channel", ask = "Where?",
+    { key = "channels", label = "Each channel", how = "One channel for 1 s. Felt nothing: Nothing", ask = "Where?",
         answers = { "Left grip", "Right grip", "A trigger", "Nothing" }, steps = {
         { "Low", function() return { { 0, one("Low", 1) }, { 1, stop } } end },
         { "High", function() return { { 0, one("High", 1) }, { 1, stop } } end },
         { "LTrigger", function() return { { 0, one("LTrigger", 1) }, { 1, stop } } end },
         { "RTrigger", function() return { { 0, one("RTrigger", 1) }, { 1, stop } } end } } },
-    { key = "low", label = "Weak levels", ask = "Felt?", answers = { "Felt", "Not felt" }, steps = (function()
+    { key = "low", label = "Weak levels", how = "One weak level", ask = "Felt?", answers = { "Felt", "Not felt" }, steps = (function()
         local list = {}
         for _, side in ipairs({ "Low", "High" }) do
             for _, v in ipairs({ 0.05, 0.1, 0.2, 0.35, 0.5 }) do
@@ -290,18 +293,18 @@ L.PROBES = {
         end
         return list
     end)() },
-    { key = "top", label = "Top end", ask = "Stronger each time?", answers = { "Yes", "Top same", "No" }, steps = {
+    { key = "top", label = "Top end", how = "Three steps: 60, 80, 100%", ask = "Stronger each time?", answers = { "Yes", "Top same", "No" }, steps = {
         { "60, 80, 100%", function() return { { 0, both(0.6) }, { 0.5, stop }, { 0.9, both(0.8) }, { 1.4, stop },
             { 1.8, both(1) }, { 2.3, stop } } end } } },
-    { key = "kick", label = "Overdrive", ask = "Crisper?", answers = { "B crisper", "Same", "A crisper" }, steps = {
+    { key = "kick", label = "Overdrive", how = "Two taps: A, then B", ask = "Which was sharper?", answers = { "B sharper", "Same", "A sharper" }, steps = {
         { "A plain, B kicked", function() return { { 0, both(0.4) }, { 0.04, stop },
             { 0.8, both(1) }, { 0.815, both(0.4) }, { 0.84, stop } } end } } },
-    { key = "sides", label = "Left vs right", ask = "Which is stronger?", answers = { "Left", "Same", "Right" }, steps = {
+    { key = "sides", label = "Left vs right", how = "Left grip, then right grip, same level", ask = "Which is stronger?", answers = { "Left", "Same", "Right" }, steps = {
         { "Both 50%", function() return { { 0, one("Low", 0.5) }, { 0.6, stop }, { 1, one("High", 0.5) },
             { 1.6, stop } } end },
         { "Both 100%", function() return { { 0, one("Low", 1) }, { 0.6, stop }, { 1, one("High", 1) },
             { 1.6, stop } } end } } },
-    { key = "light", label = "Light bar", ask = "Seen?", answers = { "Yes", "No" }, steps = {
+    { key = "light", label = "Light bar", how = "Watch the light bar", ask = "Seen?", answers = { "Yes", "No" }, steps = {
         { "Red", Light(1, 0, 0) }, { "Green", Light(0, 1, 0) }, { "Blue", Light(0, 0, 1) } } },
 }
 

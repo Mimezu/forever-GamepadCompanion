@@ -25,6 +25,25 @@ Rumble is exactly as before. Saved in `GamepadCompanionHapticsDB` (account).
 groups Taps and Grain: they tell us whether short taps and fast grain survive the
 pad's rumble emulation, which decides what to keep.
 
+## 0.1 Probe results, 2026-11-16 (Windows, DualSense, 100 fps)
+
+| Probe | Result | So |
+|---|---|---|
+| Shortest tap (5 each) | real 20-30 ms: 1-2 of 5; 31-53 ms: 3-4; 49 ms and more: 5 | the pad needs ~45-50 ms; not frame jitter |
+| Soft short taps | 50 ms at 35%: 5; 75 ms at 20%: 5; 33 ms at 35%: 1-2 | length decides, not strength: subtle = 50 ms and soft |
+| Hold, sent once | faded (60% and 100%) | keep re-sending (0.1 s) |
+| Update rate | 5 Hz: pulses; 10-60 Hz: buzz | ticks at 5 Hz or under; faster is texture |
+| Stopping | set to 0 and Stop: both clean | either |
+| Channels | Low = left, High = right; triggers not answered | trigger types: still unknown |
+| Weak levels | 5% felt on both grips | no floor (the right's 0.5 was the Mac's) |
+| Top end | 60 / 80 / 100% each stronger | full range usable |
+| Left vs right | left stronger at 50% and 100% | right is the lighter motor |
+| Light bar | red, green, blue seen | SetLedColor works |
+| User | loves the subtle short taps | build the subtle vocabulary on 50 ms, low strength |
+
+Applied in 0.13.3: Shortest pulse 50 ms and no floor by default; taps 50 ms and soft;
+detents at 5 Hz or under. Still open: 60 fps run, triggers, overdrive.
+
 ## 1. What we do today
 
 Engine (`Rumble.lua`), all through one call: `C_GamePad.SetVibration("Low"|"High", 0..1)`.

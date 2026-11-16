@@ -217,7 +217,14 @@ io.write("PASS: feels: envelope, keys, grain, pan, kick, noise, " .. #H.LIBRARY 
 -- Mixer ---------------------------------------------------------------------------------
 local db = H.DB()
 assert(GamepadCompanionHapticsDB == db and db.engine == false, "own saved table, engine off")
-near(H.Calibrated(2, 0.5), 0.75, "right floor 0.5 by default")
+near(H.Calibrated(2, 0.5), 0.5, "no floor by default: both grips felt from 5% in game")
+assert(db.minPulse == 0.05 and db.version == 2, "taps held to 50 ms by default")
+GamepadCompanionHapticsDB = { minPulse = 0, floor = { 0, 0.5 } }
+local old = H.DB()
+assert(old.minPulse == 0.05 and old.floor[2] == 0, "settings from 0.13.2 moved to the probes' defaults")
+GamepadCompanionHapticsDB = db
+H.DB()
+db.minPulse = 0
 assert(H.Calibrated(1, 0) == 0, "zero stays zero")
 db.gamma[1] = 0.5
 near(H.Calibrated(1, 0.25), 0.5, "curve lifts soft levels")
@@ -456,4 +463,7 @@ H.Play({ hold = 0.005, peak = 1 }, { voice = "tiny" })
 frame(0.02)
 assert(H.out.l == 1, "sampled at its start on its first frame")
 H.Stop()
+L.Run({ { 0, function() end } })
+assert(L.Measured() == nil, "a probe without taps keeps no tap lengths")
+L.Halt()
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")
