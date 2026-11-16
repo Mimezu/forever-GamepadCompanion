@@ -575,4 +575,28 @@ local levels = {}
 for _, v in ipairs(vib) do if v[1] == "Low" then levels[#levels + 1] = v[2] end end
 assert(levels[1] == 1 and math.abs(levels[2] - 0.4) < 1e-9, "kick then level: " .. table.concat(levels, ","))
 L.Halt()
+-- Swings: each weapon its feel, on its own timer (main and off hand)
+GetInventoryItemID = function(_, slot) return slot == 16 and 100 or slot == 17 and 200 or nil end
+local oldItem = C_Item
+C_Item = { GetItemInfoInstant = function(id)
+    if id == 100 then return nil, nil, nil, nil, nil, 2, 5 end
+    if id == 200 then return nil, nil, nil, nil, nil, 2, 15 end
+end }
+assert(V.SwingPattern(16) == "swMace2" and V.SwingPattern(17) == "swDagger", "two-handed mace, dagger")
+assert(V.Pattern("swMace2").feel and V.Pattern("swDagger").feel, "swings as pulses")
+UnitAttackSpeed = function() return 3.6, 1.5 end
+V.SetEventPattern("autoAttack", "auto")
+local swings = {}
+local realFire = V.Fire
+V.Fire = function(k) if k == "autoAttack" then swings[#swings + 1] = V.EventPattern("autoAttack") end end
+V.SwingStart()
+local sf = V.swingFrame
+for _ = 1, 400 do now = now + 0.01; sf.scripts.OnUpdate(sf, 0.01) end
+V.SwingStop()
+local mains, offs = 0, 0
+for _, k in ipairs(swings) do if k == "swMace2" then mains = mains + 1 elseif k == "swDagger" then offs = offs + 1 end end
+assert(mains == 2 and offs == 3, "a swing per weapon speed: " .. mains .. " main, " .. offs .. " off")
+V.Fire = realFire
+C_Item = oldItem
+GetInventoryItemID = nil
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")

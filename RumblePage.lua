@@ -120,7 +120,7 @@ local function Try(rail)
     elseif event.loop then
         if V.SimulateLoop(event.key, 6) then Say(event.label .. ": playing · Try again stops")
         else Say(event.label .. ": stopped") end
-    elseif event.key == "shot" then
+    elseif event.key == "shot" or event.key == "autoAttack" then
         V.SimulateShots(event.key, function(n)
             Say(event.label .. ": " .. V.Pattern(pattern).label .. (n > 1 and " x" .. n or ""))
         end)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1 — 2026-11-16
+
+- Rumble, Auto attack: every swing, on the weapon's swing timer, main hand (leaning right) and off hand (left, softer)
+- Auto attack: Match the weapon: dagger, fist, light slash (sword), chop (axe), knock (mace) faint and quick; heavy slash, heavy chop, thud (two-handed mace), sweep (polearm) long
+
 ## 0.16.0 — 2026-11-16
 
 - Rumble patterns retuned for rhythm and contrast (with the Beta engine): faint micro taps for small things, long rumbles for big ones, professions and spells as rhythms; the old steps stay for when the engine is off

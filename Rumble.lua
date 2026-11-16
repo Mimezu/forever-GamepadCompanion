@@ -171,6 +171,24 @@ V.PATTERNS = {
         steps = { { 0.3, 0.05, 0.12 }, { 0.1, 0, 0.12 }, { 0.25, 0.05, 0.12 }, { 0.05, 0, 0.12 } } },
 }
 
+-- Swings, by melee weapon (Auto attack's "Match the weapon"): a quick
+-- one-hander a faint slash, a slow two-hander a long hit (the player's ask)
+for _, p in ipairs({
+    { key = "swDagger", art = "stab", label = "Dagger", steps = { { 0.12, 0.12, 0.1 } } },
+    { key = "swFist", art = "bash", label = "Fist", steps = { { 0.15, 0.12, 0.1 } } },
+    { key = "swSword", art = "slash", label = "Light slash", steps = { { 0.12, 0.2, 0.1 } } },
+    { key = "swAxe", art = "cleave", label = "Chop", steps = { { 0.3, 0.25, 0.1 } } },
+    { key = "swMace", art = "hammer", label = "Knock", steps = { { 0.35, 0.3, 0.12 } } },
+    { key = "swSword2", art = "slash", label = "Heavy slash", steps = { { 0.6, 0.5, 0.2 } } },
+    { key = "swAxe2", art = "cleave", label = "Heavy chop", steps = { { 0.75, 0.6, 0.22 } } },
+    { key = "swMace2", art = "slam", label = "Thud", steps = { { 0.9, 0.8, 0.28 } } },
+    { key = "swPolearm", art = "whirl", label = "Sweep", steps = { { 0.5, 0.5, 0.2 } } },
+    { key = "swStaff", art = "bash", label = "Staff", steps = { { 0.3, 0.3, 0.15 } } },
+}) do
+    p.action, p.swing = true, true
+    V.PATTERNS[#V.PATTERNS + 1] = p
+end
+
 -- The instant abilities each move matches (every rank shares its name: the
 -- first's ID names them)
 V.MOVES = {
@@ -218,7 +236,7 @@ local VIBE_ICONS = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_"
 V.OFF_ICON = VIBE_ICONS .. "off"
 local PATTERN = {}
 for _, p in ipairs(V.PATTERNS) do
-    p.icon = VIBE_ICONS .. p.key
+    p.icon = VIBE_ICONS .. (p.art or p.key)
     PATTERN[p.key] = p
 end
 
@@ -297,6 +315,17 @@ local PULSES = {
     judge = { Pu(0, 0.05, 0.15), Pu(0.1, 0.25, 1), Pu(0.42, 0.05, 0.15) },
     ward = { Pu(0, 0.05, 0.1), Pu(0.12, 0.3, 0.4) },
     hex = { Pu(0, 0.05, 0.08, -0.5), Pu(0.2, 0.05, 0.06, -0.5), Pu(0.4, 0.05, 0.1, -0.5), Pu(0.6, 0.05, 0.05, -0.5) },
+    -- Swings: quick and faint for light weapons, long for heavy ones
+    swDagger = { Pu(0, 0.05, 0.07) },
+    swFist = { Pu(0, 0.05, 0.1) },
+    swSword = { Pu(0, 0.05, 0.06), Pu(0.07, 0.05, 0.12) },
+    swAxe = { Pu(0, 0.07, 0.25) },
+    swMace = { Pu(0, 0.05, 0.06), Pu(0.08, 0.09, 0.32) },
+    swSword2 = { Pu(0, 0.05, 0.1), Pu(0.1, 0.18, 0.55), Pu(0.33, 0.05, 0.1) },
+    swAxe2 = { Pu(0, 0.05, 0.1), Pu(0.1, 0.22, 0.7) },
+    swMace2 = { Pu(0, 0.3, 0.9), Pu(0.4, 0.05, 0.14), Pu(0.52, 0.05, 0.06) },
+    swPolearm = { Pu(0, 0.05, 0.12, -0.6), Pu(0.08, 0.16, 0.5, 0.6) },
+    swStaff = { Pu(0, 0.12, 0.3) },
 }
 -- (draw: an aimed shot, the string tightening: taps closer and stronger)
 do
@@ -338,8 +367,9 @@ V.EVENTS = {
         combo = true,
         pattern = "double", tip = "An enemy lands a critical hit on you." },
     { key = "autoAttack", group = "combat", label = "Auto attack", icon = VIBE_ICONS .. "slash", on = false,
-        pattern = "pulse", tip = "You start attacking in melee: Attack, or an ability that starts your"
-            .. " swings. Once as they start, not on every swing. Off by default." },
+        pattern = "auto", auto = "Match the weapon", family = "swing", gap = 0.1, tip = "Each melee swing, on the"
+            .. " weapon's swing timer, main hand and off hand. Match the weapon: a dagger or sword a faint"
+            .. " slash, a two-handed mace a thud. Off by default." },
     { key = "shot", group = "combat", label = "Shooting", icon = EVENT_ICONS .. "shot", on = true,
         pattern = "auto", auto = "Match the weapon", family = "weapon", gap = 0.15, tip = "Each ranged shot you fire: Auto Shot,"
             .. " Shoot (a wand, a bow, a gun), Throw, a hunter's instant shots. Match the weapon: a bow's"
@@ -551,6 +581,23 @@ V.castAction = nil
 -- there is none to tell)
 local WEAPON_PATTERNS = { [2] = "string", [18] = "latch", [3] = "recoil", [19] = "zap", [16] = "toss" }
 
+-- Melee: the weapon in a hand's pattern (slot 16 main hand, 17 off hand;
+-- no weapon: a fist). Item subclasses: 0 axe, 1 two-handed axe, 4 mace, 5
+-- two-handed mace, 6 polearm, 7 sword, 8 two-handed sword, 10 staff, 13 fist,
+-- 15 dagger
+local SWING_PATTERNS = { [0] = "swAxe", [1] = "swAxe2", [4] = "swMace", [5] = "swMace2", [6] = "swPolearm",
+    [7] = "swSword", [8] = "swSword2", [10] = "swStaff", [13] = "swFist", [15] = "swDagger" }
+
+function V.SwingPattern(slot)
+    local id = GetInventoryItemID and GetInventoryItemID("player", slot or 16)
+    local info = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+    if id and info then
+        local classID, subclassID = select(6, info(id))
+        if classID == 2 and SWING_PATTERNS[subclassID] then return SWING_PATTERNS[subclassID] end
+    end
+    return "swFist"
+end
+
 local function WeaponPattern()
     local id = GetInventoryItemID and GetInventoryItemID("player", INVSLOT_RANGED or 18)
     local info = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
@@ -582,6 +629,7 @@ function V.EventPattern(eventKey)
     if choice == "off" then return nil end
     if choice == "auto" then
         if eventKey == "shot" then return WeaponPattern() end
+        if eventKey == "autoAttack" then return V.SwingPattern(V.swingSlot or 16) end
         return V.instantMove
     end
     return choice
@@ -1111,6 +1159,7 @@ function V.Fire(eventKey)
     if since and since < (EVENT[eventKey].gap or (combo and 0.15 or 0.4)) then return end
     last[eventKey] = now
     local shape = combo and ComboShape(eventKey, since ~= nil and since < COMBO_WINDOW) or nil
+    if eventKey == "autoAttack" and V.swingShape then shape = V.swingShape end
     V.Play(pattern, false, shape)
 end
 
@@ -1647,8 +1696,67 @@ local CAST_HANDLERS = {
     end,
 }
 
+---------------------------------------------------------------------------
+-- Melee swings: from the start of auto attack, one every weapon speed
+-- (UnitAttackSpeed; read again each swing, so haste counts), main hand and
+-- off hand apart (the main hand leaning right, the off hand left, softer).
+-- The game tells addons nothing of each swing; this keeps the rhythm.
+---------------------------------------------------------------------------
+local swing = { on = false }
+local swingFrame = CreateFrame("Frame")
+swingFrame:Hide()
+V.swingFrame = swingFrame
+
+local function Speeds()
+    local main, off = 2, nil
+    if UnitAttackSpeed then
+        local ok, m, o = pcall(UnitAttackSpeed, "player")
+        if ok then
+            if m and not secret(m) and m > 0.2 then main = m end
+            if o and not secret(o) and o > 0.2 then off = o end
+        end
+    end
+    return main, off
+end
+
+local SIDES = { [16] = { left = 0.6, right = 1 }, [17] = { left = 1, right = 0.6, strength = 0.7 } }
+local function SwingNow(slot)
+    V.swingSlot, V.swingShape = slot, SIDES[slot]
+    V.Fire("autoAttack")
+    V.swingSlot, V.swingShape = nil, nil
+end
+
+function V.SwingStart()
+    if V.EventChoice("autoAttack") == "off" then return end
+    local now = GetTime()
+    local _, off = Speeds()
+    swing.on, swing.main = true, now
+    swing.off = off and now + 0.2 or nil
+    swingFrame:Show()
+end
+
+function V.SwingStop()
+    swing.on = false
+    swingFrame:Hide()
+end
+
+swingFrame:SetScript("OnUpdate", function()
+    if not swing.on then return swingFrame:Hide() end
+    local now = GetTime()
+    local main, off = Speeds()
+    if now >= swing.main then
+        SwingNow(16)
+        swing.main = math.max(swing.main + main, now)
+    end
+    if swing.off and off and now >= swing.off then
+        SwingNow(17)
+        swing.off = math.max(swing.off + off, now)
+    end
+end)
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LEVEL_UP")
+events:RegisterEvent("PLAYER_LEAVE_COMBAT")
 -- (melee auto-attack starting; ranged's is START_AUTOREPEAT_SPELL)
 events:RegisterEvent("PLAYER_ENTER_COMBAT")
 events:RegisterEvent("START_AUTOREPEAT_SPELL")
@@ -1664,9 +1772,9 @@ events:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LEVEL_UP" then
         V.Fire("levelUp")
     elseif event == "PLAYER_ENTER_COMBAT" then
-        -- (started by an ability: its own feel just played, kept)
-        if last.instant and GetTime() - last.instant < 0.3 then return end
-        V.Fire("autoAttack")
+        V.SwingStart()
+    elseif event == "PLAYER_LEAVE_COMBAT" then
+        V.SwingStop()
     elseif event == "START_AUTOREPEAT_SPELL" or event == "STOP_AUTOREPEAT_SPELL" then
         -- (stopped: its last shot may still be flying)
         ranged.auto = event == "START_AUTOREPEAT_SPELL"
