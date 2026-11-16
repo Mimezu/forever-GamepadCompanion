@@ -652,7 +652,7 @@ end
 local function Encode(v)
     local kind = type(v)
     if kind == "number" then
-        local s = string.format("%.4g", v)
+        local s = string.format("%.6g", v)
         return s
     elseif kind == "boolean" then
         return v and "T" or "F"

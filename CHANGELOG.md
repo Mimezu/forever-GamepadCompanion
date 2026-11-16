@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0 — 2026-11-16
+
+- Beta, feels retuned for rhythm and contrast: very faint 50 ms micro taps (5-30%) against long rumbles (0.2-0.5 s), often in one feel (taps leading into a rumble, a rumble trailing off in taps)
+- Beta, live voices: footsteps and riding fainter, heartbeat a longer lub and a faint dub, cast tension fainter; a hop's landing fainter
+- Shared feels keep 6 digits (was 4)
+
 ## 0.14.9 — 2026-11-16
 
 - Beta engine: back to sending every frame by default (10/s made everything long; landing now takes its length from its own settings)

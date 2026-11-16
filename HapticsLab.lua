@@ -64,95 +64,100 @@ local function Pulses(list, extra)
     return f
 end
 
+-- Rhythm and contrast (the player, 2026-11-16): very faint, short micro taps
+-- (50 ms, 5-30%) against longer rumbles (0.2-0.5 s, strong), often in one feel
+-- (taps leading into a rumble, a rumble trailing off in taps).
 local LIB = {
-    -- Taps: one pulse, 50 ms or more; soft is subtle
-    { "dust", "Dust", "Taps", "micro", Pulses({ P(0, 0.05, 0.15) }) },
-    { "pin", "Pin", "Taps", "micro", Pulses({ P(0, 0.05, 0.25) }) },
-    { "graze", "Graze", "Taps", "tick", Pulses({ P(0, 0.05, 0.35) }) },
-    { "tap", "Tap", "Taps", "tick", Pulses({ P(0, 0.06, 0.6) }) },
-    { "knock", "Knock", "Taps", "impact", Pulses({ P(0, 0.07, 1) }, { duck = { amount = 0.7, time = 0.12 } }) },
-    { "feather", "Feather", "Taps", "micro", Pulses({ P(0, 0.06, 0.25, 0.4) }) },
-    { "clickL", "Click left", "Taps", "click", Pulses({ P(0, 0.05, 0.5, -1) }) },
-    { "clickR", "Click right", "Taps", "click", Pulses({ P(0, 0.05, 0.5, 1) }) },
-    { "flick", "Flick", "Taps", "click", Pulses({ P(0, 0.05, 0.8), P(0.1, 0.05, 0.2) }) },
-    -- Doubles: two or three
-    { "notch", "Notch", "Doubles", "double", Pulses({ P(0, 0.05, 0.5), P(0.11, 0.05, 0.5) }) },
-    { "nudge", "Nudge", "Doubles", "double", Pulses({ P(0, 0.05, 0.25), P(0.12, 0.05, 0.25) }) },
-    { "ticktock", "Tick-tock", "Doubles", "click", Pulses({ P(0, 0.05, 0.4, -1), P(0.25, 0.05, 0.4, 1) }) },
-    { "echo", "Echo", "Doubles", "fade", Pulses({ P(0, 0.06, 0.7), P(0.16, 0.05, 0.3), P(0.3, 0.05, 0.12) }) },
-    { "triple", "Triple", "Doubles", "triple", Pulses(Row(3, 0, 0.1, 0.05, 0.4, 0.4)) },
-    { "deny", "Deny", "Doubles", "hex", Pulses({ P(0, 0.08, 0.7, -1), P(0.16, 0.08, 0.7, -1) }) },
-    -- Rolls: many, evenly or speeding up
-    { "ratchet", "Ratchet", "Rolls", "gears", Pulses(Row(8, 0, 0.12, 0.05, 0.4, 0.4)) },
-    { "dial", "Dial", "Rolls", "click", Pulses(Row(6, 0, 0.2, 0.05, 0.25, 0.25)) },
+    -- Taps: micro taps, faint; Knock and Flick the contrast
+    { "dust", "Dust", "Taps", "micro", Pulses({ P(0, 0.05, 0.06) }) },
+    { "pin", "Pin", "Taps", "micro", Pulses({ P(0, 0.05, 0.1) }) },
+    { "graze", "Graze", "Taps", "tick", Pulses({ P(0, 0.05, 0.16) }) },
+    { "tap", "Tap", "Taps", "tick", Pulses({ P(0, 0.05, 0.3) }) },
+    { "feather", "Feather", "Taps", "micro", Pulses({ P(0, 0.05, 0.08, 0.4) }) },
+    { "clickL", "Click left", "Taps", "click", Pulses({ P(0, 0.05, 0.18, -1) }) },
+    { "clickR", "Click right", "Taps", "click", Pulses({ P(0, 0.05, 0.18, 1) }) },
+    { "knock", "Knock", "Taps", "impact", Pulses({ P(0, 0.05, 0.1), P(0.1, 0.18, 0.9) },
+        { duck = { amount = 0.7, time = 0.25 } }) },
+    { "flick", "Flick", "Taps", "click", Pulses({ P(0, 0.12, 0.55), P(0.2, 0.05, 0.1) }) },
+    -- Doubles: two or three, or a rumble and its echoes
+    { "notch", "Notch", "Doubles", "double", Pulses({ P(0, 0.05, 0.16), P(0.11, 0.05, 0.16) }) },
+    { "nudge", "Nudge", "Doubles", "double", Pulses({ P(0, 0.05, 0.08), P(0.12, 0.05, 0.08) }) },
+    { "ticktock", "Tick-tock", "Doubles", "click", Pulses({ P(0, 0.05, 0.14, -1), P(0.25, 0.05, 0.14, 1) }) },
+    { "echo", "Echo", "Doubles", "fade", Pulses({ P(0, 0.22, 0.7), P(0.32, 0.05, 0.18), P(0.44, 0.05, 0.1),
+        P(0.56, 0.05, 0.06) }) },
+    { "triple", "Triple", "Doubles", "triple", Pulses(Row(3, 0, 0.1, 0.05, 0.16, 0.16)) },
+    { "deny", "Deny", "Doubles", "hex", Pulses({ P(0, 0.14, 0.6, -1), P(0.22, 0.14, 0.6, -1) }) },
+    -- Rolls: faint taps in a row, some ending in a rumble
+    { "ratchet", "Ratchet", "Rolls", "gears", Pulses(Row(8, 0, 0.12, 0.05, 0.14, 0.14)) },
+    { "dial", "Dial", "Rolls", "click", Pulses(Row(6, 0, 0.2, 0.05, 0.08, 0.08)) },
     { "cogs", "Cogs", "Rolls", "whirl", Pulses((function()
         local list = {}
-        for i = 0, 7 do list[#list + 1] = P(i * 0.15, 0.05, 0.4, i % 2 == 0 and -1 or 1) end
+        for i = 0, 7 do list[#list + 1] = P(i * 0.15, 0.05, 0.12, i % 2 == 0 and -1 or 1) end
         return list
     end)()) },
-    { "windup", "Wind-up", "Rolls", "draw", Pulses(Join(Accel(10, 0.35, 0.08, 0.05, 0.15, 0.6), { P(2.0, 0.1, 1) })) },
-    { "winddown", "Wind-down", "Rolls", "fade", Pulses(Join({ P(0, 0.1, 1) }, (function()
+    { "windup", "Wind-up", "Rolls", "draw", Pulses(Join(Accel(10, 0.33, 0.08, 0.05, 0.05, 0.3), { P(1.95, 0.4, 1) })) },
+    { "winddown", "Wind-down", "Rolls", "fade", Pulses(Join({ P(0, 0.4, 1) }, (function()
         local list = {}
-        for _, p in ipairs(Accel(9, 0.08, 0.35, 0.05, 0.6, 0.12)) do list[#list + 1] = P(p[1] + 0.2, p[2], p[3], p[4]) end
+        for _, p in ipairs(Accel(8, 0.09, 0.33, 0.05, 0.25, 0.05)) do list[#list + 1] = P(p[1] + 0.52, p[2], p[3], p[4]) end
         return list
     end)())) },
-    { "speedup", "Speeding up", "Rolls", "charge", Pulses(Accel(10, 0.3, 0.09, 0.05, 0.4, 0.4)) },
-    { "rain", "Rain", "Rolls", "frost", Pulses({ P(0, 0.05, 0.2, -0.6), P(0.17, 0.05, 0.12, 0.7), P(0.41, 0.05, 0.25, 0.1),
-        P(0.58, 0.05, 0.15, -0.9), P(0.86, 0.05, 0.2, 0.5), P(1.02, 0.05, 0.1, -0.2), P(1.27, 0.05, 0.22, 0.9) },
+    { "speedup", "Speeding up", "Rolls", "charge", Pulses(Join(Accel(10, 0.3, 0.09, 0.05, 0.08, 0.2), { P(1.75, 0.25, 0.7) })) },
+    { "rain", "Rain", "Rolls", "frost", Pulses({ P(0, 0.05, 0.08, -0.6), P(0.17, 0.05, 0.05, 0.7), P(0.41, 0.05, 0.1, 0.1),
+        P(0.58, 0.05, 0.06, -0.9), P(0.86, 0.05, 0.09, 0.5), P(1.02, 0.05, 0.05, -0.2), P(1.27, 0.05, 0.1, 0.9) },
         { loop = true, length = 1.45 }) },
-    { "crackle", "Crackle", "Rolls", "kindle", Pulses({ P(0, 0.05, 0.5, -0.3), P(0.09, 0.05, 0.3, 0.4), P(0.24, 0.05, 0.6, 0),
-        P(0.31, 0.05, 0.25, -0.8), P(0.47, 0.05, 0.45, 0.6), P(0.6, 0.05, 0.3, -0.2), P(0.69, 0.05, 0.55, 0.3) }) },
-    -- Impacts: a hit and what follows it
-    { "thud", "Thud", "Impacts", "slam", Pulses({ P(0, 0.09, 1, -0.6), P(0.15, 0.05, 0.25, -0.6) },
-        { duck = { amount = 0.6, time = 0.15 } }) },
-    { "boom", "Boom", "Impacts", "burst", Pulses({ P(0, 0.12, 1), P(0.2, 0.06, 0.45), P(0.36, 0.05, 0.2), P(0.55, 0.05, 0.1) },
-        { duck = { amount = 0.8, time = 0.3 } }) },
-    { "shockwave", "Shockwave", "Impacts", "slam", Pulses({ P(0, 0.08, 1), P(0.14, 0.05, 0.5, -1), P(0.14, 0.05, 0.5, 1),
-        P(0.28, 0.05, 0.2, -1), P(0.28, 0.05, 0.2, 1) }) },
-    { "dive", "Dive", "Impacts", "fade", Pulses(Row(5, 0, 0.13, 0.06, 0.8, 0.1)) },
-    { "swell", "Swell", "Impacts", "rise", Pulses(Row(5, 0, 0.15, 0.06, 0.12, 0.85)) },
-    { "splash", "Splash", "Impacts", "bubble", Pulses({ P(0, 0.07, 0.9), P(0.13, 0.05, 0.25, -0.8), P(0.21, 0.05, 0.2, 0.7),
-        P(0.33, 0.05, 0.15, -0.3), P(0.47, 0.05, 0.1, 0.5) }) },
-    { "gravel", "Gravel", "Impacts", "pickaxe", Pulses({ P(0, 0.05, 0.5, -0.4), P(0.1, 0.05, 0.35, 0.3), P(0.17, 0.06, 0.45, -0.1),
-        P(0.3, 0.05, 0.3, 0.5), P(0.38, 0.05, 0.5, -0.6), P(0.5, 0.05, 0.3, 0.2), P(0.6, 0.06, 0.4, -0.3) }) },
-    { "tremor", "Tremor", "Impacts", "shadow", Pulses({ P(0, 0.06, 0.2, -0.5), P(0.22, 0.05, 0.15, 0.4), P(0.38, 0.06, 0.25, -0.1),
-        P(0.62, 0.05, 0.15, 0.6), P(0.8, 0.06, 0.2, -0.4), P(1.05, 0.05, 0.12, 0.2) }) },
-    -- Motion: pulses moving across the pad
-    { "passLR", "Pass left-right", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.06, 0.6, 0.6, -1, 1)) },
-    { "passRL", "Pass right-left", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.06, 0.6, 0.6, 1, -1)) },
-    { "arrow", "Arrow", "Motion", "string", Pulses(Join(Row(3, 0, 0.07, 0.05, 0.5, 0.7, -1, 0.3), { P(0.24, 0.07, 0.9, 1) })) },
-    { "whoosh", "Whoosh", "Motion", "toss", Pulses(Row(5, 0, 0.09, 0.05, 0.15, 0.5, -1, 1)) },
-    { "orbit", "Orbit", "Motion", "whirl", Pulses({ P(0, 0.06, 0.35, -1), P(0.2, 0.06, 0.35, 0), P(0.4, 0.06, 0.35, 1),
-        P(0.6, 0.06, 0.35, 0) }, { loop = true, length = 0.8 }) },
+    { "crackle", "Crackle", "Rolls", "kindle", Pulses({ P(0, 0.05, 0.14, -0.3), P(0.09, 0.05, 0.08, 0.4), P(0.24, 0.12, 0.5, 0),
+        P(0.43, 0.05, 0.1, -0.8), P(0.55, 0.05, 0.16, 0.6), P(0.68, 0.05, 0.08, -0.2), P(0.77, 0.05, 0.14, 0.3) }) },
+    -- Impacts: a long hit, faint taps after it
+    { "thud", "Thud", "Impacts", "slam", Pulses({ P(0, 0.25, 1, -0.4), P(0.36, 0.05, 0.12, -0.4) },
+        { duck = { amount = 0.6, time = 0.3 } }) },
+    { "boom", "Boom", "Impacts", "burst", Pulses({ P(0, 0.5, 1), P(0.62, 0.05, 0.22), P(0.74, 0.05, 0.13), P(0.86, 0.05, 0.07) },
+        { duck = { amount = 0.8, time = 0.55 } }) },
+    { "shockwave", "Shockwave", "Impacts", "slam", Pulses({ P(0, 0.3, 1), P(0.4, 0.05, 0.2, -1), P(0.4, 0.05, 0.2, 1),
+        P(0.54, 0.05, 0.1, -1), P(0.54, 0.05, 0.1, 1) }) },
+    { "dive", "Dive", "Impacts", "fade", Pulses({ P(0, 0.2, 0.8), P(0.28, 0.12, 0.45), P(0.48, 0.05, 0.2), P(0.62, 0.05, 0.08) }) },
+    { "swell", "Swell", "Impacts", "rise", Pulses({ P(0, 0.05, 0.06), P(0.2, 0.05, 0.12), P(0.37, 0.05, 0.2), P(0.52, 0.45, 0.9) }) },
+    { "splash", "Splash", "Impacts", "bubble", Pulses({ P(0, 0.18, 0.8), P(0.26, 0.05, 0.12, -0.8), P(0.34, 0.05, 0.1, 0.7),
+        P(0.46, 0.05, 0.07, -0.3), P(0.6, 0.05, 0.05, 0.5) }) },
+    { "gravel", "Gravel", "Impacts", "pickaxe", Pulses({ P(0, 0.05, 0.2, -0.4), P(0.1, 0.05, 0.1, 0.3), P(0.17, 0.05, 0.16, -0.1),
+        P(0.3, 0.05, 0.08, 0.5), P(0.38, 0.05, 0.2, -0.6), P(0.5, 0.05, 0.1, 0.2), P(0.6, 0.05, 0.14, -0.3) }) },
+    { "tremor", "Tremor", "Impacts", "shadow", Pulses({ P(0, 0.05, 0.07, -0.5), P(0.22, 0.05, 0.05, 0.4), P(0.38, 0.3, 0.3, -0.1),
+        P(0.8, 0.05, 0.06, 0.6), P(1.0, 0.05, 0.04, -0.4) }) },
+    -- Motion: faint taps across the pad, some landing in a hit
+    { "passLR", "Pass left-right", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.05, 0.18, 0.18, -1, 1)) },
+    { "passRL", "Pass right-left", "Motion", "sweep", Pulses(Row(4, 0, 0.1, 0.05, 0.18, 0.18, 1, -1)) },
+    { "arrow", "Arrow", "Motion", "string", Pulses(Join(Row(3, 0, 0.07, 0.05, 0.08, 0.16, -1, 0.3), { P(0.24, 0.2, 0.9, 1) })) },
+    { "whoosh", "Whoosh", "Motion", "toss", Pulses(Row(5, 0, 0.09, 0.05, 0.05, 0.2, -1, 1)) },
+    { "orbit", "Orbit", "Motion", "whirl", Pulses({ P(0, 0.05, 0.12, -1), P(0.2, 0.05, 0.12, 0), P(0.4, 0.05, 0.12, 1),
+        P(0.6, 0.05, 0.12, 0) }, { loop = true, length = 0.8 }) },
     { "pingpong", "Ping-pong", "Motion", "arcane", Pulses((function()
         local list = {}
-        for i = 0, 5 do list[#list + 1] = P(i * 0.18, 0.06, 0.5, i % 2 == 0 and -1 or 1) end
+        for i = 0, 5 do list[#list + 1] = P(i * 0.18, 0.05, 0.2, i % 2 == 0 and -1 or 1) end
         return list
     end)()) },
-    -- Life: rhythms that loop
-    { "heart60", "Heart 60", "Life", "heart", Pulses({ P(0, 0.06, 0.8, -0.3), P(0.2, 0.055, 0.45, -0.3) },
+    -- Life: rhythms that loop; a longer beat against a faint one
+    { "heart60", "Heart 60", "Life", "heart", Pulses({ P(0, 0.12, 0.7, -0.3), P(0.26, 0.05, 0.2, -0.3) },
         { loop = true, length = 1 }) },
-    { "heart120", "Heart 120", "Life", "heart", Pulses({ P(0, 0.06, 0.8, -0.3), P(0.15, 0.055, 0.45, -0.3) },
+    { "heart120", "Heart 120", "Life", "heart", Pulses({ P(0, 0.1, 0.75, -0.3), P(0.18, 0.05, 0.2, -0.3) },
         { loop = true, length = 0.5 }) },
-    { "gallop", "Gallop", "Life", "charge", Pulses({ P(0, 0.05, 0.5, -0.3), P(0.12, 0.05, 0.35, 0), P(0.24, 0.06, 0.6, 0.3) },
+    { "gallop", "Gallop", "Life", "charge", Pulses({ P(0, 0.05, 0.14, -0.3), P(0.12, 0.05, 0.1, 0), P(0.24, 0.09, 0.4, 0.3) },
         { loop = true, length = 0.6 }) },
-    { "steps", "Footsteps", "Life", "tick", Pulses({ P(0, 0.05, 0.3, -1), P(0.45, 0.05, 0.3, 1) }, { loop = true, length = 0.9 }) },
-    { "purr", "Purr", "Life", "purr", Pulses({ P(0, 0.05, 0.15), P(0.25, 0.05, 0.1) }, { loop = true, length = 0.5 }) },
-    { "breath", "Breath", "Life", "mend", Pulses({ P(0, 0.06, 0.08), P(0.4, 0.06, 0.12), P(0.8, 0.06, 0.08),
-        P(1.8, 0.06, 0.06), P(2.2, 0.06, 0.04) }, { loop = true, length = 3.2 }) },
+    { "steps", "Footsteps", "Life", "tick", Pulses({ P(0, 0.05, 0.12, -1), P(0.45, 0.05, 0.12, 1) }, { loop = true, length = 0.9 }) },
+    { "purr", "Purr", "Life", "purr", Pulses({ P(0, 0.05, 0.06), P(0.25, 0.05, 0.04) }, { loop = true, length = 0.5 }) },
+    { "breath", "Breath", "Life", "mend", Pulses({ P(0, 0.05, 0.04), P(0.4, 0.05, 0.07), P(0.8, 0.05, 0.04),
+        P(1.8, 0.05, 0.03), P(2.2, 0.05, 0.02) }, { loop = true, length = 3.2 }) },
     -- Signals: short and meaningful
-    { "coin", "Coin", "Signals", "click", Pulses({ P(0, 0.05, 0.4, 1), P(0.1, 0.05, 0.7, 1) }) },
-    { "chime", "Chime", "Signals", "radiance", Pulses(Row(3, 0, 0.14, 0.05, 0.25, 0.7, 1, 1)) },
-    { "ready", "Ready", "Signals", "micro", Pulses({ P(0, 0.05, 0.4, 1) }) },
-    { "alert", "Alert", "Signals", "hex", Pulses(Row(3, 0, 0.12, 0.06, 0.7, 0.7)) },
-    { "whisper", "Whisper", "Signals", "micro", Pulses({ P(0, 0.05, 0.05) }) },
-    { "murmur", "Murmur", "Signals", "purr", Pulses({ P(0, 0.05, 0.1), P(0.15, 0.05, 0.08) }) },
+    { "coin", "Coin", "Signals", "click", Pulses({ P(0, 0.05, 0.1, 1), P(0.1, 0.05, 0.3, 1) }) },
+    { "chime", "Chime", "Signals", "radiance", Pulses(Row(3, 0, 0.14, 0.05, 0.08, 0.3, 1, 1)) },
+    { "ready", "Ready", "Signals", "micro", Pulses({ P(0, 0.05, 0.14, 1) }) },
+    { "alert", "Alert", "Signals", "hex", Pulses(Row(3, 0, 0.3, 0.16, 0.7, 0.7)) },
+    { "whisper", "Whisper", "Signals", "micro", Pulses({ P(0, 0.05, 0.03) }) },
+    { "murmur", "Murmur", "Signals", "purr", Pulses({ P(0, 0.05, 0.06), P(0.15, 0.05, 0.04) }) },
     -- Extremes: the limits
     { "max", "Full both", "Extremes", "impact", Pulses({ P(0, 0.5, 1) }) },
     { "maxL", "Full left", "Extremes", "bash", Pulses({ P(0, 0.5, 1, -1) }) },
     { "maxR", "Full right", "Extremes", "stab", Pulses({ P(0, 0.5, 1, 1) }) },
     { "ladder", "Ladder", "Extremes", "rise", Pulses(Row(10, 0, 0.25, 0.08, 0.1, 1)) },
-    { "closest", "Closest pulses", "Extremes", "static", Pulses(Row(16, 0, 0.09, 0.05, 0.5, 0.5)) },
+    { "closest", "Closest pulses", "Extremes", "static", Pulses(Row(16, 0, 0.09, 0.05, 0.3, 0.3)) },
 }
 for _, e in ipairs(LIB) do
     local feel = e[5]
@@ -787,10 +792,12 @@ local function Heartbeat(now, v)
     local danger = live.hp and max(0, min(1, 1 - live.hp / 0.5)) or 0.6
     local period = 60 / (70 + 110 * danger)
     local d = Beat(v, now, period)
+    -- (a longer lub, a faint dub: contrast)
     local a = 0.35 + 0.55 * danger
-    local dub = max(0.13, 0.25 * period)
-    if d < PULSE + 0.005 then return a, a * 0.7 end
-    if d >= dub and d < dub + PULSE then return a * 0.65, a * 0.45 end
+    local lub = 0.08 + 0.06 * danger
+    local dub = max(lub + 0.1, 0.27 * period)
+    if d < lub then return a, a * 0.7 end
+    if d >= dub and d < dub + PULSE then return 0.2, 0.14 end
     return 0, 0
 end
 
@@ -866,7 +873,7 @@ local function Steps(now, v)
     local n = floor(v.phase)
     if (v.phase - n) / rate < PULSE then
         local left = n % 2 == 0
-        return left and 0.3 or 0, left and 0 or 0.3
+        return left and 0.12 or 0, left and 0 or 0.12
     end
     return 0, 0
 end
@@ -875,9 +882,9 @@ end
 local function Gallop(now, v)
     if not (live.moving and live.mounted) then return nil end
     local d = Beat(v, now, max(0.36, 1 / max(0.8, live.speed / 9)))
-    if d < PULSE then return 0.35, 0.2 end
-    if d >= 0.11 and d < 0.11 + PULSE then return 0.25, 0.3 end
-    if d >= 0.22 and d < 0.22 + PULSE then return 0.45, 0.35 end
+    if d < PULSE then return 0.14, 0.08 end
+    if d >= 0.11 and d < 0.11 + PULSE then return 0.08, 0.12 end
+    if d >= 0.22 and d < 0.22 + 0.09 then return 0.4, 0.3 end
     return 0, 0
 end
 
@@ -887,7 +894,7 @@ local function Tension(now)
     local span = cast.finish - cast.start
     local p = span > 0 and min(1, max(0, (now - cast.start) / span)) or 1
     local d = Beat(cast, now, 0.4 - 0.29 * p)
-    local a = 0.1 + 0.6 * p * p
+    local a = 0.05 + 0.35 * p * p
     if d < PULSE then return a, a end
     return 0, 0
 end
@@ -1223,7 +1230,7 @@ end
 L.LAND_LONG = 0.4
 function L.LandingFeel(k)
     local longest = H.DB().landLong or L.LAND_LONG
-    local main = 0.25 + 0.75 * k
+    local main = 0.15 + 0.85 * k
     local len = 0.06 + max(0, longest - 0.06) * k
     local list = { { 0, len, main, -0.2 * (1 - k) } }
     -- echoes after it: more, longer and stronger the heavier it is
