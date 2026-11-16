@@ -146,10 +146,93 @@ function K.Decode(cells)
 end
 
 ---------------------------------------------------------------------------
+-- Protocol v2 (C:\games\WowHelper\docs\PROTOCOL-V2.md): 34 cells, magenta then
+-- cyan, 96 bits: seq, both triggers, touch (12: 1-127 built-in clips,
+-- 128-4095 the addon's feels in HD), sound (12), gain, level, side,
+-- intensity, seed, the mic LED, and a CRC-8 (poly 0x07) over bits 0-87.
+---------------------------------------------------------------------------
+K.CELLS_V2 = 34
+K.MARKERS_V2 = { { 1, 0, 1 }, { 0, 1, 1 } }   -- magenta, cyan
+K.MIC = { leave = 0, off = 1, on = 2, pulse = 3 }
+
+-- (bytes XORed without the bit library: tests run in plain Lua 5.1)
+local function BXor(a, b)
+    local r, m = 0, 1
+    while a > 0 or b > 0 do
+        if a % 2 ~= b % 2 then r = r + m end
+        a, b, m = floor(a / 2), floor(b / 2), m * 2
+    end
+    return r
+end
+
+-- CRC-8, poly 0x07, init 0, not reflected
+function K.Crc8(bytes)
+    local crc = 0
+    for _, byte in ipairs(bytes) do
+        crc = BXor(crc, byte)
+        for _ = 1, 8 do
+            if crc >= 128 then crc = BXor((crc * 2) % 256, 0x07) else crc = (crc * 2) % 256 end
+        end
+    end
+    return crc
+end
+
+local function CrcOfBits(bits)
+    local bytes = {}
+    for k = 0, 10 do bytes[k + 1] = Get(bits, k * 8, 8) end
+    return K.Crc8(bytes)
+end
+
+-- state = { seq, left, right, touch, sound, gain, level, side, intensity, seed, mic }
+-- -> 34 cells { r, g, b } of 0 / 1.
+function K.EncodeV2(state)
+    state = state or {}
+    local bits = {}
+    Put(bits, 0, Int(state.seq, 1e9) % 16, 4)
+    PutTrigger(bits, 4, state.left)
+    PutTrigger(bits, 19, state.right)
+    Put(bits, 34, Int(state.touch, 4095), 12)
+    Put(bits, 46, Int(state.sound, 4095), 12)
+    Put(bits, 58, Int(state.gain, 7), 3)
+    Put(bits, 61, Int(state.level, 3), 2)
+    Put(bits, 63, Int(state.side, 15), 4)
+    Put(bits, 67, Int(state.intensity, 7), 3)
+    Put(bits, 70, Int(state.seed, 255), 8)
+    Put(bits, 78, Int(state.mic, 3), 2)
+    Put(bits, 80, 0, 8)
+    Put(bits, 88, CrcOfBits(bits), 8)
+    local cells = { { 1, 0, 1 }, { 0, 1, 1 } }
+    for c = 0, 31 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    return cells
+end
+
+function K.DecodeV2(cells)
+    if type(cells) ~= "table" or #cells ~= K.CELLS_V2 then return nil, "length" end
+    for i = 1, 2 do
+        local c, m = cells[i], K.MARKERS_V2[i]
+        if c[1] ~= m[1] or c[2] ~= m[2] or c[3] ~= m[3] then return nil, "marker" end
+    end
+    local bits = {}
+    for c = 0, 31 do
+        local cell = cells[c + 3]
+        for k = 1, 3 do
+            local v = cell[k]
+            if v ~= 0 and v ~= 1 then return nil, "value" end
+            bits[c * 3 + k - 1] = v
+        end
+    end
+    if CrcOfBits(bits) ~= Get(bits, 88, 8) then return nil, "crc" end
+    return { seq = Get(bits, 0, 4), left = GetTrigger(bits, 4), right = GetTrigger(bits, 19),
+        touch = Get(bits, 34, 12), sound = Get(bits, 46, 12), gain = Get(bits, 58, 3), level = Get(bits, 61, 2),
+        side = Get(bits, 63, 4), intensity = Get(bits, 67, 3), seed = Get(bits, 70, 8), mic = Get(bits, 78, 2) }
+end
+
+---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
-K.state = { seq = 0, left = OffTrigger(), right = OffTrigger(), event = 0, gain = 0 }
+K.state = { seq = 0, left = OffTrigger(), right = OffTrigger(), event = 0, gain = 0,
+    touch = 0, sound = 0, level = 0, side = 0, intensity = 4, seed = 0, mic = 0 }
 K.queue = {}
 local active          -- an event is on screen
 local frames, age = 0, 0
@@ -163,6 +246,15 @@ local function DB()
 end
 
 function K.Enabled() return DB().on == true end
+
+-- v2 (the wide strip) unless set back to v1 (the Helper page)
+function K.V2() return DB().v1 ~= true end
+function K.SetV2(on)
+    DB().v1 = not on or nil
+    K.Layout()
+    dirty = true
+end
+K.MarkDirty = function() dirty = true end
 
 local function Side(side)
     if side == "left" or side == "L" or side == "L2" or side == 1 then return "left" end
@@ -181,20 +273,55 @@ function K.SetTrigger(side, mode, start, finish, force)
     dirty = true
 end
 
+local function Queue(item)
+    if not K.Enabled() or #K.queue >= K.QUEUE_MAX then return false end
+    K.queue[#K.queue + 1] = item
+    return true
+end
+
 -- eventId: number or a name from K.CLIPS / K.SOUNDS; gain 0..7 (default 4).
+-- A sound plays on the pad's speaker with its own paired touch (v2).
 function K.Play(eventId, gain)
     if type(eventId) == "string" then eventId = K.CLIPS[eventId] or K.SOUNDS[eventId] end
-    eventId = Int(eventId, 255)
-    if eventId == 0 or not K.Enabled() then return false end
-    if #K.queue >= K.QUEUE_MAX then return false end
-    K.queue[#K.queue + 1] = { eventId, Int(gain == nil and 4 or gain, 7) }
-    return true
+    eventId = Int(eventId, 4095)
+    if eventId == 0 then return false end
+    local sound = eventId >= 128 and eventId < 4096 and K.IsSound(eventId)
+    return Queue({ touch = sound and 0 or eventId, sound = sound and eventId or 0,
+        gain = Int(gain == nil and 4 or gain, 7) })
+end
+
+function K.IsSound(id)
+    for _, v in pairs(K.SOUNDS) do if v == id then return true end end
+    return false
+end
+
+-- One of the addon's feels in HD (v2): its id (128-4095), gain 0-7, side
+-- -1..1 (nil: the feel's own), intensity 0-7 (4: as designed)
+function K.PlayFeel(hdId, gain, side, intensity)
+    if not K.V2() then return false end
+    hdId = Int(hdId, 4095)
+    if hdId < 128 then return false end
+    local s = side and Int(8 + side * 7, 15) or 0
+    if side and s == 0 then s = 1 end
+    return Queue({ touch = hdId, sound = 0, gain = Int(gain == nil and 4 or gain, 7), side = s,
+        intensity = intensity and Int(intensity, 7) or 4 })
+end
+
+-- The mic LED (v2): "leave", "off", "on", "pulse"
+function K.SetMic(mode)
+    local m = K.MIC[mode] or 0
+    if K.state.mic ~= m then K.state.mic = m; dirty = true end
 end
 
 local function Start(item)
     local s = K.state
     s.seq = (s.seq + 1) % 16
-    s.event, s.gain = item[1], item[2]
+    s.touch, s.sound, s.gain = item.touch or 0, item.sound or 0, item.gain or 4
+    s.side, s.intensity, s.level = item.side or 0, item.intensity or 4, item.level or 0
+    s.seed = math.random and math.random(0, 255) or 0
+    -- (v1: one event id, a clip or a sound up to 255)
+    local v1 = s.sound ~= 0 and s.sound or s.touch
+    s.event = v1 <= 255 and v1 or 0
     active, frames, age, dirty = true, 0, 0, true
 end
 
@@ -208,7 +335,8 @@ function K.Step(elapsed)
                 Start(table.remove(K.queue, 1))
             else
                 active = false
-                K.state.event, K.state.gain = 0, 0   -- (seq kept: no new event)
+                local s = K.state
+                s.event, s.gain, s.touch, s.sound = 0, 0, 0, 0   -- (seq kept: no new event)
                 dirty = true
             end
         end
@@ -217,7 +345,7 @@ function K.Step(elapsed)
     end
     if dirty then
         dirty = false
-        if K.Draw then K.Draw(K.Encode(K.state)) end
+        if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
         return true
     end
     return false
@@ -254,11 +382,13 @@ function K.Layout()
     local unit = PixelUnit() * K.CellSize()
     frame:ClearAllPoints()
     frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
-    frame:SetSize(unit * K.CELLS, unit)
+    local n = K.V2() and K.CELLS_V2 or K.CELLS
+    frame:SetSize(unit * n, unit)
     for i, tex in ipairs(textures) do
         tex:ClearAllPoints()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
         tex:SetSize(unit, unit)
+        tex:SetShown(i <= n)
     end
 end
 
@@ -266,7 +396,7 @@ function K.Draw(cells)
     if not textures then return end
     for i, tex in ipairs(textures) do
         local c = cells[i]
-        tex:SetColorTexture(c[1], c[2], c[3], 1)
+        if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
     end
 end
 
@@ -278,7 +408,7 @@ local function Build()
     frame:SetScale(1)
     if frame.SetIgnoreParentScale then frame:SetIgnoreParentScale(true) end
     textures = {}
-    for i = 1, K.CELLS do
+    for i = 1, K.CELLS_V2 do
         local tex = frame:CreateTexture(nil, "OVERLAY")
         if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
@@ -319,7 +449,7 @@ function K.SetEnabled(on)
     if not on then
         for i = #K.queue, 1, -1 do K.queue[i] = nil end
         active = false
-        K.state.event, K.state.gain = 0, 0
+        K.state.event, K.state.gain, K.state.touch, K.state.sound = 0, 0, 0, 0
         K.state.left, K.state.right = OffTrigger(), OffTrigger()
         dirty = true
     end

@@ -17,7 +17,8 @@ C.GROUPS = {
     { key = "shotTrigger", label = "Auto shot: R2 clicks", tip = "A weapon click while shooting" },
     { key = "lowTrigger", label = "Low health: L2 shakes", tip = "A vibration in L2 while low" },
     { key = "clips", label = "True haptics", tip = "USB only: crits, landings, swings, releases" },
-    { key = "sounds", label = "Speaker sounds", tip = "USB only: loot, quests, errors, whispers" },
+    { key = "sounds", label = "Speaker sounds", tip = "Loot, quests, errors, whispers" },
+    { key = "hdFeels", label = "HD feels", tip = "Each event's feel, as the helper's HD version", off = true },
 }
 
 function C.Settings()
@@ -26,7 +27,7 @@ function C.Settings()
     local s = db.link
     if type(s.cues) ~= "table" then s.cues = {} end
     for _, g in ipairs(C.GROUPS) do
-        if s.cues[g.key] == nil then s.cues[g.key] = true end
+        if s.cues[g.key] == nil then s.cues[g.key] = not g.off end
     end
     return s.cues
 end
@@ -79,6 +80,17 @@ local LAB_SOUND = { loot = { "coin", 2 }, questDone = { "chime", 3 }, uiError = 
     readyCheck = { "chime", 4 } }
 
 function C.Clip(name, gain) if On("clips") then K.Play(name, gain) end end
+
+-- An event's feel in HD (protocol v2): its stable id, at Rumble's strength
+local function Strength()
+    local ok, s = pcall(function() return ns.Rumble.Settings().intensity end)
+    return ok and s or 0.8
+end
+function C.Feel(feelKey, gain)
+    if not (On("hdFeels") and K.V2() and feelKey) then return end
+    local id = L.HdId(feelKey)
+    if id then K.PlayFeel(id, floor(max(0, min(1, Strength() * (gain or 1))) * 7 + 0.5)) end
+end
 function C.Sound(name, gain) if On("sounds") then K.Play(name, gain) end end
 
 local function Wrap()
@@ -88,6 +100,9 @@ local function Wrap()
         local fire, endLoop = V.Fire, V.EndLoop
         V.Fire = function(key, ...)
             fire(key, ...)
+            local okA, active = pcall(V.Active)
+            local pattern = okA and active and V.EventPattern(key)
+            if pattern then C.Feel(L.FeelFor(pattern)) end
             local c = CLIP[key]
             if c then C.Clip(c[1], c[2]) end
             if key == "autoAttack" then
@@ -107,6 +122,8 @@ local function Wrap()
         local fire = L.Fire
         L.Fire = function(key, ...)
             fire(key, ...)
+            local e = L.EVENT and L.EVENT[key]
+            if e and H.Engine() and L.EventSettings(key).on then C.Feel(L.EventSettings(key).feel) end
             local c = LAB_CLIP[key]
             if c then C.Clip(c[1], c[2]) end
             local s = LAB_SOUND[key]

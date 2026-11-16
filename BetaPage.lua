@@ -1295,6 +1295,11 @@ local function BuildHelper(p)
         Refresh()
     end, 90)
     S.Tooltip(on, "Link on", "A few pixels bottom left, read by WoW Helper")
+    local wide = S.NewCheck(link, "HD link", 170, -38, function(self)
+        K.SetV2(self:GetChecked() == true)
+        Refresh()
+    end, 90)
+    S.Tooltip(wide, "HD link", "Off: the old strip, no HD feels")
     S.Note(link, 12, -72, 306, 4, 11, GREY):SetText("Run WowHelper.exe" .. string.char(10) .. "Game windowed or borderless"
         .. string.char(10) .. "Bluetooth: triggers, haptics")
     Stepper(link, "Cell size", 12, -140, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
@@ -1373,6 +1378,7 @@ local function BuildHelper(p)
 
     ui.refresh[#ui.refresh + 1] = function()
         on:SetChecked(K.Enabled())
+        wide:SetChecked(K.V2())
         local cs = C.Settings()
         for key, c in pairs(checks) do c:SetChecked(cs[key] == true) end
         local st, names = K.state, {}

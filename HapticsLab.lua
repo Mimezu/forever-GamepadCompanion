@@ -845,10 +845,27 @@ end
 local EXPORT_FIELDS = { "label", "group", "rumble", "pulses", "keys", "attack", "hold", "decay", "peak", "curve",
     "grain", "noise", "sparks", "bed", "pan", "panTo", "panRate", "kick", "loop", "length", "gap", "duck" }
 
+-- A feel's stable number for the helper's HD version (128-4095): given once,
+-- kept in the saved settings (library keys in order first, then as they come)
+function L.HdId(key)
+    if not key then return nil end
+    local db = H.DB()
+    if type(db.hdIds) ~= "table" then db.hdIds = { next = 128 } end
+    local ids = db.hdIds
+    if not ids[key] then
+        if (ids.next or 128) > 4095 then return nil end
+        ids[key] = ids.next or 128
+        ids.next = ids[key] + 1
+    end
+    return ids[key]
+end
+
 function L.Export()
     local feels = {}
-    for _, f in ipairs(H.AllFeels()) do
-        local e = { own = H.IsOwn(f.key) or nil }
+    local all = H.AllFeels()
+    for _, f in ipairs(all) do L.HdId(f.key) end
+    for _, f in ipairs(all) do
+        local e = { own = H.IsOwn(f.key) or nil, hd = L.HdId(f.key) }
         for _, k in ipairs(EXPORT_FIELDS) do if f[k] ~= nil then e[k] = H.Copy(f[k]) end end
         feels[f.key] = e
     end

@@ -762,7 +762,7 @@ do
     cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player")
     assert(K.state.right.mode == K.MODES.off, "released: R2 free")
     local queued = {}
-    for _, q in ipairs(K.queue) do queued[#queued + 1] = q[1] end
+    for _, q in ipairs(K.queue) do queued[#queued + 1] = q.touch end
     assert(queued[#queued] == K.CLIPS.release_hit, "the release's clip")
     UnitCastingInfo = nil
     cf.scripts.OnEvent(cf, "START_AUTOREPEAT_SPELL")
@@ -775,7 +775,7 @@ do
     now = now + 1
     L.Fire("loot")
     local last = K.queue[#K.queue]
-    assert(last and last[1] == K.SOUNDS.coin, "loot: the coin sound")
+    assert(last and last.sound == K.SOUNDS.coin and last.touch == 0, "loot: the coin sound")
     C.Settings().sounds = false
     local n = #K.queue
     now = now + 1
@@ -874,7 +874,18 @@ do
     local ex = L.Export()
     assert(ex.version == 1 and ex.feels.r_tick and ex.feels.r_tick.pulses and ex.feels.thud.pulses, "feels exported")
     assert(ex.events.levelUp ~= nil and ex.events.hit ~= nil, "what each event plays")
-    io.write("PASS: export: every feel and each event's choice, for the helper" .. string.char(10))
+    -- each feel a stable HD id, 128-4095, unique, the same next time
+    local seen = {}
+    for key, f in pairs(ex.feels) do
+        assert(type(f.hd) == "number" and f.hd >= 128 and f.hd <= 4095 and not seen[f.hd], "hd id: " .. key)
+        seen[f.hd] = key
+    end
+    local again = L.Export()
+    for key, f in pairs(ex.feels) do assert(again.feels[key].hd == f.hd, "hd id kept: " .. key) end
+    local nextId = H.DB().hdIds.next
+    assert(L.HdId("own_test_x") == nextId and L.HdId("own_test_x") == nextId, "a new feel: the next id, kept")
+    H.DB().hdIds.own_test_x = nil
+    io.write("PASS: export: every feel with its stable HD id, and each event's choice, for the helper" .. string.char(10))
 end
 
 -- Ambient voices step aside: rain dips while a jump plays

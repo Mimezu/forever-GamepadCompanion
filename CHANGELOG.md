@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.0 — 2026-11-16
+
+- Helper link protocol v2 (the default): the wide strip, 34 cells, CRC-8; clips and sounds in their own fields; HD feels by id, side and intensity; the mic LED. Checked against WoW Helper's 81 vectors. **HD link** off on the Helper card goes back to v1
+- Every feel has a stable HD id (128-4095), written in the export (`feels[key].hd`)
+- Cue group **HD feels** (off by default): each event's feel sent to the helper by its id
+
 ## 0.23.0 — 2026-11-16
 
 - Touchpad, chord mode: L1 + touchpad is Focus UI while a window is open, even when L1 is no modifier of its own: a free modifier (Alt) is lent to L1 while a gamepad window is open and given back when it closes (L1 alone does nothing meanwhile); plain touches and the click stay zones

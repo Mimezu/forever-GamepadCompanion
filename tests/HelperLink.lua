@@ -128,7 +128,42 @@ else
     assert(old == text, "fixture differs from this encoder: regenerate with --write and rerun the helper selftest")
 end
 
--- Live: switch, layout, queue ---------------------------------------------------------------
+-- Protocol v2: the helper's vectors (C:\games\WowHelper writes them) ----------------------------
+assert(K.Crc8({ 49, 50, 51, 52, 53, 54, 55, 56, 57 }) == 0xF4, "CRC-8 check value")
+local v2count = 0
+local FIELDS = { "seq", "lmode", "lstart", "lfinish", "lforce", "rmode", "rstart", "rfinish", "rforce",
+    "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic" }
+for row in io.lines(root .. "/tests/fixtures/helperlink-v2-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local head, digits = row:match("^(.-)%s*:%s*(%d+)%s*$")
+        local n, i = {}, 0
+        for num in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(num) end
+        assert(i == 17 and #digits == 34, "v2 vector line: " .. row)
+        local s = { seq = n.seq, left = { mode = n.lmode, start = n.lstart, finish = n.lfinish, force = n.lforce },
+            right = { mode = n.rmode, start = n.rstart, finish = n.rfinish, force = n.rforce },
+            touch = n.touch, sound = n.sound, gain = n.gain, level = n.level, side = n.side,
+            intensity = n.intensity, seed = n.seed, mic = n.mic }
+        local cells, out = K.EncodeV2(s), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        assert(table.concat(out) == digits, "v2 vector: " .. row .. " got " .. table.concat(out))
+        local d = assert(K.DecodeV2(cells))
+        for _, f in ipairs({ "seq", "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic" }) do
+            assert(d[f] == s[f], "v2 round trip " .. f)
+        end
+        assert(d.right.mode == s.right.mode and d.left.force == s.left.force, "v2 triggers")
+        -- one flipped bit: refused by the CRC
+        local flip = K.EncodeV2(s)
+        local c = 3 + (v2count % 32)
+        flip[c] = { 1 - flip[c][1], flip[c][2], flip[c][3] }
+        assert(K.DecodeV2(flip) == nil, "v2 flip rejected")
+        v2count = v2count + 1
+    end
+end
+assert(v2count == 81, "81 v2 vectors: " .. v2count)
+
+-- Live (v1 switch): switch, layout, queue -----------------------------------------------------
+K.SetV2(false)
+assert(not K.V2() and GamepadCompanionHapticsDB.link.v1 == true, "v1 switch")
 local frameCount = 0
 local drawn          -- cells on screen
 local function render(elapsed)
@@ -208,4 +243,33 @@ local seen = {}
 for name, id in pairs(K.CLIPS) do assert(id >= 1 and id <= 127 and not seen[id], name); seen[id] = true end
 for name, id in pairs(K.SOUNDS) do assert(id >= 128 and id <= 255 and not seen[id], name); seen[id] = true end
 
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors)")
+-- Live v2 (the default): 34 cells, touch and sound apart, HD feels, the mic
+K.SetV2(true)
+assert(K.V2() and GamepadCompanionHapticsDB.link.v1 == nil, "v2 default")
+K.Draw = function(cells) K.lastCells = cells; realDraw(cells) end
+K.SetEnabled(true)
+assert(math.abs(K.frame.width - unit * 34) < 1e-9, "v2 strip size")
+local function renderV2(elapsed)
+    if K.frame.scripts.OnUpdate then K.frame.scripts.OnUpdate(K.frame, elapsed or 1 / 144) end
+    return assert(K.DecodeV2(K.lastCells))
+end
+local d0 = renderV2()
+assert(K.Play("chime", 3) and K.Play("thump", 6) and K.PlayFeel(300, 7, -1, 6))
+assert(K.PlayFeel(12) == false, "HD feels from 128")
+local seen2, prev = {}, d0
+for _ = 1, 100 do
+    local d = renderV2()
+    if d.seq ~= prev.seq then seen2[#seen2 + 1] = d end
+    prev = d
+end
+assert(#seen2 == 3, "three cues: " .. #seen2)
+assert(seen2[1].sound == K.SOUNDS.chime and seen2[1].touch == 0 and seen2[1].gain == 3, "a sound: sound field only")
+assert(seen2[2].touch == K.CLIPS.thump and seen2[2].sound == 0 and seen2[2].gain == 6, "a clip: touch field")
+assert(seen2[3].touch == 300 and seen2[3].side == 1 and seen2[3].intensity == 6 and seen2[3].gain == 7, "an HD feel, left")
+assert(prev.touch == 0 and prev.sound == 0, "cleared after")
+K.SetMic("pulse")
+local dm = renderV2()
+assert(dm.mic == K.MIC.pulse and dm.seq == prev.seq, "mic: a state, no cue")
+K.SetEnabled(false)
+
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors)")

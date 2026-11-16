@@ -10,6 +10,12 @@ coloured cells; the helper reads it from the screen (windowed or borderless only
 DualSense: adaptive triggers (HID output report) and true haptics (USB audio channels 3-4).
 Background: `ADAPTIVE-TRIGGERS.md`, `HAPTICS.md` section 5.
 
+**v2 is the default since 0.24.0**: the wide strip, 34 cells, cyan second marker, 96 bits with
+touch, sound, gain, level, side, intensity, seed, mic LED and a CRC-8. Spec:
+`C:\games\WowHelper\docs\PROTOCOL-V2.md`; addon side `K.EncodeV2` / `K.DecodeV2`, checked against
+the helper's `tests/fixtures/helperlink-v2-vectors.txt`. **HD link** off (Haptics tab, Helper)
+goes back to the v1 strip below (`GamepadCompanionHapticsDB.link.v1 = true`).
+
 ## The strip
 
 - 18 cells in one row at the very bottom-left of the screen (the game window's client area).
@@ -100,3 +106,9 @@ Names match `HelperLink.lua` `K.CLIPS` / `K.SOUNDS` and `helper/clips.py` (the s
 - `K.Play(event, gain)`: an id or a name from `K.CLIPS` / `K.SOUNDS`; gain 0-7 (default 4).
   Ignored while the link is off.
 - `K.SetCellSize(px)`, `K.Encode(state)`, `K.Decode(cells)`.
+- v2: `K.V2()`, `K.SetV2(on)`, `K.EncodeV2(state)`, `K.DecodeV2(cells)`, `K.Crc8(bytes)`.
+  `K.Play` puts a clip in `touch` and a sound in `sound` (the helper adds the sound's own touch).
+  `K.PlayFeel(hdId, gain, side, intensity)`: one of the addon's feels in HD (ids 128-4095, side
+  -1..1, intensity 4 = as designed). `K.SetMic("leave"|"off"|"on"|"pulse")`: a state, no cue.
+- Feel ids: `ns.HapticsLab.HdId(key)`, stable, kept in `GamepadCompanionHapticsDB.hdIds`; the cue
+  group **HD feels** (off by default) sends each event's feel by its id.

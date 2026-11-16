@@ -90,7 +90,8 @@ Addons can read files only at load, so a list written there before `/reload` is 
 - The addon writes its library out for the helper: `GamepadCompanionHapticsDB.export` in
   `WTF\Account\<account>\SavedVariables\GamepadCompanion.lua`, on logout and `/reload`:
   `{ version = 1, at, feels = { [key] = { label, group, rumble, pulses = { {t, len, strength,
-  side}, ... }, loop, length, own, ... } }, events = { [eventKey] = feelKey | "auto" | false } }`.
+  side}, ... }, loop, length, own, hd, ... } }, events = { [eventKey] = feelKey | "auto" | false } }`.
+  `hd` is the feel's stable id (128-4095) for protocol v2's `touch` field (0.24.0).
   Rumble's patterns are `r_` + key; yours are `own<N>`.
 
 ## Steps
