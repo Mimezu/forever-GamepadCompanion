@@ -284,10 +284,16 @@ def test_mixer():
     check(ctypes.sizeof(audio.WAVEOUTCAPSW) == 84, "WAVEOUTCAPSW size")
 
 
+def test_bt_haptics():
+    import bt_haptics
+    bt_haptics.selftest(check)
+
+
 def run():
     steps = [("protocol", test_protocol), ("Lua fixture", test_fixture), ("strip reader", test_strip),
              ("clips", test_clips), ("trigger effects and reports", test_reports),
-             ("output and link", test_output_and_link), ("mixer", test_mixer)]
+             ("output and link", test_output_and_link), ("mixer", test_mixer),
+             ("bluetooth haptics", test_bt_haptics)]
     failed = 0
     for name, fn in steps:
         before = _count

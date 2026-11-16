@@ -348,9 +348,15 @@ class Pad:
             raise OSError(f"cannot open {info['path']} (error {ctypes.get_last_error()})")
 
     def send(self, right=None, left=None):
-        _, _, k32 = _load()
         report = build_report(self.transport, right, left, self.seq, self.length)
         self.seq = (self.seq + 1) & 0x0F
+        self.write_raw(report)
+
+    def write_raw(self, report):
+        """One whole output report (padded to the device's output length)."""
+        _, _, k32 = _load()
+        if self.length and len(report) < self.length:
+            report = report + bytes(self.length - len(report))
         written = wintypes.DWORD()
         buf = ctypes.create_string_buffer(report, len(report))
         if not k32.WriteFile(self.handle, buf, len(report), ctypes.byref(written), None):
