@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.6 — 2026-11-16
+
+- Touchpad preview movable: Move on the Controller page's touchpad panel shows it, drag it anywhere, Done (or closing the page) ends; its place is kept
+
 ## 0.22.5 — 2026-11-16
 
 - Controller: double-click a layer row (Every layer) to open Choose for that layer (touchpad zones, buttons, bar slots)

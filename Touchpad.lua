@@ -592,9 +592,26 @@ local function BuildPreview()
     -- No panel: the pad floats, its name above, the hint below
     local f = CreateFrame("Frame", "GamepadCompanionTouchPreview", UIParent)
     f:SetSize(PAD_W, PAD_H + 44)
-    f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 230)
+    -- where the player put it (Move on the Controller page), else above the bars
+    local pos = type(GamepadCompanionTouchDB) == "table" and GamepadCompanionTouchDB.previewPos
+    if type(pos) == "table" and pos[1] then f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+    else f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 230) end
     f:SetFrameStrata("DIALOG")
+    f:SetMovable(true)
+    f:SetClampedToScreen(true)
     f:EnableMouse(false)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) if self.moving then self:StartMoving() end end)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, rel, x, y = self:GetPoint()
+        if type(GamepadCompanionTouchDB) == "table" then GamepadCompanionTouchDB.previewPos = { point, rel, x, y } end
+    end)
+    -- (while moving: a frame round it, to see and grab it)
+    f.mover = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+    f.mover:SetAllPoints()
+    f.mover:SetColorTexture(1, 0.82, 0, 0.12)
+    f.mover:Hide()
     f:Hide()
     local function Shadowed(size, r, g, b)
         local text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -727,6 +744,8 @@ end
 
 local function UpdatePreview(x, y, show)
     if not show then
+        -- (being moved: it stays)
+        if preview and preview.moving then return end
         if preview and preview:IsShown() then preview.target = 0 end
         return
     end
@@ -964,6 +983,26 @@ function Touch.SetTapTime(ms)
 end
 function Touch.SetTap(value) return Touch.SetInput(value == true and "tap" or "click") end
 function Touch.SetOverWindows(value) settings.overWindows = value == true; Update() end
+-- Move the preview: shown and draggable until moved again (Done)
+function Touch.MovePreview(on)
+    if on == nil then on = not (preview and preview.moving) end
+    if on then
+        UpdatePreview(0, 0, true)
+        preview.moving = true
+        preview:EnableMouse(true)
+        preview.mover:Show()
+        preview.hint:SetText("Drag it · Done on the Controller page")
+    elseif preview then
+        preview.moving = false
+        preview:EnableMouse(false)
+        preview.mover:Hide()
+        preview.target = 0
+    end
+    return on
+end
+
+function Touch.PreviewMoving() return preview ~= nil and preview.moving == true end
+
 function Touch.SetPreview(value)
     settings.preview = value == true
     if not settings.preview then UpdatePreview(0, 0, false) end

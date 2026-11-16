@@ -619,6 +619,12 @@ local function BuildTouchPanel(card)
 
     tp.enable = S.NewCheck(p, "Zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 60)
     tp.preview = S.NewCheck(p, "Preview", 132, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 70)
+    tp.move = S.NewButton(p, "Move", W - 70, 0, 66, function(self)
+        local moving = Touch.MovePreview()
+        self.label:SetText(moving and "Done" or "Move")
+        S.SetSelected(self, moving)
+    end, nil, 11, 24)
+    S.Tooltip(tp.move, "Move", "The preview: drag it where you want it")
     local x = 0
     for _, e in ipairs({ { "click", "Click", 74 }, { "tap", "Tap or click", 90 }, { "dual", "Touch + click", 90 } }) do
         tp.inputs[e[1]] = S.NewButton(p, e[2], x, -32, e[3], function() Touch.SetInput(e[1]) end, nil, 11, 24)
@@ -927,7 +933,14 @@ ns.Shell.AddPage({
     key = "controller", name = "Controller", order = 1, icon = "Interface\\Icons\\Trade_Engineering",
     build = Build, refresh = function() Refresh() end,
     show = function() selectedPage, heldLayer = ActivePage() or selectedPage, nil end,
-    hide = function() if ns.Picker then ns.Picker.Close() end end,
+    hide = function()
+        if ns.Picker then ns.Picker.Close() end
+        -- (moving the touch preview ends with the page)
+        if ns.Touch and ns.Touch.PreviewMoving and ns.Touch.PreviewMoving() then
+            ns.Touch.MovePreview(false)
+            if ui.tpw and ui.tpw.move then ui.tpw.move.label:SetText("Move"); S.SetSelected(ui.tpw.move, false) end
+        end
+    end,
 })
 
 function API.ToggleController() ns.Shell.Toggle("controller") end
