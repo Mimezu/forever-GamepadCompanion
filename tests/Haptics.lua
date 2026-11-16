@@ -329,10 +329,24 @@ ev("CHAT_MSG_WHISPER", "hi", "Bob")
 assert(#fired == 0, "off: nothing")
 local falling = true
 IsFalling = function() return falling end
-L.Poll(); now = now + 1
+local air = L.airFrame
+air.scripts.OnUpdate(air, 0.01); now = now + 1
 falling = false
-L.Poll()
+air.scripts.OnUpdate(air, 0.01)
 assert(fired[1] == "landing", "landing: " .. tostring(fired[1]))
+assert(H.DB().landings[1] == 1, "air time kept: " .. tostring(H.DB().landings[1]))
+assert(H.Playing("ev_landing"), "a landing shaped by its fall")
+local hop, fall = L.LandingFeel(L.LandingWeight(0.6)), L.LandingFeel(L.LandingWeight(2.5))
+assert(#hop.pulses == 1 and hop.pulses[1][3] < 0.35, "a hop: one soft pulse")
+assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9, "a big fall: strong, echoes, a boom")
+-- Footsteps: the fit from squeezes (one step missed), and the timing it gives
+local rate, offset = L.FitSteps({ 0.15, 0.55, 0.95, 1.75, 2.15, 2.55 })
+assert(math.abs(rate - 2.5) < 1e-6 and math.abs(offset - 0.15) < 1e-6, "rate and offset: " .. tostring(rate) .. " " .. tostring(offset))
+L.sync = { taps = { 0.15, 0.55, 0.95, 1.35, 1.75 }, speeds = { 7, 7 }, start = now }
+L.StepSyncEnd()
+local r2, o2, synced = L.StepTiming(7)
+assert(synced and math.abs(r2 - 2.5) < 1e-6 and math.abs(o2 - 0.15) < 1e-6, "synced timing")
+assert(L.Report():find("Steps ", 1, true) and L.Report():find("Last landings", 1, true), "in the report")
 L.EventSettings("heartbeat").on = true
 UnitHealth = function() return 200 end
 L.Poll()

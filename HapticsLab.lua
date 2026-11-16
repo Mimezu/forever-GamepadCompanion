@@ -446,6 +446,14 @@ function L.Report()
         parts[#parts + 1] = string.format("%s=L2 %s / R2 %s", t.label, a.L2 or "-", a.R2 or "-")
     end
     lines[#lines + 1] = "Trigger test: " .. table.concat(parts, ", ")
+    local db2 = H.DB()
+    if db2.landings and #db2.landings > 0 then
+        lines[#lines + 1] = "Last landings (s in the air): " .. table.concat(db2.landings, ", ")
+    end
+    for key, cal in pairs(db2.stepSync or {}) do
+        lines[#lines + 1] = string.format("Steps %s: %.2f/s at %.1f yd/s, first after %.2f s (%d taps)", key,
+            cal.rate or 0, cal.speed or 0, cal.offset or 0, cal.taps or 0)
+    end
     local log = H.DB().probes.log
     if log and #log > 0 then
         lines[#lines + 1] = "Log:"
@@ -669,7 +677,7 @@ end
 
 local lastFire = {}
 -- An event: its feel, if on (gain: 0-1 more or less of it)
-function L.Fire(key, gain)
+function L.Fire(key, gain, feel)
     if not H.Engine() then return end
     -- (Rumble off, or Improved Forever: Vibration has the motors: quiet too)
     local V = ns.Rumble
@@ -680,7 +688,7 @@ function L.Fire(key, gain)
     local now = Now()
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
-    H.Play(s.feel, { voice = "ev_" .. key, gain = Strength() * (gain or 1) })
+    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = Strength() * (gain or 1) })
     if L.onFire then L.onFire(key) end
 end
 
@@ -786,10 +794,43 @@ local function Heartbeat(now, v)
 end
 
 -- A step on each side in turn, quicker with speed
+-- Footsteps in time with the run: the run's cycle starts when you start
+-- moving (PLAYER_STARTED_MOVING), steps come at a rate that grows with speed.
+-- Rate and offset per race and sex, walking and running apart, from a sync
+-- (squeeze R2 on each footfall, L.StepSync); a guess until then.
+local function Model()
+    local race = select(3, UnitRace("player")) or 0
+    local sex = UnitSex("player") or 0
+    return race .. "-" .. sex
+end
+
+local function Band(speed) return speed < 4 and "walk" or "run" end
+
+-- Steps per second at a speed, and the first step's time after the start
+function L.StepTiming(speed)
+    local db = H.DB()
+    db.stepSync = db.stepSync or {}
+    local cal = db.stepSync[Model() .. "-" .. Band(speed)]
+    local nudge = db.stepNudge or 0
+    if cal and cal.rate and cal.speed and cal.speed > 0 then
+        return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, true
+    end
+    return 2.4 * max(0.5, speed / 7), 0.1 + nudge, false
+end
+
 local function Steps(now, v)
     if not (live.moving and not live.mounted) then return nil end
-    local d, n = Beat(v, now, 1 / (2.4 * max(0.5, live.speed / 7)))
-    if d < PULSE then
+    local rate, offset = L.StepTiming(max(0.5, live.speed))
+    if not v.phase then
+        -- (from the start of the run, though the voice starts a moment later)
+        v.phase = ((now - (live.moveStart or now)) - offset) * rate
+    else
+        v.phase = v.phase + (now - v.at) * rate
+    end
+    v.at = now
+    if v.phase < 0 then return 0, 0 end
+    local n = floor(v.phase)
+    if (v.phase - n) / rate < PULSE then
         local left = n % 2 == 0
         return left and 0.3 or 0, left and 0 or 0.3
     end
@@ -856,6 +897,7 @@ ListenUnit("UNIT_SPELLCAST_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_DELAYED", "player")
 ListenUnit("UNIT_THREAT_SITUATION_UPDATE", "player")
+Listen("PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING")
 Listen("PLAYER_TARGET_CHANGED", "SPELL_UPDATE_COOLDOWN", "UI_ERROR_MESSAGE", "CHAT_MSG_LOOT", "PLAYER_MONEY",
     "QUEST_ACCEPTED", "QUEST_TURNED_IN", "CHAT_MSG_SKILL", "PLAYER_DEAD", "PLAYER_UNGHOST", "PLAYER_ALIVE",
     "PLAYER_UPDATE_RESTING", "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER", "READY_CHECK", "PARTY_INVITE_REQUEST",
@@ -1051,6 +1093,15 @@ handlers.UNIT_SPELLCAST_DELAYED = function()
 end
 handlers.UNIT_SPELLCAST_STOP = function(unit) if unit == "player" then CastOver() end end
 handlers.UNIT_SPELLCAST_CHANNEL_STOP = handlers.UNIT_SPELLCAST_STOP
+handlers.PLAYER_STARTED_MOVING = function()
+    live.moveStart = Now()
+    H.Stop("live_footsteps")
+    if L.sync and L.sync.waiting then L.sync.waiting, L.sync.start = false, live.moveStart end
+end
+handlers.PLAYER_STOPPED_MOVING = function()
+    H.Stop("live_footsteps")
+    if L.sync and L.sync.start then L.StepSyncEnd() end
+end
 handlers.PLAYER_ENTERING_WORLD = function()
     money = call(GetMoney)
     local r = call(IsResting)
@@ -1082,17 +1133,12 @@ local function Poll()
     local swimming = call(IsSwimming) and true or false
     local taxi = call(UnitOnTaxi, "player") and true or false
     local mounted = call(IsMounted) and true or false
-    if falling and not was.falling then was.fallStart = now end
-    if was.falling and not falling and not swimming and not flying and not taxi then
-        local t = now - was.fallStart
-        if t > 0.35 then L.Fire("landing", min(1, 0.3 + t / 1.5)) end
-    end
     if swimming and not was.swimming and was.mounted ~= nil then L.Fire("splash") end
     if was.mounted ~= nil and mounted ~= was.mounted and not taxi then
         L.Fire(mounted and "mount" or "dismount")
     end
     if was.taxi ~= nil and taxi ~= was.taxi then L.Fire("taxi") end
-    was.falling, was.swimming, was.mounted, was.taxi = falling, swimming, mounted, taxi
+    was.swimming, was.mounted, was.taxi = swimming, mounted, taxi
     -- Moving
     local speed = call(GetUnitSpeed, "player") or 0
     if secret(speed) then speed = 0 end
@@ -1120,6 +1166,154 @@ local function Poll()
 end
 if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(0.1, Poll) end
 L.Poll = Poll
+
+---------------------------------------------------------------------------
+-- Landing, scaled by the time in the air (checked every frame, so it lands
+-- with the feet): a hop, a soft short pulse; a fall, stronger and longer,
+-- with echoes; a big drop, a deep boom. Last air times kept for the report.
+---------------------------------------------------------------------------
+-- How hard a landing is (0 a plain jump .. 1 a big fall) from its air time
+function L.LandingWeight(t)
+    return max(0, min(1, (t - 0.55) / 1.8))
+end
+
+-- The default landing (Thud) shaped by its weight
+function L.LandingFeel(k)
+    local main = 0.25 + 0.75 * k
+    local list = { { 0, 0.055 + 0.08 * k, main, -0.2 } }
+    for i = 1, floor(k * 3 + 0.3) do
+        list[#list + 1] = { 0.06 + 0.08 * k + 0.1 * i, 0.05, main * 0.45 ^ i, i % 2 == 0 and -0.5 or 0.5 }
+    end
+    if k >= 0.8 then list[#list + 1] = { 0, 0.2, 1, 0 } end
+    return { pulses = list, duck = { amount = 0.4 + 0.5 * k, time = 0.15 } }
+end
+
+local air = CreateFrame("Frame")
+L.airFrame = air
+local airState = { falling = false, since = 0 }
+air:SetScript("OnUpdate", function()
+    if not H.Engine() then airState.falling = false; return end
+    local falling = call(IsFalling) and true or false
+    local now = Now()
+    if falling and not airState.falling then airState.since = now end
+    if airState.falling and not falling then
+        local blocked = call(IsSwimming) or call(IsFlying) or call(UnitOnTaxi, "player")
+        local t = now - airState.since
+        if not blocked and t > 0.25 then
+            local db = H.DB()
+            db.landings = db.landings or {}
+            table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
+            while #db.landings > 12 do table.remove(db.landings) end
+            local k = L.LandingWeight(t)
+            local s = L.EventSettings("landing")
+            if s.feel == EVENT.landing.feel then L.Fire("landing", 1, L.LandingFeel(k))
+            else L.Fire("landing", 0.25 + 0.75 * k) end
+            -- (the run starts again on landing: footsteps from here)
+            if live.moving then live.moveStart = now; H.Stop("live_footsteps") end
+        end
+    end
+    airState.falling = falling
+end)
+
+---------------------------------------------------------------------------
+-- Footstep sync: start running and squeeze R2 (or L2) on each footfall; the
+-- squeezes give the step rate and the first step's time after the start
+---------------------------------------------------------------------------
+local syncFrame = CreateFrame("Frame")
+syncFrame:Hide()
+
+function L.StepSync()
+    L.sync = { waiting = true, taps = {}, speeds = {}, down = false, began = Now() }
+    syncFrame:Show()
+    if L.onSync then L.onSync("Stand still, then run: squeeze R2 on each footfall") end
+end
+
+function L.StepSyncCancel()
+    syncFrame:Hide()
+    L.sync = nil
+    if L.onSync then L.onSync("") end
+end
+
+local function Median(list)
+    local c = {}
+    for i, v in ipairs(list) do c[i] = v end
+    table.sort(c)
+    if #c == 0 then return nil end
+    return c[floor((#c + 1) / 2)]
+end
+
+-- The taps (seconds after the start) to a rate and an offset: steps may be
+-- missed, so each gap counts as the nearest whole number of steps; then a
+-- straight line through them
+function L.FitSteps(taps)
+    if #taps < 4 then return nil end
+    local gaps = {}
+    for i = 2, #taps do gaps[#gaps + 1] = taps[i] - taps[i - 1] end
+    local period = Median(gaps)
+    if not period or period <= 0.1 then return nil end
+    local idx, n = { 0 }, 0
+    for i = 2, #taps do
+        n = n + max(1, floor((taps[i] - taps[i - 1]) / period + 0.5))
+        idx[i] = n
+    end
+    local sx, sy, sxx, sxy, m = 0, 0, 0, 0, #taps
+    for i = 1, m do
+        sx, sy = sx + idx[i], sy + taps[i]
+        sxx, sxy = sxx + idx[i] * idx[i], sxy + idx[i] * taps[i]
+    end
+    local den = m * sxx - sx * sx
+    if den == 0 then return nil end
+    local b = (m * sxy - sx * sy) / den
+    local a = (sy - b * sx) / m
+    if b <= 0.1 then return nil end
+    -- (the first step after the start: the line's start, a whole step on if before it)
+    while a < 0 do a = a + b end
+    while a > b do a = a - b end
+    return 1 / b, a
+end
+
+function L.StepSyncEnd()
+    local s = L.sync
+    syncFrame:Hide()
+    L.sync = nil
+    if not s then return end
+    local rate, offset = L.FitSteps(s.taps)
+    if not rate then
+        if L.onSync then L.onSync("|cffff7a5cToo few squeezes: try again (6 or more)|r") end
+        return
+    end
+    local speed = Median(s.speeds) or 7
+    local db = H.DB()
+    db.stepSync = db.stepSync or {}
+    db.stepSync[Model() .. "-" .. Band(speed)] = { rate = rate, offset = offset, speed = speed, taps = #s.taps }
+    db.stepNudge = 0
+    local msg = string.format("Synced (%s): %.2f steps/s, first after %.2f s", Band(speed), rate, offset)
+    if L.onSync then L.onSync(msg) end
+    print("|cff80c0ffGamepad Companion:|r " .. msg)
+end
+
+syncFrame:SetScript("OnUpdate", function()
+    local s = L.sync
+    if not s then return syncFrame:Hide() end
+    local now = Now()
+    if s.waiting then
+        if now - s.began > 30 then L.StepSyncCancel() end
+        return
+    end
+    local l, r = L.TriggerAxes()
+    local depth = max(l or 0, r or 0)
+    if not s.down and depth > 0.5 then
+        s.down = true
+        s.taps[#s.taps + 1] = now - s.start
+        local speed = call(GetUnitSpeed, "player")
+        if speed and not secret(speed) and speed > 0 then s.speeds[#s.speeds + 1] = speed end
+        if L.onSync then L.onSync(#s.taps .. " steps") end
+        if #s.taps >= 12 then L.StepSyncEnd() end
+    elseif s.down and depth < 0.2 then
+        s.down = false
+    end
+    if now - s.start > 15 then L.StepSyncEnd() end
+end)
 
 -- The Beta engine on or off
 function L.SetEngine(on)

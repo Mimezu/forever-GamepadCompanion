@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1 — 2026-11-16
+
+- Beta, footsteps: in time with the run, counted from the moment you start moving (and from each landing)
+- Beta, Footsteps sync (Events): run and squeeze R2 on each footfall; your step rate and timing saved per race and sex, walking and running apart; Nudge to fine-tune
+- Beta, landing: checked every frame; a hop is a soft short pulse, a fall stronger and longer with echoes, a big drop a boom; air times in the Report
+
 ## 0.14.0 — 2026-11-16
 
 - Beta: feels rebuilt as rhythms of pulses (each 50 ms or more, with its own strength and side), from the probe results: 54 feels in Taps, Doubles, Rolls, Impacts, Motion, Life, Signals, Extremes
