@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.2 — 2026-11-16
+
+- Rain gentler: half as strong, sparser, less boost when heavy; thunder softer
+- Weather and water step aside: while anything else plays (a jump, a hit...), they dip to a tenth
+
 ## 0.21.1 — 2026-11-16
 
 - The feel library and each event's choice written out for the helper (GamepadCompanionHapticsDB.export, on logout and /reload), to draft the HD versions (docs/HD-HAPTICS.md)

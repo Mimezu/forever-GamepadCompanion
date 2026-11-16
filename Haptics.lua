@@ -348,6 +348,7 @@ function H.Play(feel, opts)
         -- (start: its first frame, so a feel shorter than a frame is still sampled)
         id = id, feel = feel, start = nil, gain = opts.gain or 1, left = opts.left or 1, right = opts.right or 1,
         stretch = opts.stretch or 1, loop = opts.loop == nil and feel.loop or opts.loop, seed = counter * 7 + 1,
+        ambient = opts.ambient,
         onDone = opts.onDone, target = opts.target or feel.target, raw = opts.raw,
     }
     local duck = opts.duck or feel.duck
@@ -374,7 +375,7 @@ end
 function H.Fn(id, fn, opts)
     opts = opts or {}
     voices[id] = { id = id, fn = fn, start = Now(), gain = opts.gain or 1, left = 1, right = 1, target = opts.target,
-        onDone = opts.onDone }
+        onDone = opts.onDone, ambient = opts.ambient }
     Wake()
     return id
 end
@@ -446,6 +447,12 @@ function H.Mix(now)
     local mix = MIX[db.mix] or MIX.screen
     local l, r, lt, rt, raw, any = 0, 0, 0, 0, false, false
     local done
+    -- Ambient voices (weather, water) step aside while anything else plays:
+    -- a jump or a hit stays clear over the rain
+    local busy = false
+    for _, v in pairs(voices) do
+        if not v.ambient and (v.lastL or 0) + (v.lastR or 0) > 0.005 then busy = true; break end
+    end
     for id, v in pairs(voices) do
         local a, b = VoiceLevel(v, now)
         if a == nil then
@@ -453,7 +460,7 @@ function H.Mix(now)
             done[#done + 1] = v
         else
             any = true
-            local f = (v.gain or 1) * DuckFactor(id, now)
+            local f = (v.gain or 1) * DuckFactor(id, now) * ((busy and v.ambient) and 0.1 or 1)
             a, b = clamp(a * f * (v.left or 1)), clamp(b * f * (v.right or 1))
             v.lastL, v.lastR = a, b
             if v.raw then raw = true end

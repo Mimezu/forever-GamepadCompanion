@@ -876,3 +876,20 @@ do
     assert(ex.events.levelUp ~= nil and ex.events.hit ~= nil, "what each event plays")
     io.write("PASS: export: every feel and each event's choice, for the helper" .. string.char(10))
 end
+
+-- Ambient voices step aside: rain dips while a jump plays
+do
+    H.Stop()
+    H.DB().mix = "max"
+    H.DB().minPulse = 0
+    H.Fn("live_rain", function() return 0.5, 0.5 end, { ambient = true })
+    frame(0.01)
+    local alone = H.out.l
+    H.Play({ hold = 0.3, peak = 0.3 }, { voice = "ev_jump" })
+    frame(0.01); frame(0.01)
+    local with = nil
+    for _, v in ipairs(H.ActiveVoices()) do if v.id == "live_rain" then with = v.l end end
+    assert(alone > 0.3 and with and with < 0.06, "rain under the jump: " .. tostring(alone) .. " -> " .. tostring(with))
+    H.Stop()
+    io.write("PASS: ambient: weather steps aside for everything else" .. string.char(10))
+end

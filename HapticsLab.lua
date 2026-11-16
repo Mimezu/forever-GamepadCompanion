@@ -1017,6 +1017,9 @@ end
 
 -- (the feel each live voice was started with: a new pick restarts it)
 local liveFeel = {}
+-- (weather and water: under everything else)
+local AMBIENT = { rain = true, thunder = true, snow = true, sand = true, embers = true, underwater = true }
+
 local function StartLive(key, fn)
     local id = "live_" .. key
     -- (turned off, or Rumble off: stops now, not when the condition ends)
@@ -1027,10 +1030,10 @@ local function StartLive(key, fn)
     if H.Playing(id) then return end
     -- (a feel other than the default: played looped instead of the live one)
     if s.feel ~= EVENT[key].feel then
-        H.Play(s.feel, { voice = id, loop = true, gain = Strength() })
+        H.Play(s.feel, { voice = id, loop = true, gain = Strength(), ambient = AMBIENT[key] })
         return
     end
-    H.Fn(id, fn, { gain = Strength() })
+    H.Fn(id, fn, { gain = Strength(), ambient = AMBIENT[key] })
 end
 
 ---------------------------------------------------------------------------
@@ -1432,9 +1435,9 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
         -- (heavier weather: taps closer and a little stronger)
         local k = key == "underwater" and 0.5 or (live.weatherIntensity or 0.5)
         if now >= v.next then
-            v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * (0.6 + 0.8 * k), random() * 2 - 1
+            v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * (0.7 + 0.5 * k), random() * 2 - 1
             v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
-            v.next = now + (gap0 + random() * (gap1 - gap0)) * (1.5 - k)
+            v.next = now + (gap0 + random() * (gap1 - gap0)) * (1.6 - 0.6 * k)
         end
         if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
         if v.tapEnd and now < v.tapEnd then
@@ -1446,7 +1449,7 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
 end
 
 -- A far thunder roll now and then: a crack, two rolls, a tail
-local THUNDER = { { 0, 0.06, 0.3, 0 }, { 0.14, 0.5, 0.22, -0.2 }, { 0.72, 0.35, 0.14, 0.3 }, { 1.15, 0.2, 0.07, 0 } }
+local THUNDER = { { 0, 0.06, 0.2, 0 }, { 0.14, 0.5, 0.15, -0.2 }, { 0.72, 0.35, 0.09, 0.3 }, { 1.15, 0.2, 0.05, 0 } }
 local function Thunder(now, v)
     if not live.weather.thunder then return nil end
     if not v.next then v.next = now + 8 + random() * 25 end
@@ -1483,7 +1486,8 @@ local function Gust(now, v)
 end
 
 local WEATHER_FN = {
-    rain = Sprinkle("rain", 0.18, 0.7, 0.02, 0.05, 0.15),
+    -- (rain, in game: too strong, it hid a jump: half as strong, sparser)
+    rain = Sprinkle("rain", 0.3, 1.1, 0.01, 0.025, 0.1),
     snow = Sprinkle("snow", 1.2, 3.5, 0.015, 0.03),
     embers = Sprinkle("embers", 0.5, 1.8, 0.03, 0.07, 0.25),
     thunder = Thunder,
