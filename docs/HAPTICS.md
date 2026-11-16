@@ -1,6 +1,29 @@
 # Haptics: where Rumble stands, and how far it can go
 
-Analysis, 2026-11-15 (GPC 0.12.0). Nothing here is built.
+Analysis, 2026-11-15 (GPC 0.12.0).
+
+## 0. Built in 0.13.0: the Beta tab (untested in game)
+
+Everything in sections 3 and 4 that needs no outside program, behind one switch
+(**Beta engine**, top right of the tab, off by default):
+
+| Section | What | Code |
+|---|---|---|
+| Probes | 10 probes (section 6 and more), each step played raw, answers saved; **Report** gives text to paste back | `HapticsLab.lua` `L.PROBES` |
+| Calibrate | floor / ceiling / curve per grip, found with a rising ramp | `Haptics.lua` `H.Calibrated` |
+| Feels | 51 library feels in 9 groups; click plays, Shift loops, right-click edits a copy | `HapticsLab.lua` `LIB` |
+| Editor | envelope or keyframes, grain, noise, sparks, pan, kick, duck; draw keys on the canvas; **Record L2 R2**; Export / Import a line | `BetaPage.lua` |
+| Events | 33 more events, each with a feel (live ones: footsteps, riding, heartbeat by health, cast tension) | `HapticsLab.lua` `L.EVENTS` |
+| Light | class colour, cast colour by school, low-health pulse, level up / kill / whisper / hit flashes | `HapticsLab.lua` `L.LIGHTS` |
+| Engine | mix mode, send rate, resend, overdrive, triggers mirror, battery; live graph and sends per second | `Haptics.lua` driver |
+
+With the engine on, Rumble's own patterns go through the mixer (its calibration
+replaces `HIGH_FLOOR`) and Rumble's grid lists the beta feels (`x_` keys). Off,
+Rumble is exactly as before. Saved in `GamepadCompanionHapticsDB` (account).
+
+**First in game:** Probes (all ten, then Report), then Calibrate, then the Feels
+groups Taps and Grain: they tell us whether short taps and fast grain survive the
+pad's rumble emulation, which decides what to keep.
 
 ## 1. What we do today
 

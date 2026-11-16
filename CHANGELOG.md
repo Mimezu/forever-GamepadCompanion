@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0 — 2026-11-15
+
+- Beta tab (haptics lab, untested in game): Probes, Calibrate, Feels, Editor, Events, Light, Engine
+- Beta engine: one mixer at frame rate (was 0.1 s steps); voices mix and duck; per-side calibration; overdrive; triggers mirror; softer on low battery
+- 51 new feels: taps under 0.1 s, grain 8-45 Hz, noise, sparks, detents, curves, pans, rhythms, signals, extremes
+- Editor: envelope or keyframes, grain, noise, pan; record a feel by squeezing L2 / R2; share as a line of text
+- 33 more events: hits, dodges, kills, combo points, errors, landing, water, mounts, loot, quests, whispers, footsteps, riding, heartbeat by health, cast tension
+- Light bar: class colour, cast colour by school, low-health pulse, flashes
+- Probes find what the pad really does; answers kept, a report to copy
+- Beta engine on: Rumble runs through the mixer and its grid offers the new feels. Off: Rumble unchanged
+
 ## 0.12.0 — 2026-11-14
 
 - Window key: a keyboard key opens and closes the window (Key Bindings > Gamepad Companion); set it on Tools or in Settings

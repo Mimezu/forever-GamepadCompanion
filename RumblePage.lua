@@ -36,7 +36,13 @@ local function Patterns(event)
         if event.family and p[event.family] then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
     end
     for _, p in ipairs(V.PATTERNS) do
-        if not p.action then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
+        if not p.action and not p.beta then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon } end
+    end
+    -- (Beta feels, while the Beta engine is on)
+    if ns.Haptics and ns.Haptics.Engine() then
+        for _, p in ipairs(V.PATTERNS) do
+            if p.beta then entries[#entries + 1] = { action = p.key, name = p.label, icon = p.icon, beta = true } end
+        end
     end
     return entries
 end
@@ -185,9 +191,11 @@ local function OpenGrid(rail, anchor)
     local current = rail.castKind and V.CastPreset(rail.castKind) or V.EventChoice(rail.subs[1].key)
     grid.title:SetText(rail.label)
     for _, t in ipairs(grid.tiles) do t:Hide() end
+    -- (wider with the Beta feels, so it stays on screen)
+    local cols = (ns.Haptics and ns.Haptics.Engine()) and math.max(COLS, math.ceil(#entries / 7)) or COLS
     for i, e in ipairs(entries) do
         local t = Tile(i)
-        local col, row = (i - 1) % COLS, math.floor((i - 1) / COLS)
+        local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
         t:ClearAllPoints()
         t:SetPoint("TOPLEFT", 12 + col * (TILE_W + 4), -36 - row * (TILE_H + 4))
         t.entry = e
@@ -196,8 +204,9 @@ local function OpenGrid(rail, anchor)
         t.selection:SetShown(e.action == current)
         t:Show()
     end
-    local rows = math.ceil(#entries / COLS)
-    grid:SetSize(24 + COLS * (TILE_W + 4) - 4, 48 + rows * (TILE_H + 4))
+    local rows = math.ceil(#entries / cols)
+    grid:SetSize(24 + cols * (TILE_W + 4) - 4, 48 + rows * (TILE_H + 4))
+    grid.title:SetWidth(cols * (TILE_W + 4))
     grid:ClearAllPoints()
     grid:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
     grid:SetClampedToScreen(true)

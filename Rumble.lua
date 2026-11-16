@@ -408,13 +408,30 @@ function V.Settings()
             cfg = { on = e.on, pattern = e.pattern }
             s.events[e.key] = cfg
         end
-        if not (PATTERN[cfg.pattern] or (e.auto and cfg.pattern == "auto")) then cfg.pattern = e.pattern end
+        -- (a Beta feel, "x_...": kept, even before the Beta tab registers it)
+        if not (PATTERN[cfg.pattern] or (e.auto and cfg.pattern == "auto")
+            or (type(cfg.pattern) == "string" and cfg.pattern:match("^x_"))) then cfg.pattern = e.pattern end
     end
     return s
 end
 
 function V.Pattern(key)
     return PATTERN[key]
+end
+
+-- A Beta feel (Haptics.lua) as a pattern: in the grid while the Beta engine
+-- is on, played by the mixer at frame rate. steps: a stand-in for the
+-- shapes that read a pattern's steps (a cast's ripple).
+function V.AddFeel(key, feel)
+    local p = PATTERN[key]
+    if not p then
+        p = { key = key }
+        V.PATTERNS[#V.PATTERNS + 1] = p
+        PATTERN[key] = p
+    end
+    p.label, p.icon, p.feel, p.beta = feel.label or key, feel.icon or (VIBE_ICONS .. "pulse"), feel, true
+    p.steps, p.length, p.top = { { 0.5, 0.5, 0.1 } }, nil, nil
+    return p
 end
 
 -- A kind of cast's set ("off": none)
@@ -495,12 +512,28 @@ local timers = {}
 -- lifted into that range, so both sides feel alike.
 local HIGH_FLOOR = 0.5
 
+-- The Beta engine's mixer (Haptics.lua), when it has the motors: our levels
+-- go in as one of its voices, its calibration doing the floor
+local function Mixer()
+    local H = ns.Haptics
+    return H and H.Routing() and H or nil
+end
+
 local function motors(low, high)
     -- (no pad API on this client: nothing to drive)
     if not (C_GamePad and C_GamePad.SetVibration) then return end
+    local H = Mixer()
+    if H then return H.Set("rumble", low, high) end
     if high > 0 then high = HIGH_FLOOR + (1 - HIGH_FLOOR) * high end
     C_GamePad.SetVibration("Low", low)
     C_GamePad.SetVibration("High", high)
+end
+
+-- The motors off (ours only, under the mixer)
+local function silence()
+    local H = Mixer()
+    if H then return H.Set("rumble", 0, 0) end
+    if C_GamePad and C_GamePad.StopVibration then C_GamePad.StopVibration() end
 end
 
 -- /if vibe sides: each vibration type alone, then both motors, so the
@@ -567,7 +600,8 @@ function V.Stop()
     StopShape()
     for _, t in ipairs(timers) do t:Cancel() end
     wipe(timers)
-    if C_GamePad and C_GamePad.StopVibration then C_GamePad.StopVibration() end
+    if ns.Haptics then ns.Haptics.Stop("rumbleFeel") end
+    silence()
 end
 
 local function StartShape(fn, once)
@@ -585,7 +619,7 @@ shaper:SetScript("OnUpdate", function()
     if not low then
         local resume = shapeOnce and V.looping
         StopShape()
-        if C_GamePad and C_GamePad.StopVibration then C_GamePad.StopVibration() end
+        silence()
         if resume then Resume(resume) end
         return
     end
@@ -635,7 +669,7 @@ function V.Confirm()
     local peak = Peak()
     motors(peak, peak)
     later(0.1, function() motors(peak, peak) end)
-    later(0.22, function() C_GamePad.StopVibration() end)
+    later(0.22, silence)
 end
 
 -- A pattern at the set strength; the newest replaces the one playing.
@@ -649,6 +683,16 @@ function V.Play(key, loop, shape)
     local gain = math.max(0, math.min(1, V.Settings().intensity * (shape.strength or 1)))
     local left, right, stretch = shape.left or 1, shape.right or 1, shape.duration or 1
     V.Stop()
+    -- A Beta feel: the mixer plays it (a loop: over and over; once: then
+    -- back to the loop under it)
+    if pattern.feel and not Mixer() then pattern = PATTERN.tick end
+    if pattern.feel then
+        ns.Haptics.Play(pattern.feel, { voice = "rumbleFeel", gain = gain, left = left, right = right,
+            stretch = stretch, loop = loop and true or false, onDone = function()
+                if not loop and V.looping then Resume(V.looping) end
+            end })
+        return
+    end
     local t = 0
     for _, step in ipairs(pattern.steps) do
         local low, high = step[1] * gain * left, step[2] * gain * right
@@ -662,11 +706,11 @@ function V.Play(key, loop, shape)
         t = t + length
     end
     if loop then
-        later(t, function() C_GamePad.StopVibration() end)
+        later(t, silence)
         later(t + 0.12, function() V.Play(key, true) end)
     else
         later(t, function()
-            C_GamePad.StopVibration()
+            silence()
             -- Over a looping event (a cast still going): back to its loop
             if V.looping then Resume(V.looping) end
         end)
