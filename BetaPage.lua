@@ -262,7 +262,7 @@ local function PickFeel(anchor, current, onPick, withOff, title)
     local entries = {}
     if withOff then entries[1] = { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } end
     for _, f in ipairs(H.AllFeels()) do entries[#entries + 1] = { key = f.key, label = f.label or f.key, icon = f.icon } end
-    Popup(anchor, title or "Feels", entries, current, onPick, 8, 112)
+    Popup(anchor, title or "Feels", entries, current, onPick, 6, 112)
 end
 
 -- A Rumble-tab row: icon, name, a second line, a plate showing the choice
