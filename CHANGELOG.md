@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.4 — 2026-11-16
+
+- Rain: drops closer together again (as faint)
+
 ## 0.22.3 — 2026-11-16
 
 - Rain subtler still: about half again as strong, drops further apart
