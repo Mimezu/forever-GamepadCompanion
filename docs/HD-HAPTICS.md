@@ -84,6 +84,15 @@ like). Your own HD feels: saved by the helper. The addon learns which feels have
 the helper's `ready` signal, or a list written into the addon's folder by the helper.
 Addons can read files only at load, so a list written there before `/reload` is seen.
 
+## Decided
+
+- 2026-11-16: the HD editor lives in the helper (the player's choice).
+- The addon writes its library out for the helper: `GamepadCompanionHapticsDB.export` in
+  `WTF\Account\<account>\SavedVariables\GamepadCompanion.lua`, on logout and `/reload`:
+  `{ version = 1, at, feels = { [key] = { label, group, rumble, pulses = { {t, len, strength,
+  side}, ... }, loop, length, own, ... } }, events = { [eventKey] = feelKey | "auto" | false } }`.
+  Rumble's patterns are `r_` + key; yours are `own<N>`.
+
 ## Steps
 
 1. Protocol v2 (helper + `HelperLink.lua`): `play feel <id> gain side intensity seed`,

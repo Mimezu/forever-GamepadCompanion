@@ -836,6 +836,39 @@ function L.Try(key)
     end
 end
 
+---------------------------------------------------------------------------
+-- The library for the outside helper: every feel (Rumble's "r_", the Beta
+-- library, yours) and what each event plays, in GamepadCompanionHapticsDB
+-- .export, written to disk with the saved settings on logout and /reload.
+-- The helper reads it to draft each feel's HD version (docs/HD-HAPTICS.md).
+---------------------------------------------------------------------------
+local EXPORT_FIELDS = { "label", "group", "rumble", "pulses", "keys", "attack", "hold", "decay", "peak", "curve",
+    "grain", "noise", "sparks", "bed", "pan", "panTo", "panRate", "kick", "loop", "length", "gap", "duck" }
+
+function L.Export()
+    local feels = {}
+    for _, f in ipairs(H.AllFeels()) do
+        local e = { own = H.IsOwn(f.key) or nil }
+        for _, k in ipairs(EXPORT_FIELDS) do if f[k] ~= nil then e[k] = H.Copy(f[k]) end end
+        feels[f.key] = e
+    end
+    -- what each event plays now (a feel key; Rumble's as library keys)
+    local events = {}
+    for _, e in ipairs(L.EVENTS) do
+        local s = L.EventSettings(e.key)
+        events[e.key] = s.on and s.feel or false
+    end
+    local V = ns.Rumble
+    if V and V.EVENTS then
+        for _, e in ipairs(V.EVENTS) do
+            local choice = V.EventChoice(e.key)
+            events[e.key] = (choice == "off" and false) or (choice == "auto" and "auto") or L.FeelFor(choice)
+        end
+    end
+    H.DB().export = { version = 1, at = date and date("%Y-%m-%d %H:%M") or "", feels = feels, events = events }
+    return H.DB().export
+end
+
 -- The light bar: Lights.lua (loaded after this file)
 function L.ApplyBaseLight()
     if ns.Lights then ns.Lights.ApplyBase() end
@@ -1023,6 +1056,7 @@ ListenUnit("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 ListenUnit("UNIT_SPELLCAST_DELAYED", "player")
 ListenUnit("UNIT_THREAT_SITUATION_UPDATE", "player")
 ListenUnit("UNIT_SPELLCAST_SUCCEEDED", "player")
+Listen("PLAYER_LOGOUT")
 Listen("MIRROR_TIMER_START", "MIRROR_TIMER_STOP", "WEATHER_CHANGED", "ZONE_CHANGED_NEW_AREA")
 Listen("PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING")
 Listen("PLAYER_TARGET_CHANGED", "SPELL_UPDATE_COOLDOWN", "UI_ERROR_MESSAGE", "CHAT_MSG_LOOT", "PLAYER_MONEY",
@@ -1258,6 +1292,8 @@ handlers.UNIT_SPELLCAST_SUCCEEDED = function(unit, _, spellID)
     if name and CareNames().potion[name] then L.Fire("potion") end
 end
 handlers.WEATHER_CHANGED = function() L.ReadWeather() end
+-- (on logout and /reload: the library written out for the helper)
+handlers.PLAYER_LOGOUT = function() L.Export() end
 handlers.ZONE_CHANGED_NEW_AREA = function() L.ReadWeather() end
 handlers.MIRROR_TIMER_START = function(timer) if timer == "BREATH" then live.underwater = true end end
 handlers.MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then live.underwater = false end end

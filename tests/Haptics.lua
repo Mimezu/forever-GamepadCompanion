@@ -868,3 +868,11 @@ do
     C_Weather = nil
     io.write("PASS: weather: the game's own, rain, heavy rain with thunder, clear, sandstorm" .. string.char(10))
 end
+
+-- The library written out for the helper
+do
+    local ex = L.Export()
+    assert(ex.version == 1 and ex.feels.r_tick and ex.feels.r_tick.pulses and ex.feels.thud.pulses, "feels exported")
+    assert(ex.events.levelUp ~= nil and ex.events.hit ~= nil, "what each event plays")
+    io.write("PASS: export: every feel and each event's choice, for the helper" .. string.char(10))
+end

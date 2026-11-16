@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1 — 2026-11-16
+
+- The feel library and each event's choice written out for the helper (GamepadCompanionHapticsDB.export, on logout and /reload), to draft the HD versions (docs/HD-HAPTICS.md)
+
 ## 0.21.0 — 2026-11-16
 
 - One system: the engine is always on (its switch is gone); the Beta tab is now Haptics (light, feels, editor, tuning, helper, probes; /gpc haptics)
