@@ -92,6 +92,8 @@ function H.DB()
         db.version = 7
     end
     -- (0.20.2: the game's real weather found: rain, thunder, snow, sand on again)
+    -- (0.21.0: one engine, always on: its switch is gone)
+    db.engine = true
     if db.version < 8 then
         if C_Weather and C_Weather.GetCurrentWeather then
             for _, k in ipairs({ "rain", "thunder", "snow", "sand" }) do

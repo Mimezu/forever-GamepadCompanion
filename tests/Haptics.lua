@@ -490,12 +490,6 @@ local recorded
 for _, f in pairs(H.DB().feels) do if (f.label or ""):find("Recorded") then recorded = f end end
 assert(recorded and recorded.pulses and recorded.pulses[1][4] == -1 and recorded.pulses[1][3] > 0.5,
     "a squeeze of L2: a left pulse as deep as it was")
-ui.engine.checked = true
-ui.engine.scripts.OnClick(ui.engine)
-assert(H.Engine(), "engine on from the tab")
-ui.engine.checked = false
-ui.engine.scripts.OnClick(ui.engine)
-assert(not H.Engine(), "and off")
 io.write("PASS: Beta tab: seven sections, probe played and answered, floor found, editor shape to keys, recorded, engine switch\n")
 
 -- Review fixes ---------------------------------------------------------------------------

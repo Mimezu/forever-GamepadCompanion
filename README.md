@@ -8,11 +8,11 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 
 ## Use
 
-- `/gpc` opens the window. Side tabs: Controller, Rumble, Beta, Bars, Tools, Help.
+- `/gpc` opens the window. Side tabs: Controller, Rumble, Haptics, Bars, Tools, Help.
 - Controller: click a button on the drawing, then Choose what it runs: spells, items, macros, Halo rings, windows, typed macros. Or drop one on it.
 - Hold L2 / R2 to see their layer. The touchpad's zones and settings are on the same page.
 - Rumble: the motors on game events and casts, each with its pattern (from Improved Forever: Vibration, MIT; see licenses/).
-- Beta: haptics lab. Probes, calibration, new feels, an editor, more events, the light bar. See [Haptics](docs/HAPTICS.md).
+- Rumble: every vibration, by group, from one palette. Haptics: the light bar, feels and their editor, tuning, the helper. See [Haptics](docs/HAPTICS.md).
 - Bars: where the controller bars sit, and their size. Offsets from Blizzard's spot.
 - Tools: Blizzard's spellbook, macros, Edit Mode and gamepad options; spread view; window key; minimap icon.
 - Also: Esc > Options > AddOns > Gamepad Companion, and the minimap icon.
@@ -24,7 +24,8 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 | `/gpc` | Window |
 | `/gpc bars` | Bars page |
 | `/gpc rumble` | Rumble page (`test`: each motor) |
-| `/gpc beta` | Beta page: haptics lab |
+| `/gpc haptics` | Haptics page: light, feels, tuning |
+| `/gpc debug` | What vibrates and why |
 | `/gpc on`, `/gpc off` | My bar layout or Blizzard's |
 | `/gpc reset` | Reset both bar layouts |
 | `/gpc gamepad` | Blizzard gamepad options |

@@ -183,7 +183,6 @@ ITEM.l = {
         if not s.on then return "Off", V.OFF_ICON, nil, true end
         local f = H.Feel(s.feel)
         local sub = e.live and "While it lasts" or nil
-        if not H.Engine() then sub = "Needs the Beta engine" end
         return f and (f.label or f.key) or "?", f and f.icon, sub
     end,
     current = function(key)

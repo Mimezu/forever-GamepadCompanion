@@ -539,7 +539,7 @@ local topics = {
     { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
     { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
-    { "Beta", "Haptics lab: probes, calibration, feels\nEditor: shape, keys, record with L2 / R2\nEvents, light bar, mixer\nBeta engine: Rumble through the mixer" },
+    { "Haptics", "Light bar, feels, editor (record with L2 / R2)\nMixer and calibration, helper, probes\nEvents: the Rumble tab" },
     { "Rumble", "The motors on game events and casts\nEach event: a pattern, or Off\nCasts: a set for casting, interrupted, cancelled, pushed back\nMatch the action: each spell, profession or weapon its own feel\nTry: as the game would play it\nOff while Improved Forever: Vibration is on" },
     { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
     { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  rumble\n/gpc rumble test  each motor\n/gpc beta  haptics lab\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },

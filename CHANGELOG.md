@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.0 — 2026-11-16
+
+- One system: the engine is always on (its switch is gone); the Beta tab is now Haptics (light, feels, editor, tuning, helper, probes; /gpc haptics)
+- Debug window and headers name things by their group ("Moving · Jump: Micro tick"), no longer Beta or Rumble; the arrow that showed as a box is gone
+
 ## 0.20.2 — 2026-11-16
 
 - Weather from the game itself: C_Weather.GetCurrentWeather and WEATHER_CHANGED (in the client, unlisted; the wardrobe's outfit conditions use them). Rain, heavy rain with thunder, snow, sandstorm, outdoors; denser and a little stronger when heavier. On again by default; embers stay by zone, off

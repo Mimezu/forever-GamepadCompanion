@@ -1,4 +1,5 @@
--- The Beta tab: a haptics lab on the Beta engine (Haptics.lua, HapticsLab.lua).
+-- The Haptics tab: the light bar, the feels and their editor, the mixer and
+-- calibration, the helper, the probes (Haptics.lua, HapticsLab.lua). The events are on the Rumble tab.
 -- Sections: Probes (what the pad really does, answers kept), Calibrate,
 -- Feels (the library), Editor (shape, keyframes, recorded with L2 / R2),
 -- Events (more of the game), Light (the light bar), Engine (mixer settings
@@ -964,7 +965,7 @@ local function BuildEditor(p)
             or f.pulses and "Click: add a pulse · Drag: time, strength · Right-click: delete · Wheel: length"
             or f.keys and "Click: add · Drag · Right-click: delete · Wheel on a point: ease"
             or "Pulses: what the pad keeps best")
-        ed.assign:SetText(f and own_ and "In Rumble's grid and Events while the Beta engine is on" or "")
+        ed.assign:SetText(f and own_ and "In the palette of every event (Rumble tab)" or "")
         ed.Draw()
     end
 end
@@ -1409,12 +1410,6 @@ function ui.Select(key)
 end
 
 local function Build(frame, header)
-    ui.engine = S.NewCheck(header, "Beta engine", W - 150, -4, function(self)
-        L.SetEngine(self:GetChecked() == true)
-        Say(H.Engine() and "Beta engine on: Rumble runs through it" or "Beta engine off")
-        Refresh()
-    end, 110)
-    S.Tooltip(ui.engine, "Beta engine", "Rumble through the mixer, events, light bar")
     -- Why it vibrates: the debug window, and the latest reason in the header
     local dbg = S.NewButton(header, "Debug", W - 450, -4, 80, function()
         if ns.HapticsDebug then ns.HapticsDebug.Show() end
@@ -1470,8 +1465,7 @@ local function Build(frame, header)
 end
 
 Refresh = function()
-    if not ui.engine then return end
-    ui.engine:SetChecked(H.Engine())
+    if not ui.tabs then return end
     for i, s in ipairs(SECTIONS) do S.SetSelected(ui.tabs[i], s[1] == ui.current) end
     for k, panel in pairs(ui.panels) do panel:SetShown(k == ui.current) end
     for _, fn in ipairs(ui.refresh) do fn() end
@@ -1484,8 +1478,8 @@ ui.Refresh = function() Refresh() end
 ns.BetaPage = ui
 
 Shell.AddPage({
-    key = "beta", name = "Beta", order = 2.5, icon = "Interface\\Icons\\Spell_Nature_Lightning",
-    sub = "Haptics lab",
+    key = "beta", name = "Haptics", order = 2.5, icon = "Interface\\Icons\\Spell_Nature_Lightning",
+    sub = "Light, feels, tuning",
     build = Build, refresh = function() Refresh() end,
     hide = function()
         if trigWin then trigWin:Hide() end

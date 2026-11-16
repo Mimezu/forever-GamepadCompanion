@@ -27,6 +27,29 @@ function D.Latest()
     return e.text, Now() - e.at
 end
 
+-- The Rumble tab's group of an event (Attacks, Moving...), from its page
+local groupOf
+local function Group(key)
+    if not groupOf then
+        local page = ns.RumblePage
+        if not (page and page.GROUPS) then return nil end
+        groupOf = {}
+        for _, g in ipairs(page.GROUPS) do
+            for _, item in ipairs(g.items) do groupOf[item[2]] = g.key end
+        end
+        groupOf.cast = "Abilities"
+        for _, k in ipairs({ "interrupted", "cancelled", "pushback" }) do groupOf[k] = "Abilities" end
+    end
+    return groupOf[key]
+end
+
+-- "Moving · Jump: Micro tick"
+local function Named(key, label, feel)
+    local g = Group(key)
+    return (g and (g .. " · ") or "") .. label .. (feel and (": " .. feel) or "")
+end
+D.Named = Named
+
 local function FeelLabel(key)
     local f = key and H.Feel(key)
     return f and (f.label or f.key) or tostring(key)
@@ -57,8 +80,8 @@ function D.VoiceWhy(id)
     local key = id:match("^ev_(.+)")
     if key then
         local e = L.EVENT[key]
-        if not e then return "Beta · " .. key end
-        return "Beta · " .. e.label .. " → " .. FeelLabel(L.EventSettings(key).feel)
+        if not e then return key end
+        return Named(key, e.label, FeelLabel(L.EventSettings(key).feel))
     end
     key = id:match("^live_(.+)")
     if key then
@@ -72,16 +95,16 @@ function D.VoiceWhy(id)
                 why = ((GetRealZoneText and GetRealZoneText()) or "?") .. ", by zone"
             end
         end
-        return "Beta · " .. (e and e.label or key) .. (why and (" (" .. why .. ")") or "")
+        return Named(key, (e and e.label or key) .. (why and (" (" .. why .. ")") or ""))
     end
     if id == "rumble" or id == "rumbleFeel" then
         local loop = V and V.looping
         if loop then
             local e = RumbleEvent(loop.key)
             local label = e and e.label or (loop.key == "cast" and "Casting") or loop.key
-            return "Rumble · " .. label .. " (while it lasts) → " .. PatternLabel(loop.pattern)
+            return Named(loop.key, label .. " (while it lasts)", PatternLabel(loop.pattern))
         end
-        return "Rumble · " .. (D.lastRumble or "a pattern")
+        return D.lastRumble or "A pattern"
     end
     if id == "beta" or id == "editor" or id:match("^mix") then return "Trying a feel" end
     if id == "record" then return "Recording L2 / R2" end
@@ -94,7 +117,7 @@ function D.LightWhy(id)
     if key and LT and LT.EVENT[key] then
         local s = LT.Settings(key)
         local ef = LT.Effect(s.effect)
-        return "Light · " .. LT.EVENT[key].label .. " → " .. (ef and ef.label or s.effect)
+        return "Light · " .. LT.EVENT[key].label .. ": " .. (ef and ef.label or s.effect)
     end
     if id == "test" then return "Light · trying" end
     return "Light · " .. id
@@ -115,8 +138,8 @@ local function Wrap()
             if pattern then
                 local e = RumbleEvent(key)
                 local label = e and e.label or (key == "cast" and "Casting") or key
-                D.lastRumble = label .. " → " .. PatternLabel(pattern)
-                D.Note("Rumble · " .. D.lastRumble)
+                D.lastRumble = Named(key, label, PatternLabel(pattern))
+                D.Note(D.lastRumble)
             end
         end
         V.EndLoop = function(key, ...)
@@ -130,7 +153,7 @@ local function Wrap()
             fire(key, ...)
             local e = L.EVENT[key]
             if e and H.Engine() and L.EventSettings(key).on then
-                D.Note("Beta · " .. e.label .. " → " .. FeelLabel(L.EventSettings(key).feel))
+                D.Note(Named(key, e.label, FeelLabel(L.EventSettings(key).feel)))
             end
         end
     end
@@ -260,8 +283,8 @@ function D.Update()
     local V = ns.Rumble
     local db = H.DB()
     local okA, active = pcall(function() return V.Active() end)
-    win.state:SetText(string.format("Rumble %s · Beta engine %s · Light %s · %d sends/s",
-        (okA and active) and "on" or "off", db.engine and "on" or "off", db.light and "on" or "off", H.SendRate()))
+    win.state:SetText(string.format("Rumble %s · Light %s · %d sends/s",
+        (okA and active) and "on" or "off", db.light and "on" or "off", H.SendRate()))
     -- playing now: vibrations, then lights
     local rows = {}
     for _, v in ipairs(H.ActiveVoices()) do

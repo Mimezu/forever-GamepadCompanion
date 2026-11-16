@@ -743,7 +743,7 @@ local commandHelp = {
     "/gpc touch  touchpad",
     "/gpc bars  bar layout",
     "/gpc rumble  rumble · test: each motor",
-    "/gpc beta  haptics lab",
+    "/gpc haptics  light, feels, tuning",
     "/gpc debug  why it vibrates",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
@@ -773,7 +773,7 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         API.ToggleHapticsDebug()
         return
     end
-    if command == "beta" and API.OpenBeta then
+    if (command == "haptics" or command == "beta") and API.OpenBeta then
         API.OpenBeta()
         return
     end
