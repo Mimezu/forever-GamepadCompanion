@@ -1707,16 +1707,17 @@ local swingFrame = CreateFrame("Frame")
 swingFrame:Hide()
 V.swingFrame = swingFrame
 
+-- (hidden in combat: the last speeds read)
+local known = { main = 2, off = nil }
 local function Speeds()
-    local main, off = 2, nil
     if UnitAttackSpeed then
         local ok, m, o = pcall(UnitAttackSpeed, "player")
-        if ok then
-            if m and not secret(m) and m > 0.2 then main = m end
-            if o and not secret(o) and o > 0.2 then off = o end
+        if ok and not secret(m) and not secret(o) then
+            known.main = m and m > 0.2 and m or 2
+            known.off = o and o > 0.2 and o or nil
         end
     end
-    return main, off
+    return known.main, known.off
 end
 
 local SIDES = { [16] = { left = 0.6, right = 1 }, [17] = { left = 1, right = 0.6, strength = 0.7 } }
@@ -1727,7 +1728,7 @@ local function SwingNow(slot)
 end
 
 function V.SwingStart()
-    if V.EventChoice("autoAttack") == "off" then return end
+    if not V.Active() or V.EventChoice("autoAttack") == "off" then return end
     local now = GetTime()
     local _, off = Speeds()
     swing.on, swing.main = true, now
@@ -1742,6 +1743,11 @@ end
 
 swingFrame:SetScript("OnUpdate", function()
     if not swing.on then return swingFrame:Hide() end
+    -- (dead, Rumble or its swings turned off: no more swings)
+    if (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) or not V.Active()
+        or V.EventChoice("autoAttack") == "off" then
+        return V.SwingStop()
+    end
     local now = GetTime()
     local main, off = Speeds()
     if now >= swing.main then

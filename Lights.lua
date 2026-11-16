@@ -376,7 +376,14 @@ for _, ev in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_E
     pcall(frame.RegisterEvent, frame, ev)
 end
 
-frame:SetScript("OnEvent", function(_, event, unit, ...)
+-- An event about this cast (another spell's failed attempt mid-cast doesn't
+-- count; hidden or missing IDs: it does)
+local function SameCast(guid)
+    if guid == nil or cast.guid == nil or secret(guid) or secret(cast.guid) then return true end
+    return guid == cast.guid
+end
+
+frame:SetScript("OnEvent", function(_, event, unit, guid)
     if event == "ADDON_LOADED" then
         if unit == "GamepadCompanion" then Wrap() end
         return
@@ -389,15 +396,17 @@ frame:SetScript("OnEvent", function(_, event, unit, ...)
         local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
         local s, e = CastTimes(channel)
         cast.start, cast.finish, cast.channel = s or Now(), e or (Now() + 1.5), channel
+        cast.guid, cast.stopped = guid, nil
         LT.StartState("cast", { progress = function()
             local span = cast.finish - cast.start
             return span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
         end })
     elseif event == "UNIT_SPELLCAST_DELAYED" then
         local s, e = CastTimes(false)
-        if s then cast.start, cast.finish = s, e end
+        if s and cast.start then cast.start, cast.finish = s, e end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        if cast.start and not cast.channel then
+        -- (before or just after its STOP)
+        if cast.start and not cast.channel and SameCast(guid) and (not cast.stopped or Now() - cast.stopped < 0.5) then
             cast.start = nil
             LT.EndState("cast")
             LT.Fire("release")
@@ -407,8 +416,14 @@ frame:SetScript("OnEvent", function(_, event, unit, ...)
         cast.start = nil
         LT.EndState("cast")
         if ran then LT.Fire("release") end
-    elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
-        if event ~= "UNIT_SPELLCAST_STOP" or not cast.channel then
+    elseif event == "UNIT_SPELLCAST_STOP" then
+        -- (how it ended comes with SUCCEEDED or INTERRUPTED, either order)
+        if cast.start and not cast.channel and SameCast(guid) then
+            cast.stopped = Now()
+            LT.EndState("cast")
+        end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED" then
+        if cast.start and (cast.channel and event == "UNIT_SPELLCAST_INTERRUPTED" or not cast.channel and SameCast(guid)) then
             cast.start = nil
             LT.EndState("cast")
         end

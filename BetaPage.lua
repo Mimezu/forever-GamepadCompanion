@@ -1465,7 +1465,7 @@ local function BuildLight(p)
             r.color.label:SetPoint("LEFT", 30, 0)
             r.color.label:SetPoint("RIGHT", -6, 0)
             r.color.label:SetJustifyH("LEFT")
-            r.level = Stepper(r, "", 500, -8, { labelWidth = 0, width = 130, step = 0.05, min = 0.05, max = 1,
+            r.level = Stepper(r, "", 508, -8, { labelWidth = 0, width = 130, step = 0.05, min = 0.05, max = 1,
                 format = function(v) return floor(v * 100 + 0.5) .. "%" end,
                 get = function() return LT.Settings(e.key).level end, set = function(v) LT.Settings(e.key).level = v end })
             r.try = S.NewButton(r, "Try", aw - 20 - 42, -5, 40, function() LT.Try(e.key) end, nil, 11, 30)

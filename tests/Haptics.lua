@@ -596,6 +596,22 @@ V.SwingStop()
 local mains, offs = 0, 0
 for _, k in ipairs(swings) do if k == "swMace2" then mains = mains + 1 elseif k == "swDagger" then offs = offs + 1 end end
 assert(mains == 2 and offs == 3, "a swing per weapon speed: " .. mains .. " main, " .. offs .. " off")
+-- hidden speeds (combat): the last ones read; dead: the swings stop
+issecretvalue = function(v) return v == "secret" end
+UnitAttackSpeed = function() return "secret", "secret" end
+swings = {}
+V.SwingStart()
+for _ = 1, 400 do now = now + 0.01; sf.scripts.OnUpdate(sf, 0.01) end
+mains = 0
+for _, k in ipairs(swings) do if k == "swMace2" then mains = mains + 1 end end
+assert(mains == 2, "hidden speeds: the last read: " .. mains)
+local oldDead = UnitIsDeadOrGhost
+UnitIsDeadOrGhost = function() return true end
+sf.scripts.OnUpdate(sf, 0.01)
+assert(not sf:IsShown(), "dead: the swing timer stops")
+UnitIsDeadOrGhost = oldDead
+issecretvalue = nil
+UnitAttackSpeed = function() return 3.6, 1.5 end
 V.Fire = realFire
 C_Item = oldItem
 GetInventoryItemID = nil
@@ -633,6 +649,21 @@ do
     lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player")
     frame(0.05)
     assert(led[#led] and (led[#led].r + led[#led].g + led[#led].b) > late + 0.3, "released: a bright flash")
+    -- another spell's failed attempt mid-cast keeps the cast; STOP before SUCCEEDED still flashes
+    for _ = 1, 30 do frame(0.05) end
+    UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 2) * 1000 end
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_START", "player", "cast-1")
+    frame(0.05)
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_FAILED", "player", "cast-2")
+    assert(H.LightsBusy() and select(4, H.LedNow()), "still casting")
+    for _ = 1, 5 do frame(0.05) end
+    for _ = 1, 25 do frame(0.05) end
+    late = led[#led] and (led[#led].r + led[#led].g + led[#led].b) or 0
+    assert(late > 0.5, "the cast still builds after a failed attempt: " .. late)
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_STOP", "player", "cast-1")
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1")
+    frame(0.05)
+    assert(led[#led] and (led[#led].r + led[#led].g + led[#led].b) > late + 0.3, "STOP then SUCCEEDED: released")
     UnitCastingInfo = nil
     -- a whisper (a Lab event): purple double blink, even with its vibration off
     L.EventSettings("whisper").on = false
