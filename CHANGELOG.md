@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1 — 2026-11-16
+
+- Camera keeps the lower framing after Alt+Z
+
 ## 0.13.0 — 2026-11-15
 
 - Beta tab (haptics lab, untested in game): Probes, Calibrate, Feels, Editor, Events, Light, Engine
