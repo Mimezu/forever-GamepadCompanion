@@ -894,22 +894,18 @@ do
     io.write("PASS: ambient: weather steps aside for everything else" .. string.char(10))
 end
 
--- Battery: four steps and wired, shown top centre, hidden on demand
+-- Battery: in a button, four steps and wired; the button's art with no reading
 do
     local B = ns.Battery
     local level = 2
     C_GamePad.GetPowerLevel = function() return level end
-    B.Update()
-    local bar = GamepadCompanionBattery
-    assert(bar and bar:IsShown(), "shown")
-    assert(select(3, B.Look(2)) == "Medium" and B.Look(0) == 1 and B.Look(4) == 4, "levels")
+    local button = CreateFrame("Button")
+    local art = button:CreateTexture()
+    local g = B.Attach(button, art)
+    assert(g:IsShown() and not art:IsShown() and B.Name() == "Medium", "the battery instead of the art")
+    assert(B.Look(0) == 1 and B.Look(4) == 4, "levels")
     level = 9
     B.Update()
-    assert(not bar:IsShown(), "unknown: hidden")
-    level = 3
-    B.Toggle()
-    assert(not bar:IsShown(), "toggled off")
-    B.Toggle()
-    assert(bar:IsShown(), "and on")
-    io.write("PASS: battery: steps, wired, hidden when unknown, toggle" .. string.char(10))
+    assert(not g:IsShown() and art:IsShown(), "no reading: the art")
+    io.write("PASS: battery: in the icon, steps, wired, the art when unknown" .. string.char(10))
 end

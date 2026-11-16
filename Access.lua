@@ -156,6 +156,8 @@ local function BuildIcon()
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(ICON_ATLAS)
     if info then art:SetAtlas(ICON_ATLAS) else art:SetTexture(ICON_FILE) end
     icon.art = art
+    -- the controller's battery in the icon (its art when there is no reading)
+    if ns.Battery then ns.Battery.Attach(icon, art) end
     local border = icon:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
     border:SetPoint("TOPLEFT")
@@ -174,6 +176,8 @@ local function BuildIcon()
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText(TITLE, 1, 0.82, 0)
+        local battery = ns.Battery and ns.Battery.Name()
+        if battery then GameTooltip:AddLine("Controller battery: " .. battery, 0.9, 0.9, 0.9) end
         GameTooltip:Show()
     end)
     icon:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

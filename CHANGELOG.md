@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.1 — 2026-11-16
+
+- The battery is now the minimap icon: the controller's charge drawn in it (green to red, critical blinking, wired in blue); click opens the window, drag moves it round the minimap; its tooltip names the level. The separate gauge is gone
+
 ## 0.22.0 — 2026-11-16
 
 - Battery gauge: the controller's charge in a small battery, top centre (drag it anywhere; hides with the interface): four steps coloured green to red, critical blinking, wired in blue; /gpc battery shows or hides it

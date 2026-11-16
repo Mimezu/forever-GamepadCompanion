@@ -745,7 +745,6 @@ local commandHelp = {
     "/gpc rumble  rumble · test: each motor",
     "/gpc haptics  light, feels, tuning",
     "/gpc debug  why it vibrates",
-    "/gpc battery  battery gauge",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
@@ -768,10 +767,6 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "rumble" and API.OpenRumble then
         if rest:lower() == "test" and API.Rumble then API.Rumble.TestSides() else API.OpenRumble() end
-        return
-    end
-    if command == "battery" and API.ToggleBattery then
-        print("|cff80c0ffGamepad Companion:|r battery " .. (API.ToggleBattery() and "shown" or "hidden"))
         return
     end
     if command == "debug" and API.ToggleHapticsDebug then

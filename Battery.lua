@@ -1,14 +1,15 @@
--- Battery: the controller's charge in a small gauge, top centre by default
--- (drag it anywhere; it hides with the interface). The game gives four steps
--- (C_GamePad.GetPowerLevel: critical, low, medium, high) and "wired"; the
--- exact percentage is the pad's own, only the outside helper could read it.
--- On by default; /gpc battery shows or hides it.
+-- Battery: the controller's charge, drawn as a small battery in Gamepad
+-- Companion's minimap icon (Access.lua): click it to open the window, drag it
+-- round the minimap. The game gives four steps (C_GamePad.GetPowerLevel:
+-- critical, low, medium, high) and "wired"; the exact percentage is the
+-- pad's own, only the outside helper could read it. With no reading, the
+-- icon shows its usual art.
 local _, ns = ...
 local B = {}
 ns.Battery = B
 
 local SEGMENTS = 4
-local W_SEG, H_SEG, GAP = 9, 10, 2
+local W_SEG, H_SEG, GAP = 3, 6, 1
 
 -- Enum.GamePadPowerLevel when the client has it, else its usual values
 local function Levels()
@@ -30,94 +31,72 @@ function B.Look(level)
     return nil
 end
 
-local function Level()
+function B.Level()
     if not (C_GamePad and C_GamePad.GetPowerLevel) then return nil end
     local ok, level = pcall(C_GamePad.GetPowerLevel)
     if ok then return level end
 end
 
-local function Settings()
-    local db = ns.Haptics and ns.Haptics.DB()
-    if not db then return {} end
-    if type(db.battery_bar) ~= "table" then db.battery_bar = { shown = true } end
-    return db.battery_bar
-end
-
-local frame
-local function Build()
-    frame = CreateFrame("Frame", "GamepadCompanionBattery", UIParent)
-    local w = 8 + SEGMENTS * (W_SEG + GAP) - GAP + 6
-    frame:SetSize(w + 4, H_SEG + 8)
-    frame:SetFrameStrata("MEDIUM")
-    frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, rel, x, y = self:GetPoint()
-        Settings().pos = { point, rel, x, y }
-    end)
-    local pos = Settings().pos
-    if type(pos) == "table" and pos[1] then frame:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
-    else frame:SetPoint("TOP", UIParent, "TOP", 0, -6) end
-    -- the battery's body: a thin rim, a dark inside, and a nub on the right
-    local rim = frame:CreateTexture(nil, "BACKGROUND")
+-- The battery drawn into a button (the minimap icon); its own art (art)
+-- shows instead when there is no reading
+local gauge
+function B.Attach(button, art)
+    local g = CreateFrame("Frame", nil, button)
+    local w = 4 + SEGMENTS * (W_SEG + GAP) - GAP
+    g:SetSize(w + 2, H_SEG + 4)
+    g:SetPoint("CENTER", 0, 1)
+    g:SetFrameLevel((button:GetFrameLevel() or 0) + 1)
+    local rim = g:CreateTexture(nil, "BACKGROUND")
     rim:SetPoint("TOPLEFT", 0, 0)
-    rim:SetSize(w, H_SEG + 8)
-    rim:SetColorTexture(0.85, 0.78, 0.6, 0.55)
-    local inside = frame:CreateTexture(nil, "BORDER")
+    rim:SetSize(w, H_SEG + 4)
+    rim:SetColorTexture(0.85, 0.78, 0.6, 0.9)
+    local inside = g:CreateTexture(nil, "BORDER")
     inside:SetPoint("TOPLEFT", 1, -1)
-    inside:SetSize(w - 2, H_SEG + 6)
-    inside:SetColorTexture(0.05, 0.05, 0.05, 0.75)
-    local nub = frame:CreateTexture(nil, "BACKGROUND")
+    inside:SetSize(w - 2, H_SEG + 2)
+    inside:SetColorTexture(0.05, 0.05, 0.05, 1)
+    local nub = g:CreateTexture(nil, "BACKGROUND")
     nub:SetPoint("LEFT", rim, "RIGHT", 0, 0)
-    nub:SetSize(3, 7)
-    nub:SetColorTexture(0.85, 0.78, 0.6, 0.55)
-    frame.segs = {}
+    nub:SetSize(2, 4)
+    nub:SetColorTexture(0.85, 0.78, 0.6, 0.9)
+    g.segs = {}
     for i = 1, SEGMENTS do
-        local s = frame:CreateTexture(nil, "ARTWORK")
-        s:SetPoint("TOPLEFT", 4 + (i - 1) * (W_SEG + GAP), -4)
+        local s = g:CreateTexture(nil, "ARTWORK")
+        s:SetPoint("TOPLEFT", 2 + (i - 1) * (W_SEG + GAP), -2)
         s:SetSize(W_SEG, H_SEG)
-        frame.segs[i] = s
+        g.segs[i] = s
     end
-    frame:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:SetText("Controller: " .. (self.name or "?"), 1, 0.82, 0)
-        GameTooltip:AddLine("Drag to move · /gpc battery", 0.8, 0.8, 0.8)
-        GameTooltip:Show()
-    end)
-    frame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    g.art = art
     -- critical: a slow blink
     local acc = 0
-    frame:SetScript("OnUpdate", function(self, elapsed)
+    g:SetScript("OnUpdate", function(self, elapsed)
         if self.name ~= "Critical" then return end
         acc = acc + (elapsed or 0)
         self.segs[1]:SetAlpha(0.35 + 0.65 * (0.5 + 0.5 * math.cos(acc * math.pi * 1.5)))
     end)
-    frame:Hide()
+    gauge = g
+    B.Update()
+    return g
 end
+
+-- The battery's name now ("High"...), for the icon's tooltip
+function B.Name() return gauge and gauge.name end
 
 function B.Update()
-    if not frame then Build() end
-    local lit, color, name = B.Look(Level())
-    frame.name = name
-    if not (Settings().shown and lit) then return frame:Hide() end
-    for i, s in ipairs(frame.segs) do
-        if i <= lit then s:SetColorTexture(color[1], color[2], color[3], 0.95)
-        else s:SetColorTexture(1, 1, 1, 0.08) end
+    if not gauge then return end
+    local lit, color, name = B.Look(B.Level())
+    gauge.name = name
+    if not lit then
+        gauge:Hide()
+        if gauge.art then gauge.art:Show() end
+        return
+    end
+    if gauge.art then gauge.art:Hide() end
+    for i, s in ipairs(gauge.segs) do
+        if i <= lit then s:SetColorTexture(color[1], color[2], color[3], 1)
+        else s:SetColorTexture(1, 1, 1, 0.1) end
         s:SetAlpha(1)
     end
-    frame:Show()
-end
-
-function B.Toggle()
-    local s = Settings()
-    s.shown = not s.shown
-    B.Update()
-    return s.shown
+    gauge:Show()
 end
 
 local events = CreateFrame("Frame")
@@ -127,6 +106,4 @@ for _, ev in ipairs({ "PLAYER_LOGIN", "GAME_PAD_POWER_CHANGED", "GAME_PAD_CONNEC
 end
 events:SetScript("OnEvent", function() B.Update() end)
 -- (and now and then: not every client says when it changes)
-if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(30, function() if frame then B.Update() end end) end
-
-if GamepadCompanionAPI then GamepadCompanionAPI.ToggleBattery = function() return B.Toggle() end end
+if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(30, function() B.Update() end) end
