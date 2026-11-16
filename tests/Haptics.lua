@@ -342,10 +342,20 @@ assert(#fall.pulses >= 4 and fall.pulses[1][3] > 0.9, "a big fall: strong, echoe
 -- Footsteps: the fit from squeezes (one step missed), and the timing it gives
 local rate, offset = L.FitSteps({ 0.15, 0.55, 0.95, 1.75, 2.15, 2.55 })
 assert(math.abs(rate - 2.5) < 1e-6 and math.abs(offset - 0.15) < 1e-6, "rate and offset: " .. tostring(rate) .. " " .. tostring(offset))
-L.sync = { taps = { 0.15, 0.55, 0.95, 1.35, 1.75 }, speeds = { 7, 7 }, start = now }
+L.sync = { band = "run", taps = { 0.15, 0.55, 0.95, 1.35, 1.75 }, speeds = { 7, 7 }, start = now }
 L.StepSyncEnd()
 local r2, o2, synced = L.StepTiming(7)
 assert(synced and math.abs(r2 - 2.5) < 1e-6 and math.abs(o2 - 0.15) < 1e-6, "synced timing")
+local _, _, walkSynced = L.StepTiming(2.5)
+assert(not walkSynced, "walking keeps its own (not synced yet)")
+L.sync = { band = "walk", taps = { 0.2, 0.75, 1.3, 1.85, 2.4 }, speeds = { 7 }, start = now }
+L.StepSyncEnd()
+assert(not L.StepCal("walk"), "a walk sync done running is refused")
+L.sync = { band = "walk", taps = { 0.2, 0.75, 1.3, 1.85, 2.4 }, speeds = { 2.5 }, start = now }
+L.StepSyncEnd()
+local rw, ow, ws = L.StepTiming(2.5)
+assert(ws and math.abs(rw - 1 / 0.55) < 1e-6 and math.abs(ow - 0.2) < 1e-6, "walk synced on its own")
+assert(math.abs(L.StepTiming(7) - 2.5) < 1e-6, "run unchanged")
 assert(L.Report():find("Steps ", 1, true) and L.Report():find("Last landings", 1, true), "in the report")
 L.EventSettings("heartbeat").on = true
 UnitHealth = function() return 200 end

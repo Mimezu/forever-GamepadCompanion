@@ -1242,22 +1242,31 @@ local function BuildEvents(p)
     -- Footsteps sync, under Social and Living
     local fx = 2 * (colW + 10)
     local fy = -(2 * 40 + 6 * 30 + 20)
-    local sync = S.Card(p, "Footsteps sync", fx, fy, colW, 180)
-    local status = S.Note(sync, 12, -38, colW - 24, 2, 11, GREY)
-    S.NewButton(sync, "Sync", 12, -72, 100, function()
-        if L.sync then L.StepSyncCancel() else L.StepSync() end
-        Refresh()
-    end, nil, 12, 28)
-    S.Tooltip(sync, "Footsteps sync", "Run, squeeze R2 on each footfall")
-    Stepper(sync, "Nudge", 12, -110, { labelWidth = 70, width = colW - 24, step = 0.01, min = -0.5, max = 0.5,
+    local sync = S.Card(p, "Footsteps sync", fx, fy, colW, 210)
+    local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
+    for i, g in ipairs(gaits) do
+        local y = -40 - (i - 1) * 34
+        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 100, function()
+            if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
+            Refresh()
+        end, nil, 12, 28)
+        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), g[1] == "walk" and "Walk on, move, squeeze R2 on each footfall"
+            or "Run, squeeze R2 on each footfall")
+        g.text = S.Text(sync, "", 122, y - 8, colW - 134, 11, GREY)
+    end
+    local status = S.Note(sync, 12, -110, colW - 24, 2, 11, GOLD)
+    Stepper(sync, "Nudge", 12, -146, { labelWidth = 70, width = colW - 24, step = 0.01, min = -0.5, max = 0.5,
         format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
         get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
     L.onSync = function(text) status:SetText(text) end
     ui.refresh[#ui.refresh + 1] = function()
-        if L.sync then return end
-        local rate, offset, synced = L.StepTiming(7)
-        status:SetText(synced and string.format("Running: %.2f steps/s, first after %.2f s", rate, offset)
-            or "Not synced: a guess")
+        for _, g in ipairs(gaits) do
+            local cal = L.StepCal(g[1])
+            g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")
+            local busy = L.sync and L.sync.band == g[1]
+            buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
+            S.SetSelected(buttons[g[1]], busy and true or false)
+        end
     end
 
     local flash = {}

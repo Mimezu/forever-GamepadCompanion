@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.2 — 2026-11-16
+
+- Beta, Footsteps sync: Sync run and Sync walk apart, each with its own result; a walk sync done running (or the reverse) is refused
+- Beta, footsteps: switching walk and run while moving starts the new gait's cycle; walking's own guess until synced
+
 ## 0.14.1 — 2026-11-16
 
 - Beta, footsteps: in time with the run, counted from the moment you start moving (and from each landing)

@@ -804,23 +804,36 @@ local function Model()
     return race .. "-" .. sex
 end
 
+-- Walking (about 2.5 yd/s) and running (7) are two animations: each its own
+-- step rate and timing
 local function Band(speed) return speed < 4 and "walk" or "run" end
+L.Band = Band
+local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate = 2.4, speed = 7, offset = 0.1 } }
+
+-- A gait's sync for this character, or nil
+function L.StepCal(band)
+    local db = H.DB()
+    db.stepSync = db.stepSync or {}
+    return db.stepSync[Model() .. "-" .. band]
+end
 
 -- Steps per second at a speed, and the first step's time after the start
 function L.StepTiming(speed)
-    local db = H.DB()
-    db.stepSync = db.stepSync or {}
-    local cal = db.stepSync[Model() .. "-" .. Band(speed)]
-    local nudge = db.stepNudge or 0
-    if cal and cal.rate and cal.speed and cal.speed > 0 then
-        return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, true
-    end
-    return 2.4 * max(0.5, speed / 7), 0.1 + nudge, false
+    local band = Band(speed)
+    local cal = L.StepCal(band)
+    local nudge = H.DB().stepNudge or 0
+    local synced = cal and cal.rate and cal.speed and cal.speed > 0
+    if not synced then cal = GUESS[band] end
+    return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, synced and true or false
 end
 
 local function Steps(now, v)
     if not (live.moving and not live.mounted) then return nil end
     local rate, offset = L.StepTiming(max(0.5, live.speed))
+    -- (walk to run or back: the other animation starts its cycle now)
+    local band = Band(max(0.5, live.speed))
+    if v.band and v.band ~= band then live.moveStart, v.phase = now, nil end
+    v.band = band
     if not v.phase then
         -- (from the start of the run, though the voice starts a moment later)
         v.phase = ((now - (live.moveStart or now)) - offset) * rate
@@ -1222,10 +1235,14 @@ end)
 local syncFrame = CreateFrame("Frame")
 syncFrame:Hide()
 
-function L.StepSync()
-    L.sync = { waiting = true, taps = {}, speeds = {}, down = false, began = Now() }
+function L.StepSync(band)
+    band = band or "run"
+    L.sync = { band = band, waiting = true, taps = {}, speeds = {}, down = false, began = Now() }
     syncFrame:Show()
-    if L.onSync then L.onSync("Stand still, then run: squeeze R2 on each footfall") end
+    if L.onSync then
+        L.onSync(band == "walk" and "Stand still, walk on (Walk key), then move: squeeze R2 on each footfall"
+            or "Stand still, then run: squeeze R2 on each footfall")
+    end
 end
 
 function L.StepSyncCancel()
@@ -1282,7 +1299,14 @@ function L.StepSyncEnd()
         if L.onSync then L.onSync("|cffff7a5cToo few squeezes: try again (6 or more)|r") end
         return
     end
-    local speed = Median(s.speeds) or 7
+    local speed = Median(s.speeds) or (s.band == "walk" and 2.5 or 7)
+    if s.band and Band(speed) ~= s.band then
+        if L.onSync then
+            L.onSync("|cffff7a5c" .. (s.band == "walk" and "You were running: turn walk on and again"
+                or "You were walking: turn walk off and again") .. "|r")
+        end
+        return
+    end
     local db = H.DB()
     db.stepSync = db.stepSync or {}
     db.stepSync[Model() .. "-" .. Band(speed)] = { rate = rate, offset = offset, speed = speed, taps = #s.taps }
