@@ -216,16 +216,18 @@ end
 -- measured (sent and stopped on frames: at 100 fps a 16 ms tap lasts 10 or
 -- 20 ms), kept with the answer.
 local measure = L.measure
-local function Taps(ms, v, n)
+-- kick: the first kick ms at full, then v (overdrive)
+local function Taps(ms, v, n, kick)
     return function()
         local list = {}
         for i = 0, (n or 5) - 1 do
             local at = i * 0.7
             list[#list + 1] = { at, function()
                 measure.on = Now()
-                H.Send("Low", v or 1)
-                H.Send("High", v or 1)
+                H.Send("Low", kick and 1 or v or 1)
+                H.Send("High", kick and 1 or v or 1)
             end }
+            if kick then list[#list + 1] = { at + kick / 1000, both(v or 1) } end
             list[#list + 1] = { at + ms / 1000, function()
                 measure[#measure + 1] = (Now() - (measure.on or Now())) * 1000
                 stop()
@@ -295,9 +297,33 @@ L.PROBES = {
     { key = "top", label = "Top end", how = "Three steps: 60, 80, 100%", ask = "Stronger each time?", answers = { "Yes", "Top same", "No" }, steps = {
         { "60, 80, 100%", function() return { { 0, both(0.6) }, { 0.5, stop }, { 0.9, both(0.8) }, { 1.4, stop },
             { 1.8, both(1) }, { 2.3, stop } } end } } },
-    { key = "kick", label = "Overdrive", how = "Two taps: A, then B", ask = "Which was sharper?", answers = { "B sharper", "Same", "A sharper" }, steps = {
-        { "A plain, B kicked", function() return { { 0, both(0.4) }, { 0.04, stop },
-            { 0.8, both(1) }, { 0.815, both(0.4) }, { 0.84, stop } } end } } },
+    -- (2026-11-16: a 40 ms tap at 40% was mostly missed, the same with 15 ms
+    -- at full first was felt: does a kick save short soft taps?)
+    { key = "kick2", label = "Overdrive", how = "Play, count the taps. Kicked: 15 ms at full first",
+        ask = "5 taps: how many felt?", answers = OUT_OF_5, steps = {
+        { "25 ms at 40%", Taps(25, 0.4) }, { "25 ms kicked", Taps(25, 0.4, 5, 15) },
+        { "33 ms at 40%", Taps(33, 0.4) }, { "33 ms kicked", Taps(33, 0.4, 5, 15) },
+        { "40 ms at 25%", Taps(40, 0.25) }, { "40 ms kicked", Taps(40, 0.25, 5, 15) },
+        { "33 ms, 8 ms kick", Taps(33, 0.25, 5, 8) } } },
+    -- (switching on and off is felt as countable pulses even at 60 Hz: does
+    -- a level going up and down, never off, feel like a texture?)
+    { key = "wobble", label = "Wobble", how = "Left grip, 30% to 100% and back, never off",
+        ask = "Feels like?", answers = { "Countable pulses", "Rough texture", "Steady", "Nothing" },
+        steps = (function()
+            local list = {}
+            for _, hz in ipairs({ 3, 6, 10, 15, 25 }) do
+                list[#list + 1] = { hz .. " Hz", function()
+                    local l, step = {}, 0.01
+                    for t = 0, 2, step do
+                        local v = 0.3 + 0.7 * (0.5 - 0.5 * math.cos(2 * pi * hz * t))
+                        l[#l + 1] = { t, one("Low", v) }
+                    end
+                    l[#l + 1] = { 2.01, stop }
+                    return l
+                end }
+            end
+            return list
+        end)() },
     { key = "sides", label = "Left vs right", how = "Left grip, then right grip, same level", ask = "Which is stronger?", answers = { "Left", "Same", "Right" }, steps = {
         { "Both 50%", function() return { { 0, one("Low", 0.5) }, { 0.6, stop }, { 1, one("High", 0.5) },
             { 1.6, stop } } end },

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.5 — 2026-11-16
+
+- Beta, Overdrive probe redone: count 5 taps, plain against kicked (15 ms at full first), 25-40 ms
+- Beta, Wobble probe: strength going up and down without switching off, 3 to 25 Hz
+- Results so far in docs/HAPTICS.md: trigger channels do nothing on a DualSense; fast on / off is felt as pulses, never a buzz
+
 ## 0.13.4 — 2026-11-16
 
 - Beta, Trigger test (Probes): a window; each squeeze of L2 or R2 plays the next of 7 variations on that side (trigger full, while held, one tap, pulses, soft, grip check, both); mark each Trigger, Grip or Nothing; live L2 / R2 depth; in the Report

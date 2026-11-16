@@ -493,4 +493,14 @@ assert(L.Report():find("Trigger, full, 0.5 s=L2 Trigger", 1, true), "in the repo
 tw:Hide()
 assert(not L.trigger.on and not H.hold, "closed: released")
 axes[5], axes[6] = 0, 0
+-- Overdrive taps: full first, then the level
+local kicked
+for _, p in ipairs(L.PROBES) do if p.key == "kick2" then kicked = p.steps[2][2]() end end
+vib = {}
+L.Run(kicked)
+for _ = 1, 8 do now = now + 0.01; for _, f in ipairs(created) do if f ~= H.driver and f.shown and f.scripts.OnUpdate and f.parent == nil then f.scripts.OnUpdate(f, 0.01) end end end
+local levels = {}
+for _, v in ipairs(vib) do if v[1] == "Low" then levels[#levels + 1] = v[2] end end
+assert(levels[1] == 1 and math.abs(levels[2] - 0.4) < 1e-9, "kick then level: " .. table.concat(levels, ","))
+L.Halt()
 io.write("PASS: review fixes: loop feels once end, engine off keeps Rumble's way, probes hold the motors\n")

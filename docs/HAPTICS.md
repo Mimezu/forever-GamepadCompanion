@@ -41,6 +41,10 @@ pad's rumble emulation, which decides what to keep.
 | Light bar | red, green, blue seen | SetLedColor works |
 | User | loves the subtle short taps | build the subtle vocabulary on 50 ms, low strength |
 
+| Triggers (squeeze test) | every trigger-only variation: nothing; trigger and grip: grip only | LTrigger / RTrigger do nothing on a DualSense: trigger effects need the helper |
+| Update rate (asked again) | 5 to 60 Hz: countable pulses, even when very close | no blending: on / off never becomes a buzz; texture must come another way |
+| Overdrive (first version) | mostly only B felt (15 ms full, then 40%), A (40 ms at 40%) missed | a kick may save short soft taps: counted in 0.13.5 |
+
 Applied in 0.13.3: Shortest pulse 50 ms and no floor by default; taps 50 ms and soft;
 detents at 5 Hz or under. Still open: 60 fps run, triggers, overdrive.
 
