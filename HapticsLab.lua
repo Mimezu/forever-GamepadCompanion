@@ -1487,7 +1487,8 @@ end
 
 local WEATHER_FN = {
     -- (rain, in game: too strong, it hid a jump: half as strong, sparser)
-    rain = Sprinkle("rain", 0.3, 1.1, 0.01, 0.025, 0.1),
+    -- (again too strong in game: fainter and sparser still; the HD version will do it best)
+    rain = Sprinkle("rain", 0.45, 1.5, 0.005, 0.014, 0.08),
     snow = Sprinkle("snow", 1.2, 3.5, 0.015, 0.03),
     embers = Sprinkle("embers", 0.5, 1.8, 0.03, 0.07, 0.25),
     thunder = Thunder,

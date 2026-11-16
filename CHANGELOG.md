@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.3 — 2026-11-16
+
+- Rain subtler still: about half again as strong, drops further apart
+
 ## 0.22.2 — 2026-11-16
 
 - Helper link: the strip in the bottom-left corner; the helper is now WowHelper.exe (C:\games\WowHelper); the Helper page says so
