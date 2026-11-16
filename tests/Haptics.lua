@@ -871,7 +871,11 @@ end
 
 -- The library written out for the helper
 do
+    SOUNDKIT = { LOOT_WINDOW_COIN_SOUND = 120, IG_MAINMENU_OPEN = 850, odd = "x" }
     local ex = L.Export()
+    assert(ex.soundkits.LOOT_WINDOW_COIN_SOUND == 120 and ex.soundkits.IG_MAINMENU_OPEN == 850 and ex.soundkits.odd == nil,
+        "the game's sound kits by name")
+    SOUNDKIT = nil
     assert(ex.version == 1 and ex.feels.r_tick and ex.feels.r_tick.pulses and ex.feels.thud.pulses, "feels exported")
     assert(ex.events.levelUp ~= nil and ex.events.hit ~= nil, "what each event plays")
     -- each feel a stable HD id, 128-4095, unique, the same next time

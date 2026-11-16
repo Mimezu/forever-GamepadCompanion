@@ -882,7 +882,15 @@ function L.Export()
             events[e.key] = (choice == "off" and false) or (choice == "auto" and "auto") or L.FeelFor(choice)
         end
     end
-    H.DB().export = { version = 1, at = date and date("%Y-%m-%d %H:%M") or "", feels = feels, events = events }
+    -- the game's sound kits by name, for the helper's list of WoW sounds
+    local soundkits = {}
+    if type(SOUNDKIT) == "table" then
+        for name, id in pairs(SOUNDKIT) do
+            if type(name) == "string" and type(id) == "number" then soundkits[name] = id end
+        end
+    end
+    H.DB().export = { version = 1, at = date and date("%Y-%m-%d %H:%M") or "", feels = feels, events = events,
+        soundkits = soundkits }
     return H.DB().export
 end
 

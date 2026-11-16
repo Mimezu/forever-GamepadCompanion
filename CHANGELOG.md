@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.1 — 2026-11-16
+
+- Export: the game's sound kits by name (`soundkits`), for WoW Helper's list of WoW sounds
+
 ## 0.24.0 — 2026-11-16
 
 - Helper link protocol v2 (the default): the wide strip, 34 cells, CRC-8; clips and sounds in their own fields; HD feels by id, side and intensity; the mic LED. Checked against WoW Helper's 81 vectors. **HD link** off on the Helper card goes back to v1

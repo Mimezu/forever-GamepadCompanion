@@ -92,6 +92,7 @@ Addons can read files only at load, so a list written there before `/reload` is 
   `{ version = 1, at, feels = { [key] = { label, group, rumble, pulses = { {t, len, strength,
   side}, ... }, loop, length, own, hd, ... } }, events = { [eventKey] = feelKey | "auto" | false } }`.
   `hd` is the feel's stable id (128-4095) for protocol v2's `touch` field (0.24.0).
+  `soundkits = { [name] = id }`: a copy of the game's SOUNDKIT table (0.24.1).
   Rumble's patterns are `r_` + key; yours are `own<N>`.
 
 ## Steps
