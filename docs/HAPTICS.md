@@ -55,7 +55,9 @@ vocabulary is rhythms of short soft pulses (what the player liked), placed left 
 right, plus the light bar; curves and textures need the helper (true haptics).
 
 In game (0.14.4): 10 sends a second felt much stronger than every frame, but missed
-short events: read every frame, send at most 10/s, starts at once (0.14.6). Longer is
+short events: read every frame, send at most 10/s, starts at once (0.14.6). But the player
+prefers every frame's faint, short feels: default back to every frame (0.14.9); what
+should feel big is made long in the feel itself (landing: Landing longest). Longer is
 stronger here: a bigger landing has to last longer, not only hit harder.
 
 0.14.0: the library is rebuilt this way (pulses: time, length 50 ms or more,

@@ -25,10 +25,11 @@ local function Now() return GetTime and GetTime() or 0 end
 H.DEFAULTS = {
     engine = false,        -- Beta engine: Rumble through the mixer, beta events, light bar
     mix = "screen",        -- max | screen | sum
-    rate = 10,             -- sends per second at most (0: every frame). Feels are still read every
+    rate = 0,              -- sends per second at most (0: every frame). Feels are still read every
                            --   frame: a vibration starting goes out at once, changes and stops wait
-                           --   for the next send, so each pulse lasts a send's interval at least (in
-                           --   game: 10/s felt much stronger than every frame)
+                           --   for the next send, so each pulse lasts a send's interval at least.
+                           --   In game: 10/s felt stronger but made everything long; the player
+                           --   prefers every frame's faint, short feels (lengths set per feel)
     keepAlive = 0.1,       -- resend an unchanged level after (s; 0: never)
     kick = 0,              -- overdrive: a rise starts with this long at full (s)
     minPulse = 0.05,       -- a pulse from rest lasts at least this long (s): in game, under ~45 ms is
@@ -67,9 +68,11 @@ function H.DB()
         if db.floor[2] == 0.5 then db.floor[2] = 0 end
         db.version = 2
     end
-    if db.version < 3 then
-        if db.rate == 0 then db.rate = 10 end
-        db.version = 3
+    if db.version < 3 then db.version = 3 end
+    -- (0.14.9: back to every frame, the player's choice)
+    if db.version < 4 then
+        if db.rate == 10 then db.rate = 0 end
+        db.version = 4
     end
     return db
 end

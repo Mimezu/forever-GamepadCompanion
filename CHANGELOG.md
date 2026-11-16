@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.9 — 2026-11-16
+
+- Beta engine: back to sending every frame by default (10/s made everything long; landing now takes its length from its own settings)
+
 ## 0.14.8 — 2026-11-16
 
 - Beta, landing: a full landing plays the chosen feel's strongest pulse at full (Flick's 80% went out at 74%)
