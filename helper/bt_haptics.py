@@ -49,19 +49,20 @@ def to_haptic_frames(left, right, rate=48000, gain=1.0):
     return frames
 
 
-def build_report(haptic, seq, counter, control=True, length=None):
+def build_report(haptic, seq, counter, control=True, length=None, opus=None, volume=0):
+    """opus: one 200-byte Opus frame for the speaker (None = silence); volume: speaker 0-0x64ish."""
     p = bytearray(PAYLOAD_LEN)
     p[0] = (seq & 0x0F) << 4
     p[1], p[2] = 0x90, 0x3F
     if control:              # as the tester: speaker volume + audio control valid, audio control 0x09
         p[3] = 0xA0
-        p[8] = 0x00          # speaker volume 0: haptics only
+        p[8] = volume & 0xFF
         p[10] = 0x09
     p[66:74] = bytes([0x91, 0x07, 0xFE, 0x40, 0x40, 0x40, 0x40, 0x40])
     p[74] = counter & 0xFF
     p[75] = 0x93
     p[76] = 0xC8
-    p[77:277] = SILENT_OPUS
+    p[77:277] = (opus or SILENT_OPUS)[:200].ljust(200, bytes(1))
     p[277], p[278] = 0x92, 0x40
     p[279:343] = haptic
     crc = zlib.crc32(bytes(p[:-4]), zlib.crc32(bytes([0xA2, REPORT_ID]))) & 0xFFFFFFFF
@@ -80,11 +81,14 @@ class Streamer:
         self.seq = 0
         self.counter = 0
 
-    def play(self, frames, tail=4):
-        frames = list(frames) + [bytes(64)] * tail   # a few silent frames to end cleanly
+    def play(self, frames=(), tail=4, opus=(), volume=0):
+        """Haptic frames and/or Opus frames (speaker), side by side, one report each 10.667 ms."""
+        n = max(len(frames), len(opus)) + tail
+        frames = list(frames) + [bytes(64)] * (n - len(frames))
+        opus = list(opus) + [None] * (n - len(opus))
         t = time.perf_counter()
-        for f in frames:
-            self.pad.write_raw(build_report(f, self.seq, self.counter, self.control, self.pad.length))
+        for f, o in zip(frames, opus):
+            self.pad.write_raw(build_report(f, self.seq, self.counter, self.control, self.pad.length, o, volume))
             self.seq = (self.seq + 1) & 0x0F
             self.counter = (self.counter + 1) & 0xFF
             t += PERIOD
@@ -93,6 +97,24 @@ class Streamer:
                 time.sleep(wait - 0.0015)
             while time.perf_counter() < t:
                 pass
+
+
+def ogg_packets(data):
+    """Opus packets from an Ogg file (ffmpeg -c:a libopus), without the two header packets."""
+    i, pk, cur = 0, [], b""
+    while i < len(data):
+        if data[i:i + 4] != b"OggS":
+            raise ValueError("not an Ogg page")
+        nseg = data[i + 26]
+        p = i + 27 + nseg
+        for s in data[i + 27:i + 27 + nseg]:
+            cur += data[p:p + s]
+            p += s
+            if s < 255:
+                pk.append(cur)
+                cur = b""
+        i = p
+    return pk[2:]
 
 
 def selftest(check):
