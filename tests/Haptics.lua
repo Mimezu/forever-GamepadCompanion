@@ -1061,6 +1061,12 @@ do
     q = K.queue[#K.queue]
     assert(q.sound == K.SOUNDS.coin and q.touch == 0 and q.moment == C.MOMENT_N.loot, "Try a sound: its cue")
     assert(select(2, C.TrySound("rain")) == "no sound", "no sound")
+    -- a WoW Helper library sound (1000+): Try sends it as a sound, never as an HD feel id
+    C.SetMomentSound("levelUp", 1000)
+    assert(C.TrySound("levelUp"), "Try a library sound")
+    q = K.queue[#K.queue]
+    assert(q.sound == 1000 and q.touch == 0 and q.moment == C.MOMENT_N.levelUp, "library sound: the sound field")
+    C.SetMomentSound("levelUp", nil)
     -- the export: moments with number, group, feel, sound; the data's stamp
     local ex = ns.HapticsLab.Export()
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel

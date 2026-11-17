@@ -1148,7 +1148,7 @@ local function BuildLink(p)
     local gain = 4
     Stepper(snd, "Volume", 12, -38, { labelWidth = 90, width = W - rx - 24, step = 1, min = 1, max = 7,
         format = function(v) return v .. "/7" end, get = function() return gain end, set = function(v) gain = v end })
-    local function Buttons(title, tbl, y)
+    local function Buttons(title, tbl, y, play)
         S.Heading(snd, title, 10, y, W - rx - 22)
         local names = {}
         for name, id in pairs(tbl) do names[#names + 1] = { name, id } end
@@ -1158,14 +1158,14 @@ local function BuildLink(p)
             local col, row = (i - 1) % 2, floor((i - 1) / 2)
             S.NewButton(snd, n[1]:gsub("_", " "), 12 + col * (bw + 6), y - 24 - row * 30, bw, function()
                 if not K.Enabled() then return Say("Link is off", true) end
-                K.Play(n[1], gain)
+                play(n[1], gain)
                 Say(n[1])
             end, nil, 11, 26)
         end
         return y - 24 - math.ceil(#names / 2) * 30
     end
-    local y = Buttons("True haptics", K.CLIPS, -72)
-    Buttons("Speaker", K.SOUNDS, y - 12)
+    local y = Buttons("True haptics", K.CLIPS, -72, K.Play)
+    Buttons("Speaker", K.SOUNDS, y - 12, K.PlaySound)
 
     ui.refresh[#ui.refresh + 1] = function()
         wide:SetChecked(K.V2())

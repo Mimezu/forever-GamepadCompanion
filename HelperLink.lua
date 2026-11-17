@@ -333,20 +333,22 @@ local function Queue(item)
     return true
 end
 
--- eventId: number or a name from K.CLIPS / K.SOUNDS; gain 0..7 (default 4).
--- A sound plays on the pad's speaker with its own paired touch (v2).
-function K.Play(eventId, gain)
-    if type(eventId) == "string" then eventId = K.CLIPS[eventId] or K.SOUNDS[eventId] end
-    eventId = Int(eventId, 4095)
-    if eventId == 0 then return false end
-    local sound = eventId >= 128 and eventId < 4096 and K.IsSound(eventId)
-    return Queue({ touch = sound and 0 or eventId, sound = sound and eventId or 0,
-        gain = Int(gain == nil and 4 or gain, 7) })
+-- A built-in touch clip (1-127, or a K.CLIPS name); gain 0..7 (default 4). Touch only: sounds
+-- go through K.PlaySound, HD feels through K.PlayFeel / K.Cue (the id spaces never mix).
+function K.Play(clip, gain)
+    if type(clip) == "string" then clip = K.CLIPS[clip] end
+    clip = Int(clip, 4095)
+    if clip < 1 or clip > 127 then return false end
+    return Queue({ touch = clip, sound = 0, gain = Int(gain == nil and 4 or gain, 7) })
 end
 
-function K.IsSound(id)
-    for _, v in pairs(K.SOUNDS) do if v == id then return true end end
-    return false
+-- A sound on the pad's speaker with its own paired touch: a WoW Helper library id (1-4095) or a
+-- K.SOUNDS name; gain 0..7; moment: its number (v2), if any. (v1 carries ids up to 255.)
+function K.PlaySound(sound, gain, moment)
+    if type(sound) == "string" then sound = K.SOUNDS[sound] end
+    sound = Int(sound, 4095)
+    if sound == 0 then return false end
+    return Queue({ touch = 0, sound = sound, gain = Int(gain == nil and 4 or gain, 7), moment = Int(moment, 127) })
 end
 
 -- One of the addon's feels in HD (v2): its id (128-4095), gain 0-7, side

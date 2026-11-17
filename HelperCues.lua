@@ -269,7 +269,7 @@ function C.Moment(key, feelKey, opts)
     end
     if not soundGain then sound = nil end
     if not K.V2() then
-        if sound and sound <= 255 then return K.Play(sound, soundGain) end
+        if sound and sound <= 255 then return K.PlaySound(sound, soundGain) end
         return false
     end
     local feel = max(0, min(1, Strength() * (opts.gain or 1) * (Vol and Vol.Feel(key) or 1)))
@@ -323,7 +323,7 @@ function C.Feel(feelKey, gain)
     local id = L.HdId(feelKey)
     if id then K.PlayFeel(id, HdGain(gain)) end
 end
-function C.Sound(name, gain) if On("sounds") then K.Play(name, gain) end end
+function C.Sound(name, gain) if On("sounds") then K.PlaySound(name, gain) end end
 
 ---------------------------------------------------------------------------
 -- At load: WoW Helper's own feels join the library (yours, with the rumble

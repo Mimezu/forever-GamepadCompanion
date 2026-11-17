@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.2 — 2026-11-16
+
+- A sound added in WoW Helper (ids 1000+) now plays: Try on Moments › Sound sends it as the moment's sound (it went out as an HD feel id and played nothing). In play it already did
+- The link's two kinds of id never mix again: K.Play is for the built-in touch clips only (1-127), K.PlaySound for sounds (built-in names or WoW Helper's ids), HD feels through K.PlayFeel and the moment cue
+
 ## 0.30.1 — 2026-11-16
 
 - **Try** plays a moment as the game does: with WoW Helper linked and HD on (Setup › WoW Helper: Auto), its HD feel goes to WoW Helper on top of the rumble, as one cue with the moment's number and volume (it was the rumble alone). The footer says what played: "Level up: rumble + HD", "rumble + HD draft" (no crafted HD version yet), or "rumble (link off)", "(HD link off)", "(HD off)"

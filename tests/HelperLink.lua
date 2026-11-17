@@ -191,7 +191,9 @@ assert(math.abs(K.frame.height - unit / 2) < 1e-9, "effective scale")
 K.frame:SetScale(1); K.Layout()
 
 -- queue: five events at once, a 144 fps client; each must stay >= 3 frames and >= 50 ms
-for _, name in ipairs({ "micro_tap", "thump", "chime", "error", "landing_hard" }) do assert(K.Play(name, 5), name) end
+for _, name in ipairs({ "micro_tap", "thump", "chime", "error", "landing_hard" }) do
+    assert((K.CLIPS[name] and K.Play or K.PlaySound)(name, 5), name)
+end
 local runs, last, startSeq = {}, nil, K.state.seq
 for _ = 1, 200 do
     render(1 / 144)
@@ -254,7 +256,9 @@ local function renderV2(elapsed)
     return assert(K.DecodeV2(K.lastCells))
 end
 local d0 = renderV2()
-assert(K.Play("chime", 3) and K.Play("thump", 6) and K.PlayFeel(300, 7, -1, 6))
+-- the id spaces never mix: a sound never through Play, a library sound (1000) as a sound
+assert(K.Play("chime") == false and K.Play(1000) == false and K.Play(300) == false, "Play: clips only")
+assert(K.PlaySound("chime", 3) and K.Play("thump", 6) and K.PlayFeel(300, 7, -1, 6))
 assert(K.PlayFeel(12) == false, "HD feels from 128")
 local seen2, prev = {}, d0
 for _ = 1, 100 do
@@ -266,6 +270,14 @@ assert(#seen2 == 3, "three cues: " .. #seen2)
 assert(seen2[1].sound == K.SOUNDS.chime and seen2[1].touch == 0 and seen2[1].gain == 3, "a sound: sound field only")
 assert(seen2[2].touch == K.CLIPS.thump and seen2[2].sound == 0 and seen2[2].gain == 6, "a clip: touch field")
 assert(seen2[3].touch == 300 and seen2[3].side == 1 and seen2[3].intensity == 6 and seen2[3].gain == 7, "an HD feel, left")
+assert(K.PlaySound(1000, 5, 52), "a library sound")
+local lib
+for _ = 1, 30 do
+    local d = renderV2()
+    if d.seq ~= prev.seq then lib = d end
+    prev = d
+end
+assert(lib and lib.sound == 1000 and lib.touch == 0 and lib.gain == 5 and lib.moment == 52, "library sound: the sound field")
 assert(prev.touch == 0 and prev.sound == 0, "cleared after")
 -- a moment's cue: HD feel and sound together, its number, open
 assert(K.Cue({ moment = 42, touch = 300, sound = 900, gain = 5, open = true }))

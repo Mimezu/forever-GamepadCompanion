@@ -566,7 +566,7 @@ local function Build(frame, header)
         local Vol = ns.Volume
         local gain = Vol and Vol.Gain(Vol.Sounds()) or 7   -- (Sounds: never under 10%)
         if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
-        K.Play("chime", gain)
+        K.PlaySound("chime", gain)
     end, nil, 12, 28)
     ui.soundNote = S.Note(sb, 14, -76, LEFT_W - 28, 1, 11, GREY)
     -- Stop, for every kind
