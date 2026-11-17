@@ -146,6 +146,7 @@ local function BuildTiming(frame)
     local status = S.Note(card, 12, -180, COL - 24, 1, 11, GOLD)
     L.onSync = function(text) status:SetText(text) end
     V.onStrikeSync = function(text) status:SetText(text); Refresh() end
+    V.onHitSync = function(text) status:SetText(text); Refresh() end
     S.Text(card, "Landing", 12, -206, 80, 12, GOLD)
     local function secs(v) return string.format("%.2f s", v) end
     Stepper(card, "Soft at", 12, -226, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.2, max = 3, format = secs,
@@ -154,6 +155,17 @@ local function BuildTiming(frame)
     Stepper(card, "Full at", 12, -254, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.25, max = 4, format = secs,
         get = function() return H.DB().landMax or L.LAND_MAX end,
         set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
+    -- Hits: each weapon's blow lands after the swing's news (the weapon in hand)
+    S.Text(card, "Hits", 12, -288, 80, 12, GOLD)
+    local hitKind = S.Text(card, "", 60, -288, COL - 72, 11, GREY)
+    local hit = S.NewButton(card, "Sync", 12, -306, bw, function()
+        if V.hitSync then V.HitSyncCancel() else V.HitSync() end
+        Refresh()
+    end, nil, 12, 28)
+    S.Tooltip(hit, "Sync", "Squeeze R2 on each impact")
+    local function kindNow() return V.hitSync and V.hitSync.kind or V.WeaponKind(16) end
+    Stepper(card, "", 18 + bw, -306, { labelWidth = 0, width = bw, step = 0.01, min = 0, max = 1, format = secs,
+        get = function() return (V.HitDelay(kindNow())) end, set = function(v) V.SetHitDelay(kindNow(), v) end })
     pg.refresh[#pg.refresh + 1] = function()
         local parts = {}
         local footsteps = L.EventSettings("footsteps").on
@@ -170,6 +182,11 @@ local function BuildTiming(frame)
         texts.mine:SetText(synced and string.format("%.2f s a swing", period) or "A guess")
         mine.label:SetText(V.strikeSync and "Cancel" or "Sync")
         S.SetSelected(mine, V.strikeSync and true or false)
+        local kind = kindNow()
+        local _, hitSet = V.HitDelay(kind)
+        hitKind:SetText(V.HitKindLabel(kind) .. (hitSet and "" or " · a guess"))
+        hit.label:SetText(V.hitSync and "Cancel" or "Sync")
+        S.SetSelected(hit, V.hitSync and true or false)
     end
 end
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.0 — 2026-11-16
+
+- Weapon hits at the impact, not the swing's start: the game tells of a swing as its animation starts, so each swing's feel (and its WoW Helper cue and clip) now waits for the blow to land, by kind of weapon: dagger, fist, unarmed 0.20 s, one-hand 0.25, staff 0.30, polearm 0.32, two-hand 0.35; ranged shots 0 (fired at the release). A guess until set
+- A swing's result keeps its own feel at that moment: a crit the crit's, a parry, block, dodge or miss on your target the Beta engine's (Target parries...), a hit the swing and Hit
+- Setup › Timing › **Hits**: the delay for the weapon in hand, and **Sync**: attack and squeeze R2 on each impact you hear; six squeezes, the median kept for that weapon (shooting: for ranged)
+
 ## 0.29.3 — 2026-11-16
 
 - Blocks and parries sharp (were "too subtle and fluid"): no faint lead-in, no fading taps after. A parry is two crisp hits, strike then ring (Parry, Clash); a block one dense hit (Block, Shield thud). Each as strong and as long as before. Dodges unchanged

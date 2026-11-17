@@ -530,6 +530,7 @@ function V.Settings()
     end
     s.intensity = s.intensity or 0.8
     s.strikes = s.strikes or {}
+    s.hitTiming = s.hitTiming or {}
     s.events = s.events or {}
     for _, e in ipairs(V.EVENTS) do
         local cfg = s.events[e.key]
@@ -1478,6 +1479,7 @@ end
 -- Melee auto attack (below): on, each hand's last real swing, the last
 -- ability used (its blow is not a swing)
 local swing = { on = false, last = {}, ability = -math.huge }
+local AtImpact   -- (set below)
 
 -- Your crit: melee, or ranged (a shot, a spell, a heal)
 local function YourCrit(isRanged)
@@ -1496,7 +1498,14 @@ local function CombatLog()
     -- (your melee swing, landed or not: its feel; the log says which hand)
     if (sub == "SWING_DAMAGE" or sub == "SWING_MISSED") and not secret(info[4]) and info[4] == UnitGUID("player") then
         local offHand = info[sub == "SWING_DAMAGE" and 21 or 13]
-        V.SwingLanded((not secret(offHand) and offHand) and 17 or 16, true)
+        local result
+        if sub == "SWING_DAMAGE" then
+            result = (not secret(info[18]) and info[18]) and "crit" or "hit"
+        else
+            result = not secret(info[12]) and V.SWING_RESULT[info[12]] or "miss"
+        end
+        -- (its crit too, at the impact)
+        return V.SwingLanded((not secret(offHand) and offHand) and 17 or 16, true, result)
     end
     local index = CRIT_ARG[sub]
     if not index then return end
@@ -1518,14 +1527,29 @@ end
 -- any other a spell's)
 -- (a melee result on your target: a swing of yours, while auto attack is
 -- on, not shooting, physical, not just after an ability)
-local SWING_RESULTS = { WOUND = true, MISS = true, DODGE = true, PARRY = true, BLOCK = true, DEFLECT = true,
-    ABSORB = true, IMMUNE = true, EVADE = true }
+-- What a swing's result is (its own feel: a crit, the Beta engine's miss,
+-- dodge, parry, block on your target; a hit: the swing's and the Lab's Hit)
+V.SWING_RESULT = { WOUND = "hit", MISS = "miss", DODGE = "dodge", PARRY = "parry", BLOCK = "block", DEFLECT = "parry",
+    ABSORB = "hit", IMMUNE = "miss", EVADE = "miss" }
+-- A UNIT_COMBAT result on your target is your swing's (played at its impact
+-- by Rumble, the Beta engine's Hit, Miss, Parry... with it; the Lab leaves it)
+function V.ClaimsSwing(action, school)
+    if not swing.on or secret(action) or not V.SWING_RESULT[action] then return false end
+    if secret(school) then school = nil end
+    if school ~= nil and school ~= PHYSICAL then return false end
+    if Shooting() or GetTime() - swing.ability <= 0.3 then return false end
+    local can = UnitCanAttack and UnitCanAttack("player", "target")
+    if secret(can) then return true end
+    return can and true or false
+end
+
 local function UnitCombat(unit, action, flag, _, school)
     if secret(action) then return end
     if secret(school) then school = nil end
-    if unit == "target" and swing.on and SWING_RESULTS[action] and (school == nil or school == PHYSICAL)
-        and not Shooting() and GetTime() - swing.ability > 0.3 then
-        V.SwingLanded()
+    if unit == "target" and V.ClaimsSwing(action, school) then
+        local result = V.SWING_RESULT[action]
+        if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
+        return V.SwingLanded(nil, false, result)
     end
     if secret(flag) or flag ~= "CRITICAL" then return end
     if unit == "player" then
@@ -1544,6 +1568,13 @@ local function UnitCombat(unit, action, flag, _, school)
 end
 
 local hasCombatLog = type(CombatLogGetCurrentEventInfo) == "function"
+
+-- After seconds (0: now). (Not Rumble's own timers: a pattern starting
+-- meanwhile must not cancel an impact on its way.)
+AtImpact = function(seconds, fn)
+    if seconds <= 0 or not (C_Timer and C_Timer.After) then return fn() end
+    C_Timer.After(seconds, fn)
+end
 -- Casts and channels: the loop while one lasts, then how it ended. A cast
 -- interrupted by someone names who (interruptedBy, hidden: someone still);
 -- without one, a cast stopped before its end was the player's doing (a
@@ -1882,7 +1913,8 @@ local CAST_HANDLERS = {
         if secret(spellID) or spellID ~= ATTACK then swing.ability = GetTime() end
         if IsShot(spellID) then
             ranged.shot = GetTime()
-            return V.Fire("shot")
+            if V.HitSyncEvent then V.HitSyncEvent("ranged", ranged.shot) end
+            return AtImpact((V.HitDelay("ranged")), function() V.Fire("shot") end)
         end
         -- The cast in progress, done
         if cast.timing and not cast.timing.channel and not cast.ended and SameCast(guid) then
@@ -1967,21 +1999,166 @@ local function HandDue(now)
     return best
 end
 
--- A real swing landed: its feel (sure: the combat log said it was yours)
-function V.SwingLanded(slot, sure)
+---------------------------------------------------------------------------
+-- Hit timing: the game tells of a swing as its animation starts; the blow
+-- lands (and its sound plays) later. Each feel waits for the impact, per
+-- kind of weapon (a guess until set, or synced: squeeze R2 on each impact)
+---------------------------------------------------------------------------
+V.HIT_KINDS = {
+    { key = "dagger", label = "Dagger", delay = 0.2 },
+    { key = "oneHand", label = "One-hand", delay = 0.25 },
+    { key = "twoHand", label = "Two-hand", delay = 0.35 },
+    { key = "polearm", label = "Polearm", delay = 0.32 },
+    { key = "staff", label = "Staff", delay = 0.3 },
+    { key = "fist", label = "Fist", delay = 0.2 },
+    { key = "unarmed", label = "Unarmed", delay = 0.2 },
+    { key = "ranged", label = "Ranged", delay = 0 },
+}
+local HIT_KIND = {}
+for _, k in ipairs(V.HIT_KINDS) do HIT_KIND[k.key] = k end
+local KIND_OF_SWING = { swDagger = "dagger", swFist = "fist", swSword = "oneHand", swAxe = "oneHand", swMace = "oneHand",
+    swSword2 = "twoHand", swAxe2 = "twoHand", swMace2 = "twoHand", swPolearm = "polearm", swStaff = "staff" }
+
+-- The kind of weapon in a hand (16 main, 17 off) or "ranged"
+function V.WeaponKind(slot)
+    if slot == "ranged" then return "ranged" end
+    local id = GetInventoryItemID and GetInventoryItemID("player", slot or 16)
+    if not id or secret(id) then return "unarmed" end
+    return KIND_OF_SWING[V.SwingPattern(slot or 16)] or "oneHand"
+end
+
+function V.HitKindLabel(kind) return HIT_KIND[kind] and HIT_KIND[kind].label or kind end
+
+-- Seconds from the swing's news to its impact, and whether set or synced
+function V.HitDelay(kind)
+    local set = V.Settings().hitTiming[kind]
+    if type(set) == "number" then return set, true end
+    return (HIT_KIND[kind] or HIT_KIND.oneHand).delay, false
+end
+
+function V.SetHitDelay(kind, seconds)
+    V.Settings().hitTiming[kind] = math.max(0, math.min(1, seconds))
+end
+
+-- (the Beta engine's moment for a result on your target, if it plays)
+local LAB_RESULT = { hit = "hit", miss = "miss", dodge = "targetDodge", parry = "targetParry", block = "targetBlock" }
+local function LabPlays(key)
+    local L, H = ns.HapticsLab, ns.Haptics
+    if not (L and H and H.Engine and H.Engine()) then return false end
+    local ok, on = pcall(function() return L.EventSettings(key).on end)
+    return ok and on and true or false
+end
+
+-- The impact: a crit its own; a miss, dodge, parry or block its own (the
+-- swing's when the Beta engine has none); a hit the swing and the Lab's Hit.
+-- mine: false for a blow that was not one of your swings (no swing feel)
+function V.SwingImpact(slot, result, mine)
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+    result = result or "hit"
+    if result == "crit" then return YourCrit(false) end
+    local lab = LAB_RESULT[result]
+    if result == "hit" then
+        if mine then SwingNow(slot or 16) end
+        if lab and LabPlays(lab) then ns.HapticsLab.Fire(lab) end
+        return
+    end
+    if lab and LabPlays(lab) then return ns.HapticsLab.Fire(lab) end
+    if mine then SwingNow(slot or 16) end
+end
+
+-- A real swing landed: its feel at the impact (sure: the combat log said it
+-- was yours; result: hit, crit, miss, dodge, parry, block)
+function V.SwingLanded(slot, sure, result)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
     local now = GetTime()
     if not sure then
         if not swing.on then return end
-        local can = UnitCanAttack and UnitCanAttack("player", "target")
-        if not secret(can) and not can then return end
         slot = HandDue(now)
-        if not slot then return end
+        -- (too soon for either hand: someone else's blow; its own feel now)
+        if not slot then return V.SwingImpact(nil, result, false) end
     end
     slot = slot or 16
     swing.last[slot] = now
-    SwingNow(slot)
+    local kind = V.WeaponKind(slot)
+    if V.HitSyncEvent then V.HitSyncEvent(kind, now) end
+    AtImpact((V.HitDelay(kind)), function() V.SwingImpact(slot, result, true) end)
 end
+
+---------------------------------------------------------------------------
+-- Hit sync: attack (or shoot) and squeeze R2 (or L2) on each impact you
+-- hear; each squeeze after a swing's news gives its delay; the median of
+-- V.HIT_SYNC_TAPS of them is kept for the weapon in hand
+---------------------------------------------------------------------------
+V.HIT_SYNC_TAPS = 6
+local hitFrame = CreateFrame("Frame")
+hitFrame:Hide()
+V.hitFrame = hitFrame
+local function HitSay(text) if V.onHitSync then V.onHitSync(text) end end
+
+-- The kind synced: shooting's, else the main hand's
+function V.HitSync(kind)
+    kind = kind or (ranged.auto and "ranged" or V.WeaponKind(16))
+    V.hitSync = { kind = kind, events = {}, delays = {}, down = false }
+    hitFrame:Show()
+    HitSay(V.HitKindLabel(kind) .. ": attack, squeeze R2 on each impact")
+end
+
+function V.HitSyncCancel()
+    hitFrame:Hide()
+    V.hitSync = nil
+    HitSay("")
+end
+
+-- A swing's (or shot's) news, for the sync
+function V.HitSyncEvent(kind, at)
+    local s = V.hitSync
+    if not s or kind ~= s.kind then return end
+    s.events[#s.events + 1] = at
+    while #s.events > 8 do table.remove(s.events, 1) end
+end
+
+-- A squeeze at t: the delay after the latest news not taken yet (within a
+-- second), or nil
+function V.HitSyncTap(t)
+    local s = V.hitSync
+    if not s then return nil end
+    for i = #s.events, 1, -1 do
+        local d = t - s.events[i]
+        if d >= 0 and d <= 1 then
+            table.remove(s.events, i)
+            s.delays[#s.delays + 1] = d
+            if #s.delays >= V.HIT_SYNC_TAPS then
+                local c = {}
+                for j, v in ipairs(s.delays) do c[j] = v end
+                table.sort(c)
+                local median = c[math.floor((#c + 1) / 2)]
+                V.SetHitDelay(s.kind, median)
+                hitFrame:Hide()
+                V.hitSync = nil
+                HitSay(string.format("Synced: %s hits %.2f s after the swing", V.HitKindLabel(s.kind), median))
+            else
+                HitSay(#s.delays .. " impacts")
+            end
+            return d
+        end
+    end
+    return nil
+end
+
+hitFrame:SetScript("OnUpdate", function()
+    local s = V.hitSync
+    if not s then return hitFrame:Hide() end
+    local L = ns.HapticsLab
+    local l, r
+    if L and L.TriggerAxes then l, r = L.TriggerAxes() end
+    local depth = math.max(l or 0, r or 0)
+    if not s.down and depth > 0.5 then
+        s.down = true
+        V.HitSyncTap(GetTime())
+    elseif s.down and depth < 0.2 then
+        s.down = false
+    end
+end)
 
 function V.SwingStart()
     swing.on, swing.last = true, {}

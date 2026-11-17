@@ -615,6 +615,8 @@ local function count()
     for _, k in ipairs(swings) do if k == "swMace2" then m = m + 1 elseif k == "swDagger" then o = o + 1 end end
     return m, o
 end
+-- (hits at once here: the impact timing is tested below)
+for _, k in ipairs(V.HIT_KINDS) do V.SetHitDelay(k.key, 0) end
 -- auto attack on, out of range: no swing lands, nothing plays
 rev("PLAYER_ENTER_COMBAT")
 assert(V.Swinging(), "auto attack on")
@@ -623,18 +625,18 @@ assert(#swings == 0, "out of range: no swings felt: " .. #swings)
 -- real swings (UNIT_COMBAT on the target): one feel each, the hand the one due
 rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
 now = now + 0.2
-rev("UNIT_COMBAT", "target", "MISS", "", 0, 1)
+rev("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
 local m, o = count()
-assert(m == 1 and o == 1, "a main-hand hit, an off-hand miss: " .. m .. " " .. o)
+assert(m == 1 and o == 1, "a main-hand hit, an off-hand hit: " .. m .. " " .. o)
 now = now + 0.3
 rev("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
 assert(#swings == 2, "too soon for either hand: someone else's blow")
 now = now + 1.0
-rev("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+rev("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
 m, o = count()
 assert(m == 1 and o == 2, "the off hand again, by its speed: " .. m .. " " .. o)
 now = now + 2.2
-rev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+rev("UNIT_COMBAT", "target", "WOUND", "", 90, 1)
 m, o = count()
 assert(m == 2 and o == 2, "the main hand, by its speed: " .. m .. " " .. o)
 -- not swings: a spell's wound, a blow just after an ability, a heal, a friendly target, while shooting
@@ -687,6 +689,7 @@ rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s1", 75)
 assert(shots == 1, "a shot fired: one feel")
 rev("STOP_AUTOREPEAT_SPELL")
 UnitCanAttack = oldCan
+V.Settings().hitTiming = {}
 UnitAttackSpeed = function() return 3.6, 1.5 end
 V.Fire = realFire
 C_Item = oldItem
@@ -1388,4 +1391,97 @@ do
     assert(#H.Feel("clash").pulses == 2 and #H.Feel("parryRing").pulses == 2, "parries: strike, ring")
     assert(#H.Feel("shieldThud").pulses == 1 and #H.Feel("blockThud").pulses == 1, "blocks: one dense hit")
     io.write("PASS: blocks and parries sharp" .. string.char(10))
+end
+
+-- Hit timing: a swing's feel at its impact (per kind of weapon), its result's own feel then, the R2 sync
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.Settings().hitTiming = {}
+    GetInventoryItemID = function(_, slot) return slot == 16 and 100 or nil end
+    local oldItem = C_Item
+    C_Item = { GetItemInfoInstant = function(id) if id == 100 then return nil, nil, nil, nil, nil, 2, 5 end end }
+    UnitAttackSpeed = function() return 3.6, nil end
+    UnitCanAttack = function() return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    assert(V.WeaponKind(16) == "twoHand" and V.WeaponKind(17) == "unarmed" and V.WeaponKind("ranged") == "ranged", "kinds")
+    local d2, set = V.HitDelay("twoHand")
+    assert(d2 > V.HitDelay("dagger") and d2 >= 0.3 and not set and V.HitDelay("ranged") == 0, "guesses: two-hand later")
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local pending, fired = {}, {}
+    local after, vfire, lfire = C_Timer.After, V.Fire, L.Fire
+    C_Timer.After = function(d, fn) pending[#pending + 1] = { d, fn } end
+    V.Fire = function(k) fired[#fired + 1] = "r:" .. k end
+    L.Fire = function(k) fired[#fired + 1] = "l:" .. k end
+    local function land()
+        local list = pending; pending = {}
+        for _, p in ipairs(list) do p[2]() end
+        return list
+    end
+    now = now + 5   -- (no recent ability or shot)
+    rev("PLAYER_ENTER_COMBAT")
+    -- a hit: nothing at the news; at the impact the swing and the Lab's Hit
+    rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    ev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    assert(#fired == 0 and #pending == 1 and math.abs(pending[1][1] - d2) < 1e-9, "waits for the impact: " .. table.concat(fired, ","))
+    land()
+    assert(table.concat(fired, ",") == "r:autoAttack,l:hit", table.concat(fired, ","))
+    -- a parry, a block: their own feel at the impact, no swing
+    fired = {}
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+    ev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+    assert(#fired == 0, "the Lab leaves your swing's parry to the impact")
+    land()
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "BLOCK", "", 0, 1)
+    land()
+    assert(table.concat(fired, ",") == "l:targetParry,l:targetBlock", table.concat(fired, ","))
+    -- a crit: the crit's feel at the impact, no swing
+    fired = {}
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "WOUND", "CRITICAL", 300, 1)
+    assert(#fired == 0, "a crit waits too")
+    land()
+    assert(table.concat(fired, ",") == "r:crit", table.concat(fired, ","))
+    -- not auto attacking: the Lab's hit at once, as before
+    rev("PLAYER_LEAVE_COMBAT")
+    fired = {}
+    ev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    assert(table.concat(fired, ",") == "l:hit" and #pending == 0, "an ability's blow: at once")
+    -- set by hand
+    V.SetHitDelay("twoHand", 0.5)
+    local d, s = V.HitDelay("twoHand")
+    assert(d == 0.5 and s, "set by hand")
+    -- the sync: six squeezes, each a little after a swing's news
+    rev("PLAYER_ENTER_COMBAT")
+    V.HitSync()
+    assert(V.hitSync.kind == "twoHand" and V.hitFrame:IsShown(), "syncs the weapon in hand")
+    local said
+    V.onHitSync = function(t) said = t end
+    for i, lag in ipairs({ 0.3, 0.32, 0.28, 0.31, 0.9, 0.3 }) do
+        now = now + 3.6
+        rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+        land()
+        assert(V.HitSyncTap(now + lag), "a squeeze after the news")
+    end
+    d, s = V.HitDelay("twoHand")
+    assert(s and math.abs(d - 0.3) < 1e-9 and not V.hitSync and said:find("Synced", 1, true), "median: " .. d)
+    assert(V.HitSyncTap(now) == nil, "done")
+    -- ranged: the shot at its own timing
+    V.SetHitDelay("ranged", 0.1)
+    fired = {}
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s9", 75)
+    assert(#fired == 0 and pending[1] and pending[1][1] == 0.1, "a shot waits its own time")
+    land()
+    assert(fired[1] == "r:shot", tostring(fired[1]))
+    rev("PLAYER_LEAVE_COMBAT")
+    C_Timer.After, V.Fire, L.Fire = after, vfire, lfire
+    C_Item, GetInventoryItemID, UnitCanAttack = oldItem, nil, nil
+    V.Settings().hitTiming = {}
+    V.onHitSync = nil
+    io.write("PASS: hit timing: feels at the impact per weapon, results their own, R2 sync" .. string.char(10))
 end
