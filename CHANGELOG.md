@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.1 — 2026-11-16
+
+- **Try** plays a moment as the game does: with WoW Helper linked and HD on (Setup › WoW Helper: Auto), its HD feel goes to WoW Helper on top of the rumble, as one cue with the moment's number and volume (it was the rumble alone). The footer says what played: "Level up: rumble + HD", "rumble + HD draft" (no crafted HD version yet), or "rumble (link off)", "(HD link off)", "(HD off)"
+- Moments › Sound › Try: the moment's cue at its volume, as in play; the footer names the sound
+- Moments › Light › Try: the footer says who drew it, "WoW Helper" or "game light"
+- Moments › Feel › Strength › Try: the pulse in HD too
+
 ## 0.30.0 — 2026-11-16
 
 - Weapon hits at the impact, not the swing's start: the game tells of a swing as its animation starts, so each swing's feel (and its WoW Helper cue and clip) now waits for the blow to land, by kind of weapon: dagger, fist, unarmed 0.20 s, one-hand 0.25, staff 0.30, polearm 0.32, two-hand 0.35; ranged shots 0 (fired at the release). A guess until set

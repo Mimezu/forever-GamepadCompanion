@@ -1045,6 +1045,22 @@ do
     local q = K.queue[#K.queue]
     assert(ok and q.open and q.moment == C.MOMENT_N.loot and q.sound == K.SOUNDS.coin
         and q.touch == ns.HapticsLab.HdId(lootFeel), "Edit HD: the moment's cue, open")
+    -- Try as play: the HD cue on top of the rumble, what played in few words
+    for i = #K.queue, 1, -1 do K.queue[i] = nil end
+    assert(C.TryHD("loot", lootFeel) == "rumble + HD", "Try: HD")
+    q = K.queue[#K.queue]
+    assert(q and q.touch == ns.HapticsLab.HdId(lootFeel) and q.sound == 0 and q.moment == C.MOMENT_N.loot and not q.open,
+        "Try: the HD feel alone, its moment")
+    local n0 = #K.queue
+    assert(C.TryHD("loot", lootFeel, true) == "rumble + HD" and #K.queue == n0, "already sent: not twice")
+    assert(C.TryHD("money", "nope_feel") == "rumble + HD draft", "no crafted HD: a draft")
+    C.SetHDMode("off")
+    assert(C.TryHD("loot", lootFeel) == "rumble (HD off)", "HD off: rumble only")
+    C.SetHDMode("auto")
+    assert(C.TrySound("loot") == "Coin", "Try a sound: " .. tostring(C.TrySound("loot")))
+    q = K.queue[#K.queue]
+    assert(q.sound == K.SOUNDS.coin and q.touch == 0 and q.moment == C.MOMENT_N.loot, "Try a sound: its cue")
+    assert(select(2, C.TrySound("rain")) == "no sound", "no sound")
     -- the export: moments with number, group, feel, sound; the data's stamp
     local ex = ns.HapticsLab.Export()
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel

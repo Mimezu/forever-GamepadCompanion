@@ -262,7 +262,7 @@ function C.Moment(key, feelKey, opts)
     opts = opts or {}
     if not (K and K.Enabled()) then return false end
     local Vol = ns.Volume
-    local sound = (opts.open or On("sounds")) and C.MomentSound(key) or nil
+    local sound = (opts.open or opts.try or On("sounds")) and not opts.noSound and C.MomentSound(key) or nil
     local soundGain
     if sound then
         if Vol then soundGain = Vol.Gain(Vol.SoundLevel(key)) else soundGain = 7 end
@@ -283,6 +283,30 @@ function C.Moment(key, feelKey, opts)
         if Vol then gain = Vol.Gain(feel) or 0 end
     end
     return K.Cue({ moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open })
+end
+
+-- Try a moment's feel as play does: the game's rumble (the caller plays it) and, while the link
+-- carries HD, WoW Helper's HD version on top, as one cue with the moment's number and volume.
+-- sent: the cue already went (a simulation fires the moment). Returns what played, in few words.
+function C.TryHD(key, feelKey, sent)
+    if not feelKey then return nil end
+    if not (K and K.Enabled()) then return "rumble (link off)" end
+    if not K.V2() then return "rumble (HD link off)" end
+    if C.HDMode() == "off" then return "rumble (HD off)" end
+    if not sent then C.Moment(key, feelKey, { noSound = true }) end
+    if Data() and not C.HasHD(feelKey) then return "rumble + HD draft" end
+    return "rumble + HD"
+end
+
+-- Try a moment's sound: on the pad's speaker through WoW Helper, at its volume, as play sends it
+-- (sounds switched off or not). Returns what played, or nil and why.
+function C.TrySound(key)
+    local id = C.MomentSound(key)
+    if not id then return nil, "no sound" end
+    if not (K and K.Enabled()) then return nil, "Link is off: Setup" end
+    if ns.Volume and not ns.Volume.Gain(ns.Volume.SoundLevel(key)) then return nil, "volume 0%" end
+    if not C.Moment(key, nil, { try = true }) then return nil, "not sent" end
+    return C.SoundName(id)
 end
 
 -- Edit HD: the moment plays and opens in WoW Helper. Returns ok, why.

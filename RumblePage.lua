@@ -156,6 +156,8 @@ ITEM.r = {
             V.SimulateCombo(key, function(n) Say(e.label .. (n > 1 and " x" .. n or "")) end)
         else
             V.Play(pattern, false, V.Scaled(nil, key))
+            local what = C and C.TryHD and C.TryHD(key, L.FeelFor(pattern))
+            if what then Say(e.label .. ": " .. what) end
         end
     end,
     level = Volume("feel"),
@@ -218,7 +220,12 @@ ITEM.l = {
         local s = L.EventSettings(key)
         s.on, s.feel = true, ownKey
     end,
-    try = function(key) L.Try(key) end,
+    try = function(key)
+        L.Try(key)
+        local s = L.EventSettings(key)
+        local what = s.on and C and C.TryHD and C.TryHD(key, s.feel)
+        if what then Say(L.EVENT[key].label .. ": " .. what) end
+    end,
     level = Volume("feel"),
 }
 
@@ -280,7 +287,10 @@ ITEM.light = {
     pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
     isDefault = function(key) return LT.IsDefault(key) end,
     default = function(key) LT.Default(key) end,
-    try = function(key) LT.Try(key) end,
+    try = function(key)
+        LT.Try(key)
+        Say(LabelOf(key) .. ": " .. (LT.HelperDrives() and "WoW Helper" or "game light"))
+    end,
     -- (strength: in the picker, one control)
 }
 
@@ -307,14 +317,9 @@ ITEM.sound = {
     isDefault = function(key) return C.IsSoundDefault(key) end,
     default = function(key) C.SetMomentSound(key, nil) end,
     try = function(key)
-        local id = C.MomentSound(key)
-        if not id then return Say(LabelOf(key) .. ": no sound", true) end
-        if not K.Enabled() then return Say("Link is off: Setup", true) end
-        local gain = 7
-        if ns.Volume then gain = ns.Volume.Gain(ns.Volume.SoundLevel(key)) end
-        if not gain then return Say(LabelOf(key) .. ": volume 0%", true) end
-        K.Play(id, gain)
-        Say(LabelOf(key) .. ": " .. C.SoundName(id))
+        local name, why = C.TrySound(key)
+        if not name then return Say(LabelOf(key) .. ": " .. why, true) end
+        Say(LabelOf(key) .. ": " .. name)
     end,
     level = Volume("sound"),
 }
@@ -524,7 +529,12 @@ local function Build(frame, header)
         format = Pct, get = function() return V.Settings().intensity end,
         set = function(v) V.Settings().intensity = v; V.Play("pulse") end })
     pg.Refresh = function() Refresh() end
-    ui.pulse = S.NewButton(fb, "Try", 14, -96, 86, function() if On() then V.Play("pulse") end end, nil, 12, 28)
+    ui.pulse = S.NewButton(fb, "Try", 14, -96, 86, function()
+        if not On() then return end
+        V.Play("pulse")
+        local what = C and C.TryHD and C.TryHD(nil, L.FeelFor("pulse"))
+        if what then Say("Strength: " .. what) end
+    end, nil, 12, 28)
     ui.sides = S.NewButton(fb, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
     S.Tooltip(ui.sides, "Each motor", "Left grip, right grip, triggers")
     -- Light: what the bar shows now
