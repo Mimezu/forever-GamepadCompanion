@@ -1336,3 +1336,23 @@ do
     L.TriggerAxes = axesFn
     io.write("PASS: mining: a knock and ring per swing from the cast start, sync by R2, a crack on success" .. string.char(10))
 end
+
+-- Water probe (/gpc water): each candidate's value, labelled, kept in the saved settings
+do
+    local D = ns.HapticsDebug
+    IsSubmerged = function(unit) return unit == "player" end
+    IsSwimming = function() return false end
+    UnitPosition = function() return 10, 20, 3.5, 0 end
+    D.WaterProbe("dry")
+    local log = H.DB().waterProbe
+    assert(#log == 1 and log[1]:find("dry sub=false sub(p)=true swim=false", 1, true), log[1])
+    assert(log[1]:find("pos=10.00/20.00/3.50/0.00", 1, true), "every value of a call")
+    D.WaterProbe("wading")
+    assert(D.waterLabel == "wading" and D.waterTicker, "a new label, still running")
+    assert(D.WaterLine():find("^wading "), D.WaterLine())
+    D.WaterProbe("")
+    assert(not D.waterTicker and #H.DB().waterProbe == 1, "stopped, the lines kept")
+    assert(GamepadCompanionAPI.WaterProbe, "in /gpc")
+    IsSubmerged, IsSwimming, UnitPosition = nil, nil, nil
+    io.write("PASS: water probe: candidates each second, labelled, kept" .. string.char(10))
+end

@@ -324,6 +324,69 @@ function D.WaterText()
         w.api and YesNo(w.submerged) or "no API", YesNo(w.swimming))
 end
 
+---------------------------------------------------------------------------
+-- Water probe (temporary, /gpc water): which of the client's signals tell
+-- dry land, shallow water and swimming apart. Each second a line of every
+-- candidate, printed and kept in GamepadCompanionHapticsDB.waterProbe (read
+-- back from the saved settings after /reload). A label (/gpc water dry,
+-- wading, swim) marks the lines that follow.
+---------------------------------------------------------------------------
+local function Val(fn, ...)
+    if type(fn) ~= "function" then return "none" end
+    local out = { pcall(fn, ...) }
+    if not out[1] then return "err" end
+    local parts = {}
+    for i = 2, math.max(2, #out) do
+        local v = out[i]
+        if issecretvalue and issecretvalue(v) then parts[#parts + 1] = "secret"
+        elseif type(v) == "number" then parts[#parts + 1] = string.format("%.2f", v)
+        else parts[#parts + 1] = tostring(v) end
+    end
+    return table.concat(parts, "/")
+end
+
+function D.WaterLine()
+    local function mirror(i)
+        local name, _, _, scale, paused = nil, nil, nil, nil, nil
+        if type(GetMirrorTimerInfo) == "function" then
+            local ok, a, b, c, d, e = pcall(GetMirrorTimerInfo, i)
+            if ok then name, scale, paused = a, d, e end
+        end
+        return tostring(name) .. (scale and string.format(":%.1f", scale) or "") .. (paused and "p" or "")
+    end
+    return string.format("%s sub=%s sub(p)=%s swim=%s swim(p)=%s fall=%s fly=%s in=%s out=%s speed=%s pos=%s mirror=%s,%s,%s",
+        D.waterLabel or "-", Val(IsSubmerged), Val(IsSubmerged, "player"), Val(IsSwimming), Val(IsSwimming, "player"),
+        Val(IsFalling), Val(IsFlying), Val(IsIndoors), Val(IsOutdoors), Val(GetUnitSpeed, "player"),
+        Val(UnitPosition, "player"), mirror(1), mirror(2), mirror(3))
+end
+
+function D.WaterProbe(arg)
+    local label = arg and arg:match("%S+")
+    local say = function(text) print("|cff80c0ffGamepad Companion water:|r " .. text) end
+    if label and D.waterTicker then
+        D.waterLabel = label
+        return say("now: " .. label)
+    end
+    if D.waterTicker then
+        D.waterTicker:Cancel()
+        D.waterTicker = nil
+        return say("stopped · " .. #(H.DB().waterProbe or {}) .. " lines kept · /reload to save them")
+    end
+    D.waterLabel = label
+    local log = {}
+    H.DB().waterProbe = log
+    local t0 = Now()
+    local function tick()
+        local line = string.format("%5.1f ", Now() - t0) .. D.WaterLine()
+        log[#log + 1] = line
+        while #log > 300 do table.remove(log, 1) end
+        say(line)
+    end
+    tick()
+    D.waterTicker = C_Timer.NewTicker(1, tick)
+    say("on · /gpc water dry | wading | swim to label · /gpc water to stop")
+end
+
 function D.Show(on)
     if not win then Build() end
     if on == nil then on = not win:IsShown() end
@@ -337,4 +400,5 @@ function D.Shown() return win ~= nil and win:IsShown() end
 
 if GamepadCompanionAPI then
     GamepadCompanionAPI.ToggleHapticsDebug = function() return D.Show() end
+    GamepadCompanionAPI.WaterProbe = function(arg) return D.WaterProbe(arg) end
 end

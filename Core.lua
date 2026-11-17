@@ -771,6 +771,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         if rest:lower() == "test" and API.Rumble then API.Rumble.TestSides() else API.OpenRumble() end
         return
     end
+    if command == "water" and API.WaterProbe then
+        API.WaterProbe(rest)
+        return
+    end
     if command == "debug" and API.ToggleHapticsDebug then
         API.ToggleHapticsDebug()
         return
