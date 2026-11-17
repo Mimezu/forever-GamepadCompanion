@@ -46,6 +46,9 @@ C.MOMENTS = {
     { "whisper", "Social" }, { "readyCheck", "Social" }, { "invite", "Social" }, { "summon", "Social" },
     { "uiError", "Social" }, { "haloOpen", "Social" }, { "wheelTick", "Social" }, { "haloUse", "Social" },
     { "haloClose", "Social" },
+    -- light-only moments (Lights.lua keys; the others share Rumble's and the engine's), 69-75
+    { "critTaken", "Defense" }, { "avoid", "Defense" }, { "combat", "Defense" }, { "cast", "Abilities" },
+    { "release", "Abilities" }, { "interrupted", "Abilities" }, { "halo", "Social" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
@@ -224,6 +227,17 @@ function C.SetMomentFeel(key, feelKey)
         return true
     end
     return false
+end
+
+-- HD: "auto" (HD while the link is on) or "off" (the Setup tab's WoW Helper card)
+function C.HDMode() return C.Settings().hdFeels == false and "off" or "auto" end
+function C.SetHDMode(v) C.Settings().hdFeels = v ~= "off" end
+
+-- A gesture slot's name, as recorded in WoW Helper (nil without data)
+function C.GestureName(slot)
+    local d = Data()
+    local g = d and type(d.gestures) == "table" and d.gestures[slot]
+    return type(g) == "string" and g or nil
 end
 
 -- HD at Rumble's strength

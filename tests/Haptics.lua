@@ -842,7 +842,7 @@ do
     -- the numbers are on the wire: pinned
     assert(#C.MOMENTS <= 127, "moments fit 7 bits")
     local PIN = { autoAttack = 1, crit = 3, hitTaken = 11, spell = 22, jump = 32, eat = 42, rain = 47, levelUp = 52,
-        loot = 53, whisper = 60, haloClose = 68 }
+        loot = 53, whisper = 60, haloClose = 68, critTaken = 69, halo = 75, haloUse = 67 }
     for key, n in pairs(PIN) do assert(C.MOMENT_N[key] == n, "moment number moved: " .. key) end
     local seen = {}
     for n, m in ipairs(C.MOMENTS) do assert(not seen[m[1]], "moment twice: " .. m[1]); seen[m[1]] = n end
@@ -869,7 +869,7 @@ do
     local lootFeel = C.MomentFeel("loot")
     assert(lootFeel, "loot has a feel")
     WowHelperData = { at = "2026-11-16 18:02", sounds = { { id = 900, name = "Far bell", group = "Quests" } },
-        hd = { [lootFeel] = true },
+        hd = { [lootFeel] = true }, gestures = { [3] = "Flick up" },
         feels = { hx_2048 = { label = "Coin tap 2", hd = 2048, from = lootFeel } },
         use = { loot = { feel = "hx_2048", base = lootFeel, stamp = 3 },
             money = { feel = "hx_2048", base = "not_its_feel", stamp = 3 } } }
@@ -877,6 +877,11 @@ do
     assert(d.at == "2026-11-16 18:02" and d.sounds == 1 and d.hd == 1, "data counts")
     assert(#C.SoundList() == 7 and C.SoundName(900) == "Far bell", "helper sounds listed")
     assert(C.HasHD(lootFeel) and C.HasHD("hx_2048") and not C.HasHD("nope"), "HD known")
+    assert(C.GestureName(3) == "Flick up" and C.GestureName(4) == nil, "gesture names")
+    assert(C.HDMode() == "auto", "HD auto")
+    C.SetHDMode("off")
+    assert(C.HDMode() == "off" and not C.Settings().hdFeels, "HD off")
+    C.SetHDMode("auto")
     local moneyWas = C.MomentFeel("money")
     assert(C.LoadHelperData() == 1, "one proposal applied")
     assert(H.Feel("hx_2048") and H.Feel("hx_2048").label == "Coin tap 2" and ns.HapticsLab.HdId("hx_2048") == 2048,
