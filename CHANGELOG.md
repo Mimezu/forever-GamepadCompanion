@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.31.0 — 2026-11-16
+
+- **Sync pass** (docs/TIMING.md): every moment checked against the animation or sound it stands for; one place for the timing (`Timing.lua`)
+- Hits: the impact offset per model (race, sex, druid form), kind of weapon and hand (main, off, ranged), and in proportion when attacks come faster than the animation. Defaults per weapon; your sync or setting on top; a slot for values WoW Helper learns
+- Hit sync: a squeeze may come before or after the swing's news (pairs with the nearest); six, the median, refused if uneven; the feels stay quiet while you squeeze; the raw pairs kept (`timing.log`)
+- Extra attacks (Windfury, Sword Specialization) and parry-hasted swings count as swings; Heroic Strike, Cleave, Maul and Raptor Strike's blow is the swing
+- Footsteps and mining strikes: each starts on the frame it begins and plays whole (a slow frame no longer shortens or drops one)
+- Mount and dismount: on the frame they happen (were up to 100 ms late)
+- One sync for footsteps, mining and hits (starting one stops another)
+- WoW Helper's link delay: `Timing.SetLinkLatency` takes it off delayed hits and runs the step and strike clocks that much ahead, while WoW Helper is on
+
 ## 0.30.2 — 2026-11-16
 
 - A sound added in WoW Helper (ids 1000+) now plays: Try on Moments › Sound sends it as the moment's sound (it went out as an HD feel id and played nothing). In play it already did

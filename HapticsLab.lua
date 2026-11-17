@@ -997,22 +997,37 @@ end
 
 -- The step clock: which step (n) and the seconds since it, or nil before
 -- the first one
-local function StepClock(now, v)
-    local rate, offset = L.StepTiming(max(0.5, live.speed))
+-- (the clock itself: now, its state, the speed, the move's start, the link
+-- lead; the step and the seconds since it, or nil; and a new move start
+-- when the gait changed)
+local function Clock(now, v, speed, moveStart, lead)
+    local real = now
+    now = now + (lead or 0)
+    local rate, offset = L.StepTiming(max(0.5, speed))
     -- (walk to run or back: the other animation starts its cycle now)
-    local band = Band(max(0.5, live.speed))
-    if v.band and v.band ~= band then live.moveStart, v.phase = now, nil end
+    local band = Band(max(0.5, speed))
+    local restart
+    if v.band and v.band ~= band then restart, moveStart, v.phase = now, now, nil end
     v.band = band
     if not v.phase then
         -- (from the start of the run, though the voice starts a moment later)
-        v.phase = ((now - (live.moveStart or now)) - offset) * rate
+        v.phase = ((now - (moveStart or now)) - offset) * rate
     else
         v.phase = v.phase + (now - v.at) * rate
     end
     v.at = now
-    if v.phase < 0 then return nil end
+    if v.phase < 0 then return nil, nil, restart end
     local n = floor(v.phase)
-    return n, (v.phase - n) / rate
+    -- (each step from the frame it begins: a slow frame shortens or loses none)
+    if n ~= v.stepN then v.stepN, v.stepAt = n, real end
+    return n, real - v.stepAt, restart
+end
+L.StepClockForTest = Clock
+
+local function StepClock(now, v)
+    local n, d, restart = Clock(now, v, live.speed, live.moveStart, ns.Timing and ns.Timing.Lead() or 0)
+    if restart then live.moveStart = restart end
+    return n, d
 end
 
 local function Steps(now, v)
@@ -1596,9 +1611,6 @@ local function Poll()
     local mounted = call(IsMounted) and true or false
     -- (into water: once; a jump into it splashed on landing already)
     if swimming and not was.swimming and was.mounted ~= nil and not L.SplashedLately(now) then L.Fire("splash") end
-    if was.mounted ~= nil and mounted ~= was.mounted and not taxi then
-        L.Fire(mounted and "mount" or "dismount")
-    end
     if was.taxi ~= nil and taxi ~= was.taxi then L.Fire("taxi") end
     was.swimming, was.mounted, was.taxi = swimming, mounted, taxi
     -- Moving
@@ -1768,6 +1780,12 @@ air:SetScript("OnUpdate", function()
     end
     local falling = call(IsFalling) and true or false
     local now = Now()
+    -- (mount and dismount, as the frame they happen)
+    local mounted = call(IsMounted) and true or false
+    if airState.mounted ~= nil and mounted ~= airState.mounted and not call(UnitOnTaxi, "player") then
+        L.Fire(mounted and "mount" or "dismount")
+    end
+    airState.mounted = mounted
     -- (a landing waits one frame: falling into water, the swim may start a
     -- frame after the fall ends, and a thud must not come before the splash)
     local pending = airState.pending
@@ -1788,13 +1806,36 @@ end)
 -- Footstep sync: start running and squeeze R2 (or L2) on each footfall; the
 -- squeezes give the step rate and the first step's time after the start
 ---------------------------------------------------------------------------
-local syncFrame = CreateFrame("Frame")
-syncFrame:Hide()
+-- (on Timing's one sync)
+local function StepTap(now)
+    local s = L.sync
+    if not s or s.waiting then return end
+    s.taps[#s.taps + 1] = now - s.start
+    local speed = call(GetUnitSpeed, "player")
+    if speed and not secret(speed) and speed > 0 then s.speeds[#s.speeds + 1] = speed end
+    if L.onSync then L.onSync(#s.taps .. " steps") end
+    if #s.taps >= 12 then L.StepSyncEnd() end
+end
+
+local function StepWatch(now)
+    local s = L.sync
+    if not s then return ns.Timing.StopSync("steps") end
+    if s.waiting then
+        if now - s.began > 30 then L.StepSyncCancel() end
+        return
+    end
+    if now - s.start > 15 then L.StepSyncEnd() end
+end
 
 function L.StepSync(band)
     band = band or "run"
-    L.sync = { band = band, waiting = true, taps = {}, speeds = {}, down = false, began = Now() }
-    syncFrame:Show()
+    local s = { band = band, waiting = true, taps = {}, speeds = {}, began = Now() }
+    L.sync = s
+    ns.Timing.StartSync({ name = "steps", onTap = StepTap, onUpdate = StepWatch,
+        onStop = function(cancelled)
+            if L.sync == s then L.sync = nil end
+            if cancelled and L.onSync then L.onSync("") end
+        end })
     if L.onSync then
         L.onSync(band == "walk" and "Stand still, walk on (Walk key), then move: squeeze R2 on each footfall"
             or "Stand still, then run: squeeze R2 on each footfall")
@@ -1802,7 +1843,7 @@ function L.StepSync(band)
 end
 
 function L.StepSyncCancel()
-    syncFrame:Hide()
+    ns.Timing.StopSync("steps", true)
     L.sync = nil
     if L.onSync then L.onSync("") end
 end
@@ -1847,8 +1888,8 @@ end
 
 function L.StepSyncEnd()
     local s = L.sync
-    syncFrame:Hide()
     L.sync = nil
+    ns.Timing.StopSync("steps")
     if not s then return end
     local rate, offset = L.FitSteps(s.taps)
     if not rate then
@@ -1872,28 +1913,6 @@ function L.StepSyncEnd()
     print("|cff80c0ffGamepad Companion:|r " .. msg)
 end
 
-syncFrame:SetScript("OnUpdate", function()
-    local s = L.sync
-    if not s then return syncFrame:Hide() end
-    local now = Now()
-    if s.waiting then
-        if now - s.began > 30 then L.StepSyncCancel() end
-        return
-    end
-    local l, r = L.TriggerAxes()
-    local depth = max(l or 0, r or 0)
-    if not s.down and depth > 0.5 then
-        s.down = true
-        s.taps[#s.taps + 1] = now - s.start
-        local speed = call(GetUnitSpeed, "player")
-        if speed and not secret(speed) and speed > 0 then s.speeds[#s.speeds + 1] = speed end
-        if L.onSync then L.onSync(#s.taps .. " steps") end
-        if #s.taps >= 12 then L.StepSyncEnd() end
-    elseif s.down and depth < 0.2 then
-        s.down = false
-    end
-    if now - s.start > 15 then L.StepSyncEnd() end
-end)
 
 -- The Beta engine on or off
 function L.SetEngine(on)

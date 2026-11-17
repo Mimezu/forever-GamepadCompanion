@@ -148,7 +148,7 @@ IsShiftKeyDown = function() return false end
 function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
-for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Volume.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
     "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -616,7 +616,7 @@ local function count()
     return m, o
 end
 -- (hits at once here: the impact timing is tested below)
-for _, k in ipairs(V.HIT_KINDS) do V.SetHitDelay(k.key, 0) end
+for _, k in ipairs(V.HIT_KINDS) do V.SetHitDelay(k.key, 0); V.SetHitDelay(k.key, 0, "off") end
 -- auto attack on, out of range: no swing lands, nothing plays
 rev("PLAYER_ENTER_COMBAT")
 assert(V.Swinging(), "auto attack on")
@@ -630,15 +630,16 @@ local m, o = count()
 assert(m == 1 and o == 1, "a main-hand hit, an off-hand hit: " .. m .. " " .. o)
 now = now + 0.3
 rev("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
-assert(#swings == 2, "too soon for either hand: someone else's blow")
+m, o = count()
+assert(#swings == 3 and o == 2, "sooner than either hand: an extra attack (Windfury...), the hand due nearest")
 now = now + 1.0
 rev("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
 m, o = count()
-assert(m == 1 and o == 2, "the off hand again, by its speed: " .. m .. " " .. o)
+assert(m == 1 and o == 3, "the off hand again, by its speed: " .. m .. " " .. o)
 now = now + 2.2
 rev("UNIT_COMBAT", "target", "WOUND", "", 90, 1)
 m, o = count()
-assert(m == 2 and o == 2, "the main hand, by its speed: " .. m .. " " .. o)
+assert(m == 2 and o == 3, "the main hand, by its speed: " .. m .. " " .. o)
 -- not swings: a spell's wound, a blow just after an ability, a heal, a friendly target, while shooting
 now = now + 4
 swings = {}
@@ -689,7 +690,7 @@ rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s1", 75)
 assert(shots == 1, "a shot fired: one feel")
 rev("STOP_AUTOREPEAT_SPELL")
 UnitCanAttack = oldCan
-V.Settings().hitTiming = {}
+ns.Timing.Store().set = {}
 UnitAttackSpeed = function() return 3.6, 1.5 end
 V.Fire = realFire
 C_Item = oldItem
@@ -1332,8 +1333,10 @@ do
     assert(V.castKind == "gather" and V.castAction == "mining", "mining known: " .. tostring(V.castAction))
     local shape = V.looping and V.looping.shape
     assert(shape, "mining strikes in time (a shape, not the looped pattern)")
-    assert(shape(start + 0.3) == 0 and shape(start + 0.52) == K and shape(start + 1.52) == K
-        and shape(start + 0.62) == R and shape(start + 0.8) == 0, "a strike on each swing")
+    assert(shape(start + 0.3) == 0 and shape(start + 0.52) == K and shape(start + 0.63) == R
+        and shape(start + 0.8) == 0 and shape(start + 1.52) == K, "a strike on each swing")
+    -- (a slow frame: a strike caught late still plays whole, from that frame)
+    assert(shape(start + 2.58) == K and shape(start + 2.6) == K, "a strike a slow frame caught late: whole")
     -- sync: squeeze R2 on the strikes, over two casts
     V.StrikeSync("mining")
     local said
@@ -1342,10 +1345,10 @@ do
     local depth = 0
     local axesFn = L.TriggerAxes
     L.TriggerAxes = function() return 0, depth end
-    local strikeFrameUpdate = V.strikeFrame
-    assert(strikeFrameUpdate:IsShown(), "the sync listens")
-    local function squeeze(t) now = start + t; depth = 1; strikeFrameUpdate.scripts.OnUpdate(strikeFrameUpdate, 0.01)
-        depth = 0; strikeFrameUpdate.scripts.OnUpdate(strikeFrameUpdate, 0.01) end
+    local watcher = ns.Timing.watcher
+    assert(watcher:IsShown() and ns.Timing.Syncing("strikes"), "the one sync listens")
+    local function squeeze(t) now = start + t; depth = 1; watcher.scripts.OnUpdate(watcher, 0.01)
+        depth = 0; watcher.scripts.OnUpdate(watcher, 0.01) end
     squeeze(0.7); squeeze(1.9); squeeze(3.1)
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_STOP", "player", "cast-m2")
     assert(said == "3 strikes: mine again", tostring(said))
@@ -1429,7 +1432,7 @@ do
     H.DB().engine = true
     V.Settings().enabled = true
     L.SetEngine(true)
-    V.Settings().hitTiming = {}
+    ns.Timing.Store().set = {}
     GetInventoryItemID = function(_, slot) return slot == 16 and 100 or nil end
     local oldItem = C_Item
     C_Item = { GetItemInfoInstant = function(id) if id == 100 then return nil, nil, nil, nil, nil, 2, 5 end end }
@@ -1490,18 +1493,54 @@ do
     -- the sync: six squeezes, each a little after a swing's news
     rev("PLAYER_ENTER_COMBAT")
     V.HitSync()
-    assert(V.hitSync.kind == "twoHand" and V.hitFrame:IsShown(), "syncs the weapon in hand")
+    assert(V.hitSync.kind == "twoHand" and V.hitSync.hand == "main" and ns.Timing.Syncing("hits"), "syncs the weapon in hand")
     local said
     V.onHitSync = function(t) said = t end
+    fired = {}
     for i, lag in ipairs({ 0.3, 0.32, 0.28, 0.31, 0.9, 0.3 }) do
         now = now + 3.6
         rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
         land()
-        assert(V.HitSyncTap(now + lag), "a squeeze after the news")
+        assert(V.HitSyncTap(now + lag) or i == 6, "a squeeze after the news")
     end
+    assert(#fired == 0, "quiet while syncing: you squeeze to the game's sound")
     d, s = V.HitDelay("twoHand")
-    assert(s and math.abs(d - 0.3) < 1e-9 and not V.hitSync and said:find("Synced", 1, true), "median: " .. d)
-    assert(V.HitSyncTap(now) == nil, "done")
+    assert(s and math.abs(d - 0.305) < 1e-9 and not V.hitSync and said:find("Synced", 1, true), "median: " .. d)
+    assert(V.HitSyncTap(now) == nil and not ns.Timing.Syncing(), "done")
+    assert(#ns.Timing.Store().log >= 1, "the raw pairs kept")
+    -- signed: the sound before the news (a squeeze before it) pairs too; uneven squeezes are refused
+    local T = ns.Timing
+    local pairs1 = T.PairTaps({ 10, 13.6, 17.2 }, { 9.95, 13.58, 17.3 }, 3.6)
+    assert(#pairs1 == 3 and math.abs(pairs1[1] + 0.05) < 1e-9 and math.abs(pairs1[3] - 0.1) < 1e-9, "signed pairs")
+    assert(T.FitDelay({ 0.1, 0.4, 0.05, 0.5, 0.2, 0.35 }) == nil, "uneven: refused")
+    assert(select(2, T.FitDelay({ 0.1, 0.1 })) == "few", "few")
+    -- faster than the animation: the impact in proportion
+    T.Set("twoHand", "main", 0.4)
+    assert(math.abs(T.Impact("twoHand", "main", 3.6) - 0.4) < 1e-9 and math.abs(T.Impact("twoHand", "main", 0.75) - 0.2) < 1e-9,
+        "in proportion when the swing comes round sooner than the animation")
+    -- per model and form: a cat's swipes are their own
+    GetShapeshiftFormID = function() return 1 end
+    assert(V.WeaponKind(16) == "form" and T.Key("form", "main"):find("%-f1|form|main$"), T.Key("form", "main"))
+    GetShapeshiftFormID = nil
+    -- the link lead: with WoW Helper on, scheduled feels go out that much early
+    local K = ns.HelperLink
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    T.SetLinkLatency(0.08)
+    assert(math.abs(T.Lead() - 0.08) < 1e-9, "the lead")
+    pending = {}
+    T.After(0.3, function() end)
+    assert(pending[1] and math.abs(pending[1][1] - 0.22) < 1e-9, "sent the lead early")
+    local ran = false
+    T.After(0.05, function() ran = true end)
+    assert(ran, "a lead longer than the wait: at once")
+    K.Enabled = enabled
+    assert(T.Lead() == 0, "WoW Helper off: no lead")
+    T.SetLinkLatency(nil)
+    pending = {}
+    -- 0.30.0's delays move to Timing
+    V.Settings().hitTiming = { dagger = 0.15 }
+    assert(V.HitDelay("dagger") == 0.15 and V.HitDelay("dagger", "off") == 0.15 and not next(V.Settings().hitTiming), "migrated")
     -- ranged: the shot at its own timing
     V.SetHitDelay("ranged", 0.1)
     fired = {}
@@ -1512,7 +1551,97 @@ do
     rev("PLAYER_LEAVE_COMBAT")
     C_Timer.After, V.Fire, L.Fire = after, vfire, lfire
     C_Item, GetInventoryItemID, UnitCanAttack = oldItem, nil, nil
-    V.Settings().hitTiming = {}
+    ns.Timing.Store().set = {}
     V.onHitSync = nil
     io.write("PASS: hit timing: feels at the impact per weapon, results their own, R2 sync" .. string.char(10))
+end
+
+-- Sync pass: mount on the frame, steps latched, the one sync for steps, next-swing abilities are swings
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local T = ns.Timing
+    local fired = {}
+    local lfire, vfire = L.Fire, V.Fire
+    L.Fire = function(k) fired[#fired + 1] = k end
+    local air = L.airFrame
+    local mounted = false
+    IsMounted = function() return mounted end
+    IsFalling = function() return false end
+    air.scripts.OnUpdate(air, 0.01)
+    mounted = true
+    air.scripts.OnUpdate(air, 0.01)
+    assert(fired[#fired] == "mount", "mount on the frame it happens: " .. tostring(fired[#fired]))
+    L.Poll()
+    assert(fired[#fired] == "mount" and #fired == 1, "the poll no longer fires it twice")
+    mounted = false
+    air.scripts.OnUpdate(air, 0.01)
+    assert(fired[#fired] == "dismount", "dismount")
+    IsMounted, IsFalling = nil, nil
+    L.Fire = lfire
+    -- footsteps sync on Timing's one watcher; starting another sync stops it
+    L.StepSync("run")
+    assert(T.Syncing("steps") and L.sync, "steps sync")
+    V.StrikeSync("mining")
+    assert(T.Syncing("strikes") and not L.sync, "one sync at a time")
+    V.StrikeSyncCancel()
+    assert(not T.Syncing(), "cancelled")
+    L.StepSync("run")
+
+    labFrame.scripts.OnEvent(labFrame, "PLAYER_STARTED_MOVING")
+    local t0 = now
+    GetUnitSpeed = function() return 7 end
+    for i = 1, 6 do T.Tap(t0 + 0.1 + 0.4 * i) end
+    T.StopSync("steps")
+    assert(not L.sync and not T.Syncing(), "steps sync ends")
+    GetUnitSpeed = nil
+    H.DB().stepSync = {}
+    -- next-swing abilities: Heroic Strike's blow is the swing (no ability guard)
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local swingsSeen = 0
+    V.Fire = function(k) if k == "autoAttack" then swingsSeen = swingsSeen + 1 end end
+    UnitCanAttack = function() return true end
+    for _, k in ipairs(T.KINDS) do T.Set(k.key, "main", 0); T.Set(k.key, "off", 0) end
+    now = now + 5
+    rf.scripts.OnEvent(rf, "PLAYER_ENTER_COMBAT")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "hs", 78)
+    rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 200, 1)
+    assert(swingsSeen == 1, "Heroic Strike's blow: the swing")
+    now = now + 5
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "ss", 1752)
+    rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 200, 1)
+    assert(swingsSeen == 1, "Sinister Strike's blow: not a swing")
+    rf.scripts.OnEvent(rf, "PLAYER_LEAVE_COMBAT")
+    V.Fire = vfire
+    UnitCanAttack = nil
+    T.Store().set = {}
+    io.write("PASS: sync pass: mount on the frame, one sync, next-swing abilities" .. string.char(10))
+end
+
+-- Steps latched: a slow frame still gives each step its whole pulse; the lead runs the clock ahead
+do
+    local L2 = ns.HapticsLab
+    assert(type(L2.StepClockForTest) == "function", "step clock exposed for tests")
+    local v = {}
+    local lead = 0
+    local n1, d1 = L2.StepClockForTest(100.0, v, 7, 99.0, lead)
+    local n2, d2 = L2.StepClockForTest(100.07, v, 7, 99.0, lead)
+    assert(n1 and d2 and (n2 ~= n1 or d2 > d1), "the clock runs")
+    -- a frame landing 30 ms into a new step: the pulse starts there, whole
+    local v2 = {}
+    local rate = L2.StepTiming(7)
+    local start = 99.0
+    local _, offset = L2.StepTiming(7)
+    local stepAt = start + offset + 3 / rate
+    L2.StepClockForTest(stepAt - 0.1, v2, 7, start, 0)
+    local n, d = L2.StepClockForTest(stepAt + 0.03, v2, 7, start, 0)
+    assert(d == 0, "a step caught late starts whole: " .. tostring(d))
+    -- the lead: the same step that much sooner
+    local v3 = {}
+    L2.StepClockForTest(stepAt - 0.2, v3, 7, start, 0.08)
+    local _, d3 = L2.StepClockForTest(stepAt - 0.07, v3, 7, start, 0.08)
+    assert(d3 == 0, "with the link lead, the step goes out early")
+    io.write("PASS: steps latched, the lead ahead" .. string.char(10))
 end
