@@ -1906,3 +1906,46 @@ do
     UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
     io.write("PASS: your abilities: paired with their own result, at the blow, matched; others' damage never" .. string.char(10))
 end
+
+-- The fight log: a ring of the last moments, why each played, combat markers; saved with the settings
+do
+    local D = ns.HapticsDebug
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    H.DB().fightLog = nil
+    D.FIGHT_SIZE = 5
+    local cf = D.combatFrame
+    UnitName = function() return "Training Dummy" end
+    cf.scripts.OnEvent(cf, "PLAYER_REGEN_DISABLED")
+    -- a Lab moment from an event: why = the event
+    L.EventSettings("whisper").on = true
+    now = now + 1
+    ev("CHAT_MSG_WHISPER", "hi", "Bob")
+    -- a swing at its impact: why = the swing, its hand, the delay
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    UnitCanAttack = function() return true end
+    V.SetEventPattern("autoAttack", "auto")
+    now = now + 5
+    rf.scripts.OnEvent(rf, "PLAYER_ENTER_COMBAT")
+    rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    RunTimers()
+    cf.scripts.OnEvent(cf, "PLAYER_REGEN_ENABLED")
+    local lines = D.FightLines()
+    local all = table.concat(lines, "\n")
+    assert(lines[1]:find("-- combat on · Training Dummy", 1, true), lines[1])
+    assert(all:find("whisper | Whisper | .- | rumble | .- | CHAT_MSG_WHISPER hi Bob"), all)
+    assert(all:find("autoAttack | Auto attack | .- | swing hit main hand %+0%.%d%d"), all)
+    assert(lines[#lines]:find("-- combat off", 1, true), lines[#lines])
+    -- a ring: only the last FIGHT_SIZE kept, oldest first
+    for i = 1, 7 do D.FightLine("line " .. i) end
+    lines = D.FightLines()
+    assert(#lines == 5 and lines[1]:find("line 3$") and lines[5]:find("line 7$"), table.concat(lines, " / "))
+    assert(H.DB().fightLog.size == 5, "in the saved settings")
+    rf.scripts.OnEvent(rf, "PLAYER_LEAVE_COMBAT")
+    D.FIGHT_SIZE = 600
+    H.DB().fightLog = nil
+    UnitName, UnitCanAttack = nil, nil
+    io.write("PASS: fight log: why each moment played, combat markers, a ring in the saved settings" .. string.char(10))
+end

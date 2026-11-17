@@ -1960,7 +1960,12 @@ local CAST_HANDLERS = {
         if IsShot(spellID) then
             ranged.shot = GetTime()
             if V.HitSyncEvent then V.HitSyncEvent("ranged", "ranged", ranged.shot) end
-            return AtImpact(V.ImpactDelay("ranged", "ranged"), function() V.Fire("shot") end)
+            local d = V.ImpactDelay("ranged", "ranged")
+            return AtImpact(d, function()
+                V.why1, V.why2, V.why3 = "shot", "ranged", d
+                V.Fire("shot")
+                V.why1 = nil
+            end)
         end
         -- The cast in progress, done
         if cast.timing and not cast.timing.channel and not cast.ended and SameCast(guid) then
@@ -2154,6 +2159,8 @@ function V.SwingImpact(slot, result, mine)
     if mine then SwingNow(slot or 16) end
 end
 
+local function result_or_hit(r) return r or "hit" end
+
 -- A real swing landed: its feel at the impact (sure: the combat log said it
 -- was yours; result: hit, crit, miss, dodge, parry, block)
 function V.SwingLanded(slot, sure, result)
@@ -2167,7 +2174,12 @@ function V.SwingLanded(slot, sure, result)
     swing.last[slot] = now
     local kind, hand = V.WeaponKind(slot), HANDS[slot] or "main"
     if V.HitSyncEvent then V.HitSyncEvent(kind, hand, now) end
-    AtImpact(V.ImpactDelay(kind, hand), function() V.SwingImpact(slot, result, true) end)
+    local d = V.ImpactDelay(kind, hand)
+    AtImpact(d, function()
+        V.why1, V.why2, V.why3 = "swing " .. result_or_hit(result), hand .. " hand", d
+        V.SwingImpact(slot, result, true)
+        V.why1 = nil
+    end)
 end
 
 ---------------------------------------------------------------------------
@@ -2228,7 +2240,11 @@ function V.AbilityResult(action, flag)
         -- (a next-swing ability is the main hand's swing: its timer goes on)
         if p.next then swing.last[16] = now end
     end
-    AtImpact(delay, function() V.AbilityImpact(p.move, result, p.ranged or p.spell) end)
+    AtImpact(delay, function()
+        V.why1, V.why2, V.why3 = "ability " .. result, p.move, delay
+        V.AbilityImpact(p.move, result, p.ranged or p.spell)
+        V.why1 = nil
+    end)
     return true
 end
 
@@ -2383,7 +2399,8 @@ if hasCombatLog then
 else
     events:RegisterUnitEvent("UNIT_COMBAT", "player", "target")
 end
-events:SetScript("OnEvent", function(_, event, ...)
+-- (why: the event that set a moment off, for the debug window's fight log)
+local function OnRumbleEvent(_, event, ...)
     if not IF.db then return end
     if event == "PLAYER_LEVEL_UP" then
         V.Fire("levelUp")
@@ -2402,6 +2419,11 @@ events:SetScript("OnEvent", function(_, event, ...)
     else
         CombatLog()
     end
+end
+events:SetScript("OnEvent", function(self, event, ...)
+    V.why1, V.why2, V.why3 = event, ...
+    OnRumbleEvent(self, event, ...)
+    V.why1, V.why2, V.why3 = nil, nil, nil
 end)
 
 ---------------------------------------------------------------------------

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.1 — 2026-11-17
+
+- Fight log: the last 600 moments kept in the saved settings (`GamepadCompanionHapticsDB.fightLog`, written on /reload and logout): seconds since login, the moment, its feel, rumble or rumble+HD, the gain, and why it played (the game event, or "swing hit main hand +0.25" at a blow's impact); combat on (with the target's name) and off between them
+
 ## 0.32.0 — 2026-11-17
 
 - **Your abilities** (Attacks; was Abilities, "Match the move"): your own attack abilities felt as they land on your target, at the blow, each its own: Match the ability. A heavy strike (Heroic Strike, Mortal Strike), a stab (Sinister Strike, Backstab), a bash (Shield Bash, Hammer of Justice), a sweep (Cleave, Whirlwind), a bright strike (Judgement, Arcane Shot), **Blow** (new) for any other. Paired with your own cast: others' damage, pets' and DoT ticks never set it off

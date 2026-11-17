@@ -124,6 +124,84 @@ function D.LightWhy(id)
 end
 
 ---------------------------------------------------------------------------
+-- The fight log: the last D.FIGHT_SIZE moments in GamepadCompanionHapticsDB
+-- .fightLog (saved on /reload and logout), a ring: { size, n, [i] = line }.
+-- A line: seconds since login, the moment's key, its label, the feel, rumble
+-- or rumble+HD, the gain, and why (the event or the impact that set it off);
+-- combat on (with the target's name) and off between them. Built only when
+-- stored.
+---------------------------------------------------------------------------
+D.FIGHT_SIZE = 600
+local loginAt = Now()
+
+local function FightRing()
+    local db = H.DB()
+    local log = db.fightLog
+    if type(log) ~= "table" or log.size ~= D.FIGHT_SIZE then
+        log = { size = D.FIGHT_SIZE, n = 0 }
+        db.fightLog = log
+    end
+    return log
+end
+
+function D.FightLine(line)
+    local log = FightRing()
+    log.n = log.n % log.size + 1
+    log[log.n] = string.format("%8.2f  %s", Now() - loginAt, line)
+end
+
+-- The lines, oldest first
+function D.FightLines()
+    local log = FightRing()
+    local out = {}
+    for i = 1, log.size do
+        local line = log[(log.n + i - 1) % log.size + 1]
+        if line then out[#out + 1] = line end
+    end
+    return out
+end
+
+local function Why(w1, w2, w3)
+    if not w1 then return "" end
+    local parts = { tostring(w1) }
+    if w2 ~= nil and not (issecretvalue and issecretvalue(w2)) then
+        parts[#parts + 1] = type(w2) == "number" and string.format("%.2f", w2) or tostring(w2)
+    end
+    if w3 ~= nil and not (issecretvalue and issecretvalue(w3)) then
+        parts[#parts + 1] = type(w3) == "number" and string.format("%+.2f", w3) or tostring(w3)
+    end
+    return table.concat(parts, " ")
+end
+
+local function Channel()
+    local K, C = ns.HelperLink, ns.HelperCues
+    if K and K.Enabled and K.Enabled() and K.V2 and K.V2() and not (C and C.HDMode and C.HDMode() == "off") then
+        return "rumble+HD"
+    end
+    return "rumble"
+end
+
+-- One moment: key, label, feel, gain, why
+function D.Fight(key, label, feel, gain, w1, w2, w3)
+    D.FightLine(string.format("%s | %s | %s | %s | %.2f | %s", key, label or key, feel or "-", Channel(),
+        gain or 1, Why(w1, w2, w3)))
+end
+
+local combat = CreateFrame("Frame")
+combat:RegisterEvent("PLAYER_REGEN_DISABLED")
+combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+combat:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_DISABLED" then
+        local name = UnitName and UnitName("target")
+        if name and issecretvalue and issecretvalue(name) then name = nil end
+        D.FightLine("-- combat on" .. (name and (" · " .. name) or ""))
+    else
+        D.FightLine("-- combat off")
+    end
+end)
+D.combatFrame = combat
+
+---------------------------------------------------------------------------
 -- Cues, logged: Rumble's events, the Beta events, the lights
 ---------------------------------------------------------------------------
 local function Wrap()
@@ -140,6 +218,8 @@ local function Wrap()
                 local label = e and e.label or (key == "cast" and "Casting") or key
                 D.lastRumble = Named(key, label, PatternLabel(pattern))
                 D.Note(D.lastRumble, key == "cast" and (V.castKind or "spell") or key, "feel")
+                local okS, s = pcall(V.Settings)
+                D.Fight(key, label, PatternLabel(pattern), okS and s and s.intensity or 1, V.why1, V.why2, V.why3)
             end
         end
         V.EndLoop = function(key, ...)
@@ -149,11 +229,14 @@ local function Wrap()
     if L and not L.debugWrapped then
         L.debugWrapped = true
         local fire = L.Fire
-        L.Fire = function(key, ...)
-            fire(key, ...)
+        L.Fire = function(key, gain, feel, ...)
+            fire(key, gain, feel, ...)
             local e = L.EVENT[key]
             if e and H.Engine() and L.EventSettings(key).on then
-                D.Note(Named(key, e.label, FeelLabel(L.EventSettings(key).feel)), key, "feel")
+                local label = FeelLabel(type(feel) == "string" and feel or L.EventSettings(key).feel)
+                if type(feel) == "table" then label = label .. ", shaped" end
+                D.Note(Named(key, e.label, label), key, "feel")
+                D.Fight(key, e.label, label, gain or 1, L.why1, L.why2, L.why3)
             end
         end
     end

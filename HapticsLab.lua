@@ -1431,7 +1431,11 @@ end
 
 frame:SetScript("OnEvent", function(_, event, ...)
     local fn = handlers[event]
-    if fn then fn(...) end
+    if not fn then return end
+    -- (why: the event that set a moment off, for the debug window's fight log)
+    L.why1, L.why2, L.why3 = event, ...
+    fn(...)
+    L.why1, L.why2, L.why3 = nil, nil, nil
 end)
 
 ---------------------------------------------------------------------------
@@ -1758,6 +1762,7 @@ local function Land(t, now)
     local water = L.WaterState()
     -- (what WoW Helper's cue and clip take from this landing: HelperCues)
     L.landCue = { fade = fade, k = k }
+    L.why1, L.why2, L.why3 = "landing", t, fade
     if water.swimming then
         -- deep water: one splash (Into water), as heavy as the fall
         splashedAt = now
@@ -1784,6 +1789,7 @@ local function Land(t, now)
         L.Fire("landing", gain / max(0.05, peak), nil, true, stretch)
     end
     L.landCue = nil
+    L.why1, L.why2, L.why3 = nil, nil, nil
     if not L.lastLanding.feel then
         local played = H.Feel(s.feel)
         L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
