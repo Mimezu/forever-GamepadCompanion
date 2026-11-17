@@ -498,6 +498,157 @@ Jump = function(key, kind)
 end
 ui.Jump = function(key, kind) return Jump(key, kind) end
 
+---------------------------------------------------------------------------
+-- Your spells (UX.md §9): the spellbook by tab, a row a spell name, what
+-- the rules play for it (V.SpellPlan, Rumble.lua) and its own choice
+-- (SpellOverrides.lua). Shown once the rules can answer.
+---------------------------------------------------------------------------
+local SPELL_ROWS = 11
+local WHEN = { hit = "At the hit", cast = "At the cast", channel = "While channelling", none = "Nothing" }
+local MOMENT_LABEL = { autoAttack = "Auto attack", shot = "Shooting", gather = "Gathering", craft = "Crafting",
+    eat = "Eating", drink = "Drinking" }
+local sp = { tab = 1, page = 1, rows = {}, lines = {} }
+ui.spells = sp
+
+local function SpellsOn() return type(V.SpellPlan) == "function" and ns.SpellOverrides ~= nil end
+
+-- The book, one entry a name (ranks share it), out of combat only
+local function ReadBook()
+    if InCombatLockdown and InCombatLockdown() and #sp.lines > 0 then return end
+    local P = ns.Picker
+    local lines = P and P.SpellLines and P.SpellLines() or {}
+    sp.lines = {}
+    for _, line in ipairs(lines) do
+        local seen, list = {}, {}
+        for _, e in ipairs(line.list or {}) do
+            local name = e.name
+            if type(name) == "string" and not seen[name] then
+                seen[name] = true
+                list[#list + 1] = { id = e.spell, name = name, icon = e.icon }
+            end
+        end
+        if #list > 0 then sp.lines[#sp.lines + 1] = { name = line.name, list = list } end
+    end
+    if sp.tab > #sp.lines then sp.tab, sp.page = 1, 1 end
+end
+
+local function Shown()
+    local line = sp.lines[sp.tab]
+    local list = line and line.list or {}
+    local pages = math.max(1, math.ceil(#list / SPELL_ROWS))
+    if sp.page > pages then sp.page = pages end
+    return list, pages
+end
+
+-- A spell's plate: what plays (name, icon, off) from its plan
+local function PlateOf(plan)
+    local O = ns.SpellOverrides
+    local o = O.Get(plan.name)
+    if o and o.on == false then return "Off", V.OFF_ICON, true end
+    if plan.moment == "spell" then
+        local p = V.Preset(plan.set)
+        return p and p.label or tostring(plan.set), p and p.icon, false
+    elseif plan.moment == "instant" or plan.moment == "quiet" then
+        local f = plan.feel and H.Feel(plan.feel)
+        if not f then return "None", V.OFF_ICON, false end
+        return (f.label or plan.feel) .. (plan.hd and " · HD" or ""), f.icon, false
+    end
+    return (MOMENT_LABEL[plan.moment] or plan.moment) .. " ›", nil, false
+end
+
+local function Linked(plan) return plan.moment ~= "spell" and plan.moment ~= "instant" and plan.moment ~= "quiet" end
+
+local function PickSpell(row, anchor)
+    local plan, O = row.plan, ns.SpellOverrides
+    if not plan then return end
+    if Linked(plan) then return Jump(plan.moment, "feel") end
+    if plan.moment == "spell" then
+        local entries = { OFF }
+        for _, e in ipairs(CastSets()) do if e.key ~= "off" then entries[#entries + 1] = e end end
+        local o = O.Get(plan.name)
+        HUI.Popup(anchor, plan.name, entries, (o and o.on == false) and "off" or plan.set, function(key)
+            if key == "off" then O.SetOn(plan.name, false) else O.SetSet(plan.name, key) end
+            Refresh()
+        end, 3, 150)
+        return
+    end
+    local o = O.Get(plan.name)
+    HUI.PickFeel(anchor, (o and o.on == false) and "off" or plan.feel, function(feel)
+        if feel == "off" then O.SetOn(plan.name, false) else O.SetFeel(plan.name, feel) end
+        Refresh()
+    end, { OFF }, plan.name)
+end
+
+local function BuildSpells(panel, cw)
+    local card = S.Card(panel, "Your spells", 0, 0, cw, PH)
+    sp.card = card
+    sp.tabs = {}
+    for i = 1, 6 do
+        local t = S.NewButton(card, "", 130 + (i - 1) * 92, -8, 88, function()
+            sp.tab, sp.page = i, 1
+            Refresh()
+        end, nil, 11, 24)
+        t:Hide()
+        sp.tabs[i] = t
+    end
+    sp.prev = S.NewButton(card, "‹", cw - 118, -8, 28, function() sp.page = sp.page - 1; Refresh() end, nil, 13, 24)
+    sp.pageText = S.Text(card, "", cw - 88, -14, 50, 11, GREY)
+    sp.pageText:SetJustifyH("CENTER")
+    sp.next = S.NewButton(card, "›", cw - 38, -8, 28, function() sp.page = sp.page + 1; Refresh() end, nil, 13, 24)
+    sp.empty = S.Text(card, "No spells", 14, -50, cw - 28, 12, DIM)
+    local O = ns.SpellOverrides
+    for i = 1, SPELL_ROWS do
+        local row
+        row = HUI.MomentRow(card, -40 - (i - 1) * HUI.ROW_H, cw, nil, "", function(anchor) PickSpell(row, anchor) end,
+            type(V.TrySpell) == "function" and function() if row.plan then V.TrySpell(row.plan.id) end end or nil,
+            nil, {
+                default = function()
+                    if not row.plan then return end
+                    O.Clear(row.plan.name)
+                    Say(row.plan.name .. ": as the rules have it")
+                    Refresh()
+                end,
+                defaultTip = "Back to the rules",
+                level = { step = 0.1, min = 0, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
+                    get = function() return row.plan and O.Volume(row.plan.name) or 1 end,
+                    set = function(v) if row.plan then O.SetVolume(row.plan.name, v) end end },
+                pg = pg,
+            })
+        row:Hide()
+        sp.rows[i] = row
+    end
+    pg.refresh[#pg.refresh + 1] = function()
+        if not sp.card:IsVisible() and #sp.lines > 0 then return end
+        ReadBook()
+        for i, t in ipairs(sp.tabs) do
+            local line = sp.lines[i]
+            t:SetShown(line ~= nil)
+            if line then t.label:SetText(line.name or ("Tab " .. i)); S.SetSelected(t, i == sp.tab) end
+        end
+        local list, pages = Shown()
+        sp.pageText:SetText(sp.page .. "/" .. pages)
+        sp.prev:SetEnabled(sp.page > 1)
+        sp.next:SetEnabled(sp.page < pages)
+        sp.empty:SetShown(#list == 0)
+        for i, row in ipairs(sp.rows) do
+            local e = list[(sp.page - 1) * SPELL_ROWS + i]
+            local plan = e and V.SpellPlan(e.id)
+            row.plan = plan
+            row:SetShown(plan ~= nil)
+            if plan then
+                plan.id, plan.name = e.id, plan.name or e.name
+                row.icon:SetTexture(e.icon)
+                row.label:SetText(plan.name)
+                local name, icon, off = PlateOf(plan)
+                local sub = (WHEN[plan.when] or "") .. (plan.guess and " · Guess" or "")
+                row:SetChoice(name, icon, sub, off, nil, O.Get(plan.name) == nil)
+                if row.level then row.level:SetShown(not Linked(plan)) end
+                row:SetMarks({})
+            end
+        end
+    end
+end
+
 local function Build(frame, header)
     -- Header: the kind, its switch, the last moment
     ui.seg = {}
@@ -594,7 +745,10 @@ local function Build(frame, header)
     S.Heading(left, "Moments", 10, -136, LEFT_W - 20)
 
     local groups = {}
-    for _, g in ipairs(GROUPS) do groups[#groups + 1] = { key = g.key, label = g.key } end
+    for _, g in ipairs(GROUPS) do
+        groups[#groups + 1] = { key = g.key, label = g.key }
+        if g.key == "Abilities" and SpellsOn() then groups[#groups + 1] = { key = "spells", label = "Your spells" } end
+    end
     local list = CreateFrame("Frame", nil, left)
     list:SetPoint("TOPLEFT", 0, -150)
     list:SetSize(LEFT_W, PH - 150)
@@ -616,6 +770,7 @@ local function Build(frame, header)
             ui.cards[g.key][k[1]] = card
         end
     end
+    if b.panels.spells then BuildSpells(b.panels.spells, cw) end
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
     ui.credit = S.Text(left, "Patterns: Improved Forever: Vibration (markg) and Easy Controller (moust4ki), MIT",
         14, -(PH - 46), LEFT_W - 28, 9, DIM)

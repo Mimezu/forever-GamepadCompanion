@@ -204,3 +204,82 @@ every command in Help. Kept: no "More with WoW Helper" line (every moment can ha
 Later: "Edit" → "Shape" on the rows (user, via the vibration session: "choose in game, shape
 in WoW Helper"); the label follows its target. (Lab's editor also has a "Shape" form mode:
 Lab only, left as is.)
+
+## 9. Your spells (draft v2, 2026-11-17)
+
+The user: a view of the class's abilities and spells showing what each one plays, editable
+later, always back to Default.
+
+**Place:** Moments, a group **Your spells** right after Abilities, in every kind (Feel edits;
+Light and Sound show the moment's light or sound, read-only, with marks). Not a new tab.
+"Spells ›" on the Spell casting and Your abilities rows opens it; the "why" line of a spell
+("Fireball · Feel") finds its row.
+
+```
+┌ Attacks        ┐┌ Your spells   [Fire] [Frost] [Arcane] [General]          ‹ 1/2 › ┐
+│ Defense        ││ 🔥 Fireball      At the cast        [▣ Fire set    ▾] 100%  Default │
+│ Abilities      ││ ❄ Frost Nova     At the hit · Guess [▣ Shock       ▾] 100%  Default │
+│ Your spells 14 ││ ⚔ Attack         At the hit         [Auto attack ›]                 │
+│ Moving …       ││ ✚ Renew          Nothing            [▣ Off         ▾]       Default │
+└────────────────┘└────────────────────────────────────────────────────────────────────┘
+```
+
+- **One row a spell name** (ranks share it; settings are keyed by name), spellbook order,
+  12 a page (‹ › on the pad; page 1 on a new tab). Passives and off-spec out (Picker's
+  `SpellLines`). Secret names in combat: rebuilt only out of combat.
+- **Second line: when only** — At the hit · At the cast · While channelling · Nothing; plus
+  **Guess** when the rules don't know the spell (they guess from name and school).
+- **The plate follows the spell's moment:**
+  - a cast-time spell (moment `spell`): a **cast set** (the Spell casting row's picker: one
+    feel can't stand for build, release and pushback);
+  - an instant ability (moment `instant`) or a spell the rules leave quiet (a heal, a buff:
+    Nothing): a **feel** (the shared palette, Off first);
+  - a spell that belongs to another moment (Attack, Shoot, Mining, crafting, food): a link
+    plate, **"<moment> ›"**, read-only, jumping to that row.
+- Volume beside the plate (it multiplies the moment's own volume, once); **Default** clears
+  the spell's own choice (greyed when it has none). A spell the rules leave quiet reads
+  **None**; **Off** only when the player chose it (then Default lights). An Off spell dims its
+  read-only Light row too. **Try** only once `V.TrySpell` exists (no stand-in). Crits keep
+  the Crit feel (tooltip).
+- **Order of who wins:** the moment Off (the spell row dims: "Off: Your abilities") › the
+  spell's own choice › the moment's fixed choice › the rules.
+- **One source of truth:** `V.SpellPlan(spellID)` returns the **effective** plan, see the
+  contract (`spell-plan-proposal.md`); overrides in `SpellOverrides.lua`
+  (`db.spells[name] = { on, feel, set, volume }`, only what differs).
+
+Review: round 1 BLOCK (two deciders for one spell, rank keys, overrides skipped by early
+returns, timing per spell untrue, Try stand-in); round 2 **SIGN OFF** with Default = clear the
+override, None vs Off.
+
+## 10. Profiles (draft v2, 2026-11-17)
+
+The user: defaults that feel good for any class; profiles for controls; profiles for feel
+(vibration, light, sound). Other characters must never change Alberich's.
+
+**Three things, each character picks two:**
+
+| | Holds | Where it lives today |
+|---|---|---|
+| **Recommended** (shipped, read-only) | the calm set tuned on Alberich: Hit off, target's dodge/parry/block off, one heartbeat, combo points off, helper clips off, the earlier impacts, the landing fade; class touches only where needed (combo points for rogue and druid, shots for hunters) | new `Recommended.lua` |
+| **Controls** profile | buttons, layers, touchpad, gestures, the Controller page's settings | `GamepadCompanionCharDB` (per character) |
+| **Feel** profile | moments (feel, light, sound, volume, on/off), Strength, base colour, spell overrides, landing and steps | `CharDB.vibration` + `HapticsDB` events, lightEvents, lightBase, link.sounds, volume.feel/sound, spells, land*, stepNudge |
+
+**Account-wide:** calibration, mixer, battery, the link and cues, the Sounds volume, learned
+timings, your feels library, Lab.
+
+**Storage:** `GamepadCompanionHapticsDB.profiles = { controls = {name = t}, feel = {name = t} }`,
+`.use["Name-Realm"] = { controls = name, feel = name }`, `.lastOfClass[CLASS]`. The live tables
+stay where the code reads them; a profile is **copied in** at login and on a switch, and
+**copied back** at logout, /reload and before a switch. Never shared tables (SavedVariables
+split them on reload).
+
+**Migration (once):** a full copy of today's tables to `backup`, first. Alberich-Noir gets
+Controls "Alberich" and Feel "Alberich" = exactly today. Any other existing character, at its
+first login: its own copies (named after it), never shared. A new character: Recommended for
+its class (Feel), its class's last Controls copy or empty (Controls).
+
+**UI:** two chips in the window footer, left of the version: **Controls: Alberich ▾ ·
+Feel: Melee ▾**. One menu for both: the profiles (pick = switch) · **New** (from Recommended)
+· **Copy** · **Rename** · **Recommended** (reset, asks) · **Delete** (not in use; asks) ·
+**Share** (copy a text, or paste one). One text window (`HUI.TextWindow`).
+Tools › Profile shows the same two chips (one control each: the footer's are the same widget).

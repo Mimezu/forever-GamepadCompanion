@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.0 — 2026-11-17
+
+- **Your spells** (Moments, after Abilities): your spellbook by tab, a row a spell name (ranks share it), 11 a page. Each says when it is felt (At the hit, At the cast, While channelling, Nothing; Guess when the rules don't know it) and what plays: a cast set for a cast-time spell, a feel for an instant or a quiet spell (a heal: None), a link to its moment for Attack, Shoot, gathering, crafting, food. Pick your own, Off, a volume; Default goes back to the rules. Saved by name in `spells` (`SpellOverrides.lua`)
+- Shown once the rules answer per spell (`V.SpellPlan` in Rumble.lua, contract in docs/UX.md §9); the play path then honours your choices. Design reviewed twice (signed off)
+
 ## 0.34.1 — 2026-11-17
 
 - Your abilities: Consecration and other ground effects with no direct hit (totems, traps, Blizzard-like rains) are felt as you cast them, with a new feel, **Surge**: a firm low push into the ground, then a warm spread to both sides. Their later ticks add nothing. (Consecration waited for a direct hit that never comes.) No ember pulse while it burns: whether you're still in it can't be tracked reliably

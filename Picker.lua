@@ -428,3 +428,5 @@ function Picker.IsShown() return window ~= nil and window:IsShown() end
 
 -- Harness access
 ns.PickerWindow = function() return window, ui end
+-- The spellbook by tab (passives and off-spec left out), for Moments › Your spells
+Picker.SpellLines = SpellLines
