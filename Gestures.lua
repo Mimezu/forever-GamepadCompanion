@@ -11,7 +11,8 @@ ns.Gestures = G
 
 G.SLOTS = 12
 G.BUTTON = "GamepadCompanionGestures"
-function G.Key(slot) return "CTRL-SHIFT-ALT-F" .. slot end
+-- (WoW names chords Alt, Ctrl, Shift in that order; another order never matches)
+function G.Key(slot) return "ALT-CTRL-SHIFT-F" .. slot end
 function G.Label(slot) return "Gesture " .. slot end
 
 local settings = {}         -- slot -> action

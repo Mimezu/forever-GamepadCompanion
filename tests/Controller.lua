@@ -446,22 +446,22 @@ check(not GamepadCompanionOptions:IsShown(), "toggle closes")
 do
     local G = ns.Gestures
     check(type(GamepadCompanionCharDB.gestures) == "table", "gestures in the profile")
-    check(G.Set(3, "text:/dance") and overrides["CTRL-SHIFT-ALT-F3"]
-        and overrides["CTRL-SHIFT-ALT-F3"].action == "CLICK GamepadCompanionGestures:g3", "slot 3 bound")
+    check(G.Set(3, "text:/dance") and overrides["ALT-CTRL-SHIFT-F3"]
+        and overrides["ALT-CTRL-SHIFT-F3"].action == "CLICK GamepadCompanionGestures:g3", "slot 3 bound")
     local gb = _G.GamepadCompanionGestures
     check(gb.attributes and gb.attributes["*macrotext-g3"] == "/dance", "slot 3 runs /dance")
     check(GamepadCompanionCharDB.gestures[3] == "text:/dance", "saved")
     check(G.Set(13, "text:/wave") == false and G.Set(1, "bogus") == false, "bad slot or action refused")
     combat = true
     G.Set(5, "text:/wave")
-    check(G.IsPending() and overrides["CTRL-SHIFT-ALT-F5"] == nil, "in combat: after it")
+    check(G.IsPending() and overrides["ALT-CTRL-SHIFT-F5"] == nil, "in combat: after it")
     combat = false
     for _, f in ipairs(created) do
         if f.events.PLAYER_REGEN_ENABLED and f.scripts.OnEvent then f.scripts.OnEvent(f, "PLAYER_REGEN_ENABLED") end
     end
-    check(not G.IsPending() and overrides["CTRL-SHIFT-ALT-F5"] ~= nil, "applied after combat")
+    check(not G.IsPending() and overrides["ALT-CTRL-SHIFT-F5"] ~= nil, "applied after combat")
     G.Set(3, nil)
-    check(overrides["CTRL-SHIFT-ALT-F3"] == nil and gb.attributes["*macrotext-g3"] == nil, "cleared")
+    check(overrides["ALT-CTRL-SHIFT-F3"] == nil and gb.attributes["*macrotext-g3"] == nil, "cleared")
     check(G.Normalize({ [2] = "text:/cheer", [20] = "text:/x", [4] = 7 })[2] == "text:/cheer"
         and G.Normalize({ [20] = "text:/x" })[20] == nil, "normalize")
     G.Set(5, nil)
