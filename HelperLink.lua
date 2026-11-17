@@ -230,6 +230,57 @@ function K.DecodeV2(cells)
 end
 
 ---------------------------------------------------------------------------
+-- The light row (C:\games\WowHelper\docs\LIGHTS.md section 4): 17 cells one
+-- row inward of the v2 strip (above it here: the bottom-left corner), yellow
+-- first, 48 bits: version, resting, hold (8), its tint (5) and strength (3),
+-- progress (4), cue (8), its tint and strength, a CRC-8 over bits 0-39.
+---------------------------------------------------------------------------
+K.LIGHT_CELLS = 17
+K.LIGHT_MARKER = { 1, 1, 0 }   -- yellow
+
+-- row = { version, resting, hold, holdTint, holdStrength, progress, cue, cueTint, cueStrength }
+function K.EncodeLight(row)
+    row = row or {}
+    local bits = {}
+    for i = 0, 47 do bits[i] = 0 end
+    Put(bits, 0, Int(row.version, 3), 2)
+    Put(bits, 2, row.resting and 1 or 0, 1)
+    Put(bits, 4, Int(row.hold, 255), 8)
+    Put(bits, 12, Int(row.holdTint, 31), 5)
+    Put(bits, 17, Int(row.holdStrength, 7), 3)
+    Put(bits, 20, Int(row.progress, 15), 4)
+    Put(bits, 24, Int(row.cue, 255), 8)
+    Put(bits, 32, Int(row.cueTint, 31), 5)
+    Put(bits, 37, Int(row.cueStrength, 7), 3)
+    local bytes = {}
+    for k = 0, 4 do bytes[k + 1] = Get(bits, k * 8, 8) end
+    Put(bits, 40, K.Crc8(bytes), 8)
+    local cells = { { 1, 1, 0 } }
+    for c = 0, 15 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    return cells
+end
+
+function K.DecodeLight(cells)
+    if type(cells) ~= "table" or #cells ~= K.LIGHT_CELLS then return nil, "length" end
+    local m = cells[1]
+    if m[1] ~= 1 or m[2] ~= 1 or m[3] ~= 0 then return nil, "marker" end
+    local bits = {}
+    for c = 0, 15 do
+        for k = 1, 3 do
+            local v = cells[c + 2][k]
+            if v ~= 0 and v ~= 1 then return nil, "value" end
+            bits[c * 3 + k - 1] = v
+        end
+    end
+    local bytes = {}
+    for k = 0, 4 do bytes[k + 1] = Get(bits, k * 8, 8) end
+    if K.Crc8(bytes) ~= Get(bits, 40, 8) then return nil, "crc" end
+    return { version = Get(bits, 0, 2), resting = Get(bits, 2, 1) == 1, hold = Get(bits, 4, 8),
+        holdTint = Get(bits, 12, 5), holdStrength = Get(bits, 17, 3), progress = Get(bits, 20, 4),
+        cue = Get(bits, 24, 8), cueTint = Get(bits, 32, 5), cueStrength = Get(bits, 37, 3) }
+end
+
+---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
@@ -255,6 +306,7 @@ function K.SetV2(on)
     DB().v1 = not on or nil
     K.Layout()
     dirty = true
+    if ns.Lights and ns.Lights.LinkChanged then ns.Lights.LinkChanged() end
 end
 K.MarkDirty = function() dirty = true end
 
@@ -328,6 +380,33 @@ function K.SetMic(mode)
     if K.state.mic ~= m then K.state.mic = m; dirty = true end
 end
 
+-- The light row's state (Lights.lua): what holds { hold, holdTint,
+-- holdStrength, progress, resting }, or nil: no light row (the game's lights)
+K.light = nil
+function K.SetLight(row)
+    local cur = K.light
+    if row == nil then
+        if cur then K.light = nil; dirty = true end
+        return
+    end
+    cur = cur or {}
+    local same = cur.hold == row.hold and cur.holdTint == row.holdTint and cur.holdStrength == row.holdStrength
+        and cur.progress == row.progress and (cur.resting or false) == (row.resting or false)
+    if same and K.light then return end
+    K.light = { hold = row.hold or 0, holdTint = row.holdTint or 0, holdStrength = row.holdStrength or 0,
+        progress = row.progress or 0, resting = row.resting or false, cue = 0, cueTint = 0, cueStrength = 0 }
+    dirty = true
+end
+
+-- A once light on the pad (v2 + the light row): its id 1-255, tint 0-31, strength 0-7
+function K.LightCue(id, tint, strength)
+    if not K.V2() then return false end
+    id = Int(id, 255)
+    if id == 0 then return false end
+    if not K.light then K.SetLight({ hold = 0 }) end
+    return Queue({ touch = 0, sound = 0, light = { id, Int(tint, 31), Int(strength, 7) } })
+end
+
 local function Start(item)
     local s = K.state
     s.seq = (s.seq + 1) % 16
@@ -335,6 +414,10 @@ local function Start(item)
     s.side, s.intensity, s.level = item.side or 0, item.intensity or 4, item.level or 0
     s.moment, s.open = item.moment or 0, item.open or false
     s.seed = math.random and math.random(0, 255) or 0
+    if K.light then
+        local c = item.light
+        K.light.cue, K.light.cueTint, K.light.cueStrength = c and c[1] or 0, c and c[2] or 0, c and c[3] or 0
+    end
     -- (v1: one event id, a clip or a sound up to 255)
     local v1 = s.sound ~= 0 and s.sound or s.touch
     s.event = v1 <= 255 and v1 or 0
@@ -354,6 +437,7 @@ function K.Step(elapsed)
                 local s = K.state
                 s.event, s.gain, s.touch, s.sound = 0, 0, 0, 0   -- (seq kept: no new event)
                 s.moment, s.open = 0, false
+                if K.light then K.light.cue, K.light.cueTint, K.light.cueStrength = 0, 0, 0 end
                 dirty = true
             end
         end
@@ -363,6 +447,7 @@ function K.Step(elapsed)
     if dirty then
         dirty = false
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
+        if K.DrawLight then K.DrawLight(K.V2() and K.light and K.EncodeLight(K.light) or nil) end
         return true
     end
     return false
@@ -407,6 +492,21 @@ function K.Layout()
         tex:SetSize(unit, unit)
         tex:SetShown(i <= n)
     end
+    -- the light row: one row up (inward from the bottom-left corner)
+    for i, tex in ipairs(K.lightTextures or {}) do
+        tex:ClearAllPoints()
+        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, unit)
+        tex:SetSize(unit, unit)
+    end
+end
+
+-- The light row's cells, or nil: hidden (no row: the game's lights)
+function K.DrawLight(cells)
+    for i, tex in ipairs(K.lightTextures or {}) do
+        local c = cells and cells[i]
+        if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
+        tex:SetShown(c ~= nil)
+    end
 end
 
 function K.Draw(cells)
@@ -430,6 +530,14 @@ local function Build()
         if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         textures[i] = tex
+    end
+    K.lightTextures = {}
+    for i = 1, K.LIGHT_CELLS do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.lightTextures[i] = tex
     end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
@@ -471,6 +579,7 @@ function K.SetEnabled(on)
         dirty = true
     end
     K.Refresh()
+    if ns.Lights and ns.Lights.LinkChanged then ns.Lights.LinkChanged() end
 end
 
 Build()

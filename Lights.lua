@@ -1,59 +1,176 @@
--- Lights (Beta engine): the DualSense light bar as a second channel.
+-- Lights: the DualSense's lights, one light model with two renderers
+-- (C:\games\WowHelper\docs\LIGHTS.md).
 --
--- A base colour (the class's, one picked, or off, steady or breathing),
--- and light events, each with its own effect (a flash, the base flashing
--- brighter, a double blink, a strobe, a glow, a build-up, a heartbeat, a
--- rainbow, a fade), colour (the base's, the spell school's, or one picked)
--- and strength. Events take their cue from Rumble's events (crits, level up,
--- low health, interrupts, Halo rings), the Beta events (hits, kills,
--- whispers...) and casts (a glow building with the cast, a flash as it is
--- released), whether or not those vibrate. Played on Haptics.lua's light
--- voices: the highest priority wins.
+-- A light is a short sequence: bar keys (time, colour, brightness, ease),
+-- player LED keys, mic keys; once, or while a state lasts (a loop, and a
+-- build that can follow a cast's progress). The presets come from WoW Helper
+-- (LightPresets.lua, generated); the player's own from its data addon
+-- (WowHelperData.lights). Each moment picks a light, a colour, a strength.
+--
+-- Link off: this file plays the bar itself (~30 Hz through Haptics.lua's
+-- light voices; the highest priority wins). Link on: WoW Helper plays every
+-- lane precisely; the game only sets the steady colour of what holds (never
+-- clears it) and sends the lights on the strip's light row.
 local _, ns = ...
 local H, L = ns.Haptics, ns.HapticsLab
 local LT = {}
 ns.Lights = LT
 
-local min, max, floor, sin, cos, pi, abs = math.min, math.max, math.floor, math.sin, math.cos, math.pi, math.abs
+local min, max, floor = math.min, math.max, math.floor
 local function Now() return GetTime and GetTime() or 0 end
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
-local function call(fn, ...)
-    if type(fn) ~= "function" then return nil end
-    local ok, a, b, c, d = pcall(fn, ...)
-    if ok then return a, b, c, d end
-end
 
 ---------------------------------------------------------------------------
--- Colours
+-- Colours (the strip's tint index: docs/LIGHTS.md section 4)
 ---------------------------------------------------------------------------
 LT.PALETTE = {
+    { key = "own", label = "Own" },
     { key = "base", label = "Base" },
     { key = "school", label = "Spell school" },
-    { key = "white", label = "White", rgb = { 1, 1, 1 } },
-    { key = "red", label = "Red", rgb = { 1, 0.05, 0.02 } },
-    { key = "orange", label = "Orange", rgb = { 1, 0.4, 0 } },
-    { key = "gold", label = "Gold", rgb = { 1, 0.75, 0.15 } },
-    { key = "green", label = "Green", rgb = { 0.2, 1, 0.25 } },
-    { key = "teal", label = "Teal", rgb = { 0, 0.9, 0.7 } },
-    { key = "cyan", label = "Cyan", rgb = { 0.2, 0.85, 1 } },
-    { key = "blue", label = "Blue", rgb = { 0.1, 0.3, 1 } },
-    { key = "purple", label = "Purple", rgb = { 0.65, 0.2, 1 } },
-    { key = "pink", label = "Pink", rgb = { 1, 0.3, 0.7 } },
+    { key = "white", label = "White", rgb = { 1, 1, 1 }, tint = 1 },
+    { key = "red", label = "Red", rgb = { 1, 0.05, 0.02 }, tint = 2 },
+    { key = "orange", label = "Orange", rgb = { 1, 0.4, 0 }, tint = 3 },
+    { key = "gold", label = "Gold", rgb = { 1, 0.75, 0.15 }, tint = 4 },
+    { key = "green", label = "Green", rgb = { 0.2, 1, 0.25 }, tint = 5 },
+    { key = "teal", label = "Teal", rgb = { 0, 0.9, 0.7 }, tint = 6 },
+    { key = "cyan", label = "Cyan", rgb = { 0.2, 0.85, 1 }, tint = 7 },
+    { key = "blue", label = "Blue", rgb = { 0.1, 0.3, 1 }, tint = 8 },
+    { key = "purple", label = "Purple", rgb = { 0.65, 0.2, 1 }, tint = 9 },
+    { key = "pink", label = "Pink", rgb = { 1, 0.3, 0.7 }, tint = 10 },
 }
 local PALETTE = {}
 for _, c in ipairs(LT.PALETTE) do PALETTE[c.key] = c end
 
--- Spell schools, by Rumble's cast action
+-- Spell schools, by Rumble's cast action (tint 11-20)
 LT.SCHOOL = {
     fire = { 1, 0.35, 0 }, frostSpells = { 0.3, 0.6, 1 }, arcaneSpells = { 0.8, 0.4, 1 },
     shadowSpells = { 0.5, 0, 0.8 }, holy = { 1, 0.85, 0.45 }, healing = { 0.3, 1, 0.4 }, nature = { 0.4, 1, 0.2 },
     shots = { 1, 0.8, 0.3 }, travel = { 0.5, 0.8, 1 }, summon = { 0.6, 0, 1 },
 }
+local SCHOOL_TINT = { fire = 11, frostSpells = 12, arcaneSpells = 13, shadowSpells = 14, holy = 15, healing = 16,
+    nature = 17, shots = 18, travel = 19, summon = 20 }
+-- Classes (tint 21-29)
+local CLASS_TINT = { WARRIOR = 21, PALADIN = 22, HUNTER = 23, ROGUE = 24, PRIEST = 25, SHAMAN = 26, MAGE = 27,
+    WARLOCK = 28, DRUID = 29 }
+
+---------------------------------------------------------------------------
+-- The lights: presets, then the player's own (WoW Helper's data addon)
+---------------------------------------------------------------------------
+LT.GROUPS = { "Resting", "Shapes", "Combat", "Casting", "World", "Social" }
+
+-- every light: presets by id (an edited preset replaced), then the player's own
+function LT.Lights()
+    local list, seen, mine = {}, {}, {}
+    local d = type(WowHelperData) == "table" and WowHelperData or nil
+    for _, l in ipairs(d and type(d.lights) == "table" and d.lights or {}) do
+        if type(l) == "table" and tonumber(l.id) and type(l.bar) == "table" then mine[tonumber(l.id)] = l end
+    end
+    for _, l in ipairs(ns.LIGHT_PRESETS or {}) do
+        list[#list + 1] = mine[l.id] or l
+        seen[l.id] = true
+    end
+    local yours = {}
+    for id, l in pairs(mine) do if not seen[id] then yours[#yours + 1] = l end end
+    table.sort(yours, function(a, b) return a.id < b.id end)
+    for _, l in ipairs(yours) do l.yours = true; list[#list + 1] = l end
+    return list
+end
+
+function LT.Light(id)
+    if id == nil then return nil end
+    for _, l in ipairs(LT.Lights()) do if l.id == id then return l end end
+end
+
+function LT.LightByKey(key)
+    for _, l in ipairs(ns.LIGHT_PRESETS or {}) do if l.key == key then return l end end
+end
+
+-- A light's length (its last key, or its loop's end)
+function LT.Length(l)
+    local n = l.loop and l.loop[2] or 0
+    for _, lane in ipairs({ l.bar or {}, l.leds or {}, l.mic or {} }) do
+        for _, k in ipairs(lane) do if k[1] > n then n = k[1] end end
+    end
+    return n
+end
+
+---------------------------------------------------------------------------
+-- Sampling (as WoW Helper's lights.rs: linear light, perceptual brightness)
+---------------------------------------------------------------------------
+local function lin(c)
+    if c <= 0.04045 then return c / 12.92 end
+    return ((c + 0.055) / 1.055) ^ 2.4
+end
+
+local function Ease(e, u)
+    u = max(0, min(1, u))
+    if e == "step" then return u >= 1 and 1 or 0 end
+    if e == "in" then return u * u * u end
+    if e == "out" then return 1 - (1 - u) ^ 3 end
+    if e == "smooth" then return u * u * (3 - 2 * u) end
+    return u
+end
+LT.Ease = Ease
+
+-- a key's colour (linear), nil for dark
+local function KeyRGB(col, ctx)
+    local c
+    if col == "tint" then c = ctx.tint elseif col == "base" then c = ctx.base elseif type(col) == "table" then c = col end
+    if not c then return nil end
+    return { lin(c[1]), lin(c[2]), lin(c[3]) }
+end
+
+-- The bar at time t: r, g, b (0-1, linear light), or nil (no bar lane)
+-- ctx = { tint = {r,g,b}, base = {r,g,b}, strength = 0-1 }
+function LT.Sample(l, t, ctx)
+    local keys = l.bar
+    if not keys or #keys == 0 then return nil end
+    local function colour(i)
+        local c = KeyRGB(keys[i][2], ctx)
+        if c then return c end
+        for j = i - 1, 1, -1 do c = KeyRGB(keys[j][2], ctx); if c then return c end end
+        for j = i + 1, #keys do c = KeyRGB(keys[j][2], ctx); if c then return c end end
+        return { 0, 0, 0 }
+    end
+    local function level(i) return keys[i][2] == "dark" and 0 or keys[i][3] end
+    local c, lv
+    if t <= keys[1][1] then
+        c, lv = colour(1), level(1)
+    else
+        for i = 2, #keys do
+            if t < keys[i][1] then
+                local a, b = keys[i - 1], keys[i]
+                local u = Ease(b[4], (t - a[1]) / max(1e-6, b[1] - a[1]))
+                local ca = a[2] == "dark" and colour(i) or colour(i - 1)
+                local cb = b[2] == "dark" and ca or colour(i)
+                c = { ca[1] + (cb[1] - ca[1]) * u, ca[2] + (cb[2] - ca[2]) * u, ca[3] + (cb[3] - ca[3]) * u }
+                lv = level(i - 1) + (level(i) - level(i - 1)) * u
+                break
+            end
+        end
+        if not c then c, lv = colour(#keys), level(#keys) end
+    end
+    local p = max(0, min(1, lv * (ctx.strength or 1))) ^ 2.2
+    return c[1] * p, c[2] * p, c[3] * p
+end
+
+-- A hold's time with its loop (no loop: stays on the last key)
+function LT.LoopTime(l, t)
+    local lp = l.loop
+    if lp and lp[2] - lp[1] > 0.01 and t > lp[2] then return lp[1] + (t - lp[1]) % (lp[2] - lp[1]) end
+    return min(t, LT.Length(l))
+end
 
 ---------------------------------------------------------------------------
 -- Settings: db.lightBase, db.lightEvents (GamepadCompanionHapticsDB)
 ---------------------------------------------------------------------------
 LT.BASE_MODES = { { "class", "Class" }, { "color", "Colour" }, { "off", "Off" } }
+LT.RESTING = { { "steady", "Steady" }, { "breathe", "Breathe" }, { "ember", "Ember" } }
+LT.MIC_MODES = { { "off", "Off" }, { "combat", "In combat" }, { "on", "On" } }
+
+-- strength: 8 steps (what the strip carries), 0-7 -> 1/8 .. 1
+function LT.Strength(s) return (s + 1) / 8 end
+local function Steps(level) return max(0, min(7, floor((tonumber(level) or 1) * 8 + 0.5) - 1)) end
 
 function LT.Base()
     local db = H.DB()
@@ -62,7 +179,10 @@ function LT.Base()
     b.mode = b.mode or "class"
     b.color = PALETTE[b.color] and PALETTE[b.color].rgb and b.color or "blue"
     b.level = tonumber(b.level) or 0.35
-    if b.breathe == nil then b.breathe = false end
+    if b.light == nil then b.light = b.breathe and "breathe" or "steady" end   -- (0.27: breathe yes / no)
+    if not LT.LightByKey(b.light) then b.light = "steady" end
+    b.breathe = nil
+    b.mic = b.mic or "off"
     return b
 end
 
@@ -71,7 +191,7 @@ function LT.On()
     return db.engine == true and db.light == true
 end
 
--- The base colour (rgb, full brightness), nil when off
+-- The base colour (rgb), nil when off
 function LT.BaseRGB()
     local b = LT.Base()
     if b.mode == "off" then return nil end
@@ -84,7 +204,6 @@ function LT.BaseRGB()
     return PALETTE[b.color].rgb
 end
 
--- The school colour of the cast going on (white when none)
 function LT.SchoolRGB()
     local V = ns.Rumble
     local action = V and V.castAction
@@ -94,140 +213,56 @@ function LT.SchoolRGB()
 end
 
 function LT.ColorRGB(key)
-    if key == "base" then return LT.BaseRGB() or { 1, 1, 1 } end
+    if key == "base" or key == "own" then return LT.BaseRGB() or { 1, 1, 1 } end
     if key == "school" then return LT.SchoolRGB() end
     local c = PALETTE[key]
     return c and c.rgb or { 1, 1, 1 }
 end
 
----------------------------------------------------------------------------
--- Effects: each gives a light function (now, voice) -> r, g, b or nil
--- ctx: { active = fn() (a state's: still going?), progress = fn() 0-1 }
----------------------------------------------------------------------------
-local function scaled(c, k) return c[1] * k, c[2] * k, c[3] * k end
-
-local function hue(h)
-    h = (h % 1) * 6
-    local x = 1 - abs(h % 2 - 1)
-    local i = floor(h)
-    local t = ({ { 1, x, 0 }, { x, 1, 0 }, { 0, 1, x }, { 0, x, 1 }, { x, 0, 1 }, { 1, 0, x } })[i + 1]
-    return t[1], t[2], t[3]
+-- A colour key -> the strip's tint index (0: the light's own)
+function LT.Tint(key)
+    if key == "own" then return 0 end
+    if key == "school" then
+        local V = ns.Rumble
+        return V and SCHOOL_TINT[V.castAction] or 1
+    end
+    if key == "base" then
+        local b = LT.Base()
+        if b.mode == "class" then
+            local class = UnitClass and select(2, UnitClass("player"))
+            return CLASS_TINT[class] or 1
+        end
+        return PALETTE[b.color].tint or 8
+    end
+    return PALETTE[key] and PALETTE[key].tint or 0
 end
 
-LT.EFFECTS = {
-    { key = "flash", label = "Flash", fn = function(c, level)
-        return function(now, v)
-            local t = (now - v.start) / 0.45
-            if t >= 1 then return nil end
-            return scaled(c, level * (1 - t) ^ 2)
-        end
-    end },
-    { key = "boost", label = "Base brighter", fn = function(c, level)
-        -- the base colour jumping to full and settling back (a crit)
-        return function(now, v)
-            local t = now - v.start
-            if t >= 0.7 then return nil end
-            local base = LT.Base().level
-            local k = t < 0.06 and level or level + (base - level) * ((t - 0.06) / 0.64) ^ 0.7
-            return scaled(c, max(base, k))
-        end
-    end },
-    { key = "double", label = "Double blink", fn = function(c, level)
-        return function(now, v)
-            local t = now - v.start
-            if t >= 0.5 then return nil end
-            if t < 0.12 or (t >= 0.24 and t < 0.36) then return scaled(c, level) end
-            return 0, 0, 0
-        end
-    end },
-    { key = "strobe", label = "Strobe", fn = function(c, level)
-        return function(now, v)
-            local t = now - v.start
-            if t >= 0.6 then return nil end
-            if (t % 0.12) < 0.06 then return scaled(c, level) end
-            return 0, 0, 0
-        end
-    end },
-    { key = "fade", label = "Fade in and out", fn = function(c, level)
-        return function(now, v)
-            local t = now - v.start
-            if t >= 1.6 then return nil end
-            local k = t < 0.3 and t / 0.3 or t < 0.7 and 1 or 1 - (t - 0.7) / 0.9
-            return scaled(c, level * k)
-        end
-    end },
-    { key = "rainbow", label = "Rainbow", fn = function(c, level)
-        return function(now, v)
-            local t = now - v.start
-            if t >= 2.4 then return nil end
-            local r, g, b = hue(t / 1.2)
-            local k = level * (t > 1.8 and (2.4 - t) / 0.6 or 1)
-            return r * k, g * k, b * k
-        end
-    end },
-    -- States: while something lasts
-    { key = "glow", label = "Glow", state = true, fn = function(c, level, ctx)
-        return function(now, v)
-            if ctx.active and not ctx.active() then return nil end
-            local k = 0.55 + 0.45 * sin((now - v.start) * 2 * pi * 0.9)
-            return scaled(c, level * k)
-        end
-    end },
-    { key = "build", label = "Build up", state = true, fn = function(c, level, ctx)
-        -- brighter as it goes, a quickening shimmer near the end (a cast)
-        return function(now, v)
-            if ctx.active and not ctx.active() then return nil end
-            local p = ctx.progress and ctx.progress() or min(1, (now - v.start) / 2)
-            local shimmer = 1 - 0.25 * p * (0.5 + 0.5 * sin((now - v.start) * 2 * pi * (2 + 8 * p)))
-            return scaled(c, level * (0.12 + 0.88 * p * p) * shimmer)
-        end
-    end },
-    { key = "heartbeat", label = "Heartbeat", state = true, fn = function(c, level, ctx)
-        return function(now, v)
-            if ctx.active and not ctx.active() then return nil end
-            local t = (now - v.start) % 0.9
-            local k = t < 0.12 and 1 - t / 0.12 * 0.4 or t < 0.25 and 0.25 or t < 0.35 and 0.75 or
-                max(0.12, 0.75 - (t - 0.35) / 0.4)
-            return scaled(c, level * k)
-        end
-    end },
-    { key = "breathe", label = "Breathe", state = true, fn = function(c, level, ctx)
-        return function(now, v)
-            if ctx.active and not ctx.active() then return nil end
-            local k = 0.3 + 0.7 * (0.5 - 0.5 * cos((now - v.start) * 2 * pi / 3.2))
-            return scaled(c, level * k)
-        end
-    end },
-}
-local EFFECT = {}
-for _, e in ipairs(LT.EFFECTS) do EFFECT[e.key] = e end
-
 ---------------------------------------------------------------------------
--- Light events, each with its default effect, colour and strength
+-- Moments, each with its default colour and strength (0-7); its light is
+-- the preset of the same key
 ---------------------------------------------------------------------------
-LT.GROUPS = { "Combat", "Casting", "World", "Social" }
 LT.EVENTS = {
-    { key = "crit", group = "Combat", label = "Critical hit", effect = "boost", color = "base", level = 1, on = true },
-    { key = "critTaken", group = "Combat", label = "Critical hit taken", effect = "double", color = "red", level = 0.9, on = true },
-    { key = "hitTaken", group = "Combat", label = "Hit taken", effect = "flash", color = "red", level = 0.3, on = false },
-    { key = "avoid", group = "Combat", label = "Dodge, parry, block", effect = "flash", color = "white", level = 0.25, on = false },
-    { key = "kill", group = "Combat", label = "Target killed", effect = "flash", color = "white", level = 0.8, on = true },
-    { key = "lowHp", group = "Combat", label = "Low health", effect = "heartbeat", color = "red", level = 0.85, on = true, state = true },
-    { key = "combat", group = "Combat", label = "In combat", effect = "breathe", color = "orange", level = 0.35, on = false, state = true },
-    { key = "cast", group = "Casting", label = "Casting", effect = "build", color = "school", level = 0.9, on = true, state = true },
-    { key = "release", group = "Casting", label = "Spell released", effect = "flash", color = "school", level = 1, on = true },
-    { key = "interrupted", group = "Casting", label = "Interrupted", effect = "strobe", color = "red", level = 0.9, on = true },
-    { key = "instant", group = "Casting", label = "Instant ability", effect = "flash", color = "school", level = 0.45, on = false },
-    { key = "halo", group = "Casting", label = "Halo ring open", effect = "glow", color = "cyan", level = 0.5, on = true, state = true },
-    { key = "haloUse", group = "Casting", label = "Halo ring fired", effect = "flash", color = "cyan", level = 0.85, on = true },
-    { key = "levelUp", group = "World", label = "Level up", effect = "rainbow", color = "gold", level = 1, on = true },
-    { key = "questDone", group = "World", label = "Quest done", effect = "fade", color = "gold", level = 0.7, on = true },
-    { key = "loot", group = "World", label = "Loot", effect = "flash", color = "gold", level = 0.4, on = false },
-    { key = "death", group = "World", label = "Death", effect = "fade", color = "red", level = 0.6, on = true },
-    { key = "alive", group = "World", label = "Back to life", effect = "fade", color = "white", level = 0.6, on = true },
-    { key = "whisper", group = "Social", label = "Whisper", effect = "double", color = "purple", level = 0.8, on = true },
-    { key = "readyCheck", group = "Social", label = "Ready check", effect = "strobe", color = "gold", level = 0.8, on = true },
-    { key = "invite", group = "Social", label = "Invites, duels", effect = "double", color = "green", level = 0.7, on = true },
+    { key = "crit", group = "Combat", label = "Critical hit", color = "base", strength = 7, on = true },
+    { key = "critTaken", group = "Combat", label = "Critical hit taken", color = "red", strength = 6, on = true },
+    { key = "hitTaken", group = "Combat", label = "Hit taken", color = "red", strength = 2, on = false },
+    { key = "avoid", group = "Combat", label = "Dodge, parry, block", color = "white", strength = 2, on = false },
+    { key = "kill", group = "Combat", label = "Target killed", color = "white", strength = 5, on = true },
+    { key = "lowHp", group = "Combat", label = "Low health", color = "red", strength = 6, on = true, state = true },
+    { key = "combat", group = "Combat", label = "In combat", color = "orange", strength = 2, on = false, state = true },
+    { key = "cast", group = "Casting", label = "Casting", color = "school", strength = 6, on = true, state = true, school = true },
+    { key = "release", group = "Casting", label = "Spell released", color = "school", strength = 7, on = true, school = true },
+    { key = "interrupted", group = "Casting", label = "Interrupted", color = "red", strength = 6, on = true, school = true },
+    { key = "instant", group = "Casting", label = "Instant ability", color = "school", strength = 3, on = false, school = true },
+    { key = "halo", group = "Casting", label = "Halo ring open", color = "cyan", strength = 3, on = true, state = true },
+    { key = "haloUse", group = "Casting", label = "Halo ring fired", color = "cyan", strength = 6, on = true },
+    { key = "levelUp", group = "World", label = "Level up", color = "gold", strength = 7, on = true },
+    { key = "questDone", group = "World", label = "Quest done", color = "gold", strength = 5, on = true },
+    { key = "loot", group = "World", label = "Loot", color = "gold", strength = 4, on = false },
+    { key = "death", group = "World", label = "Death", color = "red", strength = 4, on = true },
+    { key = "alive", group = "World", label = "Back to life", color = "white", strength = 4, on = true },
+    { key = "whisper", group = "Social", label = "Whisper", color = "purple", strength = 5, on = true },
+    { key = "readyCheck", group = "Social", label = "Ready check", color = "gold", strength = 5, on = true },
+    { key = "invite", group = "Social", label = "Invites, duels", color = "green", strength = 5, on = true },
 }
 local EVENT = {}
 for _, e in ipairs(LT.EVENTS) do EVENT[e.key] = e end
@@ -236,41 +271,152 @@ LT.EVENT = EVENT
 -- (priority: states under events; an alarm over a flash)
 local PRIO = { combat = 1, halo = 2, cast = 3, lowHp = 4, interrupted = 7, critTaken = 7, levelUp = 8 }
 
+-- a moment's default light id (its own preset)
+function LT.DefaultLight(key)
+    local p = LT.LightByKey(key)
+    return p and p.id
+end
+
+-- 0.27 effects -> a preset (the moment's own when it was the default)
+local OLD_DEFAULT = { crit = "boost", critTaken = "double", hitTaken = "flash", avoid = "flash", kill = "flash",
+    lowHp = "heartbeat", combat = "breathe", cast = "build", release = "flash", interrupted = "strobe", instant = "flash",
+    halo = "glow", haloUse = "flash", levelUp = "rainbow", questDone = "fade", loot = "flash", death = "fade",
+    alive = "fade", whisper = "double", readyCheck = "strobe", invite = "double" }
+local OLD_SHAPE = { flash = "flash", boost = "crit", double = "double", strobe = "interrupted", fade = "pulse",
+    rainbow = "rainbow", glow = "glow", build = "cast", heartbeat = "heartbeat", breathe = "combat" }
+
 function LT.Settings(key)
     local db = H.DB()
     if type(db.lightEvents) ~= "table" then db.lightEvents = {} end
     local e = EVENT[key]
     local s = db.lightEvents[key]
     if type(s) ~= "table" then
-        s = { on = e.on, effect = e.effect, color = e.color, level = e.level }
+        s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength }
         db.lightEvents[key] = s
     end
-    if not EFFECT[s.effect] then s.effect = e.effect end
+    if s.effect then
+        -- migrate once: the moment's own light, or the shape it had
+        local own = s.effect == OLD_DEFAULT[key]
+        local p = own and LT.LightByKey(key) or LT.LightByKey(OLD_SHAPE[s.effect] or key)
+        s.light = p and p.id or LT.DefaultLight(key)
+        s.strength = Steps(s.level)
+        s.effect, s.level = nil, nil
+    end
+    if not LT.Light(s.light) then s.light = LT.DefaultLight(key) end   -- (deleted in WoW Helper)
     if not PALETTE[s.color] then s.color = e.color end
-    s.level = tonumber(s.level) or e.level
+    s.strength = max(0, min(7, floor(tonumber(s.strength) or e.strength)))
     return s
 end
 
-function LT.Effect(key) return EFFECT[key] end
+function LT.IsDefault(key)
+    local e, s = EVENT[key], LT.Settings(key)
+    return s.on == e.on and s.light == LT.DefaultLight(key) and s.color == e.color and s.strength == e.strength
+end
+
+function LT.Default(key) H.DB().lightEvents[key] = nil end
 
 ---------------------------------------------------------------------------
--- Playing
+-- Who draws: WoW Helper when the link is on (v2), else the game
 ---------------------------------------------------------------------------
+local function K() return ns.HelperLink end
+
+function LT.HelperDrives()
+    local k = K()
+    return k ~= nil and k.Enabled() and k.V2() and H.DB().lightGameOnly ~= true
+end
+
 local states = {}   -- key -> ctx while a state lasts
 
--- Start an event's light (a state: ctx.active says while it lasts)
+-- a light voice for the game's renderer: fn(now, v) -> r, g, b or nil
+local function Voice(l, ctx, active, progress)
+    local fit = l.fit and l.loop and progress
+    return function(now, v)
+        local el = now - v.start
+        local t
+        if l.kind == "once" then
+            if el > LT.Length(l) then return nil end
+            t = el
+        else
+            if active and not active() then return nil end
+            if fit then
+                local p = progress()
+                if p < 1 then
+                    t = p * l.loop[1]
+                else
+                    v.full = v.full or now
+                    t = LT.LoopTime(l, l.loop[1] + (now - v.full))
+                end
+            else
+                t = LT.LoopTime(l, el)
+            end
+        end
+        local r, g, b = LT.Sample(l, t, ctx)
+        if r == nil then return 0, 0, 0 end
+        return r, g, b
+    end
+end
+LT.Voice = Voice
+
+local function Ctx(colorKey, strength)
+    return { tint = LT.ColorRGB(colorKey), base = LT.BaseRGB() or { 0, 0, 0 }, strength = LT.Strength(strength) }
+end
+LT.Ctx = Ctx
+
+-- What holds now: the highest active state, else the resting light
+-- -> state key (nil: resting), light, colour key, strength, progress fn
+local function Holding()
+    local best, bp
+    for key, ctx in pairs(states) do
+        local s = LT.Settings(key)
+        if s.on and (not ctx.active or ctx.active()) and (not bp or (PRIO[key] or 5) > bp) then best, bp = key, PRIO[key] or 5 end
+    end
+    if best then
+        local s = LT.Settings(best)
+        return best, LT.Light(s.light), s.color, s.strength, states[best].progress
+    end
+    local b = LT.Base()
+    if not LT.On() or b.mode == "off" then return nil end
+    return nil, LT.LightByKey(b.light), "base", Steps(b.level)
+end
+LT.Holding = Holding
+
+-- The light row from what holds; the game sets only its steady colour
+local lastStep
+function LT.SendHold()
+    local k = K()
+    if not (k and k.SetLight) then return end
+    if not (LT.On() and LT.HelperDrives()) then return k.SetLight(nil) end
+    local key, l, color, strength, progress = Holding()
+    local p = progress and progress()
+    lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
+    k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
+        progress = lastStep, resting = key == nil })
+    if l then
+        local r, g, b = LT.Sample(l, l.loop and l.loop[1] or 0, Ctx(color, strength))
+        if r then return H.Light("lt_base", function() return r, g, b end, 0) end
+    end
+    H.LightStop("lt_base")
+end
+
+-- Start a moment's light (a state: ctx.active says while it lasts)
 local function Play(key, ctx, force)
     if not (LT.On() or force) then return end
     local s = LT.Settings(key)
     if not (s.on or force) then return end
-    local e = EFFECT[s.effect]
-    local rgb = LT.ColorRGB(s.color)
+    local l = LT.Light(s.light)
+    if not l then return end
+    if LT.HelperDrives() then
+        if EVENT[key].state then return LT.SendHold() end
+        -- a cue on the strip; one ranking below what holds is dropped
+        local hk = Holding()
+        if hk and (PRIO[hk] or 5) > (PRIO[key] or 5) then return end
+        return K().LightCue(l.id, LT.Tint(s.color), s.strength)
+    end
     if not ctx then
         local start = Now()
         ctx = { active = function() return Now() - start < 1.2 end }
     end
-    -- (a one-off effect on a state: once at its start)
-    H.Light("lt_" .. key, e.fn(rgb, s.level, ctx or {}), PRIO[key] or 5)
+    H.Light("lt_" .. key, Voice(l, Ctx(s.color, s.strength), ctx.active, ctx.progress), PRIO[key] or 5)
 end
 
 function LT.Fire(key) if EVENT[key] and not EVENT[key].state then Play(key) end end
@@ -291,31 +437,51 @@ function LT.EndState(key)
     if ctx then ctx.stop() end
     states[key] = nil
     H.LightStop("lt_" .. key)
+    if LT.HelperDrives() then LT.SendHold() end
 end
 
--- Try: as the game would (a state for 3 s, a cast filling up)
-function LT.Try(key)
+-- Try a moment's light (or another light for it): a state for 3 s, a cast
+-- filling up. With the link, WoW Helper plays it.
+function LT.Try(key, lightId)
     local e = EVENT[key]
     if not e then return end
+    local s = LT.Settings(key)
+    local l = LT.Light(lightId or s.light)
+    if not l then return end
+    if LT.HelperDrives() then
+        if l.kind == "once" then return K().LightCue(l.id, LT.Tint(s.color), s.strength) end
+        K().SetLight({ hold = l.id, holdTint = LT.Tint(s.color), holdStrength = s.strength, progress = 0 })
+        if C_Timer then C_Timer.After(3, LT.SendHold) end
+        return
+    end
     local start = Now()
-    local ctx = { active = function() return Now() - start < 3 end,
-        progress = function() return min(1, (Now() - start) / 2.5) end }
-    Play(key, ctx, true)
-    if key == "cast" then
-        C_Timer.After(2.5, function() Play("release", nil, true) end)
+    local active = function() return Now() - start < 3 end
+    local progress = function() return min(1, (Now() - start) / 2.5) end
+    H.Light("lt_" .. key, Voice(l, Ctx(s.color, s.strength), active, progress), 9)
+    if key == "cast" and C_Timer then
+        C_Timer.After(2.5, function() LT.Try("release") end)
     end
 end
 
--- The base colour, steady or breathing
+-- The resting light: the game plays it, or (link) WoW Helper with the game's
+-- steady colour under it
 function LT.ApplyBase()
-    local rgb = LT.On() and LT.BaseRGB()
-    if not rgb then return H.LightStop("lt_base") end
+    if LT.HelperDrives() then return LT.SendHold() end
+    local k = K()
+    if k and k.SetLight then k.SetLight(nil) end
     local b = LT.Base()
-    H.Light("lt_base", function(now, v)
-        local k = b.level
-        if b.breathe then k = k * (0.45 + 0.55 * (0.5 - 0.5 * cos((now - v.start) * 2 * pi / 4))) end
-        return rgb[1] * k, rgb[2] * k, rgb[3] * k
-    end, 0)
+    local l = LT.On() and b.mode ~= "off" and LT.LightByKey(b.light)
+    if not l then return H.LightStop("lt_base") end
+    H.Light("lt_base", Voice(l, Ctx("base", Steps(b.level))), 0)
+end
+
+-- The resting mic: off, on in combat, on (WoW Helper only)
+function LT.ApplyMic()
+    local k = K()
+    if not (k and k.SetMic) then return end
+    local m = LT.Base().mic
+    local inCombat = UnitAffectingCombat and UnitAffectingCombat("player")
+    k.SetMic((m == "on" or (m == "combat" and inCombat)) and "on" or "off")
 end
 
 ---------------------------------------------------------------------------
@@ -376,8 +542,6 @@ for _, ev in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_E
     pcall(frame.RegisterEvent, frame, ev)
 end
 
--- An event about this cast (another spell's failed attempt mid-cast doesn't
--- count; hidden or missing IDs: it does)
 local function SameCast(guid)
     if guid == nil or cast.guid == nil or secret(guid) or secret(cast.guid) then return true end
     return guid == cast.guid
@@ -388,9 +552,9 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         if unit == "GamepadCompanion" then Wrap() end
         return
     end
-    if event == "PLAYER_ENTERING_WORLD" then return LT.ApplyBase() end
-    if event == "PLAYER_REGEN_DISABLED" then return LT.StartState("combat") end
-    if event == "PLAYER_REGEN_ENABLED" then return LT.EndState("combat") end
+    if event == "PLAYER_ENTERING_WORLD" then LT.ApplyMic(); return LT.ApplyBase() end
+    if event == "PLAYER_REGEN_DISABLED" then LT.ApplyMic(); return LT.StartState("combat") end
+    if event == "PLAYER_REGEN_ENABLED" then LT.ApplyMic(); return LT.EndState("combat") end
     if unit and unit ~= "player" then return end
     if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" then
         local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
@@ -398,6 +562,7 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         cast.start, cast.finish, cast.channel = s or Now(), e or (Now() + 1.5), channel
         cast.guid, cast.stopped = guid, nil
         LT.StartState("cast", { progress = function()
+            if not cast.start then return 1 end
             local span = cast.finish - cast.start
             return span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
         end })
@@ -405,7 +570,6 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         local s, e = CastTimes(false)
         if s and cast.start then cast.start, cast.finish = s, e end
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        -- (before or just after its STOP)
         if cast.start and not cast.channel and SameCast(guid) and (not cast.stopped or Now() - cast.stopped < 0.5) then
             cast.start = nil
             LT.EndState("cast")
@@ -417,7 +581,6 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         LT.EndState("cast")
         if ran then LT.Fire("release") end
     elseif event == "UNIT_SPELLCAST_STOP" then
-        -- (how it ended comes with SUCCEEDED or INTERRUPTED, either order)
         if cast.start and not cast.channel and SameCast(guid) then
             cast.stopped = Now()
             LT.EndState("cast")
@@ -430,10 +593,30 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
     end
 end)
 
--- The light bar on or off (Light tab), the base applied again
+-- With the link: a state's progress on the strip in 15 steps (WoW Helper
+-- interpolates between them)
+local ticker = 0
+function LT.Tick(elapsed)
+    ticker = ticker + (elapsed or 0)
+    if ticker < 0.05 then return end
+    ticker = 0
+    if not (LT.HelperDrives() and next(states)) then return end
+    local _, _, _, _, progress = Holding()
+    if progress and 1 + floor(max(0, min(1, progress())) * 14 + 0.5) ~= lastStep then LT.SendHold() end
+end
+frame:SetScript("OnUpdate", function(_, elapsed) LT.Tick(elapsed) end)
+
+-- The lights on or off, the base applied again
 function LT.SetOn(on)
     H.DB().light = on == true
     H.LightStop()
     for key in pairs(states) do states[key] = nil end
     LT.ApplyBase()
+end
+
+-- The link changed (on, off, v1 / v2): who draws changes
+function LT.LinkChanged()
+    H.LightStop()
+    LT.ApplyBase()
+    LT.ApplyMic()
 end

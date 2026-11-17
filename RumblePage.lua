@@ -254,46 +254,22 @@ local function Pct(v) return floor((v or 0) * 100 + 0.5) .. "%" end
 ITEM.light = {
     label = function(key) return LT.EVENT[key].label end,
     icon = function(key) return FEEL_OF[key] and IconOf(FEEL_OF[key]) or LIGHT_ICON end,
-    tip = function() return "Effect, then colour" end,
+    tip = function() return "Light, colour, strength" end,
     show = function(key)
         local s = LT.Settings(key)
         if not s.on then return "Off", V.OFF_ICON, nil, true end
-        local ef = LT.Effect(s.effect)
-        return ef and ef.label or s.effect, nil, LT.EVENT[key].state and "While it lasts" or nil, false, LT.ColorRGB(s.color)
+        local l = LT.Light(s.light)
+        -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
+        local sub = (LT.EVENT[key].state and "While it lasts · " or "") .. (LT.HelperDrives() and "WoW Helper" or "Game")
+        return l and l.name or "?", nil, sub, false, LT.ColorRGB(s.color)
     end,
-    pick = function(key, anchor)
-        local s = LT.Settings(key)
-        local label = LT.EVENT[key].label
-        local effects = { OFF }
-        for _, ef in ipairs(LT.EFFECTS) do
-            effects[#effects + 1] = { key = ef.key, label = ef.label,
-                icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_" .. (ef.state and "pulse" or "tick") }
-        end
-        HUI.Popup(anchor, label, effects, s.on and s.effect or "off", function(choice)
-            if choice == "off" then s.on = false; Refresh(); return end
-            s.on, s.effect = true, choice
-            Refresh()
-            local colours = {}
-            for _, c in ipairs(LT.PALETTE) do
-                colours[#colours + 1] = { key = c.key, label = c.label, rgb = c.rgb or (c.key == "base" and LT.BaseRGB())
-                    or (c.key == "school" and { 1, 0.35, 0 }) or { 1, 1, 1 } }
-            end
-            HUI.Popup(anchor, label .. " · colour", colours, s.color, function(colour)
-                s.color = colour
-                LT.Try(key)
-                Refresh()
-            end, 3, 130)
-        end, 2, 150)
-    end,
-    isDefault = function(key)
-        local e, s = LT.EVENT[key], LT.Settings(key)
-        return s.on == e.on and s.effect == e.effect and s.color == e.color and math.abs(s.level - e.level) < 1e-6
-    end,
-    default = function(key) H.DB().lightEvents[key] = nil end,
+    pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
+    isDefault = function(key) return LT.IsDefault(key) end,
+    default = function(key) LT.Default(key) end,
     try = function(key) LT.Try(key) end,
     level = function(key)
-        return { step = 0.05, min = 0.05, max = 1, format = Pct,
-            get = function() return LT.Settings(key).level end, set = function(v) LT.Settings(key).level = v end }
+        return { step = 1, min = 0, max = 7, format = function(v) return Pct(LT.Strength(v)) end,
+            get = function() return LT.Settings(key).strength end, set = function(v) LT.Settings(key).strength = v end }
     end,
 }
 

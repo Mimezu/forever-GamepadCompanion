@@ -1,6 +1,6 @@
 -- The Setup tab: the pad itself, set once. WoW Helper (the link, HD), the
 -- grips' range (the faintest felt, low battery, the battery), the light bar's
--- base colour, the triggers' cues, and timing (footsteps, mining, landing).
+-- light (resting light, colour, brightness, mic), the triggers' cues, and timing (footsteps, mining, landing).
 -- What happens on each moment is the Moments tab's; the lab's tuning is Lab's.
 local _, ns = ...
 local S, Shell, H, L, V, HUI = ns.OptionsSkin, ns.Shell, ns.Haptics, ns.HapticsLab, ns.Rumble, ns.HapticsUI
@@ -179,7 +179,7 @@ end
 local function BuildBase(frame)
     local LT = ns.Lights
     local cw = W - X3
-    local card = S.Card(frame, "Base colour", X3, 0, cw, PH)
+    local card = S.Card(frame, "Light", X3, 0, cw, PH)
     if not LT then return end
     local swatch = card:CreateTexture(nil, "ARTWORK")
     swatch:SetPoint("TOPRIGHT", -14, -10)
@@ -227,10 +227,20 @@ local function BuildBase(frame)
         end
     end
     local y = -78 - math.ceil(n / 5) * 34 - 8
-    Stepper(card, "Brightness", 12, y, { labelWidth = 110, width = cw - 24, step = 0.05, min = 0.05, max = 1, format = Pct,
+    Stepper(card, "Brightness", 12, y, { labelWidth = 110, width = cw - 24, step = 0.125, min = 0.125, max = 1, format = Pct,
         get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
-    Stepper(card, "Breathe", 12, y - 28, { labelWidth = 110, width = cw - 24, list = { { false, "No" }, { true, "Yes" } },
-        get = function() return LT.Base().breathe end, set = function(v) LT.Base().breathe = v; LT.ApplyBase() end })
+    Stepper(card, "Light", 12, y - 28, { labelWidth = 110, width = cw - 24, list = LT.RESTING,
+        get = function() return LT.Base().light end, set = function(v) LT.Base().light = v; LT.ApplyBase() end })
+    -- the mic LED (WoW Helper only: the game can't reach it)
+    local mic = Stepper(card, "Mic", 12, y - 56, { labelWidth = 110, width = cw - 24, list = LT.MIC_MODES,
+        get = function() return LT.Base().mic end, set = function(v) LT.Base().mic = v; LT.ApplyMic() end })
+    -- who draws the lights now
+    local who = S.Text(card, "", 12, y - 90, cw - 24, 11, GREY)
+    pg.refresh[#pg.refresh + 1] = function()
+        local helper = LT.HelperDrives()
+        who:SetText(helper and "Lights: WoW Helper" or "Lights: game")
+        mic:SetEnabled(helper)
+    end
     pg.refresh[#pg.refresh + 1] = function()
         local base = LT.Base()
         for _, b in ipairs(swatches) do b.sel:SetShown(base.mode == "color" and base.color == b.key) end

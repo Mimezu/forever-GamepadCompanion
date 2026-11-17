@@ -1,0 +1,225 @@
+-- Lights: one light model, two renderers (C:\games\WowHelper\docs\LIGHTS.md).
+-- lua5.1 tests/Lights.lua <addon folder>
+--   The light row's vectors and the bar samples come from WoW Helper
+--   (cargo test write_light_fixture / write_light_samples -- --ignored).
+local root = arg[1] or "."
+
+-- Minimal client ------------------------------------------------------------------
+local created = {}
+local methods = {}
+local function new(kind, name, parent)
+    local f = setmetatable({ kind = kind, name = name, parent = parent, scripts = {}, shown = true, points = {},
+        events = {} }, { __index = function(_, key)
+        if methods[key] then return methods[key] end
+        if type(key) == "string" and key:match("^%u") then return function() end end
+    end })
+    created[#created + 1] = f
+    if name then _G[name] = f end
+    return f
+end
+function methods:SetScript(key, fn) self.scripts[key] = fn end
+function methods:RegisterEvent(e) self.events[e] = true end
+function methods:RegisterUnitEvent(e) self.events[e] = true end
+function methods:CreateTexture() return new("Texture", nil, self) end
+function methods:SetPoint(...) self.points[#self.points + 1] = { ... } end
+function methods:ClearAllPoints() self.points = {} end
+function methods:SetSize(w, h) self.width, self.height = w, h end
+function methods:Show() self.shown = true end
+function methods:Hide() self.shown = false end
+function methods:SetShown(v) self.shown = v and true or false end
+function methods:IsShown() return self.shown end
+function methods:GetEffectiveScale() return 1 end
+function methods:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
+function CreateFrame(kind, name, parent) return new(kind, name, parent) end
+function GetPhysicalScreenSize() return 2560, 1440 end
+local now = 100
+function GetTime() return now end
+UnitClass = function() return "Mage", "MAGE" end
+RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
+GamepadCompanionHapticsDB = { engine = true, light = true }
+local timers = {}
+C_Timer = { After = function(t, fn) timers[#timers + 1] = { now + t, fn } end }
+
+-- the light voices (Haptics.lua's mixer): what the game would set
+local voices, sets, clears = {}, 0, 0
+local ns = { Haptics = {
+    DB = function() return GamepadCompanionHapticsDB end,
+    Light = function(id, fn, prio) voices[id] = { fn = fn, prio = prio, start = now } end,
+    LightStop = function(id) if id then voices[id] = nil else voices = {} end end,
+} }
+local function Led()
+    local best, r, g, b
+    for _, v in pairs(voices) do
+        local vr, vg, vb = v.fn(now, v)
+        if vr and (not best or v.prio > best.prio) then best, r, g, b = v, vr, vg, vb end
+    end
+    return r, g, b
+end
+
+for _, file in ipairs({ "HelperLink.lua", "LightPresets.lua", "Lights.lua" }) do
+    assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
+end
+local K, LT = ns.HelperLink, ns.Lights
+local checks = 0
+local function ok(cond, msg) checks = checks + 1; assert(cond, msg) end
+local function near(a, b, eps, msg) ok(math.abs(a - b) < (eps or 1e-4), (msg or "") .. ": " .. tostring(a) .. " vs " .. tostring(b)) end
+
+-- The light row: the helper's vectors -----------------------------------------------------
+local n = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-lights-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local head, digits = row:match("^(.-)%s*:%s*(%d+)%s*$")
+        local v = {}
+        for num in head:gmatch("%d+") do v[#v + 1] = tonumber(num) end
+        local r = { version = v[1], resting = v[2] == 1, hold = v[3], holdTint = v[4], holdStrength = v[5], progress = v[6],
+            cue = v[7], cueTint = v[8], cueStrength = v[9] }
+        local cells, out = K.EncodeLight(r), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        ok(#cells == 17 and table.concat(out) == digits, "light vector: " .. row .. " got " .. table.concat(out))
+        local d = assert(K.DecodeLight(cells))
+        for k, x in pairs(r) do ok(d[k] == x, "light round trip " .. k) end
+        local flip = K.EncodeLight(r)
+        local c = 2 + (n % 16)
+        flip[c] = { 1 - flip[c][1], flip[c][2], flip[c][3] }
+        ok(K.DecodeLight(flip) == nil, "a flipped bit is refused")
+        n = n + 1
+    end
+end
+ok(n == 61, "61 light vectors: " .. n)
+
+-- Presets: generated, sampled as the helper does -----------------------------------------
+ok(#ns.LIGHT_PRESETS >= 32, "presets")
+local function byte(c) return c / 255 end
+local ctx = { tint = { byte(255), byte(191), byte(38) }, base = { byte(26), byte(77), byte(255) }, strength = 0.75 }
+local samples = 0
+for row in io.lines(root .. "/tests/fixtures/light-samples.txt") do
+    if row:sub(1, 1) ~= "#" then
+        local id, t, r, g, b = row:match("^(%d+) ([%d%.]+) : ([%d%.]+) ([%d%.]+) ([%d%.]+)")
+        local l = LT.Light(tonumber(id))
+        local sr, sg, sb = LT.Sample(l, tonumber(t), ctx)
+        near(sr, tonumber(r), 2e-5, "sample r " .. row)
+        near(sg, tonumber(g), 2e-5, "sample g " .. row)
+        near(sb, tonumber(b), 2e-5, "sample b " .. row)
+        samples = samples + 1
+    end
+end
+ok(samples > 200, "samples: " .. samples)
+
+-- Every moment has its own preset of the right kind
+for _, e in ipairs(LT.EVENTS) do
+    local l = LT.LightByKey(e.key)
+    ok(l, "a preset for " .. e.key)
+    ok((l.kind == "hold") == (e.state == true), e.key .. ": " .. l.kind)
+end
+
+-- Migration from 0.27 (an effect, a colour, a level) --------------------------------------
+GamepadCompanionHapticsDB.lightEvents = {
+    crit = { on = true, effect = "boost", color = "red", level = 1 },     -- its default: its own light
+    loot = { on = true, effect = "double", color = "gold", level = 0.4 }, -- another shape
+    kill = { on = false, effect = "glow", color = "white", level = 0.5 },
+}
+GamepadCompanionHapticsDB.lightBase = { mode = "class", level = 0.35, breathe = true }
+local s = LT.Settings("crit")
+ok(s.light == LT.LightByKey("crit").id and s.strength == 7 and s.color == "red" and s.effect == nil and s.level == nil, "crit migrated")
+s = LT.Settings("loot")
+ok(s.light == LT.LightByKey("double").id and s.strength == 2, "loot: Double at 3/8")
+s = LT.Settings("kill")
+ok(s.light == LT.LightByKey("glow").id and s.on == false and s.strength == 3, "kill: Glow, off kept")
+ok(LT.Base().light == "breathe" and LT.Base().breathe == nil, "base: Breathe")
+LT.Default("crit")
+ok(LT.IsDefault("crit"), "Default")
+-- a light deleted in WoW Helper: back to the moment's own
+GamepadCompanionHapticsDB.lightEvents.crit = { on = true, light = 200, color = "base", strength = 7 }
+ok(LT.Settings("crit").light == LT.LightByKey("crit").id, "unknown id falls back")
+
+-- The player's own lights (WoW Helper's data addon) ---------------------------------------
+WowHelperData = { lights = { { id = 128, key = "u_128", name = "Ember crit", kind = "once", group = "Yours",
+    bar = { { 0, "tint", 1, "step" }, { 0.4, "dark", 0, "out" } } },
+    { id = 20, key = "crit", name = "Critical hit", kind = "once", group = "Combat", bar = { { 0, { 1, 0, 0 }, 1, "step" } } } } }
+local mine = LT.Light(128)
+ok(mine and mine.yours and mine.name == "Ember crit", "the player's own listed")
+ok(LT.Light(20).bar[1][2][1] == 1, "an edited preset replaces the shipped one")
+GamepadCompanionHapticsDB.lightEvents.crit = { on = true, light = 128, color = "gold", strength = 7 }
+ok(LT.Settings("crit").light == 128, "an own light kept")
+WowHelperData = nil
+LT.Default("crit")
+
+-- Game renderer (link off) ----------------------------------------------------------------
+ok(not LT.HelperDrives(), "the game draws with the link off")
+LT.ApplyBase()
+local r, g, b = Led()
+ok(r and b > g and g > r, "the resting light: the mage's colour")
+local before = b
+now = now + 2.5   -- Breathe: brighter half way
+r, g, b = Led()
+ok(b ~= before, "Breathe moves")
+LT.Fire("crit")
+r, g, b = Led()
+ok(r > 0.9 and g > 0.9 and b > 0.9, "a crit: white first")
+now = now + 1
+r, g, b = Led()
+ok(b < 0.5, "then back to the resting light")
+ok(K.light == nil, "no light row with the link off")
+
+-- WoW Helper draws (link on) --------------------------------------------------------------
+local drawn
+K.DrawLight = function(cells) drawn = cells and K.DecodeLight(cells) end
+K.SetEnabled(true)
+ok(LT.HelperDrives(), "WoW Helper draws with the link on")
+K.Step(0)
+ok(drawn and drawn.resting and drawn.hold == LT.LightByKey("breathe").id and drawn.holdTint == 27, "the resting light on the row: Breathe in the mage's colour")
+-- the game keeps only a steady colour under it, never cleared
+local vr, vg, vb = Led()
+local vr2 = select(1, Led())
+ok(vr and vr == vr2, "a steady colour from the game")
+-- a crit: a cue on the row, nothing animated in the game
+voices.lt_crit = nil
+LT.Fire("crit")
+for _ = 1, 2 do K.Step(1 / 60) end
+ok(drawn.cue == LT.LightByKey("crit").id and drawn.cueStrength == 7, "the crit's cue")
+ok(voices.lt_crit == nil, "the game doesn't animate it")
+for _ = 1, 10 do K.Step(1 / 30) end
+ok(drawn.cue == 0, "the cue cleared after it was shown")
+ok(drawn.hold == LT.LightByKey("breathe").id, "what holds stays")
+-- a cast: the hold changes, its progress follows
+UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 2) * 1000 end
+local lf
+for _, f in ipairs(created) do if f.events.UNIT_SPELLCAST_SUCCEEDED and f.events.PLAYER_REGEN_DISABLED then lf = f end end
+lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_START", "player")
+K.Step(1 / 60)
+ok(drawn.hold == LT.LightByKey("cast").id and not drawn.resting and drawn.progress == 1, "casting holds, progress 0")
+now = now + 1
+LT.Tick(0.1)
+K.Step(1 / 60)
+ok(drawn.progress == 8, "half way: step 8 of 15 (" .. drawn.progress .. ")")
+lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player")
+for _ = 1, 2 do K.Step(1 / 60) end
+ok(drawn.hold == LT.LightByKey("breathe").id and drawn.cue == LT.LightByKey("release").id, "released: the cue, back to resting")
+UnitCastingInfo = nil
+-- a loot glint over low health: it plays (a glint adds light; states rank under moments)
+LT.Settings("loot").on = true
+LT.StartState("lowHp")
+for _ = 1, 20 do K.Step(1 / 30) end
+ok(drawn.hold == LT.LightByKey("lowHp").id, "low health holds")
+LT.Fire("loot")
+for _ = 1, 2 do K.Step(1 / 60) end
+ok(drawn.cue == LT.Settings("loot").light and drawn.hold == LT.LightByKey("lowHp").id, "a loot glint over low health")
+for _ = 1, 10 do K.Step(1 / 30) end
+LT.EndState("lowHp")
+K.Step(1 / 60)
+ok(drawn.hold == LT.LightByKey("breathe").id, "back to resting")
+-- the mic: in combat only
+LT.Base().mic = "combat"
+UnitAffectingCombat = function() return true end
+LT.ApplyMic()
+ok(K.state.mic == K.MIC.on, "mic on in combat")
+UnitAffectingCombat = function() return false end
+LT.ApplyMic()
+ok(K.state.mic == K.MIC.off, "mic off out of combat")
+-- link off again: the row goes, the game draws
+K.SetEnabled(false)
+K.Step(1 / 60)
+ok(K.light == nil and drawn == nil, "no row with the link off")
+ok(voices.lt_base and select(1, Led()), "the game's resting light again")
+
+print("Lights: ok (" .. checks .. " checks, " .. n .. " row vectors, " .. samples .. " samples)")

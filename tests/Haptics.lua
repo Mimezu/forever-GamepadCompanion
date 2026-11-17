@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -643,7 +643,9 @@ do
     led = {}
     LT.ApplyBase()
     frame(0.05)
-    assert(led[#led] and led[#led].r and led[#led].g > 0.3, "the class colour (rogue yellow) at the base")
+    -- (perceptual brightness: 35 % -> 3/8 strength -> 0.375^2.2 of the light)
+    assert(led[#led] and led[#led].r and led[#led].g > 0.05 and led[#led].r >= led[#led].g and led[#led].b < led[#led].g,
+        "the class colour (rogue yellow) at the base")
     -- a crit: the base brighter (through Rumble's event, even with its vibration off)
     V.SetEventPattern("crit", "off")
     led = {}
@@ -687,7 +689,7 @@ do
     now = now + 1
     L.Fire("whisper")
     frame(0.05)
-    assert(led[#led] and led[#led].b > 0.5 and led[#led].r > 0.3, "whisper: purple")
+    assert(led[#led] and led[#led].b > 0.1 and led[#led].b > led[#led].r and led[#led].r > led[#led].g, "whisper: purple")
     -- off: no event light
     LT.Settings("whisper").on = false
     for _ = 1, 30 do frame(0.05) end
@@ -696,15 +698,15 @@ do
     L.Fire("whisper")
     frame(0.05)
     local purple = false
-    for _, c in ipairs(led) do if type(c) == "table" and c.b > 0.5 and c.r > 0.3 and c.g < 0.5 then purple = true end end
+    for _, c in ipairs(led) do if type(c) == "table" and c.b > 0.05 and c.b > c.r and c.r > c.g then purple = true end end
     assert(not purple, "whisper light off")
     LT.Settings("whisper").on = true
-    -- a one-off event with a lasting effect glows a moment, then ends
-    LT.Settings("kill").effect = "glow"
+    -- a one-off moment with a lasting light glows a moment, then ends
+    LT.Settings("kill").light = LT.LightByKey("glow").id
     LT.Fire("kill")
     assert(H.LightsBusy(), "glowing")
     for _ = 1, 40 do frame(0.05) end
-    LT.Settings("kill").effect = "flash"
+    LT.Default("kill")
     io.write("PASS: lights: base, a crit brighter, a cast building then released, a whisper, off, a moment's glow\n")
 end
 
@@ -753,7 +755,7 @@ do
     assert(ui.backButton:IsShown(), "Back to the moment")
     ui.backButton.scripts.OnClick(ui.backButton)
     assert(ns.Shell.Current() == "moments", "back on Moments")
-    -- Moments › Light: the same groups, an effect then a colour, Default
+    -- Moments › Light: the same groups, one picker (light, colour, strength), Default
     local M = ns.RumblePage
     local function row(kind, key)
         for _, r in ipairs(M.rows) do if r.kind == kind and r.key == key then return r end end
@@ -765,17 +767,28 @@ do
     local critLight = row("light", "crit")
     assert(critLight:IsVisible() and not row("r", "crit"):IsVisible(), "the light row shown, the feel row not")
     critLight.pick.scripts.OnClick(critLight.pick)
-    local pop = GamepadCompanionBetaFeels
-    local function tile(label)
-        for _, t in ipairs(pop.tiles) do if t.label.text == label and t:IsShown() then return t end end
+    local lp = GamepadCompanionLightPicker
+    assert(lp and lp:IsShown(), "the light picker")
+    local function ltile(label)
+        for _, t in ipairs(lp.tiles) do if t.label.text == label and t:IsShown() then return t end end
     end
-    tile("Strobe").scripts.OnClick(tile("Strobe"))
-    assert(ns.Lights.Settings("crit").effect == "strobe" and pop:IsShown(), "effect picked, colours next")
-    tile("Red").scripts.OnClick(tile("Red"))
-    assert(ns.Lights.Settings("crit").color == "red" and not pop:IsShown(), "colour picked")
+    assert(ltile("Critical hit") and ltile("Flash") and not ltile("Casting"), "its own light first, once lights only")
+    ltile("Double").scripts.OnClick(ltile("Double"))
+    assert(ns.Lights.Settings("crit").light == ns.Lights.LightByKey("double").id and lp:IsShown(), "a light picked, the picker stays")
+    local red
+    for _, sw in ipairs(lp.swatches) do if sw.key == "red" and sw:IsShown() then red = sw end end
+    red.scripts.OnClick(red)
+    for _, sw in ipairs(lp.swatches) do assert(sw.key ~= "school" or not sw:IsShown(), "no School on a crit") end
+    lp.dots[2].scripts.OnClick(lp.dots[2])
+    local s = ns.Lights.Settings("crit")
+    assert(s.color == "red" and s.strength == 2, "colour and strength picked")
     assert(critLight.default.enabled ~= false, "not its default")
     critLight.default.scripts.OnClick(critLight.default)
-    assert(ns.Lights.Settings("crit").effect == "boost", "Default")
+    assert(ns.Lights.Settings("crit").light == ns.Lights.LightByKey("crit").id and ns.Lights.IsDefault("crit"), "Default")
+    lp:Hide()
+    local function tile(label)
+        for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t.label.text == label and t:IsShown() then return t end end
+    end
     assert(critLight.level and not critLight.edit, "a level, no Edit on a light")
     -- Sound: every moment, loot's coin by default, None
     M.SetKind("sound")

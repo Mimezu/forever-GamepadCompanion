@@ -116,9 +116,8 @@ function D.LightWhy(id)
     if id == "lt_base" then return "Light · base colour" end
     local key = id:match("^lt_(.+)")
     if key and LT and LT.EVENT[key] then
-        local s = LT.Settings(key)
-        local ef = LT.Effect(s.effect)
-        return "Light · " .. LT.EVENT[key].label .. ": " .. (ef and ef.label or s.effect)
+        local l = LT.Light(LT.Settings(key).light)
+        return "Light · " .. LT.EVENT[key].label .. ": " .. (l and l.name or "?")
     end
     if id == "test" then return "Light · trying" end
     return "Light · " .. id
