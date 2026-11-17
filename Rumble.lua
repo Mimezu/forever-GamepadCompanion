@@ -1016,11 +1016,18 @@ function V.StrikeEnv(d)
 end
 
 -- An action's swing period and first strike (seconds), and whether synced
+-- An action's period and first strike, whether synced by you, and where
+-- they come from ("synced", "set", "learned": WoW Helper's, "guess")
 function V.StrikeTiming(action)
     local guess = STRIKES[action] or STRIKES.mining
     local cal = V.Settings().strikes[action]
-    if type(cal) ~= "table" then return guess.period, guess.offset, false end
-    return cal.period or guess.period, cal.offset or guess.offset, (cal.taps or 0) > 0
+    if type(cal) == "table" then
+        local synced = (cal.taps or 0) > 0
+        return cal.period or guess.period, cal.offset or guess.offset, synced, synced and "synced" or "set"
+    end
+    local learned = ns.Timing and ns.Timing.LearnedStrikes and ns.Timing.LearnedStrikes(action)
+    if learned then return learned.period, learned.first, false, "learned", learned.strikes end
+    return guess.period, guess.offset, false, "guess"
 end
 
 -- Set by hand (period or first strike; nil keeps it)
@@ -1797,7 +1804,62 @@ local function SameCast(guid)
     return guid == cast.guid
 end
 
+---------------------------------------------------------------------------
+-- Gathering markers for WoW Helper (its src/gather.rs): with the HD link on,
+-- a marker as a gathering cast starts, succeeds (the ore cracks) or stops:
+-- moments 100-102 mining, 103-105 herbalism, 106-108 skinning (start,
+-- succeeded, stopped); side = race id; seed = sex (bit 7) and the addon's
+-- first strike in 10 ms steps (127: unknown). Once WoW Helper's timing for
+-- the action is known (strikeTiming, read at load), the start marker
+-- carries the strike's HD feel: WoW Helper plays each strike itself, and
+-- the addon sends no HD for that cast.
+---------------------------------------------------------------------------
+V.GATHER_MARKERS = { mining = 100, herbalism = 103, skinning = 106 }
+local GATHER_PHASE = { start = 0, succeeded = 1, stopped = 2 }
+local gatherOpen
+
+local function RaceSex()
+    local race = UnitRace and select(3, UnitRace("player")) or 0
+    local sex = UnitSex and UnitSex("player") or 2
+    if secret(race) or type(race) ~= "number" then race = 0 end
+    return math.min(15, race), sex == 3 and 128 or 0
+end
+
+-- Send a gathering marker; true: the start's carries the strikes' HD feel
+function V.GatherMarker(action, phase)
+    local base = V.GATHER_MARKERS[action]
+    local K, C = ns.HelperLink, ns.HelperCues
+    if not (base and K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
+    local race, sexBit = RaceSex()
+    local _, first, _, source = V.StrikeTiming(action)
+    local steps = (STRIKES[action] or source == "learned" or source == "synced" or source == "set")
+        and math.min(126, math.max(0, math.floor(first / 0.01 + 0.5))) or 127
+    local item
+    if phase == "start" and source == "learned" and C and C.MomentItem then
+        local pattern = V.EventPattern("cast")
+        local L = ns.HapticsLab
+        item = pattern and L and C.MomentItem("gather", L.FeelFor(pattern))
+        if type(item) ~= "table" then item = nil end
+    end
+    local carries = item ~= nil and ((item.touch or 0) > 0 or (item.sound or 0) > 0)
+    item = item or {}
+    item.moment, item.side, item.seed, item.level, item.open = base + GATHER_PHASE[phase], race, sexBit + steps, 0, nil
+    K.Marker(item)
+    return carries
+end
+
+-- A gathering cast open (its start sent): its end, once
+local function GatherEnd(ok)
+    local open = gatherOpen
+    if not open then return end
+    gatherOpen = nil
+    V.GatherMarker(open.action, ok and "succeeded" or "stopped")
+end
+V.GatherEnd = GatherEnd
+
 local function CastStarted(event, _, guid, spellID)
+    -- (a gathering cast still open: it stopped)
+    GatherEnd(false)
     V.castKind, V.castAction = CastKind(spellID)
     cast.ended, cast.shaped = false, false
     cast.guid = guid
@@ -1807,11 +1869,22 @@ local function CastStarted(event, _, guid, spellID)
     cast.channelEnd = channel and finish or nil
     cast.timing = start and { start = start, finish = finish, channel = channel,
         interval = channel and ChannelTicks(spellID) or nil } or nil
+    -- (gathering: its marker first; WoW Helper timing the strikes: no HD from here)
+    local timed = false
+    if V.castKind == "gather" and V.GATHER_MARKERS[V.castAction] then
+        timed = V.GatherMarker(V.castAction, "start")
+        gatherOpen = { action = V.castAction, guid = guid }
+    end
+    V.cueTimed = timed or nil
     V.Fire("cast")
+    V.cueTimed = nil
+    cast.helperTimed = timed
+    if timed and V.looping and V.looping.key == "cast" then V.looping.helperTimed = true end
     if V.strikeSync then V.StrikeCastBegan(V.castAction, cast.timing and cast.timing.start or GetTime()) end
 end
 
 local function CastEnded(how)
+    GatherEnd(false)
     V.EndLoop("cast")
     if cast.ended then return end
     cast.ended = true
@@ -1822,6 +1895,7 @@ end
 
 -- Done as it should: the spell flies off (with its own feel only)
 local function CastReleased()
+    GatherEnd(true)
     V.EndLoop("cast")
     if cast.ended then return end
     cast.ended = true
@@ -1947,9 +2021,20 @@ local CAST_HANDLERS = {
     end,
     -- A cast's end; how it ended comes with UNIT_SPELLCAST_INTERRUPTED, or
     -- UNIT_SPELLCAST_SUCCEEDED (either order)
-    UNIT_SPELLCAST_STOP = function() V.EndLoop("cast") end,
+    UNIT_SPELLCAST_STOP = function()
+        V.EndLoop("cast")
+        -- (a gathering cast: SUCCEEDED may come just after STOP; none: it stopped)
+        local open = gatherOpen
+        if open then
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.25, function() if gatherOpen == open then GatherEnd(false) end end)
+            else
+                GatherEnd(false)
+            end
+        end
+    end,
     UNIT_SPELLCAST_FAILED = function(_, _, guid)
-        if SameCast(guid) then V.EndLoop("cast") end
+        if SameCast(guid) then V.EndLoop("cast"); GatherEnd(false) end
     end,
     -- (a channel's start says so too: not its end)
     UNIT_SPELLCAST_SUCCEEDED = function(_, _, guid, spellID)
@@ -1976,6 +2061,7 @@ local CAST_HANDLERS = {
         -- (a cast whose timing is hidden; a channel starting; Attack)
         if cast.casting and not cast.ended and SameCast(guid) then
             cast.ended = true
+            GatherEnd(true)
             return
         end
         if UnitChannelInfo and UnitChannelInfo("player") then return end

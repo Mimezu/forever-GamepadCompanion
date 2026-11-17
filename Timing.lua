@@ -117,6 +117,16 @@ function T.LoadHelper()
             end
         end
     end
+    if type(d.strikeTiming) == "table" then
+        local strikes = T.Store().strikes or {}
+        T.Store().strikes = strikes
+        for key, v in pairs(d.strikeTiming) do
+            if type(key) == "string" and type(v) == "table" and type(v.first) == "number" and type(v.period) == "number" then
+                strikes[key] = { first = v.first, period = v.period, strikes = tonumber(v.strikes) }
+                n = n + 1
+            end
+        end
+    end
     if type(d.linkLatency) == "number" then T.SetLinkLatency(d.linkLatency) end
     return n
 end
@@ -127,6 +137,17 @@ loader:SetScript("OnEvent", function(_, _, name) if name == "GamepadCompanion" t
 
 -- The impact after the news: the offset, in proportion when the swing comes
 -- round sooner than the animation (interval: the live swing time)
+-- WoW Helper's learned strikes for a gathering action (this race and sex),
+-- { first, period, strikes } or nil
+function T.LearnedStrikes(action)
+    local strikes = T.Store().strikes
+    if type(strikes) ~= "table" then return nil end
+    local base = T.Model():match("^(%d+%-%d+)") or ""
+    local s = strikes[base .. "|" .. action]
+    if type(s) == "table" and type(s.first) == "number" and type(s.period) == "number" and s.period > 0.2 then return s end
+    return nil
+end
+
 function T.Impact(kind, hand, interval)
     local off = T.Offset(kind, hand)
     local anim = (KIND[kind] or KIND.oneHand).anim

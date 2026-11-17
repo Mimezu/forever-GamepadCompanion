@@ -366,15 +366,16 @@ end
 -- A moment's cue (v2): its HD feel and sound in one, with the moment's number
 -- (1-127) so WoW Helper knows what played; open: also open it in WoW Helper.
 -- item = { moment, touch, sound, gain, intensity, open }
--- A swing marker (Timing, WoW Helper's src/calib.rs): moment 110-126, side =
+-- A swing or gathering marker (Timing, WoW Helper's src/calib.rs and
+-- src/gather.rs): moment 110-126 (swings) or 100-108 (gathering), side =
 -- race id, seed = sex bit and the addon's delay, level = result, with or
 -- without the hit's touch and sound (WoW Helper times them). Shown ahead of
 -- waiting cues: its moment on screen is the swing's news.
-K.MARKER_FIRST, K.MARKER_LAST = 110, 126
+K.MARKER_FIRST, K.MARKER_LAST = 100, 126
 function K.Marker(item)
     if not (K.Enabled() and K.V2()) then return false end
     local m = Int(item.moment, 127)
-    if m < K.MARKER_FIRST or m > K.MARKER_LAST then return false end
+    if m < K.MARKER_FIRST or m > K.MARKER_LAST or (m > 108 and m < 110) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     table.insert(K.queue, 1, { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),

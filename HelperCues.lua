@@ -465,6 +465,8 @@ end
 
 -- loop: Rumble's V.looping; sent: cues already sent for it (1: its first, at the fire)
 local function LoopStart(loop, sent)
+    -- (WoW Helper plays this loop's strikes itself: nothing from here)
+    if loop and loop.helperTimed then loopCue = { loop = loop, timed = true }; loopFrame:Show(); return end
     local feel = loop and loop.pattern and L.FeelFor(loop.pattern)
     if not feel then loopCue = nil; loopFrame:Hide(); return end
     loopCue = { loop = loop, key = loop.key, feel = feel, start = GetTime(), period = C.LoopPeriod(feel), sent = sent }
@@ -489,6 +491,7 @@ loopFrame:SetScript("OnUpdate", function()
         LoopStart(cur, 0)
         if not loopCue then return end
     end
+    if loopCue.timed then return end
     local due = floor((GetTime() - loopCue.start) / loopCue.period) + 1
     if due > loopCue.sent then
         loopCue.sent = due

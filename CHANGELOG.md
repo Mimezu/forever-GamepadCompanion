@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.34.0 — 2026-11-17
+
+- WoW Helper learns gathering strikes while you gather: with the HD link on, mining, herbalism and skinning send a marker as the cast starts, succeeds and stops. WoW Helper hears the tool, learns the first strike and the rhythm, and once it knows them plays each strike in HD itself (the addon sends no HD for that cast)
+- Its learned strikes come back at load (`WowHelperData.strikeTiming`) for the rumble's mining strikes: above the guess, under a sync or a setting of yours. Setup › Timing › Mining says "learned · 30"
+
 ## 0.33.3 — 2026-11-17
 
 - Swings were late: WoW Helper heard a two-hander's impact 0.165 s after the swing's news (24 hits), not the 0.35 s guessed. New defaults, all melee scaled alike (x0.47): two-hand 0.165, polearm 0.15, staff 0.14, one-hand 0.12, dagger, fist, unarmed and forms 0.095. Ranged stays 0 (the shot's news is its release)

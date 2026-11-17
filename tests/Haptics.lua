@@ -2152,3 +2152,73 @@ do
     H.DB().timing = nil
     io.write("PASS: measured defaults: old guesses saved as yours cleared once" .. string.char(10))
 end
+
+-- Gathering markers for WoW Helper: start, succeeded, stopped; learned strikes back; then it plays them
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.SetCastPreset("gather", "auto")
+    local T, K, C = ns.Timing, ns.HelperLink, ns.HelperCues
+    local enabled, cue = K.Enabled, K.Cue
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    local cues = {}
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    V.Settings().strikes = {}
+    T.Store().strikes = {}
+    local start
+    UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3) * 1000 end
+    local function moments() local m = {}; for i, q in ipairs(K.queue) do m[i] = q.moment end; return table.concat(m, ",") end
+    wipe(K.queue)
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "g1", 2575)
+    local m = K.queue[1]
+    assert(m and m.moment == 100 and m.side == 1 and m.seed == 50 and m.touch == 0, "mining starts: race 1, male, first 0.50 s, a marker alone")
+    rev("UNIT_SPELLCAST_STOP", "player", "g1")
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "g1", 2575)
+    RunTimers()
+    assert(moments() == "101,100" or moments() == "100,101", "succeeded (STOP first, then SUCCEEDED): " .. moments())
+    assert(not moments():find("102"), "no stop after success")
+    wipe(K.queue)
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "g2", 2575)
+    rev("UNIT_SPELLCAST_STOP", "player", "g2")
+    RunTimers()
+    assert(moments():find("102"), "stopped (no success): " .. moments())
+    wipe(K.queue)
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "h1", 2366)
+    assert(K.queue[1].moment == 103 and K.queue[1].seed == 127, "herbalism: 103, its first strike unknown")
+    rev("UNIT_SPELLCAST_INTERRUPTED", "player", "h1")
+    assert(moments():find("105"), "interrupted: herbalism stopped: " .. moments())
+    -- learned strikes back: the rumble's timing, the start marker carries the strike's HD, no HD from here
+    WowHelperData = { strikeTiming = { ["1-2|mining"] = { first = 0.62, period = 1.18, strikes = 30, casts = 9 } } }
+    T.LoadHelper()
+    local period, first, synced, source, n = V.StrikeTiming("mining")
+    assert(period == 1.18 and first == 0.62 and not synced and source == "learned" and n == 30, "learned · 30")
+    wipe(K.queue); cues = {}
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "g3", 2575)
+    assert(K.queue[1].moment == 100 and K.queue[1].touch == L.HdId("r_pickaxe") and K.queue[1].seed == 62,
+        "the start marker carries the pickaxe's HD; first 0.62")
+    for _ = 1, 300 do now = now + 0.01; C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01) end
+    assert(#cues == 0, "WoW Helper plays the strikes: no HD from here: " .. #cues)
+    local shape = V.looping and V.looping.shape
+    assert(shape and shape(start + 0.3) == 0 and shape(start + 0.64) == V.STRIKE_KNOCK, "the rumble's strikes on the learned timing")
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "g3", 2575)
+    -- yours wins over learned
+    V.SetStrikeTiming("mining", 1.0, 0.5)
+    assert(select(4, V.StrikeTiming("mining")) == "set", "set by hand: yours")
+    V.Settings().strikes = {}
+    WowHelperData = nil
+    T.Store().strikes = {}
+    UnitCastingInfo = nil
+    K.Enabled, K.Cue = enabled, cue
+    wipe(K.queue)
+    io.write("PASS: gathering markers: start, succeeded, stopped; learned strikes; WoW Helper plays them" .. string.char(10))
+end
