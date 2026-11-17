@@ -1681,6 +1681,20 @@ function L.LandingWeight(t)
     return max(0, min(1, (t - lo) / (hi - lo)))
 end
 
+-- Below the minimum (landMin: a real jump), shorter and shorter drops land
+-- quieter and quieter: a share of a minimum jump's landing, eased (a
+-- square), from 1 at the minimum down to LAND_FADE_FLOOR at no air time:
+-- a step down a stair is the faintest tap, never silent, never more than a
+-- real jump. Drops shorter than LAND_SHORTEST aren't landings (a frame's
+-- flicker).
+L.LAND_FADE_FLOOR, L.LAND_SHORTEST = 0.3, 0.08
+function L.LandingFade(t)
+    local lo = H.DB().landMin or L.LAND_MIN
+    if lo <= 0 or t >= lo then return 1 end
+    local x = max(0, t / lo)
+    return L.LAND_FADE_FLOOR + (1 - L.LAND_FADE_FLOOR) * x * x
+end
+
 -- The default landing (Thud) shaped by its weight
 -- (in game a harder landing barely felt stronger while it stayed short: on
 -- this pad length is what is felt, so a heavier landing lasts longer, up to
@@ -1732,25 +1746,29 @@ local function Land(t, now)
     table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
     while #db.landings > 12 do table.remove(db.landings) end
     local k = L.LandingWeight(t)
-    L.lastLanding = { t = t, k = k }
+    -- (under a real jump: quieter the shorter, every output alike)
+    local fade = L.LandingFade(t)
+    L.lastLanding = { t = t, k = k, fade = fade }
     if L.onLand then L.onLand(t, k) end
     local s = L.EventSettings("landing")
     -- (Rumble's strength for a light one, full output for the heaviest:
     -- at 70% strength a full landing felt faint)
     local strength = Strength()
-    local gain = (strength + (1 - strength) * k) * L.LandingLevel(k)
+    local gain = (strength + (1 - strength) * k) * L.LandingLevel(k) * fade
     local water = L.WaterState()
+    -- (what WoW Helper's cue and clip take from this landing: HelperCues)
+    L.landCue = { fade = fade, k = k }
     if water.swimming then
         -- deep water: one splash (Into water), as heavy as the fall
         splashedAt = now
-        L.Fire("splash", strength + (1 - strength) * k, L.SplashFeel(k), true)
+        L.Fire("splash", (strength + (1 - strength) * k) * fade, L.SplashFeel(k), true)
         L.lastLanding.feel = "Splash, shaped"
     elseif water.wading then
         splashedAt = now
-        L.Fire("landing", strength + (1 - strength) * k, L.SplashFeel(k, true), true)
+        L.Fire("landing", (strength + (1 - strength) * k) * fade, L.SplashFeel(k, true), true)
         L.lastLanding.feel = "Splash, shallow"
     elseif s.feel == EVENT.landing.feel then
-        L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
+        L.Fire("landing", (strength + (1 - strength) * k) * fade, L.LandingFeel(k), true)
     else
         -- (another feel: as strong, and stretched as long, as the landing
         -- is heavy: in game a short one felt faint whatever its strength)
@@ -1765,6 +1783,7 @@ local function Land(t, now)
         local peak = f and H.Peak(f) or 1
         L.Fire("landing", gain / max(0.05, peak), nil, true, stretch)
     end
+    L.landCue = nil
     if not L.lastLanding.feel then
         local played = H.Feel(s.feel)
         L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
@@ -1806,7 +1825,7 @@ air:SetScript("OnUpdate", function()
     if airState.falling and not falling then
         local blocked = call(IsFlying) or call(UnitOnTaxi, "player")
         local t = now - airState.since
-        if not blocked and t > 0.25 then airState.pending = { t = t } end
+        if not blocked and t > L.LAND_SHORTEST then airState.pending = { t = t } end
     end
     airState.falling = falling
 end)

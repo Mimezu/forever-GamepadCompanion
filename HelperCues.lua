@@ -268,6 +268,8 @@ function C.Moment(key, feelKey, opts)
         if Vol then soundGain = Vol.Gain(Vol.SoundLevel(key)) else soundGain = 7 end
     end
     if not soundGain then sound = nil end
+    -- (a quieter instance of the moment: its sound as much quieter)
+    if sound and opts.gain and opts.gain < 1 then soundGain = max(0, floor(soundGain * opts.gain + 0.5)) end
     if not K.V2() then
         if sound and sound <= 255 then return K.PlaySound(sound, soundGain) end
         return false
@@ -517,15 +519,20 @@ local function Wrap()
         L.Fire = function(key, ...)
             fire(key, ...)
             local e = L.EVENT and L.EVENT[key]
+            -- (a landing under a real jump: its HD cue, sound and clip fade
+            -- with it, as the rumble does)
+            local land = (key == "landing" or key == "splash") and L.landCue or nil
             if e then
                 local s = L.EventSettings(key)
-                C.Moment(key, H.Engine() and s.on and s.feel or nil)
+                local opts = land and land.fade < 1 and { gain = land.fade, intensity = 1 + 3 * land.fade } or nil
+                C.Moment(key, H.Engine() and s.on and s.feel or nil, opts)
             end
             local c = LAB_CLIP[key]
             if c then C.Clip(c[1], c[2]) end
             if key == "landing" and L.lastLanding then
                 local k = L.lastLanding.k or 0
-                C.Clip(k > 0.5 and "landing_hard" or "landing_soft", 1 + floor(k * 6))
+                local fade = land and land.fade or 1
+                C.Clip(k > 0.5 and "landing_hard" or "landing_soft", floor((1 + k * 6) * fade + 0.5))
             end
         end
     end

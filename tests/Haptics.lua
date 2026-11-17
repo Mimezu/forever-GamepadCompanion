@@ -1754,3 +1754,62 @@ do
     K.Enabled, K.Cue = enabled, cue
     io.write("PASS: looping moments: an HD cue each cycle, swelling, stopped on cancel" .. string.char(10))
 end
+
+-- Landings under a real jump: quieter and quieter the shorter, never silent, continuous at the minimum
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    H.DB().landMin, H.DB().landMax = 0.9, 2
+    local F = L.LAND_FADE_FLOOR
+    assert(math.abs(L.LandingFade(0) - F) < 1e-9 and F > 0, "no air time: the faintest, never silent")
+    assert(L.LandingFade(0.9) == 1 and L.LandingFade(1.5) == 1, "a real jump: as before")
+    assert(math.abs(L.LandingFade(0.9 - 1e-6) - 1) < 1e-4, "continuous at the minimum")
+    local prev = 0
+    for i = 0, 90 do
+        local f = L.LandingFade(i / 100)
+        assert(f >= prev - 1e-12 and f <= 1, "rising with the air time")
+        prev = f
+    end
+    assert(L.LandingFade(0.45) < F + (1 - F) * 0.5, "eased: the short ones fade fastest")
+    -- every output of a landing: the rumble, WoW Helper's cue and clip
+    local C, K = ns.HelperCues, ns.HelperLink
+    local enabled, cue, play = K.Enabled, K.Cue, K.Play
+    K.Enabled = function() return true end
+    C.Settings().hdFeels, C.Settings().clips = true, true
+    local cues, clips, plays = {}, {}, {}
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    K.Play = function(id, gain) clips[#clips + 1] = gain; return true end
+    local hplay = H.Play
+    H.Play = function(feel, opts) plays[#plays + 1] = opts and opts.gain or 1; return hplay(feel, opts) end
+    local falling = false
+    IsFalling = function() return falling end
+    local air = L.airFrame
+    local function drop(seconds)
+        cues, clips, plays = {}, {}, {}
+        falling = true; air.scripts.OnUpdate(air, 0.01)
+        now = now + seconds
+        falling = false; air.scripts.OnUpdate(air, 0.01); air.scripts.OnUpdate(air, 0.01)
+        now = now + 0.5
+        return plays[#plays], cues[#cues], clips[#clips]
+    end
+    L.EventSettings("landing").feel = "flick"
+    local rStair, cStair, kStair = drop(0.12)
+    local rRock, cRock = drop(0.5)
+    local rJump, cJump, kJump = drop(0.9)
+    assert(rStair and rStair > 0, "a step down a stair: a landing, faint, not silent")
+    assert(rStair < rRock and rRock < rJump, "quieter the shorter: " .. rStair .. " < " .. rRock .. " < " .. rJump)
+    assert(cStair and cJump and cStair.gain <= cJump.gain and cStair.intensity < cJump.intensity,
+        "WoW Helper's cue fades too: " .. cStair.intensity .. " < " .. cJump.intensity)
+    assert(cRock.intensity < cJump.intensity and cStair.intensity <= cRock.intensity, "its intensity with the drop")
+    assert(kStair and kJump and kStair <= kJump, "the clip as well")
+    assert(drop(0.05) == nil, "a frame's flicker: no landing")
+    L.EventDefault("landing")
+    local rDefault = drop(0.12)
+    assert(rDefault and rDefault > 0 and rDefault < drop(0.9), "the default Thud fades the same way")
+    H.Play = hplay
+    K.Enabled, K.Cue, K.Play = enabled, cue, play
+    IsFalling = nil
+    H.DB().landMin, H.DB().landMax = nil, nil
+    io.write("PASS: landings fade under a real jump: rumble, HD cue, clip; continuous, never silent" .. string.char(10))
+end

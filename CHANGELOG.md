@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.31.5 — 2026-11-17
+
+- Landings under your real jump (Setup › Timing › Landing, "Soft at"): quieter and quieter the shorter the drop, eased, down to a faint tap for a step down a stair (30% of a real jump's landing), never silent, never above a real jump, no step at the minimum. The rumble, WoW Helper's HD cue (gain and intensity), its sound and clip all fade alike; a drop into water too. Drops from 0.08 s count (were 0.25 s); real jumps unchanged
+
 ## 0.31.4 — 2026-11-16
 
 - Looping moments (casts and channels, Hearthstone, eating, drinking, low health): their HD feel through WoW Helper plays again each cycle while the loop lasts, in step with the rumble (was once at the start, then silent). A cast swells toward its end (intensity 4, as designed, to 6); a cancelled or interrupted cast stops at once. Volumes as before
