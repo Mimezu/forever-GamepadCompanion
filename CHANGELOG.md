@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.27.0 — 2026-11-16
+
+- **New tabs, no Beta:** Controller · **Moments** · **Gestures** · **Setup** · Bars · Tools · Help. **Lab** (mixer, live graph, probes, the feel editor, link details, Debug) only with Tools › Lab. Old keys and commands still work (`/gpc rumble`, `/gpc beta`). Plan and review notes: [docs/UX.md](docs/UX.md)
+- **Moments** (was Rumble + Haptics › Light): Feel | Light | Sound in the header, the same eight groups for each. One row everywhere: plate, Try, Default, Edit, and marks for the moment's other kinds (click: there). A light: effect, then colour, and a level. A sound: per moment (WoW Helper's sounds once its data is read), None, Default. The last-moment line, top right, finds its row
+- **Edit** opens the feel in WoW Helper once its data is there, else a copy in Lab's editor, with Back
+- **Setup**: WoW Helper (Link, HD Auto | Off, its data), range (Find left / right: the faintest felt), low battery, battery, base colour, trigger cues, timing (footsteps and mining sync, landing)
+- **Gestures**: its own tab; names from WoW Helper's data when there
+- Words: Moment, Feel, Light, Sound, Gesture; Try, Default, Edit everywhere (Feel it, Reset gone)
+- `/gpc light`, `/gpc gestures`, `/gpc setup`, `/gpc lab`
+
 ## 0.26.0 — 2026-11-16
 
 - **Wading** (Moving): footsteps in shallow water, their own event and switch, on by default (land Footsteps stay off). Each step a faint wet slap and a fainter spray, on the Steps timing. Shallow water = `IsSubmerged()` and not swimming: untested in this client, so `/gpc debug` shows a Water line (wading / submerged / swimming)

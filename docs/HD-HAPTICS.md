@@ -105,5 +105,5 @@ Addons can read files only at load, so a list written there before `/reload` is 
    a file).
 3. The crafting pass, group by group, on the pad.
 4. The HD editor in the helper.
-5. The addon: the HD switch (Haptics tab), which events send HD, the fallback, and the
+5. The addon: the HD switch (Setup › WoW Helper), which events send HD, the fallback, and the
    badges.

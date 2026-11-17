@@ -966,7 +966,7 @@ local function BuildEditor(p)
             or f.pulses and "Click: add a pulse · Drag: time, strength · Right-click: delete · Wheel: length"
             or f.keys and "Click: add · Drag · Right-click: delete · Wheel on a point: ease"
             or "Pulses: what the pad keeps best")
-        ed.assign:SetText(f and own_ and "In the palette of every event (Rumble tab)" or "")
+        ed.assign:SetText(f and own_ and "In every moment's grid (Moments)" or "")
         ed.Draw()
     end
 end

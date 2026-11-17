@@ -74,8 +74,9 @@ its data is there.
 - Feel = Rumble's 68; Light = the 21 light moments (Dodge, parry, block is one light moment);
   Sound = always shown: the five built-in sounds today (subtitle "More with WoW Helper"), every
   moment once the setup flow's per-moment sound and WoW Helper's data land.
-- Header = that kind's master: Feel: On, Strength, Stop. Light: On, Stop. Sound: On, Volume,
-  Stop. One "why" line naming its kind ("Crit · Feel · 3s ago"); click: switches kind and jumps
+- Header = the kind and its On; the left card is the kind's master: Feel: Strength, Try,
+  Motors. Light: what the bar shows now. Sound: the link's state. Stop under each. (Sound
+  volume: later, with WoW Helper's levels.) One "why" line naming its kind ("Crit · Feel · 3s ago"); click: switches kind and jumps
   to the row. Debug is in Lab.
 - **One row widget** (`HUI.MomentRow`, today's `ChoiceRow` generalised): icon, name, marks, a
   plate (opens the kind's picker), Try, Default (greyed when unchanged), Edit. A Light plate
@@ -185,3 +186,10 @@ Round 2, taken:
 
 Round 3: **signed off** by the reviewer, with three text fixes applied (the Feels-tab note,
 Edit on Light and Sound rows, light-only moments only under Light).
+
+## 8. Built (0.27.0)
+
+Stages 1-4 in the addon (commits "Tabs for a player…", "Moments: Feel | Light | Sound…",
+"Words…"). Stage 5 pieces already live through the setup flow's API: per-moment sounds, Edit →
+WoW Helper with its data, Setup's data line, gesture names. WoW Helper's page rename (Motion →
+Gestures) is the WoW Helper main session's.

@@ -257,7 +257,7 @@ local function Build()
     for i = 1, LINES_NOW do win.now[i] = Line(win, -98 - i * 14, 10, 0.95, 0.9, 0.8) end
     local logY = -98 - (LINES_NOW + 1) * 14 - 4
     local logTitle = Line(win, logY, 10, 1, 0.82, 0)
-    logTitle:SetText("Last cues")
+    logTitle:SetText("Last moments")
     win.logs = {}
     for i = 1, LINES_LOG do win.logs[i] = Line(win, logY - i * 14, 10, 0.75, 0.75, 0.75) end
     local acc = 0
