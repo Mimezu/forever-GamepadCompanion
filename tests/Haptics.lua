@@ -1454,7 +1454,9 @@ do
     CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
     assert(V.WeaponKind(16) == "twoHand" and V.WeaponKind(17) == "unarmed" and V.WeaponKind("ranged") == "ranged", "kinds")
     local d2, set = V.HitDelay("twoHand")
-    assert(d2 > V.HitDelay("dagger") and d2 >= 0.3 and not set and V.HitDelay("ranged") == 0, "guesses: two-hand later")
+    assert(d2 > V.HitDelay("dagger") and math.abs(d2 - 0.165) < 1e-9 and not set and V.HitDelay("ranged") == 0,
+        "guesses: two-hand later (as measured: 0.165)")
+    for _, k in ipairs(ns.Timing.KINDS) do assert(k.key == "ranged" or k.delay >= 0.08, k.key .. ": at least 80 ms") end
     local rf
     for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
     local function rev(...) rf.scripts.OnEvent(rf, ...) end
@@ -2136,4 +2138,17 @@ do
     UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
     T.Store().set = {}
     io.write("PASS: abilities not in the lists: by name (Holy Strike), by school, never heals" .. string.char(10))
+end
+
+-- The measured defaults: an old guess kept as "yours" (the stepper touched) goes, once; a real choice stays
+do
+    local T = ns.Timing
+    H.DB().timing = { set = { ["5-2|twoHand|main"] = 0.35, ["5-2|twoHand|off"] = 0.35, ["5-2|dagger|main"] = 0.18 } }
+    local set = T.Store().set
+    assert(set["5-2|twoHand|main"] == nil and set["5-2|twoHand|off"] == nil, "the old 0.35 guess goes")
+    assert(set["5-2|dagger|main"] == 0.18, "a value of yours stays")
+    set["5-2|twoHand|main"] = 0.35
+    assert(T.Store().set["5-2|twoHand|main"] == 0.35, "once: set again by hand, it stays")
+    H.DB().timing = nil
+    io.write("PASS: measured defaults: old guesses saved as yours cleared once" .. string.char(10))
 end

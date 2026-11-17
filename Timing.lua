@@ -20,15 +20,18 @@ local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or fal
 -- in proportion (T.Impact). Defaults per kind of weapon; a model's factor
 -- (1 until measured); learned values (WoW Helper's slot); yours on top.
 ---------------------------------------------------------------------------
+-- (measured by WoW Helper, 2026-11-17: a two-hander's impact heard 0.165 s
+-- after the swing's news (24 hits, IQR 0.14-0.19), not the 0.35 guessed;
+-- the other kinds scaled alike, x0.47)
 T.KINDS = {
-    { key = "dagger", label = "Dagger", delay = 0.2, anim = 1.0 },
-    { key = "oneHand", label = "One-hand", delay = 0.25, anim = 1.2 },
-    { key = "twoHand", label = "Two-hand", delay = 0.35, anim = 1.5 },
-    { key = "polearm", label = "Polearm", delay = 0.32, anim = 1.5 },
-    { key = "staff", label = "Staff", delay = 0.3, anim = 1.4 },
-    { key = "fist", label = "Fist", delay = 0.2, anim = 1.0 },
-    { key = "unarmed", label = "Unarmed", delay = 0.2, anim = 1.0 },
-    { key = "form", label = "Form", delay = 0.2, anim = 1.0 },
+    { key = "dagger", label = "Dagger", delay = 0.095, anim = 1.0 },
+    { key = "oneHand", label = "One-hand", delay = 0.12, anim = 1.2 },
+    { key = "twoHand", label = "Two-hand", delay = 0.165, anim = 1.5 },
+    { key = "polearm", label = "Polearm", delay = 0.15, anim = 1.5 },
+    { key = "staff", label = "Staff", delay = 0.14, anim = 1.4 },
+    { key = "fist", label = "Fist", delay = 0.095, anim = 1.0 },
+    { key = "unarmed", label = "Unarmed", delay = 0.095, anim = 1.0 },
+    { key = "form", label = "Form", delay = 0.095, anim = 1.0 },
     { key = "ranged", label = "Ranged", delay = 0, anim = 1.0 },
 }
 local KIND = {}
@@ -38,6 +41,12 @@ T.KIND = KIND
 -- measured yet; WoW Helper's learned values take over per key)
 T.MODEL_FACTOR = {}
 
+-- (the guesses before WoW Helper measured them: a saved value equal to one
+-- is that guess, kept by touching the control, not a choice; it goes, once,
+-- so the measured default and the learned values can apply)
+T.OLD_GUESS = { dagger = 0.2, oneHand = 0.25, twoHand = 0.35, polearm = 0.32, staff = 0.3, fist = 0.2, unarmed = 0.2,
+    form = 0.2 }
+
 function T.Store()
     local db = H.DB()
     if type(db.timing) ~= "table" then db.timing = {} end
@@ -45,6 +54,13 @@ function T.Store()
     t.set = t.set or {}
     t.learned = t.learned or {}
     t.log = t.log or {}
+    if (t.guesses or 1) < 2 then
+        for key, v in pairs(t.set) do
+            local kind = type(key) == "string" and key:match("|([%a]+)|")
+            if kind and T.OLD_GUESS[kind] and type(v) == "number" and abs(v - T.OLD_GUESS[kind]) < 1e-6 then t.set[key] = nil end
+        end
+        t.guesses = 2
+    end
     return t
 end
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.3 — 2026-11-17
+
+- Swings were late: WoW Helper heard a two-hander's impact 0.165 s after the swing's news (24 hits), not the 0.35 s guessed. New defaults, all melee scaled alike (x0.47): two-hand 0.165, polearm 0.15, staff 0.14, one-hand 0.12, dagger, fist, unarmed and forms 0.095. Ranged stays 0 (the shot's news is its release)
+- A saved hit timing equal to an old guess (kept by touching the control) is cleared, once, so the new default and WoW Helper's learned values apply; a value you chose stays
+
 ## 0.33.2 — 2026-11-17
 
 - Your abilities: any attack ability you use that lands on your target is felt, even one not in the lists (Forever's new ones, Holy Strike): its family from its name (Holy, Arcane, Judgement: a bright strike; Shadow, Frost, Fire, Bolt: a shock; Strike: a heavy strike; Slam, Bash: a bash; Stab; Cleave) or, when the name says nothing, from its damage's school, else Blow. A weapon strike lands at the weapon's impact, a shot at the ranged timing. Heals and buffs never (the game's helpful-spell check). An unknown one now waits 0.5 s for its result (was 0.4)
