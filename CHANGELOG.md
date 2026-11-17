@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.1 — 2026-11-17
+
+- Your abilities: Consecration and other ground effects with no direct hit (totems, traps, Blizzard-like rains) are felt as you cast them, with a new feel, **Surge**: a firm low push into the ground, then a warm spread to both sides. Their later ticks add nothing. (Consecration waited for a direct hit that never comes.) No ember pulse while it burns: whether you're still in it can't be tracked reliably
+
 ## 0.34.0 — 2026-11-17
 
 - WoW Helper learns gathering strikes while you gather: with the HD link on, mining, herbalism and skinning send a marker as the cast starts, succeeds and stops. WoW Helper hears the tool, learns the first strike and the rhythm, and once it knows them plays each strike in HD itself (the addon sends no HD for that cast)

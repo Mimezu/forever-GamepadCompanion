@@ -166,6 +166,8 @@ V.PATTERNS = {
         steps = { { 0.9, 0.9, 0.12 }, { 0.45, 0.45, 0.12 }, { 0.2, 0.2, 0.15 } } },
     { key = "seal", label = "Seal", action = true, move = true,       -- a seal or a blessing: light gathering, settling
         steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.5, 0.5, 0.12 }, { 0.25, 0.25, 0.12 }, { 0.1, 0.1, 0.12 } } },
+    { key = "surge", label = "Surge", action = true, move = true,     -- a ground effect laid down (Consecration): a low push, a warm spread
+        steps = { { 0.8, 0.8, 0.2 }, { 0.3, 0.3, 0.12 }, { 0.12, 0.12, 0.12 } } },
     { key = "blow", label = "Blow", action = true, move = true,       -- any other ability landing: a firm blow
         steps = { { 0.65, 0.6, 0.12 }, { 0, 0, 0.08 }, { 0.15, 0.15, 0.1 } } },
     { key = "judge", label = "Judgement", action = true, move = true, -- a seal let loose: a bright strike
@@ -206,7 +208,9 @@ V.MOVES = {
     -- Rend, Hamstring, Sunder Armor, Garrote, Rupture, Expose Armor, Claw,
     -- Rake, Shred, Rip, Wing Clip
     rend = { 772, 1715, 7386, 703, 1943, 8647, 1082, 1822, 5221, 1079, 2974 },
-    slam = { 6343, 26573 },                                 -- Thunder Clap, Consecration
+    slam = { 6343 },                                        -- Thunder Clap
+    -- Ground effects with no direct hit, felt as you lay them down: Consecration
+    surge = { 26573 },
     -- Shield Bash, Shield Slam, Pummel, Concussion Blow, Disarm, Kick, Gouge,
     -- Kidney Shot, Cheap Shot, Sap, Hammer of Justice, Bash
     bash = { 72, 23922, 6552, 12809, 676, 1766, 1776, 408, 1833, 6770, 853, 5211 },
@@ -312,6 +316,9 @@ local PULSES = {
     cleave = { Pu(0, 0.12, 0.7, -1), Pu(0.14, 0.05, 0.3), Pu(0.22, 0.12, 0.7, 1) },
     stab = { Pu(0, 0.1, 0.6, 0.3) },
     blow = { Pu(0, 0.12, 0.65), Pu(0.2, 0.05, 0.15) },
+    -- (a firm low push into the ground, then a warm spread out to both sides)
+    surge = { Pu(0, 0.2, 0.75), Pu(0.28, 0.05, 0.2, -0.7), Pu(0.28, 0.05, 0.2, 0.7), Pu(0.42, 0.05, 0.1, -1),
+        Pu(0.42, 0.05, 0.1, 1) },
     rend = { Pu(0, 0.05, 0.3, -0.6), Pu(0.08, 0.05, 0.3, 0.6), Pu(0.16, 0.05, 0.25, -0.6), Pu(0.24, 0.05, 0.15, 0.6) },
     slam = { Pu(0, 0.3, 1), Pu(0.4, 0.05, 0.2), Pu(0.52, 0.05, 0.1), Pu(0.64, 0.05, 0.05) },
     bash = { Pu(0, 0.2, 1, -0.3), Pu(0.3, 0.05, 0.12) },
@@ -2080,6 +2087,11 @@ local CAST_HANDLERS = {
         -- one not in the lists (Forever's new ones, Holy Strike): by its name)
         local how
         if not move then move, how = V.FamilyOfName(SpellName(spellID)) end
+        -- (a ground effect, a totem, a trap: no direct hit to wait for: now)
+        if how and how.atCast then
+            V.instantMove = move
+            return V.Fire("instant")
+        end
         V.AbilityCast(move, spellID, nil, how)
     end,
     UNIT_SPELLCAST_DELAYED = function()
@@ -2400,10 +2412,15 @@ local NAME_FAMILIES = {
 local MELEE_WORDS = { "strike", "blow", "slam", "bash", "smash", "crush", "cleave", "sweep", "stab", "backstab",
     "slash", "chop", "ambush" }
 local function Word(name, w) return name:find("%f[%a]" .. w .. "%f[%A]") ~= nil end
+-- (no direct hit, the damage comes later as ticks: felt as you cast it)
+local AT_CAST_WORDS = { "consecration", "totem", "trap", "rain", "blizzard", "volley", "hurricane" }
 function V.FamilyOfName(name)
     if type(name) ~= "string" or secret(name) then return nil, nil end
     local lower = name:lower()
     local how = {}
+    for _, w in ipairs(AT_CAST_WORDS) do
+        if Word(lower, w) then how.atCast = true; return "surge", how end
+    end
     for _, w in ipairs(MELEE_WORDS) do if Word(lower, w) then how.melee = true end end
     if Word(lower, "shot") or Word(lower, "shots") then how.ranged = true end
     for _, f in ipairs(NAME_FAMILIES) do

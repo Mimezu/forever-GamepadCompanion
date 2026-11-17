@@ -2222,3 +2222,38 @@ do
     wipe(K.queue)
     io.write("PASS: gathering markers: start, succeeded, stopped; learned strikes; WoW Helper plays them" .. string.char(10))
 end
+
+-- Ground effects with no direct hit (Consecration, totems, traps): felt as you cast them; no double
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired = {}
+    local vfire, spellInfo = V.Fire, GetSpellInfo
+    V.Fire = function(k) fired[#fired + 1] = k == "instant" and V.instantMove or k end
+    local names = { [900011] = "Searing Totem", [900012] = "Holy Wrath" }
+    GetSpellInfo = function(id) return names[id] or ("Spell " .. tostring(id)) end
+    UnitCanAttack = function() return true end
+    assert(V.Pattern("surge") and H.Feel("r_surge") and H.Peak(V.Pattern("surge").feel) == 0.75, "Surge: a firm low push, a spread")
+    now = now + 5
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "c1", 26573)
+    assert(fired[1] == "surge", "Consecration: at the cast: " .. tostring(fired[1]))
+    rev("UNIT_COMBAT", "target", "WOUND", "", 40, 2)
+    RunTimers()
+    assert(#fired == 1, "its ticks don't play it again")
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "t1", 900011)
+    assert(fired[2] == "surge", "a totem by its name: at the cast")
+    -- a spell that hits: waits for the hit (no feel at the cast)
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "hw", 900012)
+    assert(#fired == 2, "Holy Wrath: not at the cast")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 2)
+    RunTimers()
+    assert(fired[3] == "judge", "its hit: " .. tostring(fired[3]))
+    V.Fire, GetSpellInfo, UnitCanAttack = vfire, spellInfo, nil
+    io.write("PASS: ground effects: Consecration and totems felt at the cast, once" .. string.char(10))
+end
