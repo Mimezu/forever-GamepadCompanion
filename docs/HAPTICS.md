@@ -162,7 +162,7 @@ Feasibility on Forever: OK = plain events; ? = may be secret in combat.
 |---|---|---|---|
 | Combat | hit taken (non-crit), scaled by size | `UNIT_COMBAT` player WOUND | ? amount |
 | Combat | you dodge / parry / block / resist | `UNIT_COMBAT` action | ? |
-| Combat | each melee swing (swing timer feel) | `UNIT_COMBAT` target WOUND while meleeing | ? |
+| Combat | each melee swing, as it lands (no timer: out of range, nothing) | `UNIT_COMBAT` target WOUND/MISS/DODGE/PARRY/BLOCK, physical, while auto attack is on; the hand by weapon speed (CLEU `SWING_*` where readable) | ? |
 | Combat | target dies (your kill) | `UNIT_HEALTH` target / `PLAYER_TARGET_CHANGED` + dead | OK |
 | Combat | you're stunned / feared / silenced | `LOSS_OF_CONTROL_ADDED` if present, else `UnitIsControlled`-style checks | ? |
 | Combat | enemy starts casting on you | `UNIT_SPELLCAST_START` target + targettarget == player | ? |

@@ -370,8 +370,8 @@ V.EVENTS = {
         combo = true,
         pattern = "double", tip = "An enemy lands a critical hit on you." },
     { key = "autoAttack", group = "combat", label = "Auto attack", icon = VIBE_ICONS .. "slash", on = false,
-        pattern = "auto", auto = "Match the weapon", family = "swing", gap = 0.1, tip = "Each melee swing, on the"
-            .. " weapon's swing timer, main hand and off hand. Match the weapon: a dagger or sword a faint"
+        pattern = "auto", auto = "Match the weapon", family = "swing", gap = 0.1, tip = "Each melee swing that lands"
+            .. " (hit, miss, dodge...), main hand and off hand. Match the weapon: a dagger or sword a faint"
             .. " slash, a two-handed mace a thud. Off by default." },
     { key = "shot", group = "combat", label = "Shooting", icon = EVENT_ICONS .. "shot", on = true,
         pattern = "auto", auto = "Match the weapon", family = "weapon", gap = 0.15, tip = "Each ranged shot you fire: Auto Shot,"
@@ -1475,6 +1475,10 @@ local function Shooting()
     return ranged.auto or GetTime() - ranged.shot < RANGED_WINDOW
 end
 
+-- Melee auto attack (below): on, each hand's last real swing, the last
+-- ability used (its blow is not a swing)
+local swing = { on = false, last = {}, ability = -math.huge }
+
 -- Your crit: melee, or ranged (a shot, a spell, a heal)
 local function YourCrit(isRanged)
     V.Fire(isRanged and "critRanged" or "crit")
@@ -1489,6 +1493,11 @@ end
 local function CombatLog()
     local info = { CombatLogGetCurrentEventInfo() }
     local sub = info[2]
+    -- (your melee swing, landed or not: its feel; the log says which hand)
+    if (sub == "SWING_DAMAGE" or sub == "SWING_MISSED") and not secret(info[4]) and info[4] == UnitGUID("player") then
+        local offHand = info[sub == "SWING_DAMAGE" and 21 or 13]
+        V.SwingLanded((not secret(offHand) and offHand) and 17 or 16, true)
+    end
     local index = CRIT_ARG[sub]
     if not index then return end
     local critical = info[index]
@@ -1507,9 +1516,18 @@ end
 
 -- (a wound's school, unless hidden: physical is a swing's or a shot's,
 -- any other a spell's)
+-- (a melee result on your target: a swing of yours, while auto attack is
+-- on, not shooting, physical, not just after an ability)
+local SWING_RESULTS = { WOUND = true, MISS = true, DODGE = true, PARRY = true, BLOCK = true, DEFLECT = true,
+    ABSORB = true, IMMUNE = true, EVADE = true }
 local function UnitCombat(unit, action, flag, _, school)
-    if secret(action) or secret(flag) or flag ~= "CRITICAL" then return end
+    if secret(action) then return end
     if secret(school) then school = nil end
+    if unit == "target" and swing.on and SWING_RESULTS[action] and (school == nil or school == PHYSICAL)
+        and not Shooting() and GetTime() - swing.ability > 0.3 then
+        V.SwingLanded()
+    end
+    if secret(flag) or flag ~= "CRITICAL" then return end
     if unit == "player" then
         if action == "WOUND" then
             V.Fire("critted")
@@ -1861,6 +1879,7 @@ local CAST_HANDLERS = {
     end,
     -- (a channel's start says so too: not its end)
     UNIT_SPELLCAST_SUCCEEDED = function(_, _, guid, spellID)
+        if secret(spellID) or spellID ~= ATTACK then swing.ability = GetTime() end
         if IsShot(spellID) then
             ranged.shot = GetTime()
             return V.Fire("shot")
@@ -1900,16 +1919,15 @@ local CAST_HANDLERS = {
 }
 
 ---------------------------------------------------------------------------
--- Melee swings: from the start of auto attack, one every weapon speed
--- (UnitAttackSpeed; read again each swing, so haste counts), main hand and
--- off hand apart (the main hand leaning right, the off hand left, softer).
--- The game tells addons nothing of each swing; this keeps the rhythm.
+-- Melee swings: one feel per real swing, as it lands (hit, miss, dodge,
+-- parry, block), main hand and off hand apart (the main hand leaning
+-- right, the off hand left, softer). Auto attack turned on alone plays
+-- nothing: out of range, turned away or the target dead, no swing lands.
+-- Where the combat log is readable it names your swings and their hand;
+-- in WoW Forever, UNIT_COMBAT on your target while auto attack is on (the
+-- hand: the one due, by weapon speed; a blow too soon after that hand's
+-- last swing is someone else's).
 ---------------------------------------------------------------------------
-local swing = { on = false }
-local swingFrame = CreateFrame("Frame")
-swingFrame:Hide()
-V.swingFrame = swingFrame
-
 -- (hidden in combat: the last speeds read)
 local known = { main = 2, off = nil }
 local function Speeds()
@@ -1930,38 +1948,50 @@ local function SwingNow(slot)
     V.swingSlot, V.swingShape = nil, nil
 end
 
-function V.SwingStart()
-    if not V.Active() or V.EventChoice("autoAttack") == "off" then return end
+-- The hand a swing result came from: the one due nearest now among those
+-- that could swing again (nil: too soon for either: not yours)
+local SOONEST = 0.6
+local function HandDue(now)
+    local main, off = Speeds()
+    local best, bestErr
+    for _, h in ipairs({ { 16, main }, { 17, off } }) do
+        local slot, speed = h[1], h[2]
+        if speed then
+            local last = swing.last[slot]
+            local err
+            if not last then err = slot == 16 and 0 or 0.001
+            elseif now - last >= speed * SOONEST then err = math.abs(now - (last + speed)) end
+            if err and (not bestErr or err < bestErr) then best, bestErr = slot, err end
+        end
+    end
+    return best
+end
+
+-- A real swing landed: its feel (sure: the combat log said it was yours)
+function V.SwingLanded(slot, sure)
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
     local now = GetTime()
-    local _, off = Speeds()
-    swing.on, swing.main = true, now
-    swing.off = off and now + 0.2 or nil
-    swingFrame:Show()
+    if not sure then
+        if not swing.on then return end
+        local can = UnitCanAttack and UnitCanAttack("player", "target")
+        if not secret(can) and not can then return end
+        slot = HandDue(now)
+        if not slot then return end
+    end
+    slot = slot or 16
+    swing.last[slot] = now
+    SwingNow(slot)
+end
+
+function V.SwingStart()
+    swing.on, swing.last = true, {}
 end
 
 function V.SwingStop()
     swing.on = false
-    swingFrame:Hide()
 end
 
-swingFrame:SetScript("OnUpdate", function()
-    if not swing.on then return swingFrame:Hide() end
-    -- (dead, Rumble or its swings turned off: no more swings)
-    if (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) or not V.Active()
-        or V.EventChoice("autoAttack") == "off" then
-        return V.SwingStop()
-    end
-    local now = GetTime()
-    local main, off = Speeds()
-    if now >= swing.main then
-        SwingNow(16)
-        swing.main = math.max(swing.main + main, now)
-    end
-    if swing.off and off and now >= swing.off then
-        SwingNow(17)
-        swing.off = math.max(swing.off + off, now)
-    end
-end)
+function V.Swinging() return swing.on end
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LEVEL_UP")

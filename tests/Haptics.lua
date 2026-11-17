@@ -605,28 +605,88 @@ V.SetEventPattern("autoAttack", "auto")
 local swings = {}
 local realFire = V.Fire
 V.Fire = function(k) if k == "autoAttack" then swings[#swings + 1] = V.EventPattern("autoAttack") end end
-V.SwingStart()
-local sf = V.swingFrame
-for _ = 1, 400 do now = now + 0.01; sf.scripts.OnUpdate(sf, 0.01) end
-V.SwingStop()
-local mains, offs = 0, 0
-for _, k in ipairs(swings) do if k == "swMace2" then mains = mains + 1 elseif k == "swDagger" then offs = offs + 1 end end
-assert(mains == 2 and offs == 3, "a swing per weapon speed: " .. mains .. " main, " .. offs .. " off")
--- hidden speeds (combat): the last ones read; dead: the swings stop
-issecretvalue = function(v) return v == "secret" end
-UnitAttackSpeed = function() return "secret", "secret" end
+local rumbleEvents
+for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rumbleEvents = f end end
+local function rev(...) rumbleEvents.scripts.OnEvent(rumbleEvents, ...) end
+local canAttack, oldCan = true, UnitCanAttack
+UnitCanAttack = function() return canAttack end
+local function count()
+    local m, o = 0, 0
+    for _, k in ipairs(swings) do if k == "swMace2" then m = m + 1 elseif k == "swDagger" then o = o + 1 end end
+    return m, o
+end
+-- auto attack on, out of range: no swing lands, nothing plays
+rev("PLAYER_ENTER_COMBAT")
+assert(V.Swinging(), "auto attack on")
+run(8)
+assert(#swings == 0, "out of range: no swings felt: " .. #swings)
+-- real swings (UNIT_COMBAT on the target): one feel each, the hand the one due
+rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+now = now + 0.2
+rev("UNIT_COMBAT", "target", "MISS", "", 0, 1)
+local m, o = count()
+assert(m == 1 and o == 1, "a main-hand hit, an off-hand miss: " .. m .. " " .. o)
+now = now + 0.3
+rev("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assert(#swings == 2, "too soon for either hand: someone else's blow")
+now = now + 1.0
+rev("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+m, o = count()
+assert(m == 1 and o == 2, "the off hand again, by its speed: " .. m .. " " .. o)
+now = now + 2.2
+rev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+m, o = count()
+assert(m == 2 and o == 2, "the main hand, by its speed: " .. m .. " " .. o)
+-- not swings: a spell's wound, a blow just after an ability, a heal, a friendly target, while shooting
+now = now + 4
 swings = {}
-V.SwingStart()
-for _ = 1, 400 do now = now + 0.01; sf.scripts.OnUpdate(sf, 0.01) end
-mains = 0
-for _, k in ipairs(swings) do if k == "swMace2" then mains = mains + 1 end end
-assert(mains == 2, "hidden speeds: the last read: " .. mains)
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 4)
+rev("UNIT_COMBAT", "target", "HEAL", "", 80, 1)
+rev("UNIT_SPELLCAST_SUCCEEDED", "player", "g1", 1752)
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 1)
+canAttack = false
+now = now + 1
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 1)
+canAttack = true
+rev("START_AUTOREPEAT_SPELL")
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 1)
+rev("STOP_AUTOREPEAT_SPELL")
+assert(#swings == 0, "only your melee swings: " .. #swings)
+-- auto attack off, or dead: nothing
+now = now + 3
+rev("PLAYER_LEAVE_COMBAT")
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 1)
+assert(#swings == 0 and not V.Swinging(), "auto attack off: no swings")
+rev("PLAYER_ENTER_COMBAT")
 local oldDead = UnitIsDeadOrGhost
 UnitIsDeadOrGhost = function() return true end
-sf.scripts.OnUpdate(sf, 0.01)
-assert(not sf:IsShown(), "dead: the swing timer stops")
+rev("UNIT_COMBAT", "target", "WOUND", "", 80, 1)
+assert(#swings == 0, "dead: no swings")
 UnitIsDeadOrGhost = oldDead
-issecretvalue = nil
+-- the combat log, where readable: your swings by hand, sure
+local guid = "Player-1"
+local oldGuid, oldLog = UnitGUID, CombatLogGetCurrentEventInfo
+UnitGUID = function() return guid end
+local entry
+CombatLogGetCurrentEventInfo = function() return unpack(entry) end
+entry = { 0, "SWING_DAMAGE", false, guid, "", 0, 0, "Creature-1", "", 0, 0, 100, 0, 1, 0, 0, 0, false, false, false, true }
+rev("COMBAT_LOG_EVENT_UNFILTERED")
+entry = { 0, "SWING_MISSED", false, "Player-2", "", 0, 0, "Creature-1", "", 0, 0, "MISS", false }
+rev("COMBAT_LOG_EVENT_UNFILTERED")
+m, o = count()
+assert(m == 0 and o == 1, "the log: your off-hand swing, not another's: " .. m .. " " .. o)
+UnitGUID, CombatLogGetCurrentEventInfo = oldGuid, oldLog
+rev("PLAYER_LEAVE_COMBAT")
+-- ranged: turning Auto Shot on fires nothing; each shot fired, one feel
+local shots = 0
+V.Fire = function(k) if k == "shot" then shots = shots + 1 end end
+rev("START_AUTOREPEAT_SPELL")
+run(5)
+assert(shots == 0, "Auto Shot on, out of range: nothing")
+rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s1", 75)
+assert(shots == 1, "a shot fired: one feel")
+rev("STOP_AUTOREPEAT_SPELL")
+UnitCanAttack = oldCan
 UnitAttackSpeed = function() return 3.6, 1.5 end
 V.Fire = realFire
 C_Item = oldItem

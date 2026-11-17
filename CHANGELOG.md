@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.29.1 — 2026-11-16
+
+- Auto attack: a feel only for a melee swing that really lands (hit, miss, dodge, parry, block), from UNIT_COMBAT on your target (the combat log's `SWING_*` where readable). Turning auto attack on out of range, turned away or at a dead target plays nothing (was a timer from the moment auto attack went on). Main or off hand: the one due by weapon speed; a blow too soon for either hand, a spell's wound, a blow just after an ability, or anything while shooting is not a swing. WoW Helper's swing clips and HD feels follow, as they ride on the same event
+- Shooting: unchanged, already one feel per shot fired (the shot spell's `UNIT_SPELLCAST_SUCCEEDED`); Auto Shot turned on alone plays nothing
+
 ## 0.29.0 — 2026-11-16
 
 - **Volumes.** Each moment has its own volume beside its plate, 0-100%, full by default: Feel rows for its vibration (the game's motors and WoW Helper's HD feel), Sound rows for its sound. Moments › Sound: **Volume** for every sound, with Try (Vibration's is Strength, Moments › Feel). Saved in `volume` (`Volume.lua`)
