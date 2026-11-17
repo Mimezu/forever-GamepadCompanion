@@ -1373,3 +1373,19 @@ do
     IsSubmerged, IsSwimming, issecretvalue = nil, nil, nil
     io.write("PASS: water probe: nil, error, secret apart" .. string.char(10))
 end
+
+-- Blocks and parries sharp: no lead-in, no fading taps; a parry two crisp hits, a block one; as strong and as long as before
+do
+    local was = { clash = { 0.35, 0.25 }, parryRing = { 0.55, 0.43 }, shieldThud = { 0.3, 0.23 }, blockThud = { 0.6, 0.31 } }
+    for key, w in pairs(was) do
+        local f = H.Feel(key)
+        assert(math.abs(H.Peak(f) - w[1]) < 1e-9 and math.abs(H.Length(f) - w[2]) < 1e-9, key .. ": same peak and length")
+        assert(f.pulses[1][1] == 0 and f.pulses[1][3] == H.Peak(f), key .. ": the hit first, at full")
+        for _, p in ipairs(f.pulses) do
+            assert(p[2] >= 0.05 and p[3] >= 0.75 * H.Peak(f) - 1e-9, key .. ": every pulse felt, none a soft tail")
+        end
+    end
+    assert(#H.Feel("clash").pulses == 2 and #H.Feel("parryRing").pulses == 2, "parries: strike, ring")
+    assert(#H.Feel("shieldThud").pulses == 1 and #H.Feel("blockThud").pulses == 1, "blocks: one dense hit")
+    io.write("PASS: blocks and parries sharp" .. string.char(10))
+end

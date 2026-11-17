@@ -160,13 +160,15 @@ local LIB = {
     { "strike", "Strike", "Combat", "stab", Pulses({ P(0, 0.05, 0.1) }) },
     { "whiff", "Whiff", "Combat", "toss", Pulses({ P(0, 0.05, 0.05, -0.7), P(0.08, 0.05, 0.04, 0.7) }) },
     { "slip", "Slip", "Combat", "whirl", Pulses({ P(0, 0.05, 0.08, 0.6), P(0.12, 0.05, 0.04, 0.9) }) },
-    { "clash", "Clash", "Combat", "latch", Pulses({ P(0, 0.06, 0.35), P(0.1, 0.05, 0.12), P(0.2, 0.05, 0.05) }) },
-    { "shieldThud", "Shield thud", "Combat", "bash", Pulses({ P(0, 0.1, 0.3, -0.1), P(0.18, 0.05, 0.06) }) },
+    -- (blocks and parries sharp, the player, 2026-11-16: "too subtle and fluid":
+    -- no lead-in, no fading taps; a parry two crisp hits, strike then ring;
+    -- a block one dense hit; each as strong and as long as before)
+    { "clash", "Clash", "Combat", "latch", Pulses({ P(0, 0.06, 0.35), P(0.19, 0.06, 0.3) }) },
+    { "shieldThud", "Shield thud", "Combat", "bash", Pulses({ P(0, 0.23, 0.3, -0.1) }) },
     { "sidestep", "Sidestep", "Combat", "sweep", Pulses({ P(0, 0.05, 0.12, -1), P(0.1, 0.05, 0.06, 1) }) },
-    { "parryRing", "Parry", "Combat", "judge", Pulses({ P(0, 0.05, 0.15), P(0.06, 0.12, 0.55), P(0.26, 0.05, 0.12),
-        P(0.38, 0.05, 0.05) }) },
-    { "blockThud", "Block", "Combat", "ward", Pulses({ P(0, 0.16, 0.6, -0.6), P(0.26, 0.05, 0.12, -0.6) },
-        { duck = { amount = 0.5, time = 0.2 } }) },
+    { "parryRing", "Parry", "Combat", "judge", Pulses({ P(0, 0.12, 0.55), P(0.35, 0.08, 0.45) }) },
+    { "blockThud", "Block", "Combat", "ward", Pulses({ P(0, 0.31, 0.6, -0.6) },
+        { duck = { amount = 0.5, time = 0.31 } }) },
     { "missedYou", "Missed you", "Combat", "toss", Pulses({ P(0, 0.05, 0.04, 1), P(0.1, 0.05, 0.06), P(0.2, 0.05, 0.03, -1) }) },
     -- Nature: weather, water, care
     { "raindrops", "Rain", "Nature", "frost", Pulses({ P(0, 0.05, 0.03, -0.5), P(0.31, 0.05, 0.02, 0.6),

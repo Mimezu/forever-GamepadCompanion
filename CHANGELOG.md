@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.3 — 2026-11-16
+
+- Blocks and parries sharp (were "too subtle and fluid"): no faint lead-in, no fading taps after. A parry is two crisp hits, strike then ring (Parry, Clash); a block one dense hit (Block, Shield thud). Each as strong and as long as before. Dodges unchanged
+
 ## 0.29.2 — 2026-11-16
 
 - `/gpc water` (temporary probe): each second, every signal the client might give for water (IsSubmerged and IsSwimming with and without a unit, falling, flying, indoors, outdoors, speeds, position, mirror timers), printed and kept in the saved settings (`waterProbe`). `/gpc water dry`, `wading`, `swim` label the lines; `/gpc water` again stops. To find what tells shallow water apart, since Wading never started in game
