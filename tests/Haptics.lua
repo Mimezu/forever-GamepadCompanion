@@ -148,8 +148,11 @@ IsShiftKeyDown = function() return false end
 function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
-for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+UnitName = function() return "Tester" end
+GetRealmName = function() return "Noir" end
+GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
+for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
+    "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -424,6 +427,18 @@ assert(not tabs.lab:IsShown() and not tabs.beta, "no tab until Tools › Lab")
 API.SetLab(true)
 assert(tabs.lab:IsShown(), "Tools › Lab: its tab")
 assert(tabs.moments and tabs.gestures and tabs.setup, "Moments, Gestures, Setup tabs")
+do
+    local chips = ns.ProfileMenu.chips
+    assert(#chips == 2 and chips[1].label.text == "Feel: Tester" and chips[2].label.text == "Controls: Tester",
+        "profile chips: " .. tostring(chips[1].label.text))
+    chips[1].scripts.OnClick(chips[1])
+    local pop = GamepadCompanionBetaFeels
+    local copy
+    for _, t in ipairs(pop.tiles) do if t:IsShown() and t.label.text == "Copy" then copy = t end end
+    copy.scripts.OnClick(copy)
+    assert(ns.Profiles.DB().feel["Tester copy"] and ns.Profiles.Current("feel") == "Tester", "Copy: a new one, still on Tester")
+    io.write("PASS: profile chips: Feel and Controls, Copy" .. string.char(10))
+end
 local ui = ns.BetaPage
 for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes" }) do
     ui.Select(key)

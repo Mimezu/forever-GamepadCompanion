@@ -11,6 +11,7 @@ local W, PH = Shell.W, Shell.H
 local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
 local RED = { 1, 0.48, 0.36 }
 local floor, min, max = math.floor, math.min, math.max
+local FONT = "Fonts\\FRIZQT__.TTF"
 HUI.RED = RED
 
 -- A value with - and + (and the mouse wheel)
@@ -323,6 +324,55 @@ function HUI.Calibrate(side, mode)
     L.onRampEnd = function() cal.side = nil; Shell.Refresh() end
     return true
 end
+
+-- A text box in a small window (Lab's export, a profile's name, Share)
+local textWin
+function HUI.TextWindow(title, text, onAccept, acceptLabel)
+    if not textWin then
+        textWin = CreateFrame("Frame", "GamepadCompanionText", Shell.Window())
+        textWin:SetFrameStrata("DIALOG")
+        textWin:SetToplevel(true)
+        textWin:EnableMouse(true)
+        textWin:SetSize(560, 340)
+        textWin:SetPoint("CENTER")
+        S.Panel(textWin)
+        textWin.title = S.Text(textWin, "", 16, -14, 520, 13, YELLOW)
+        local box = CreateFrame("EditBox", nil, textWin)
+        box:SetMultiLine(true)
+        box:SetAutoFocus(false)
+        box:SetFont(FONT, 11, "")
+        box:SetTextColor(1, 1, 1)
+        box:SetPoint("TOPLEFT", 16, -40)
+        box:SetSize(528, 240)
+        box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        local wash = textWin:CreateTexture(nil, "BACKGROUND", nil, 1)
+        wash:SetPoint("TOPLEFT", 12, -36)
+        wash:SetSize(536, 250)
+        wash:SetColorTexture(0, 0, 0, 0.4)
+        textWin.box = box
+        textWin.accept = S.NewButton(textWin, "OK", 16, -296, 120, function()
+            if textWin.onAccept then textWin.onAccept(textWin.box:GetText()) end
+            textWin:Hide()
+        end)
+        textWin.select = S.NewButton(textWin, "Select all", 144, -296, 120, function()
+            textWin.box:SetFocus()
+            textWin.box:HighlightText()
+        end)
+        S.NewButton(textWin, "Close", 424, -296, 120, function() textWin:Hide() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionText"
+    end
+    textWin.title:SetText(title)
+    textWin.box:SetText(text or "")
+    textWin.onAccept = onAccept
+    textWin.accept.label:SetText(acceptLabel or "OK")
+    textWin.accept:SetShown(onAccept ~= nil)
+    textWin:Show()
+    textWin:Raise()
+    textWin.box:SetFocus()
+    textWin.box:HighlightText()
+end
+
+function HUI.HideTextWindow() if textWin then textWin:Hide() end end
 
 function HUI.HidePopup()
     if popup then popup:Hide() end

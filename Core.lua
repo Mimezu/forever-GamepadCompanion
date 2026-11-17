@@ -796,6 +796,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
         API.OpenBars()
         return
     end
+    if command == "profiles" and rest:lower() == "restore" and ns.Profiles then
+        if not ns.Profiles.Restore() then Say("Not now (in combat, or no profile)") end
+        return
+    end
     if command == "reset" then
         API.ResetAll()
         Say("Layout reset" .. (pending and " · after combat" or ""))

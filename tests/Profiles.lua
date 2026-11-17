@@ -1,0 +1,188 @@
+-- Profiles: migration (Alberich exactly as before, whoever logs in first),
+-- isolation (an edit on B never reaches A), across saves and loads that split
+-- shared tables as SavedVariables do; no name: nothing touched; menu actions.
+local root = arg and arg[1] or "."
+local failures = 0
+local function check(ok, message)
+    if not ok then failures = failures + 1; io.write("FAIL: ", message, "\n") end
+end
+
+local function Copy(v)
+    if type(v) ~= "table" then return v end
+    local t = {}
+    for k, x in pairs(v) do t[k] = Copy(x) end
+    return t
+end
+local function Same(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then return a == b end
+    for k, v in pairs(a) do if not Same(v, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
+-- The frames: one per CreateFrame, events by name
+local frames
+function CreateFrame()
+    local f = { events = {} }
+    function f:RegisterEvent(e) self.events[e] = true end
+    function f:SetScript(_, fn) self.handler = fn end
+    frames[#frames + 1] = f
+    return f
+end
+local function Fire(event, arg)
+    for _, f in ipairs(frames) do if f.events[event] and f.handler then f.handler(f, event, arg) end end
+end
+local who
+function UnitName() return who and who.name end
+function GetRealmName() return who and who.realm end
+function UnitClass() return who and who.class, who and who.class end
+function InCombatLockdown() return false end
+
+-- The account's files, and each character's
+local disk = { account = {}, chars = {} }
+local ns
+local function Login(name, realm, class)
+    who = name and { name = name, realm = realm, class = class } or nil
+    frames = {}
+    GamepadCompanionHapticsDB = Copy(disk.account.haptics)
+    GamepadCompanionDB = Copy(disk.account.db)
+    GamepadCompanionCharDB = Copy(disk.chars[(name or "?") .. "-" .. (realm or "?")])
+    ns = {}
+    assert(loadfile(root .. "/Profiles.lua"))("GamepadCompanion", ns)
+    ns.Profiles.reload = function() end
+    Fire("ADDON_LOADED", "GamepadCompanion")
+    Fire("PLAYER_LOGIN")
+    return ns.Profiles
+end
+local function Logout()
+    Fire("PLAYER_LOGOUT")
+    -- (SavedVariables: written apart, so shared tables come back as separate ones)
+    disk.account.haptics = Copy(GamepadCompanionHapticsDB)
+    disk.account.db = Copy(GamepadCompanionDB)
+    disk.chars[(who and who.name or "?") .. "-" .. (who and who.realm or "?")] = Copy(GamepadCompanionCharDB)
+end
+
+-- Today: Alberich's account settings and his character file (a realistic shape)
+disk.account.haptics = {
+    events = { hit = { on = false, feel = "strike" }, oom = { on = false, feel = "alert", moved = 1 } },
+    lightEvents = { crit = { on = true, light = "flash" } }, lightBase = { mode = "class", level = 0.35 },
+    link = { on = true, cell = 2, cues = { clips = true, castTrigger = true }, sounds = { loot = 131 } },
+    volume = { sounds = 1, feel = { mount = 1 }, sound = { loot = 0.5 } },
+    landMin = 0.9, landMax = 2, landLong = 0.6, stepNudge = 0.01, triggers = "off", kick = 0, minPulse = 0.05, light = true,
+    floor = { 0.05, 0.05 }, feels = { ownA = { label = "Mine" } }, timing = { log = {} },
+}
+disk.account.db = { bars = { main = { x = 10 } }, compact = true, optionsStyle = "forever", minimap = { angle = 200 } }
+disk.chars["Alberich-Noir"] = { version = 1, keys = { a = "spell:1" }, gestures = { [2] = "text:/dance" },
+    vibration = { enabled = true, intensity = 1, events = { crit = { on = true, pattern = "critHit" } },
+        hitTiming = { sword = 0.3 }, strikes = { mining = { period = 1 } } } }
+disk.chars["Celes-Aria"] = { version = 1, keys = { b = "spell:2" }, vibration = { intensity = 0.6, events = {} } }
+local alberichBefore = Copy(disk.chars["Alberich-Noir"])
+local accountBefore = Copy(disk.account.haptics)
+
+-- 1. No name at login: nothing pointed, nothing cleared
+local P = Login(nil, nil, nil)
+check(not P.state.pointed and P.state.note, "no name: off, said once")
+Logout()
+check(Same(disk.account.haptics.events, accountBefore.events) and Same(disk.account.db.bars, { main = { x = 10 } }),
+    "no name: the account untouched")
+
+-- 2. Celes logs in first: her own copies; Alberich and the snapshot untouched
+P = Login("Celes", "Aria", "PRIEST")
+check(P.Current("feel") == "Celes" and P.Current("controls") == "Celes", "Celes: her own profiles")
+check(GamepadCompanionCharDB.keys.b == "spell:2" and GamepadCompanionCharDB.vibration.intensity == 0.6, "her own character tables")
+check(GamepadCompanionHapticsDB.events.hit.on == false, "the account's Feel as it was, copied")
+GamepadCompanionHapticsDB.events.hit.on = true                -- Celes edits
+GamepadCompanionHapticsDB.volume.sound.loot = 0.2
+GamepadCompanionHapticsDB.landMin = 0.5
+GamepadCompanionDB.bars.main.x = 99
+GamepadCompanionCharDB.vibration.intensity = 0.3
+Logout()
+local saved = disk.account.haptics
+check(saved.events == nil and saved.lightEvents == nil and saved.link.cues == nil and saved.landMin == nil,
+    "logout: only the profiles keep the Feel")
+check(saved.link.on == true and saved.link.cell == 2 and saved.volume.sounds == 1 and saved.floor[1] == 0.05,
+    "logout: the account keys stay")
+check(disk.account.db == nil and saved.ui.optionsStyle == "forever" and saved.ui.minimap.angle == 200,
+    "bars into the profile; style and minimap account-wide")
+check(disk.chars["Celes-Aria"].profiled == 1 and disk.chars["Celes-Aria"].keys == nil, "her character file: a stub")
+check(saved.profiles.controls.Celes.char.vibration == nil, "Controls never holds vibration")
+
+-- 3. Alberich: exactly today, after Celes's edits
+P = Login("Alberich", "Noir", "PALADIN")
+check(P.Current("feel") == "Alberich" and P.Current("controls") == "Alberich", "Alberich: his own")
+local h = GamepadCompanionHapticsDB
+check(h.events.hit.on == false and h.volume.sound.loot == 0.5 and h.landMin == 0.9, "Alberich's Feel exactly as before")
+check(GamepadCompanionDB.bars.main.x == 10 and GamepadCompanionDB.compact == true and GamepadCompanionDB.optionsStyle == "forever",
+    "his bars as before, style kept")
+check(GamepadCompanionCharDB.keys.a == "spell:1" and GamepadCompanionCharDB.gestures[2] == "text:/dance", "his controls")
+local vib = GamepadCompanionCharDB.vibration
+check(vib.intensity == 1 and vib.events.crit.pattern == "critHit", "his vibration")
+check(vib.hitTiming.sword == 0.3 and vib.strikes.mining.period == 1, "learned timings, account-wide, still there")
+h.events.kill = { on = false }                                    -- Alberich edits
+Logout()
+local feelA = disk.account.haptics.profiles.feel.Alberich
+check(feelA.vibration.hitTiming == nil and feelA.vibration.strikes == nil, "Feel never holds learned data")
+check(disk.account.haptics.learned.hitTiming.sword == 0.3, "learned data account-wide")
+
+-- 4. Isolation: Celes again: her edits, not Alberich's
+P = Login("Celes", "Aria", "PRIEST")
+h = GamepadCompanionHapticsDB
+check(h.events.hit.on == true and h.volume.sound.loot == 0.2 and h.landMin == 0.5 and h.events.kill == nil, "Celes: hers only")
+check(GamepadCompanionDB.bars.main.x == 99 and GamepadCompanionCharDB.vibration.intensity == 0.3, "her bars and strength")
+h.events.loot = { on = false }
+Logout()
+P = Login("Alberich", "Noir", "PALADIN")
+check(GamepadCompanionHapticsDB.events.loot == nil and GamepadCompanionHapticsDB.events.kill.on == false, "Alberich: untouched by Celes")
+check(Same(disk.account.haptics.profiles.before.feel.events, accountBefore.events), "the snapshot frozen")
+check(Same(disk.account.haptics.profiles.beforeChar["Alberich-Noir"].keys, alberichBefore.keys), "his character backup")
+-- Alberich: start here for new paladins
+P.StartHere("feel", true)
+check(P.IsStart("feel"), "start here")
+Logout()
+
+-- 5. A new character: Recommended for its class; a paladin: Alberich's Feel, its own copy
+P = Login("Dahlia", "Noir", "ROGUE")
+h = GamepadCompanionHapticsDB
+check(P.Current("feel") == "Dahlia" and P.state.note:find("Recommended", 1, true), "a new rogue: Recommended, said once")
+check(h.events.hit.on == false and h.events.combo.on == true and h.link.cues.clips == false, "the calm set, combo points for a rogue")
+check(type(GamepadCompanionCharDB) == "table" and GamepadCompanionCharDB.keys == nil, "fresh controls")
+Logout()
+P = Login("Brann", "Noir", "PALADIN")
+check(P.state.note:find("from Alberich", 1, true) and GamepadCompanionHapticsDB.events.kill.on == false, "a new paladin: from Alberich")
+GamepadCompanionHapticsDB.events.kill.on = true
+Logout()
+P = Login("Alberich", "Noir", "PALADIN")
+check(GamepadCompanionHapticsDB.events.kill.on == false, "a copy, never shared")
+
+-- 6. Menu: rename keeps every use; delete only when unused; share round-trips
+check(P.Rename("feel", "Alberich", "Melee") and P.Current("feel") == "Melee", "rename: in use follows")
+check(not P.Delete("feel", "Melee"), "never delete one in use")
+local copy = P.New("feel", "Spare", "Melee")
+check(P.Delete("feel", copy), "delete an unused one")
+local text = P.Export("feel", "Melee")
+check(text and text:find("^GPC1:feel:") and not text:find("hitTiming", 1, true), "share: no learned data")
+local name, kind = P.Import(text, "From Alberich")
+check(kind == "feel" and Same(P.DB().feel[name].events, P.DB().feel.Melee.events), "import: the same")
+check(P.Import("GPC1:feel:{os.exit()}") == nil, "import: data only")
+Logout()
+
+-- 6b. A logout that never ran (a crash after a save): duplicates only, never another's settings
+P = Login("Celes", "Aria", "PRIEST")
+GamepadCompanionHapticsDB.events.hit.on = "celes"
+disk.account.haptics = Copy(GamepadCompanionHapticsDB)       -- saved without the logout's release
+disk.account.db = Copy(GamepadCompanionDB)
+P = Login("Alberich", "Noir", "PALADIN")
+check(GamepadCompanionHapticsDB.events.hit.on == false, "Alberich after Celes's unreleased save: his own")
+Logout()
+
+-- 7. Recommended's keys exist in the game's lists
+local known = {}
+local f = io.open(root .. "/HapticsLab.lua"):read("*a") .. io.open(root .. "/Rumble.lua"):read("*a")
+for key in pairs(ns.Profiles.RECOMMENDED.events) do
+    if not f:find('key = "' .. key .. '"', 1, true) then known[#known + 1] = key end
+end
+check(#known == 0, "Recommended's moments exist: " .. table.concat(known, ", "))
+
+if failures > 0 then io.write(failures, " failures\n"); os.exit(1) end
+io.write("PASS: profiles: migration exact, isolation across saves, no name untouched, new characters, menu, share\n")

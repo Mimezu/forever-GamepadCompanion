@@ -251,35 +251,64 @@ Review: round 1 BLOCK (two deciders for one spell, rank keys, overrides skipped 
 returns, timing per spell untrue, Try stand-in); round 2 **SIGN OFF** with Default = clear the
 override, None vs Off.
 
-## 10. Profiles (draft v2, 2026-11-17)
+
+## 10. Profiles (draft v3, 2026-11-17)
 
 The user: defaults that feel good for any class; profiles for controls; profiles for feel
 (vibration, light, sound). Other characters must never change Alberich's.
 
-**Three things, each character picks two:**
+**Each character uses two profiles; a third thing ships:**
 
-| | Holds | Where it lives today |
-|---|---|---|
-| **Recommended** (shipped, read-only) | the calm set tuned on Alberich: Hit off, target's dodge/parry/block off, one heartbeat, combo points off, helper clips off, the earlier impacts, the landing fade; class touches only where needed (combo points for rogue and druid, shots for hunters) | new `Recommended.lua` |
-| **Controls** profile | buttons, layers, touchpad, gestures, the Controller page's settings | `GamepadCompanionCharDB` (per character) |
-| **Feel** profile | moments (feel, light, sound, volume, on/off), Strength, base colour, spell overrides, landing and steps | `CharDB.vibration` + `HapticsDB` events, lightEvents, lightBase, link.sounds, volume.feel/sound, spells, land*, stepNudge |
+| | Holds |
+|---|---|
+| **Controls** | `GamepadCompanionCharDB` minus `vibration` (buttons, layers, keys, touch, gestures, …) and the bar layout (`GamepadCompanionDB` minus `optionsStyle`, `minimap`) |
+| **Feel** | `CharDB.vibration` minus learned data (`hitTiming`, `strikes`); from `GamepadCompanionHapticsDB`: `events`, `lightEvents`, `lightBase`, `light`, `lightGameOnly`, `link.cues`, `link.sounds`, `volume.feel`, `volume.sound`, `spells`, `landMin`, `landMax`, `landLong`, `stepNudge`, `triggers`, `kick`, `minPulse` |
+| **Recommended** (shipped) | a few changes on top of the code's defaults (never a full copy): the calm set tuned on Alberich, class touches only where needed. A test checks every key exists |
 
-**Account-wide:** calibration, mixer, battery, the link and cues, the Sounds volume, learned
-timings, your feels library, Lab.
+**Account-wide:** `mix`, `rate`, `keepAlive`, `battery`, calibration, `volume.sounds`, the link
+switches, `stepSync`, `timing`, learned hit timings and strikes, your feels, probes, logs,
+exports, `optionsStyle`, `minimap`, Touch's device fields, Lab.
 
-**Storage:** `GamepadCompanionHapticsDB.profiles = { controls = {name = t}, feel = {name = t} }`,
-`.use["Name-Realm"] = { controls = name, feel = name }`, `.lastOfClass[CLASS]`. The live tables
-stay where the code reads them; a profile is **copied in** at login and on a switch, and
-**copied back** at logout, /reload and before a switch. Never shared tables (SavedVariables
-split them on reload).
+**Live = the profile (no copying at runtime).** `Profiles.lua`, first in the TOC, runs at file
+scope (SavedVariables are loaded first): it points the live places at the character's
+profile tables (`GamepadCompanionCharDB = controls`, `db.events = feel.events`, …), so every
+module's `ADDON_LOADED` grabs the profile itself. At `PLAYER_LOGOUT` the live keys are set back
+to nil, so only the profile is written. If that ever fails, a duplicate is written and the
+next load points again: never one character's settings in another's. `db.liveOwner` is
+stamped; a mismatch refuses to write. **Switching** = save the choice, `/reload` (not in
+combat).
 
-**Migration (once):** a full copy of today's tables to `backup`, first. Alberich-Noir gets
-Controls "Alberich" and Feel "Alberich" = exactly today. Any other existing character, at its
-first login: its own copies (named after it), never shared. A new character: Recommended for
-its class (Feel), its class's last Controls copy or empty (Controls).
+**Migration (once, `profiles.version`):** first, a frozen copy of the moved account keys,
+`profiles.before` (never overwritten; also the backup; `/gpc profiles restore`). Then, per
+character at its own first login: an existing character (its `GamepadCompanionCharDB` already
+there, checked before anything creates it) gets Controls and Feel named after it = its own
+per-character tables + `profiles.before`, values written in full. Alberich-Noir gets "Alberich"
+× 2 = exactly today, whoever logs in first. A new character: Feel and Controls from its
+class's "Start here" profiles if set, else Feel = Recommended and Controls = new (Touch's own
+first-login copy as today).
 
-**UI:** two chips in the window footer, left of the version: **Controls: Alberich ▾ ·
-Feel: Melee ▾**. One menu for both: the profiles (pick = switch) · **New** (from Recommended)
-· **Copy** · **Rename** · **Recommended** (reset, asks) · **Delete** (not in use; asks) ·
-**Share** (copy a text, or paste one). One text window (`HUI.TextWindow`).
-Tools › Profile shows the same two chips (one control each: the footer's are the same widget).
+**UI:** two chips in the window footer: **Controls: Alberich ▾ · Feel: Alberich ▾**, each its
+own menu (same widget, a kind): the profiles (pick: switch, reloads) · **New** (Recommended or
+empty) · **Copy** · **Rename** · **Start here for new <class>** (check) · **Reset**
+(Recommended; asks) · **Delete** (not used by any character; asks) · **Share** (a text: export,
+or paste to import; your own feels it uses go with it). Tools › Profile shows the same chips.
+
+Review: round 1 BLOCK (modules keep the old table; copy-back can mix characters; keys
+misplaced: bars, cues, triggers…; Recommended drift; migration order) → v3.
+
+Round 2 BLOCK → fixed in the design:
+- **Vibration**: at load `controls.vibration = feel.vibration`, and `feel.vibration.hitTiming` /
+  `strikes` point at account-wide learned tables (`HapticsDB.learned`); at logout all three go
+  back to nil. Tests: a saved Controls never holds `vibration`; Feel and Share never hold
+  learned data.
+- **Bars**: `GamepadCompanionDB` also holds `optionsStyle`, `optionsStyleVersion`, `minimap`:
+  at logout those move to `HapticsDB.ui`, the rest to `controls.bars`, then the global is nil;
+  at load it is rebuilt as `Copy(controls.bars)` + `ui`.
+- **Logout order**: the keys are cleared by a frame registered at PLAYER_LOGIN (after every
+  module's logout handler, e.g. the export to WoW Helper). Test: the export still lists events.
+- **When**: the pointing runs in Profiles.lua's own ADDON_LOADED (first in the TOC, so before
+  every other module's), not at file scope; if the character's name or class is missing then,
+  nothing is touched (today's behaviour) and it says so once.
+- **Round 3: SIGN OFF**, on one condition (built): logout clears only what this session
+  pointed (`pointed`, set after the pointing succeeds). Test: a load with no name, then
+  logout: `CharDB` and the account Feel keys unchanged.

@@ -197,11 +197,20 @@ local function Build()
     window.version:ClearAllPoints()
     window.version:SetPoint("BOTTOMRIGHT", -(inset.right + 112), inset.bottom + 14)
     window.version:SetJustifyH("RIGHT")
+    if ns.ProfileMenu and ns.Profiles then ns.ProfileMenu.Build(window, window.version) end
     window.close = S.NewButton(window, "Close", 0, 0, 100, function() window:Hide() end)
     window.close:ClearAllPoints()
     window.close:SetPoint("BOTTOMRIGHT", -inset.right, inset.bottom + 6)
 
     window:SetScript("OnShow", function()
+        if ns.ProfileMenu then ns.ProfileMenu.Refresh() end
+        -- (what happened to the profiles at login, once)
+        local note = ns.Profiles and ns.Profiles.state.note
+        if note then
+            ns.Profiles.state.note = nil
+            if C_Timer and C_Timer.After then C_Timer.After(0, function() Shell.SetStatus(note, true) end)
+            else Shell.SetStatus(note, true) end
+        end
         for _, def in ipairs(defs) do if def.windowShow then def.windowShow() end end
     end)
     window:SetScript("OnHide", function()

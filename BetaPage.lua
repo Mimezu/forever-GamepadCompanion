@@ -82,52 +82,8 @@ local function Graph(parent, x, y, w, h, columns)
     return g
 end
 
--- A text box in a small window (the report, export, import)
-local textWin
-local function TextWindow(title, text, onAccept, acceptLabel)
-    if not textWin then
-        textWin = CreateFrame("Frame", "GamepadCompanionBetaText", Shell.Window())
-        textWin:SetFrameStrata("DIALOG")
-        textWin:SetToplevel(true)
-        textWin:EnableMouse(true)
-        textWin:SetSize(560, 340)
-        textWin:SetPoint("CENTER")
-        S.Panel(textWin)
-        textWin.title = S.Text(textWin, "", 16, -14, 520, 13, YELLOW)
-        local box = CreateFrame("EditBox", nil, textWin)
-        box:SetMultiLine(true)
-        box:SetAutoFocus(false)
-        box:SetFont(FONT, 11, "")
-        box:SetTextColor(1, 1, 1)
-        box:SetPoint("TOPLEFT", 16, -40)
-        box:SetSize(528, 240)
-        box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-        local wash = textWin:CreateTexture(nil, "BACKGROUND", nil, 1)
-        wash:SetPoint("TOPLEFT", 12, -36)
-        wash:SetSize(536, 250)
-        wash:SetColorTexture(0, 0, 0, 0.4)
-        textWin.box = box
-        textWin.accept = S.NewButton(textWin, "OK", 16, -296, 120, function()
-            if textWin.onAccept then textWin.onAccept(textWin.box:GetText()) end
-            textWin:Hide()
-        end)
-        textWin.select = S.NewButton(textWin, "Select all", 144, -296, 120, function()
-            textWin.box:SetFocus()
-            textWin.box:HighlightText()
-        end)
-        S.NewButton(textWin, "Close", 424, -296, 120, function() textWin:Hide() end)
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaText"
-    end
-    textWin.title:SetText(title)
-    textWin.box:SetText(text or "")
-    textWin.onAccept = onAccept
-    textWin.accept.label:SetText(acceptLabel or "OK")
-    textWin.accept:SetShown(onAccept ~= nil)
-    textWin:Show()
-    textWin:Raise()
-    textWin.box:SetFocus()
-    textWin.box:HighlightText()
-end
+-- A text box in a small window (the report, export, import): the shared one
+local function TextWindow(...) return HUI.TextWindow(...) end
 
 local Popup, PickFeel, ROW_H = HUI.Popup, HUI.PickFeel, HUI.ROW_H
 
@@ -1311,7 +1267,7 @@ Shell.AddPage({
         if L.Ramping() then L.StopRamp() end
         H.Stop("beta"); H.Stop("editor"); H.Stop("record")
         HUI.HidePopup()
-        if textWin then textWin:Hide() end
+        HUI.HideTextWindow()
     end,
 })
 

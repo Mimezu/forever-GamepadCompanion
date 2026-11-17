@@ -510,10 +510,9 @@ local function BuildTools(frame, header)
     ToolNote(em, "Your old Companion layout, as a Blizzard gamepad layout", 14, -164, half - 28)
 
     -- Profile
-    local profile = S.Card(frame, "Profile", half + 12, -222, half, 128)
+    local profile = S.Card(frame, "Profiles", half + 12, -222, half, 128)
     ui.profileName = Text(profile, "", 14, -44, half - 28, 14, GOLD)
-    ToolNote(profile, "Controller and touchpad bindings: this character\nNew characters start from a copy · bar layout: all characters",
-        14, -70, half - 28)
+    ToolNote(profile, "Switch, copy, share: the chips below", 14, -70, half - 28)
 
     -- Frame Gambit
     local fg = S.Card(frame, "Visibility", 0, -362, W, 90)
@@ -532,8 +531,9 @@ local function RefreshTools()
     ui.spread:SetEnabled(state.enabled == true and (state.spread or not InCombatLockdown()))
     local ok, emStatus = pcall(function() return API.EditMode and API.EditMode.Status() end)
     ui.emStatus:SetText(ok and emStatus or "")
-    local name = UnitName and UnitName("player")
-    ui.profileName:SetText(type(name) == "string" and name or "")
+    local P = ns.Profiles
+    local controls, feel = P and P.Current("controls"), P and P.Current("feel")
+    ui.profileName:SetText(controls and ("Controls: " .. controls .. "  ·  Feel: " .. feel) or "Profiles off this session")
     ui.fgText:SetText(_G.FrameGambitAPI and "Frame Gambit decides when bars show · Companion: place and size"
         or "Companion places and sizes the bars · Blizzard shows them")
     RefreshSpellbookButtons()

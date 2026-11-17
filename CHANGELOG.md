@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.36.0 — 2026-11-17
+
+- **Profiles.** Each character uses a **Controls** profile (buttons, layers, touchpad, gestures, bars) and a **Feel** profile (moments: feel, light, sound, volume, on or off; Strength; base colour; your spells; landing and steps; trigger cues), by name, account-wide. Two chips in the window's footer, each with its menu: switch (reloads), New, Copy, Rename, For new <class>, Reset, Delete, Share (a text to copy, or paste one to add it). The pad's own settings stay account-wide: calibration, mixer, battery, the link, the Sounds volume, learned timings, your feels
+- **Recommended**: a new character's Feel starts calm (no Hit, no target dodges, parries, blocks, one heartbeat, no combo points except rogues and druids, no helper clips), or from the profile its class starts from
+- **Nothing changes for an existing character**: at its first login it gets its own Controls and Feel, named after it, exactly as before (Alberich: "Alberich" × 2). The account's settings as they were are kept in `profiles.before`; `/gpc profiles restore` puts them back
+- Live = the profile: the places the code reads point at the character's profiles from the first load; at logout only the profiles are saved. Design reviewed three times (signed off); tests for migration, isolation across saves, a load without a name, a logout that never ran; a dry run on the real saved files matched exactly
+- The text window (export, names, Share) is one shared widget
+
 ## 0.35.0 — 2026-11-17
 
 - **Your spells** (Moments, after Abilities): your spellbook by tab, a row a spell name (ranks share it), 11 a page. Each says when it is felt (At the hit, At the cast, While channelling, Nothing; Guess when the rules don't know it) and what plays: a cast set for a cast-time spell, a feel for an instant or a quiet spell (a heal: None), a link to its moment for Attack, Shoot, gathering, crafting, food. Pick your own, Off, a volume; Default goes back to the rules. Saved by name in `spells` (`SpellOverrides.lua`)
