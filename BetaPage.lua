@@ -1095,6 +1095,12 @@ local function BuildLink(p)
         Refresh()
     end, 90)
     S.Tooltip(wide, "HD link", "Off: the old strip, no HD feels")
+    local gameLights = S.NewCheck(link, "Game lights", 170, -38, function(self)
+        H.DB().lightGameOnly = self:GetChecked() == true or nil
+        if ns.Lights then ns.Lights.ApplyBase() end
+        Refresh()
+    end, 120)
+    S.Tooltip(gameLights, "Game lights", "Even with WoW Helper")
     Stepper(link, "Cell size", 12, -76, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
         format = function(v) return v .. " px" end,
         get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })
@@ -1163,6 +1169,7 @@ local function BuildLink(p)
 
     ui.refresh[#ui.refresh + 1] = function()
         wide:SetChecked(K.V2())
+        gameLights:SetChecked(H.DB().lightGameOnly == true)
         local st, names = K.state, {}
         for name, v in pairs(K.MODES) do names[v] = name end
         state:SetText(K.Enabled() and string.format("L2 %s · R2 %s", names[st.left.mode] or "?", names[st.right.mode] or "?")
