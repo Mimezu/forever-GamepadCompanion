@@ -1515,7 +1515,7 @@ do
     rev("PLAYER_LEAVE_COMBAT")
     fired = {}
     ev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
-    assert(table.concat(fired, ",") == "l:hit" and #pending == 0, "an ability's blow: at once")
+    assert(#fired == 0 and #pending == 0, "a wound on the target that isn't yours (a tick, a pet): nothing")
     -- set by hand
     V.SetHitDelay("twoHand", 0.5)
     local d, s = V.HitDelay("twoHand")
@@ -1913,13 +1913,18 @@ do
     rev("UNIT_COMBAT", "target", "WOUND", "", 200, 64)
     land()
     assert(fired[1] == "instant:judge", "Arcane Shot lands: " .. tostring(fired[1]))
-    -- an ability we don't know: the default Blow, in a shorter window
+    -- an ability we know nothing of: a physical wound may be a swing or a pet's (not its); a magic one is
     fired = {}
     now = now + 2
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "x", 99999)
     rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
     land()
-    assert(fired[1] == "instant:blow", tostring(fired[1]))
+    assert(#fired == 0, "a physical wound after an unknown spell: not taken: " .. tostring(fired[1]))
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "x2", 99999)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 8)
+    land()
+    assert(fired[1] == "instant:shock", "a nature wound: Shock: " .. tostring(fired[1]))
     assert(V.Pattern("blow") and V.Pattern("blow").feel and H.Feel("r_blow"), "Blow, in the library for its HD")
     V.Fire, L.Fire, C_Timer.After = vfire, lfire, after
     UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
@@ -2120,18 +2125,18 @@ do
     local l = land()
     assert(fired[1] == "judge", "Holy Strike lands: " .. tostring(fired[1]))
     assert(l[1] and math.abs(l[1][1] - T.Impact("oneHand", "main")) < 1e-9, "at the sword's impact (a weapon strike)")
-    -- an unknown damaging instant: Blow; its holy damage: a bright strike
+    -- an unknown instant: a physical wound isn't taken (a swing's, a pet's); its holy damage: a bright strike
     fired = {}
     now = now + 2
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ml", 900002)
     rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
     land()
-    assert(fired[1] == "blow", "an unknown instant: Blow: " .. tostring(fired[1]))
+    assert(#fired == 0, "an unknown instant, a physical wound: not taken: " .. tostring(fired[1]))
     now = now + 2
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ml2", 900002)
     rev("UNIT_COMBAT", "target", "WOUND", "", 120, 2)
     land()
-    assert(fired[2] == "judge", "its holy damage: a bright strike: " .. tostring(fired[2]))
+    assert(fired[1] == "judge", "its holy damage: a bright strike: " .. tostring(fired[1]))
     -- a heal: never, even with a blow on the target right after
     fired = {}
     IsSpellHelpful = function(id) return id == 900003 end
@@ -2296,11 +2301,11 @@ do
     UnitCanAttack = function() return true end
     CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
     -- what the plan says, then what plays
-    local function cast(id)
+    local function cast(id, school)
         fired, played = {}, {}
         now = now + 3
         rev("UNIT_SPELLCAST_SUCCEEDED", "player", "c" .. id, id)
-        rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+        rev("UNIT_COMBAT", "target", "WOUND", "", 100, school or 1)
         return fired[#fired]
     end
     local cases = {
@@ -2308,15 +2313,16 @@ do
         { 20154, "instant", "cast", "seal" },     -- a seal: at the cast
         { 900021, "instant", "hit", "judge" },    -- Holy Strike: by its name
         { 900023, "instant", "cast", "surge" },   -- a totem: no direct hit
-        { 900024, "instant", "hit", "blow" },     -- unknown: Blow
+        { 900024, "instant", "hit", "blow", 64 }, -- unknown: Blow (a magic wound: its school decides)
         { 900022, "quiet", "none", nil },         -- a heal: nothing
     }
     for _, c in ipairs(cases) do
         local plan = V.SpellPlan(c[1])
         assert(plan and plan.moment == c[2] and plan.when == c[3] and plan.pattern == c[4],
             c[1] .. ": plan " .. tostring(plan and plan.moment) .. " " .. tostring(plan and plan.when) .. " " .. tostring(plan and plan.pattern))
-        local got = cast(c[1])
-        if c[4] then assert(got == c[4], c[1] .. ": plays " .. tostring(got) .. ", the plan said " .. c[4])
+        local got = cast(c[1], c[5])
+        if c[5] then assert(got == "judge", c[1] .. ": arcane decides: " .. tostring(got))
+        elseif c[4] then assert(got == c[4], c[1] .. ": plays " .. tostring(got) .. ", the plan said " .. c[4])
         else assert(#fired == 0, c[1] .. ": the plan says nothing; nothing plays") end
     end
     local fb = V.SpellPlan(133)
@@ -2381,4 +2387,90 @@ do
     Vol.SetFeel("cast", 1)
     UnitCastingInfo = nil
     io.write("PASS: loops at a volume keep their shape" .. string.char(10))
+end
+
+-- Spell coverage rules: no-hit spells, summons, quiet debuffs, the Lab's claim, damaging casts at their impact, the kinds table
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.SetCastPreset("spell", "auto")
+    for _, k in ipairs(ns.Timing.KINDS) do ns.Timing.Set(k.key, "main", 0) end
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired = {}
+    local vfire, lfire, after, spellInfo = V.Fire, L.Fire, C_Timer.After, GetSpellInfo
+    V.Fire = function(k, ...) fired[#fired + 1] = k == "instant" and V.instantMove or k; return vfire(k, ...) end
+    L.Fire = function(k) fired[#fired + 1] = "l:" .. k end
+    C_Timer.After = function(_, fn) fn() end
+    local names = { [900031] = "Searing Totem", [900032] = "Healing Stream Totem", [900033] = "Call Pet",
+        [900041] = "Odd Stun", [900042] = "Odd Bolt", [900043] = "Odd Frost Cast" }
+    GetSpellInfo = function(id)
+        if id == 133 or id == 900043 then return names[id] or "Spell 133", nil, nil, 2500 end
+        return names[id] or ("Spell " .. tostring(id)), nil, nil, 0
+    end
+    IsSpellHelpful = function(id) return id == 900031 or id == 900032 end
+    UnitCanAttack = function() return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local function ability(id) fired = {}; now = now + 3; rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s" .. id, id) end
+    -- a stun: at the cast; a swing right after keeps its own feel; a parry of it shows once
+    rev("PLAYER_ENTER_COMBAT")
+    ability(408)
+    local p = V.SpellPlan(408)
+    assert(p.when == "cast" and p.pattern == "bash" and fired[1] == "bash", "Kidney Shot: Bash at the cast")
+    fired = {}
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    assert(fired[1] == "autoAttack", "the swing after it is a swing: " .. tostring(fired[1]))
+    ability(408)
+    fired = {}
+    rev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+    ev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+    local parries = 0
+    for _, f in ipairs(fired) do if f == "l:targetParry" then parries = parries + 1 end end
+    assert(parries == 1, "a parried stun: Target parries once (the Lab sees it claimed): " .. table.concat(fired, ","))
+    rev("PLAYER_LEAVE_COMBAT")
+    -- routine debuffs and curses: nothing
+    ability(772)
+    assert(V.SpellPlan(772).moment == "quiet" and #fired == 0, "Rend: quiet")
+    ability(172)
+    assert(V.SpellPlan(172).moment == "quiet" and #fired == 0, "Corruption: quiet")
+    -- summons, before the helpful check
+    ability(900031)
+    assert(fired[1] == "surge", "Searing Totem (helpful to the client): Surge")
+    ability(900032)
+    assert(#fired == 0 and V.SpellPlan(900032).moment == "quiet", "a healing totem: nothing")
+    ability(900033)
+    assert(fired[1] == "ritual", "Call Pet: a short ritual")
+    -- a damaging cast: a silent release, its school's wound at the impact (not in the first 0.15 s, not another school)
+    local start = now + 3
+    now = start
+    UnitCastingInfo = function() return "Fireball", nil, nil, start * 1000, (start + 2.5) * 1000 end
+    rev("UNIT_SPELLCAST_START", "player", "fb", 133)
+    now = start + 2.5
+    fired = {}
+    local release = V.Release
+    local released = false
+    V.Release = function() released = true end
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "fb", 133)
+    assert(not released and #fired == 0, "the release: silent")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 4)
+    assert(#fired == 0, "not in the first 0.15 s")
+    now = now + 0.4
+    rev("UNIT_COMBAT", "target", "WOUND", "", 30, 16)
+    assert(#fired == 0, "another school's wound: not it")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 4)
+    assert(fired[1] == "shock", "Fireball lands: Shock: " .. tostring(fired[1]))
+    V.Release = release
+    UnitCastingInfo = nil
+    -- the kinds table (WoW Helper): letters, school, tick
+    WowHelperData = { spellKinds = { [900041] = { "nc", 1 }, [900042] = { "h", 32 }, [900043] = { "h", 16 } } }
+    assert(V.SpellPlan(900041).pattern == "bash" and V.SpellPlan(900041).when == "cast", "a physical control: Bash at the cast")
+    assert(V.SpellPlan(900042).pattern == "shock" and V.SpellPlan(900042).when == "hit", "a shadow hit: Shock at the hit")
+    assert(V.SpellPlan(900043).set == "frostSpells", "a frost cast not listed: the Frost set")
+    WowHelperData = nil
+    V.Fire, L.Fire, C_Timer.After, GetSpellInfo = vfire, lfire, after, spellInfo
+    IsSpellHelpful, UnitCanAttack = nil, nil
+    ns.Timing.Store().set = {}
+    io.write("PASS: spell coverage: no-hit at the cast, quiet debuffs, summons, one claim, casts at their impact, the kinds table" .. string.char(10))
 end

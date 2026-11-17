@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.39.0 — 2026-11-17
+
+- Spell coverage (every class's spells checked): stuns and interrupts with no hit (Sap, Cheap Shot, Kidney Shot, Hammer of Justice, Concussion Blow, Bash, Disarm, Counterspell, Repentance, Sweeping Strikes, Blade Flurry) are felt as you cast them; a dodge or parry of one still shows. They no longer take the next swing's feel
+- Quiet: routine debuffs and DoTs (Rend, Sunder and Expose Armor, Garrote, Rupture, Rip, Slice and Dice, curses, Shadow Word: Pain, Corruption, Hunter's Mark, Faerie Fire...), single taunts, Pick Pocket, Distract, Feint
+- Summons: harmful ones on the ground (Searing, Magma, Earthbind Totem, traps, Flare) Surge; pets and creatures (Call Pet, Shadowfiend...) a short Ritual; helpful totems nothing
+- Damaging casts (Fireball, Frostbolt, Shadow Bolt, Smite...): the release is silent, the spell is felt as it lands: the next wound of its school on your target (Judgement for holy and arcane, Shock for the others)
+- An ability we know nothing of no longer takes a swing or a pet's blow: only a magic wound. Hit no longer plays for every wound on your target (DoT ticks, pets, the party): only your swings and abilities. One blow is no longer felt twice (Your abilities and Hit)
+- Ready for WoW Helper's spell table (`WowHelperData.spellKinds`): what each spell does, its school and a channel's tick, for every spell without a list
+
 ## 0.38.0 — 2026-11-17
 
 - **Your spells** shows: each spell's row says what plays for it (at the hit, at the cast, while channelling, nothing), its feel or cast set, and why, from the very rule that plays it (`V.SpellPlan`, one code path)

@@ -1272,11 +1272,9 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount, school)
             L.Fire(AT_YOU[action])
         end
     elseif unit == "target" and call(UnitCanAttack, "player", "target") then
-        if action == "WOUND" and not secret(flag) and flag ~= "CRITICAL" then
-            L.Fire("hit")
-        elseif AT_TARGET[action] then
-            L.Fire(AT_TARGET[action])
-        end
+        -- (a wound on your target says not whose: a DoT tick, a pet, the party.
+        -- Hit plays for your swings and abilities, through Rumble)
+        if AT_TARGET[action] then L.Fire(AT_TARGET[action]) end
     end
 end
 handlers.UNIT_HEALTH = function(unit)

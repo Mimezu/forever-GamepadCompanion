@@ -1876,14 +1876,17 @@ local function CastStarted(event, _, guid, spellID)
     local rule = V.castKind == "spell" and V.SpellRule(spellID, 1) or nil
     V.castSet = rule and rule.own and rule.set or nil
     cast.off = rule and rule.off or false
+    if V.castKind == "spell" and not V.castAction and rule and rule.schoolSet then V.castAction = rule.schoolSet end
+    cast.gain = rule and rule.volume or 1
     cast.ended, cast.shaped = false, false
     cast.guid = guid
     local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
     cast.casting = not channel
     local start, finish = CastTimes(channel)
     cast.channelEnd = channel and finish or nil
+    local kinds = V.SpellKinds(spellID)
     cast.timing = start and { start = start, finish = finish, channel = channel,
-        interval = channel and ChannelTicks(spellID) or nil } or nil
+        interval = channel and (ChannelTicks(spellID) or (kinds and kinds.h and kinds.tick)) or nil } or nil
     -- (gathering: its marker first; WoW Helper timing the strikes: no HD from here)
     local timed = false
     if V.castKind == "gather" and V.GATHER_MARKERS[V.castAction] then
@@ -1917,6 +1920,9 @@ local function CastReleased()
     if cast.ended then return end
     cast.ended = true
     if cast.off then return end
+    -- (a damaging spell, its family's set: felt as it lands)
+    if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
+        and V.CastImpactWindow(V.castAction, cast.gain) then return end
     if cast.shaped and not cast.timing.fishing then
         if cast.timing.strikes then V.Crack() else V.Release() end
     end
@@ -2046,6 +2052,76 @@ end
 
 local TIMING_WORD = { guess = "default", learned = "learned", set = "yours" }
 
+-- The spell kinds table (WoW Helper writes it from the client's own tables:
+-- WowHelperData.spellKinds = { [spellID] = { letters, school mask, tick s } }):
+-- h a direct hit on an enemy, n harmful with no hit, c control, i interrupt,
+-- t taunt, d a DoT or debuff, s a summon (g on the ground, p a pet or a
+-- creature, b a helpful one), a around you. nil: not in it (or no table)
+local kindsCache = {}
+function V.SpellKinds(spellID)
+    if not spellID or secret(spellID) then return nil end
+    local d = _G.WowHelperData
+    local t = type(d) == "table" and type(d.spellKinds) == "table" and d.spellKinds[spellID]
+    if type(t) ~= "table" then return nil end
+    local k = kindsCache[spellID]
+    if k and k.src == t then return k end
+    k = { src = t, school = tonumber(t[2]), tick = tonumber(t[3]) }
+    for ch in tostring(t[1] or ""):gmatch("%a") do k[ch] = true end
+    kindsCache[spellID] = k
+    return k
+end
+
+-- (the lowest magic school of a mask: its family and its cast set)
+local SCHOOL_BITS = { { 2, "judge", "holy" }, { 4, "shock", "fire" }, { 8, "shock", "nature" }, { 16, "shock", "frostSpells" },
+    { 32, "shock", "shadowSpells" }, { 64, "judge", "arcaneSpells" } }
+local function SchoolOf(mask)
+    if type(mask) ~= "number" then return nil end
+    for _, b in ipairs(SCHOOL_BITS) do
+        if math.floor(mask / b[1]) % 2 == 1 then return b end
+    end
+    return nil
+end
+
+-- Spells with no direct hit (spell coverage, 2026-11-17): control and
+-- interrupts felt at the cast; routine debuffs, DoTs, single taunts and
+-- tricks quiet (false). By their first rank's name (every rank shares it).
+local NO_HIT_IDS = {
+    bash = { 6770, 1833, 408, 853, 12809, 5211, 676 },     -- Sap, Cheap Shot, Kidney Shot, Hammer of Justice, Concussion Blow, Bash, Disarm
+    whirl = { 12292, 13877 },                              -- Sweeping Strikes, Blade Flurry
+    shock = { 2139 },                                      -- Counterspell
+    judge = { 20066 },                                     -- Repentance
+    quiet = { 772, 7386, 8647, 703, 1943, 1079, 5171,      -- Rend, Sunder and Expose Armor, Garrote, Rupture, Rip, Slice and Dice
+        355, 6795, 921, 1725, 1966 },                      -- Taunt, Growl, Pick Pocket, Distract, Feint
+}
+-- Summons: on the ground (harmful: felt as laid down), a pet or a creature
+-- (a short ritual), a helpful totem (quiet). By name, lower case.
+local SUMMON_NAMES = { ["searing totem"] = "ground", ["magma totem"] = "ground", ["earthbind totem"] = "ground",
+    ["fire nova totem"] = "ground", ["stoneclaw totem"] = "ground", ["flare"] = "ground",
+    ["call pet"] = "pet", ["shadowfiend"] = "pet", ["frozen orb"] = "pet", ["eye of the void"] = "pet" }
+local noHitByName
+local function NoHitOf(name)
+    if not noHitByName then
+        noHitByName = {}
+        for fam, ids in pairs(NO_HIT_IDS) do
+            for _, id in ipairs(ids) do
+                local n = SpellName(id)
+                if n and not secret(n) then
+                    if fam == "quiet" then noHitByName[n] = false else noHitByName[n] = fam end
+                end
+            end
+        end
+    end
+    return noHitByName[name]
+end
+local function SummonOf(name, kinds)
+    if kinds and kinds.s then return kinds.g and "ground" or kinds.p and "pet" or "buff" end
+    local lower = name:lower()
+    if SUMMON_NAMES[lower] then return SUMMON_NAMES[lower] end
+    if lower:find("%f[%a]trap%f[%A]") then return "ground" end
+    if lower:find("%f[%a]totem%f[%A]") or lower:find("totemic") then return "buff" end
+    return nil
+end
+
 -- castTime: known by the caller (a cast started: > 0; an instant: 0)
 function V.SpellRule(spellID, castTime)
     if not spellID or secret(spellID) then return nil end
@@ -2074,6 +2150,16 @@ function V.SpellRule(spellID, castTime)
                 r.moment, r.when = "spell", channel and "channel" or "cast"
                 local preset = PRESET[V.CastPreset("spell")]
                 if preset and preset.auto then
+                    -- (not listed: its school's set; a heal: Healing; a summon: Summoning)
+                    if not action then
+                        local kinds = V.SpellKinds(spellID)
+                        local b = kinds and SchoolOf(kinds.school)
+                        if kinds and kinds.s then action = "summon"
+                        elseif V.SpellHelpful(spellID) then action = "healing"
+                        elseif b then action = b[3]
+                        elseif kinds and kinds.h and kinds.school == PHYSICAL then action = "shots" end
+                        r.schoolSet = action
+                    end
                     r.set = action or CAST_KIND.spell.fallback
                     r.why = action and ("Its family: " .. (PRESET[action] and PRESET[action].label or action)) or "A cast: the spell set"
                 else
@@ -2083,10 +2169,29 @@ function V.SpellRule(spellID, castTime)
             end
         else
             local move = V.MoveOf(spellID)
+            local kinds = V.SpellKinds(spellID)
+            local nohit = NoHitOf(name)
+            -- (curses, poisons, marks: routine debuffs, quiet)
+            if nohit == nil and move == "hex" then nohit = false end
+            local summon = SummonOf(name, kinds)
             r.moment = "instant"
             if NextSwing(spellID) then
                 r.move, r.when, r.next = move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
+            elseif summon then
+                if summon == "ground" then r.move, r.when, r.why = "surge", "cast", "Laid on the ground: at the cast"
+                elseif summon == "pet" then r.move, r.when, r.why = "ritual", "cast", "A summon: at the cast"
+                else r.moment, r.when, r.why = "quiet", "none", "A helpful totem: nothing" end
+            elseif nohit ~= nil or (kinds and kinds.n and not kinds.h) then
+                local fam = nohit
+                if fam == nil then
+                    if kinds.c or kinds.i then fam = (kinds.school == nil or kinds.school == PHYSICAL) and "bash" or "shock"
+                    elseif kinds.a and (kinds.t or kinds.c) then fam = "burst"
+                    else fam = false end
+                end
+                r.avoidOnly = true
+                if fam then r.move, r.when, r.why = fam, "cast", "No direct hit: at the cast"
+                else r.moment, r.when, r.why = "quiet", "none", "A debuff: nothing" end
             elseif move then
                 r.move, r.when = move, V.LANDS[move] and "hit" or "cast"
                 r.why = "Known: " .. (PATTERN[move] and PATTERN[move].label or move)
@@ -2094,10 +2199,16 @@ function V.SpellRule(spellID, castTime)
                 r.moment, r.when, r.why = "quiet", "none", "Helpful: a heal or a buff"
             else
                 local m, how = V.FamilyOfName(name)
+                local b = kinds and kinds.h and SchoolOf(kinds.school)
+                if not m and b then m = b[2] end
                 r.move, r.how, r.guessed = m or "blow", how, m == nil
                 r.when = how and how.atCast and "cast" or "hit"
+                -- (known to nothing: only a magic wound may be its (a swing, a pet's
+                -- blow are physical); a direct hit by the table: any)
+                r.magicOnly = m == nil and not (kinds and kinds.h) and not (how and how.ranged) or nil
                 r.why = how and how.atCast and "No direct hit: at the cast"
-                    or m and ("By its name: " .. (PATTERN[m] and PATTERN[m].label or m)) or "Blow; its school decides at the hit"
+                    or m and ("By its name: " .. (PATTERN[m] and PATTERN[m].label or m))
+                    or "Blow, when a spell's damage lands"
             end
         end
     end
@@ -2233,9 +2344,16 @@ local CAST_HANDLERS = {
         if RestOf(spellID) then return end
         -- (an instant: as its rule says, the one Your spells shows)
         local rule = V.SpellRule(spellID, 0)
+        -- (no blow of its own: the next swing on the target is a swing)
+        if rule and rule.when ~= "hit" then swing.ability = -math.huge end
         if not rule or rule.off or rule.when == "none" then return end
         if rule.moment ~= "instant" and rule.moment ~= "quiet" then return end
-        if rule.when == "cast" then return V.FireSpell(rule) end
+        if rule.when == "cast" then
+            V.FireSpell(rule)
+            -- (a stun, an interrupt: a dodge or a parry of it still shows)
+            if rule.avoidOnly then V.AbilityCast(rule.pattern, spellID, nil, rule.how, rule) end
+            return
+        end
         V.AbilityCast(rule.pattern, spellID, nil, rule.how, rule)
     end,
     UNIT_SPELLCAST_DELAYED = function()
@@ -2530,7 +2648,8 @@ function V.AbilityCast(move, spellID, nextSwing, how, rule)
     local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
     pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
-        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1 }
+        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1,
+        avoidOnly = rule and rule.avoidOnly or nil, magicOnly = rule and rule.magicOnly or nil }
 end
 
 -- A helpful spell (a heal, a buff), when the client says so
@@ -2574,17 +2693,32 @@ function V.FamilyOfName(name)
     return nil, how
 end
 
-local function Pending(action)
+-- (what a window takes: a no-hit spell's only a miss, dodge, parry, resist
+-- or immune; an ability we know nothing of only a magic wound (a swing, a
+-- pet's blow are physical); a damaging cast only its own school's wound,
+-- not in its first moment)
+local function Pending(action, school)
     if not pending or GetTime() > pending.until_ then pending = nil; return nil end
     if secret(action) or not ABILITY_RESULT[action] then return nil end
+    local wound = ABILITY_RESULT[action] == "hit"
+    if wound then
+        if pending.avoidOnly then return nil end
+        if secret(school) then school = nil end
+        if pending.magicOnly and (school == nil or school == PHYSICAL) then return nil end
+        if pending.school and school and school ~= pending.school then return nil end
+        if pending.notBefore and GetTime() < pending.notBefore then return nil end
+    end
     local can = UnitCanAttack and UnitCanAttack("player", "target")
     if not secret(can) and not can then return nil end
     return pending
 end
+-- (the Lab may see the same blow after Rumble took it: claimed this frame)
+local claimedAt
 
 -- A UNIT_COMBAT result on your target is your ability's (the Lab leaves it)
 function V.ClaimsResult(action, school)
-    return V.ClaimsSwing(action, school) or Pending(action) ~= nil
+    if claimedAt == GetTime() then return true end
+    return V.ClaimsSwing(action, school) or Pending(action, school) ~= nil
 end
 
 -- Your ability's result: its feel at the blow (true: taken)
@@ -2592,9 +2726,10 @@ end
 -- bright strike, another magic a shock)
 local SCHOOL_FAMILY = { [2] = "judge", [4] = "shock", [8] = "shock", [16] = "shock", [32] = "shock", [64] = "judge" }
 function V.AbilityResult(action, flag, school)
-    local p = Pending(action)
+    local p = Pending(action, school)
     if not p then return false end
     pending = nil
+    claimedAt = GetTime()
     if p.guessed and not secret(school) and SCHOOL_FAMILY[school] then p.move = SCHOOL_FAMILY[school] end
     local result = ABILITY_RESULT[action]
     if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
@@ -2617,6 +2752,21 @@ end
 
 -- The blow: a crit the Crit feel; a miss, dodge, parry, block the Beta
 -- engine's own; a hit the ability's family
+-- A damaging cast released: its feel at the impact, not the release (the
+-- release silent): the next wound of its school on your target, from 0.15 s
+-- to 2.5 s on (travel time), as Judgement (holy, arcane) or Shock (others)
+V.CAST_IMPACT = { fire = { "shock", 4 }, frostSpells = { "shock", 16 }, arcaneSpells = { "judge", 64 },
+    shadowSpells = { "shock", 32 }, holy = { "judge", 2 }, nature = { "shock", 8 } }
+V.CAST_WINDOW = 2.5
+function V.CastImpactWindow(action, gain)
+    local f = V.CAST_IMPACT[action]
+    if not f then return false end
+    local now = GetTime()
+    pending = { move = f[1], school = f[2], at = now, until_ = now + V.CAST_WINDOW, notBefore = now + 0.15,
+        spell = true, gain = gain or 1 }
+    return true
+end
+
 function V.AbilityImpact(move, result, far, gain)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
     if result == "crit" then return YourCrit(far and true or false) end
