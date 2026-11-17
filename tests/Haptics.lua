@@ -956,6 +956,17 @@ do
     Vol.SetFeel("levelUp", 0.5)
     assert(V.Scaled({ strength = 0.8 }, "levelUp").strength == 0.4 and V.Scaled(nil, "jump") == nil, "a feel at its volume")
     Vol.SetFeel("levelUp", 1)
+    -- new defaults: mount and dismount at half; Low mana's Alert (an old default moves, a pick stays)
+    assert(Vol.Feel("mount") == 0.5 and Vol.Feel("dismount") == 0.5 and Vol.Feel("jump") == 1, "mount at 50%")
+    Vol.SetFeel("mount", 1)
+    assert(Vol.DB().feel.mount == 1 and Vol.Feel("mount") == 1, "raised to full: kept")
+    Vol.SetFeel("mount", 0.5)
+    assert(Vol.DB().feel.mount == nil, "back to its default: not saved")
+    H.DB().events.oom = { on = true, feel = "dive" }
+    assert(L.EventSettings("oom").feel == "alert", "Low mana: the old default moves to Alert")
+    H.DB().events.oom = { on = true, feel = "boom" }
+    assert(L.EventSettings("oom").feel == "boom", "a feel picked by hand stays")
+    H.DB().events.oom = nil
     -- the rows: a volume beside each feel and sound
     ns.Shell.Open("moments")
     local M = ns.RumblePage

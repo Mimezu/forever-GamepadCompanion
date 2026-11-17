@@ -727,7 +727,7 @@ L.EVENTS = {
     { key = "combo", icon = ART .. "vibe_micro", group = "Abilities", label = "Combo point", feel = "pin", on = true },
     { key = "comboFull", icon = ART .. "vibe_flurry", group = "Abilities", label = "Combo points full", feel = "knock", on = true },
     { key = "full", icon = ART .. "vibe_rise", group = "Abilities", label = "Rage or energy full", feel = "ready", on = false },
-    { key = "oom", icon = ART .. "vibe_fade", group = "Abilities", label = "Low mana", feel = "dive", on = true },
+    { key = "oom", icon = ART .. "vibe_fade", group = "Abilities", label = "Low mana", feel = "alert", on = true },
     -- Moving
     { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
         tip = "Softer or harder by the time in the air" },
@@ -778,10 +778,19 @@ local EVENT = {}
 for _, e in ipairs(L.EVENTS) do EVENT[e.key] = e end
 L.EVENT = EVENT
 
+-- Defaults that changed: a saved feel still on the old default moves to the
+-- new one, once (a feel picked by hand is a different one, so it stays)
+local MOVED = { oom = { from = "dive", v = 1 } }
+
 function L.EventSettings(key)
     local db = H.DB().events
     local e = EVENT[key]
     local s = db[key]
+    local moved = MOVED[key]
+    if moved and type(s) == "table" and (s.moved or 0) < moved.v then
+        if s.feel == moved.from then s.feel = e.feel end
+        s.moved = moved.v
+    end
     if type(s) ~= "table" then
         s = { on = e.on, feel = e.feel }
         db[key] = s

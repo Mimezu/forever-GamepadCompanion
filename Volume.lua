@@ -25,10 +25,23 @@ function Vol.DB()
     return v
 end
 
--- A moment's feel / sound volume (1 = full, the default)
-function Vol.Feel(key) return Clamp(key and Vol.DB().feel[key] or 1) end
+-- Defaults under full: moments that share a strong feel with a bigger one
+Vol.FEEL_DEFAULT = { mount = 0.5, dismount = 0.5 }
+
+-- A moment's feel / sound volume (its default unless set; full for most)
+function Vol.FeelDefault(key) return Vol.FEEL_DEFAULT[key] or 1 end
+function Vol.Feel(key)
+    local v = key and Vol.DB().feel[key]
+    if v == nil then v = key and Vol.FeelDefault(key) or 1 end
+    return Clamp(v)
+end
 function Vol.Sound(key) return Clamp(key and Vol.DB().sound[key] or 1) end
-function Vol.SetFeel(key, v) v = Clamp(v); Vol.DB().feel[key] = v < 1 and v or nil end
+-- (only what differs from the default is saved)
+function Vol.SetFeel(key, v)
+    v = Clamp(v)
+    if math.abs(v - Vol.FeelDefault(key)) < 1e-6 then v = nil end
+    Vol.DB().feel[key] = v
+end
 function Vol.SetSound(key, v) v = Clamp(v); Vol.DB().sound[key] = v < 1 and v or nil end
 
 -- Every sound

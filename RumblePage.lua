@@ -388,6 +388,21 @@ function ui.ToHelper()
     return data and K and K.Enabled() and K.V2() and type(C.EditHD) == "function" and true or false
 end
 
+-- A moment's volume, as it ships (Default sets both its choice and its volume)
+local function VolumeDefault(kind, key, check)
+    local Vol = ns.Volume
+    if not Vol then return true end
+    local k = KIND_OF[kind]
+    if k == "feel" and ITEM[kind].level then
+        if check then return math.abs(Vol.Feel(key) - Vol.FeelDefault(key)) < 1e-6 end
+        Vol.SetFeel(key, Vol.FeelDefault(key))
+    elseif k == "sound" then
+        if check then return Vol.Sound(key) >= 1 end
+        Vol.SetSound(key, 1)
+    end
+    return true
+end
+
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
@@ -422,6 +437,7 @@ local function MakeRow(parent, y, width, kind, key)
     end, function() I.try(key) end, I.tip(key), {
         default = function()
             I.default(key)
+            VolumeDefault(kind, key)
             Say(label .. ": its default")
             Refresh()
         end,
@@ -623,7 +639,7 @@ Refresh = function()
     for _, row in ipairs(ui.rows) do
         local I = ITEM[row.kind]
         local name, icon, sub, off, rgb = I.show(row.key)
-        row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key))
+        row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
         if row.edit then
             -- the word follows where it goes: Shape in WoW Helper, Edit in Lab
             local word = toHelper and "Shape" or "Edit"

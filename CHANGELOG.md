@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.31.2 — 2026-11-16
+
+- New defaults after WoW Helper's HD strength pass (your own picks untouched): **Low mana** plays Alert (it shared Dive with Death; a saved Dive that was only the old default moves once); **Mount** and **Dismount** at 50% volume. Money was already Coin
+- A row's Default resets its volume too
+- Checked: on a landed swing, Auto attack (graze) and Hit (strike) stack at the one impact by design; the engine's own Hit stays quiet while Rumble claims the swing, so no double
+
 ## 0.31.1 — 2026-11-16
 
 - Hit sync says what it sees, live: "swings 4 · squeezes 3 · paired 2"; "Can't read R2 from the pad" when the triggers give nothing; both lists logged on every squeeze (`timing.log`)
