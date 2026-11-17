@@ -423,7 +423,7 @@ API.SetLab(true)
 assert(tabs.lab:IsShown(), "Tools › Lab: its tab")
 assert(tabs.moments and tabs.gestures and tabs.setup, "Moments, Gestures, Setup tabs")
 local ui = ns.BetaPage
-for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes", "light" }) do
+for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
@@ -721,7 +721,7 @@ do
     -- an event row (Hit taken): its plate opens the palette, Off on top
     local plate
     for _, f in ipairs(created) do
-        if rawget(f, "pick") and rawget(f, "kind") and f.key == "hitTaken" then plate = f.pick end
+        if rawget(f, "pick") and rawget(f, "kind") == "l" and f.key == "hitTaken" then plate = f.pick end
     end
     assert(plate, "Hit taken row")
     plate.scripts.OnClick(plate)
@@ -740,7 +740,7 @@ do
     assert(L.EventSettings("hitTaken").on and L.EventSettings("hitTaken").feel == "r_tick", "a Rumble pattern on a Beta event")
     -- Default: back to the shipped feel
     for _, f in ipairs(created) do
-        if rawget(f, "default") and rawget(f, "key") == "hitTaken" then f.default.scripts.OnClick(f.default) end
+        if rawget(f, "default") and rawget(f, "kind") == "l" and rawget(f, "key") == "hitTaken" then f.default.scripts.OnClick(f.default) end
     end
     assert(L.IsEventDefault("hitTaken"), "Default")
     -- Edit: a copy of the feel, assigned, open in the editor
@@ -753,22 +753,47 @@ do
     assert(ui.backButton:IsShown(), "Back to the moment")
     ui.backButton.scripts.OnClick(ui.backButton)
     assert(ns.Shell.Current() == "moments", "back on Moments")
-    ns.Shell.Open("lab")
-    ui.Select("light")
-    local effectBtn
-    for _, f in ipairs(created) do
-        if rawget(f, "effect") and rawget(f, "e") and f.e.key == "crit" then effectBtn = f.effect end
+    -- Moments › Light: the same groups, an effect then a colour, Default
+    local M = ns.RumblePage
+    local function row(kind, key)
+        for _, r in ipairs(M.rows) do if r.kind == kind and r.key == key then return r end end
     end
-    assert(effectBtn, "crit light row")
-    effectBtn.scripts.OnClick(effectBtn)
+    local critFeel = row("r", "crit")
+    assert(critFeel and critFeel.marks[1]:IsShown(), "Critical hit: a light mark")
+    critFeel.marks[1].scripts.OnClick(critFeel.marks[1])
+    assert(M.kind == "light" and M.browser.current == "Attacks", "the mark: Light, Attacks")
+    local critLight = row("light", "crit")
+    assert(critLight:IsVisible() and not row("r", "crit"):IsVisible(), "the light row shown, the feel row not")
+    critLight.pick.scripts.OnClick(critLight.pick)
     local pop = GamepadCompanionBetaFeels
-    local strobe
-    for _, t in ipairs(pop.tiles) do if t.label.text == "Strobe" and t:IsShown() then strobe = t end end
-    strobe.scripts.OnClick(strobe)
-    assert(ns.Lights.Settings("crit").effect == "strobe", "effect picked")
+    local function tile(label)
+        for _, t in ipairs(pop.tiles) do if t.label.text == label and t:IsShown() then return t end end
+    end
+    tile("Strobe").scripts.OnClick(tile("Strobe"))
+    assert(ns.Lights.Settings("crit").effect == "strobe" and pop:IsShown(), "effect picked, colours next")
+    tile("Red").scripts.OnClick(tile("Red"))
+    assert(ns.Lights.Settings("crit").color == "red" and not pop:IsShown(), "colour picked")
+    assert(critLight.default.enabled ~= false, "not its default")
+    critLight.default.scripts.OnClick(critLight.default)
+    assert(ns.Lights.Settings("crit").effect == "boost", "Default")
+    assert(critLight.level and not critLight.edit, "a level, no Edit on a light")
+    -- Sound: every moment, loot's coin by default, None
+    M.SetKind("sound")
+    M.browser.Select("Progress")
+    local loot = row("sound", "loot")
+    assert(loot:IsVisible() and loot.pick.label.text == "Coin" and not loot.edit, "loot: Coin, no Edit")
+    loot.pick.scripts.OnClick(loot.pick)
+    tile("None").scripts.OnClick(tile("None"))
+    assert(ns.HelperCues.MomentSound("loot") == nil, "None")
+    loot.default.scripts.OnClick(loot.default)
+    assert(ns.HelperCues.MomentSound("loot") ~= nil, "back to its coin")
+    -- The last moment: its row found
+    ns.HapticsDebug.Note("Defense · Hit taken: Thud", "hitTaken", "feel")
+    M.why.scripts.OnClick(M.why)
+    assert(M.kind == "feel" and M.browser.current == "Defense", "jumped to Hit taken")
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Base colour") == nil and visible("Sync run"), "range and timing on Setup")
-    io.write("PASS: pages: an event Off from its grid, Edit and Back, a light effect picked, Setup\n")
+    assert(visible("Find left") and visible("Sync run"), "range and timing on Setup")
+    io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 
 -- Helper cues: casts tighten R2, low health shakes L2, loot and releases queue clips and sounds

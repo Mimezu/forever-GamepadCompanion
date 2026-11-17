@@ -12,7 +12,7 @@ local ACCEPTS = { spell = true, item = true, macro = true, halo = true, window =
 -- A slot's name: WoW Helper's (its data addon), else "Gesture <n>"
 local function Name(G, slot)
     local C = ns.HelperCues
-    local d = C and type(C.Data) == "function" and C.Data() or nil
+    local d = C and type(C.HelperData) == "function" and C.HelperData() or nil
     local names = d and type(d.gestures) == "table" and d.gestures
     return names and names[slot] or G.Label(slot)
 end
@@ -49,7 +49,7 @@ local function Build(frame, header)
                 ns.Picker.Open({ title = "Choose · " .. Name(G, slot), accepts = ACCEPTS, current = G.Get(slot),
                     onPick = function(action) G.Set(slot, action); Refresh() end })
             end
-            local r = HUI.ChoiceRow(card, -14 - (i - 1) * HUI.ROW_H, CW, "Interface\\Icons\\Ability_Rogue_Sprint", Name(G, slot),
+            local r = HUI.MomentRow(card, -14 - (i - 1) * HUI.ROW_H, CW, "Interface\\Icons\\Ability_Rogue_Sprint", Name(G, slot),
                 Pick, nil, "Spell, item, macro or /emote", { clear = function() G.Set(slot, nil); Refresh() end })
             r.slot = slot
             ui.rows[#ui.rows + 1] = r

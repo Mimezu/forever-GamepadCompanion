@@ -1,8 +1,9 @@
--- The Rumble tab: every vibration in one place. Strength and the motors on
--- the left with the groups under them; a group's events on the right, each
--- a row: its feel on a plate (opens the palette: Off and Match the... first,
--- then every feel by group), Try, Default (the feel it ships with) and Edit
--- (a copy of your own, in the Beta tab's editor). Rumble's own events
+-- The Moments tab (once Rumble): what the pad does when. One kind at a time
+-- (Feel | Light | Sound), the same eight groups for each; the kind's master on
+-- the left with the groups under it; a group's moments on the right, each a
+-- row: its choice on a plate (opens its grid: Off first), Try, Default (as it
+-- ships), Edit (WoW Helper once its data is there, else a copy of your own in
+-- Lab's editor), and marks for the moment's other kinds. Rumble's own events
 -- (Rumble.lua, ported from Improved Forever: Vibration), the Beta engine's
 -- (HapticsLab.lua) and the cast sets share the rows.
 local _, ns = ...
@@ -208,6 +209,167 @@ ITEM.l = {
 }
 
 ---------------------------------------------------------------------------
+-- Lights and sounds: the same eight groups as the feels
+---------------------------------------------------------------------------
+local LT, C, K = ns.Lights, ns.HelperCues, ns.HelperLink
+local BELL = "Interface\\Icons\\INV_Misc_Bell_01"
+local LIGHT_ICON = "Interface\\Icons\\Spell_Nature_Lightning"
+
+-- a light moment's group
+local LIGHT_GROUP = {
+    crit = "Attacks", kill = "Attacks",
+    critTaken = "Defense", hitTaken = "Defense", avoid = "Defense", lowHp = "Defense", combat = "Defense",
+    cast = "Abilities", release = "Abilities", interrupted = "Abilities", instant = "Abilities",
+    levelUp = "Progress", questDone = "Progress", loot = "Progress", death = "Progress", alive = "Progress",
+    whisper = "Social", readyCheck = "Social", invite = "Social", halo = "Social", haloUse = "Social",
+}
+-- a feel moment's light (several feels can share one light)
+local LIGHT_OF = {
+    crit = "crit", critRanged = "crit", critted = "critTaken", hitTaken = "hitTaken", dodge = "avoid", parry = "avoid",
+    block = "avoid", kill = "kill", lowHp = "lowHp", spell = "cast", instant = "instant", haloOpen = "halo",
+    haloUse = "haloUse", levelUp = "levelUp", questDone = "questDone", loot = "loot", death = "death", alive = "alive",
+    whisper = "whisper", readyCheck = "readyCheck", invite = "invite",
+}
+-- and back: a light's first feel moment
+local FEEL_OF = {}
+for _, g in ipairs(GROUPS) do
+    for _, item in ipairs(g.items) do
+        local lk = LIGHT_OF[item[2]]
+        if lk and not FEEL_OF[lk] then FEEL_OF[lk] = item[2] end
+    end
+end
+
+-- Any moment's name and icon, whichever list has it
+local function LabelOf(key)
+    local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key] or (LT and LT.EVENT[key])
+    return e and e.label or key
+end
+local function IconOf(key)
+    local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key]
+    return e and e.icon or LIGHT_ICON
+end
+
+local function Pct(v) return floor((v or 0) * 100 + 0.5) .. "%" end
+
+ITEM.light = {
+    label = function(key) return LT.EVENT[key].label end,
+    icon = function(key) return FEEL_OF[key] and IconOf(FEEL_OF[key]) or LIGHT_ICON end,
+    tip = function() return "Effect, then colour" end,
+    show = function(key)
+        local s = LT.Settings(key)
+        if not s.on then return "Off", V.OFF_ICON, nil, true end
+        local ef = LT.Effect(s.effect)
+        return ef and ef.label or s.effect, nil, LT.EVENT[key].state and "While it lasts" or nil, false, LT.ColorRGB(s.color)
+    end,
+    pick = function(key, anchor)
+        local s = LT.Settings(key)
+        local label = LT.EVENT[key].label
+        local effects = { OFF }
+        for _, ef in ipairs(LT.EFFECTS) do
+            effects[#effects + 1] = { key = ef.key, label = ef.label,
+                icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_" .. (ef.state and "pulse" or "tick") }
+        end
+        HUI.Popup(anchor, label, effects, s.on and s.effect or "off", function(choice)
+            if choice == "off" then s.on = false; Refresh(); return end
+            s.on, s.effect = true, choice
+            Refresh()
+            local colours = {}
+            for _, c in ipairs(LT.PALETTE) do
+                colours[#colours + 1] = { key = c.key, label = c.label, rgb = c.rgb or (c.key == "base" and LT.BaseRGB())
+                    or (c.key == "school" and { 1, 0.35, 0 }) or { 1, 1, 1 } }
+            end
+            HUI.Popup(anchor, label .. " · colour", colours, s.color, function(colour)
+                s.color = colour
+                LT.Try(key)
+                Refresh()
+            end, 3, 130)
+        end, 2, 150)
+    end,
+    isDefault = function(key)
+        local e, s = LT.EVENT[key], LT.Settings(key)
+        return s.on == e.on and s.effect == e.effect and s.color == e.color and math.abs(s.level - e.level) < 1e-6
+    end,
+    default = function(key) H.DB().lightEvents[key] = nil end,
+    try = function(key) LT.Try(key) end,
+    level = function(key)
+        return { step = 0.05, min = 0.05, max = 1, format = Pct,
+            get = function() return LT.Settings(key).level end, set = function(v) LT.Settings(key).level = v end }
+    end,
+}
+
+local function SoundOn() return C and K and K.Enabled() and C.Settings().sounds == true end
+
+ITEM.sound = {
+    label = LabelOf,
+    icon = IconOf,
+    tip = function() return "A sound on the pad's speaker" end,
+    show = function(key)
+        local id = C.MomentSound(key)
+        if not id then return "None", V.OFF_ICON, nil, true end
+        return C.SoundName(id), BELL
+    end,
+    pick = function(key, anchor)
+        local entries = { { key = "off", label = "None", icon = V.OFF_ICON } }
+        for _, e in ipairs(C.SoundList()) do entries[#entries + 1] = { key = e.id, label = e.name, icon = BELL } end
+        HUI.Popup(anchor, LabelOf(key), entries, C.MomentSound(key) or "off", function(choice)
+            C.SetMomentSound(key, choice ~= "off" and choice or false)
+            Refresh()
+            if choice ~= "off" then ITEM.sound.try(key) end
+        end, 3, 150)
+    end,
+    isDefault = function(key) return C.IsSoundDefault(key) end,
+    default = function(key) C.SetMomentSound(key, nil) end,
+    try = function(key)
+        local id = C.MomentSound(key)
+        if not id then return Say(LabelOf(key) .. ": no sound", true) end
+        if not K.Enabled() then return Say("Link is off: Setup", true) end
+        K.Play(id, 2)
+        Say(LabelOf(key) .. ": " .. C.SoundName(id))
+    end,
+}
+
+---------------------------------------------------------------------------
+-- The kinds, and each one's moments by group
+---------------------------------------------------------------------------
+local KINDS = { { "feel", "Feel" }, { "light", "Light" }, { "sound", "Sound" } }
+ui.kind = "feel"
+
+local function Items(kind, group)
+    if kind == "feel" then
+        for _, g in ipairs(GROUPS) do if g.key == group then return g.items end end
+        return {}
+    end
+    local list = {}
+    if kind == "light" and LT then
+        for _, e in ipairs(LT.EVENTS) do if LIGHT_GROUP[e.key] == group then list[#list + 1] = { "light", e.key } end end
+    elseif kind == "sound" and C and C.MOMENTS then
+        for _, m in ipairs(C.MOMENTS) do if m[2] == group then list[#list + 1] = { "sound", m[1] } end end
+    end
+    return list
+end
+
+local KIND_OF = { r = "feel", c = "feel", l = "feel", light = "light", sound = "sound" }
+
+-- The other kinds a moment has, as marks
+local Jump
+local function Marks(row)
+    local list = {}
+    local kind = KIND_OF[row.kind]
+    local feelKey = kind == "feel" and row.key or (kind == "light" and FEEL_OF[row.key]) or row.key
+    local lightKey = kind == "light" and row.key or LIGHT_OF[feelKey]
+    if kind ~= "light" and lightKey and LT then
+        local s = LT.Settings(lightKey)
+        if s.on then
+            list[#list + 1] = { rgb = LT.ColorRGB(s.color), tip = "Light", onClick = function() Jump(lightKey, "light") end }
+        end
+    end
+    if kind ~= "sound" and feelKey and C and C.MomentSound(feelKey) then
+        list[#list + 1] = { icon = BELL, tip = "Sound", onClick = function() Jump(feelKey, "sound") end }
+    end
+    return list
+end
+
+---------------------------------------------------------------------------
 -- A row
 ---------------------------------------------------------------------------
 local function CastSets()
@@ -221,7 +383,13 @@ end
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
+    -- Edit: in WoW Helper once its data is there, else a copy of your own in Lab's editor
     local function Edit()
+        local data = C and type(C.HelperData) == "function" and C.HelperData()
+        if data and type(C.EditHD) == "function" then
+            local ok, why = C.EditHD(key)
+            return Say(ok and (label .. ": in WoW Helper") or (why or "Not sent"), not ok)
+        end
         local feel, name = I.feel(key)
         if not feel then return Say("Nothing to copy: pick a feel first", true) end
         local beta = ns.BetaPage
@@ -230,7 +398,7 @@ local function MakeRow(parent, y, width, kind, key)
         I.assign(key, own)
         Say(label .. ": your copy, in the editor")
     end
-    local row = HUI.ChoiceRow(parent, y, width, I.icon(key), label, function(anchor)
+    local row = HUI.MomentRow(parent, y, width, I.icon(key), label, function(anchor)
         if kind == "c" then
             HUI.Popup(anchor, label, CastSets(), V.CastPreset(key), function(preset)
                 V.SetCastPreset(key, preset)
@@ -239,6 +407,7 @@ local function MakeRow(parent, y, width, kind, key)
             end, 3, 150)
             return
         end
+        if kind == "light" or kind == "sound" then return I.pick(key, anchor) end
         HUI.PickFeel(anchor, I.current(key), function(feel)
             I.pick(key, feel)
             Refresh()
@@ -250,6 +419,9 @@ local function MakeRow(parent, y, width, kind, key)
             Refresh()
         end,
         edit = I.feel and Edit or nil,
+        level = I.level and I.level(key) or nil,
+        pg = pg,
+        marks = 2,
     })
     row.kind, row.key = kind, key
     ui.rows[#ui.rows + 1] = row
@@ -261,19 +433,67 @@ end
 ---------------------------------------------------------------------------
 local LEFT_W = 300
 
+-- The header's switch: the kind's own on and off
+local ENABLE = {
+    feel = { get = function() return V.Settings().enabled and not V.Other() end,
+        set = function(on)
+            V.Settings().enabled = on
+            if on then V.Play("pulse") else V.Stop() end
+        end, tip = "Off: nothing vibrates" },
+    light = { get = function() return H.DB().light == true end, set = function(on) LT.SetOn(on) end, tip = "Off: the game's own colour" },
+    sound = { get = function() return C ~= nil and C.Settings().sounds == true end,
+        set = function(on) C.Settings().sounds = on; C.Refresh() end, tip = "With WoW Helper" },
+}
+
+function ui.SetKind(kind)
+    if not ENABLE[kind] then return end
+    ui.kind = kind
+    HUI.HidePopup()
+    Refresh()
+end
+
+-- Find a moment's row: its kind, its group, the row lit a moment
+Jump = function(key, kind)
+    kind = kind or "feel"
+    ui.SetKind(kind)
+    for _, row in ipairs(ui.rows) do
+        if row.key == key and KIND_OF[row.kind] == kind then
+            for _, g in ipairs(GROUPS) do
+                for _, item in ipairs(Items(kind, g.key)) do
+                    if item[2] == key then ui.browser.Select(g.key) end
+                end
+            end
+            S.SetSelected(row.pick, true)
+            if C_Timer and C_Timer.After then C_Timer.After(1.5, function() S.SetSelected(row.pick, false) end) end
+            Say(row.label:GetText() or key)
+            return row
+        end
+    end
+end
+ui.Jump = function(key, kind) return Jump(key, kind) end
+
 local function Build(frame, header)
-    ui.enable = S.NewCheck(header, "Rumble", W - 110, -4, function(self)
-        V.Settings().enabled = self:GetChecked() == true
-        if V.Settings().enabled then V.Play("pulse") else V.Stop() end
+    -- Header: the kind, its switch, the last moment
+    ui.seg = {}
+    for i, k in ipairs(KINDS) do
+        ui.seg[k[1]] = S.NewButton(header, k[2], 130 + (i - 1) * 74, -3, 72, function() ui.SetKind(k[1]) end, nil, 12, 28)
+    end
+    ui.enable = S.NewCheck(header, "On", W - 70, -4, function(self)
+        ENABLE[ui.kind].set(self:GetChecked() == true)
         Refresh()
-    end, 70)
-    S.Tooltip(ui.enable, "Rumble", "Off: nothing vibrates")
-    local dbg = S.NewButton(header, "Debug", W - 220, -4, 80, function()
-        if ns.HapticsDebug then ns.HapticsDebug.Show() end
-    end, nil, 12, 26)
-    S.Tooltip(dbg, "Debug", "What vibrates and why, while you play")
-    ui.why = S.Text(header, "", 140, -10, W - 380, 11, GREY)
-    ui.why:SetWordWrap(false)
+    end, 40)
+    ui.why = CreateFrame("Button", nil, header)
+    ui.why:SetPoint("TOPLEFT", 370, -6)
+    ui.why:SetSize(W - 370 - 90, 22)
+    ui.why.text = S.Text(ui.why, "", 0, -4, W - 370 - 90, 11, GREY)
+    ui.why.text:SetJustifyH("RIGHT")
+    ui.why.text:SetWordWrap(false)
+    ui.why:SetScript("OnClick", function()
+        local D = ns.HapticsDebug
+        if not D then return end
+        local _, _, key, kind = D.Latest()
+        if key then Jump(key, kind) end
+    end)
     local whyTick = CreateFrame("Frame", nil, header)
     local whyAcc = 0
     whyTick:SetScript("OnUpdate", function(_, elapsed)
@@ -283,21 +503,28 @@ local function Build(frame, header)
         local D = ns.HapticsDebug
         local text, ago
         if D then text, ago = D.Latest() end
-        ui.why:SetText(text and string.format("%s · %ds ago", text, floor(ago)) or "")
+        ui.why.text:SetText(text and string.format("%s · %ds ago ›", text, floor(ago)) or "")
     end)
 
-    -- Left: strength, the motors, then the groups
+    -- Left: the kind's master, then the groups
     local left = S.Card(frame, "Feel", 0, 0, LEFT_W, PH)
-    S.Text(left, "Strength", 14, -46, 100, 13, GOLD)
-    ui.minus = S.NewButton(left, "-", 120, -38, 34, function()
+    ui.left = left
+    ui.box = {}
+    -- Feel: strength, the motors
+    local fb = CreateFrame("Frame", nil, left)
+    fb:SetPoint("TOPLEFT", 0, 0)
+    fb:SetSize(LEFT_W, 136)
+    ui.box.feel = fb
+    S.Text(fb, "Strength", 14, -46, 100, 13, GOLD)
+    ui.minus = S.NewButton(fb, "-", 120, -38, 34, function()
         local s = V.Settings()
         s.intensity = max(0.1, floor(s.intensity * 10 + 0.5) / 10 - 0.1)
         V.Play("pulse")
         Refresh()
     end, nil, 16, 30)
-    ui.strength = S.Text(left, "", 156, -45, 70, 14, YELLOW)
+    ui.strength = S.Text(fb, "", 156, -45, 70, 14, YELLOW)
     ui.strength:SetJustifyH("CENTER")
-    ui.plus = S.NewButton(left, "+", 228, -38, 34, function()
+    ui.plus = S.NewButton(fb, "+", 228, -38, 34, function()
         local s = V.Settings()
         s.intensity = min(1, floor(s.intensity * 10 + 0.5) / 10 + 0.1)
         V.Play("pulse")
@@ -305,18 +532,42 @@ local function Build(frame, header)
     end, nil, 16, 30)
     ui.bar = {}
     for i = 1, 10 do
-        local t = left:CreateTexture(nil, "ARTWORK")
+        local t = fb:CreateTexture(nil, "ARTWORK")
         t:SetPoint("TOPLEFT", 14 + (i - 1) * 27, -78)
         t:SetSize(23, 8)
         ui.bar[i] = t
     end
-    ui.pulse = S.NewButton(left, "Feel it", 14, -96, 86, function() if On() then V.Play("pulse") end end, nil, 12, 28)
-    ui.sides = S.NewButton(left, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
-    S.Tooltip(ui.sides, "Test each motor", "Left grip, right grip, triggers · in chat")
+    ui.pulse = S.NewButton(fb, "Try", 14, -96, 86, function() if On() then V.Play("pulse") end end, nil, 12, 28)
+    ui.sides = S.NewButton(fb, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
+    S.Tooltip(ui.sides, "Each motor", "Left grip, right grip, triggers")
+    -- Light: what the bar shows now
+    local lb = CreateFrame("Frame", nil, left)
+    lb:SetPoint("TOPLEFT", 0, 0)
+    lb:SetSize(LEFT_W, 136)
+    ui.box.light = lb
+    S.Text(lb, "Now", 14, -46, 100, 13, GOLD)
+    local now = lb:CreateTexture(nil, "ARTWORK")
+    now:SetPoint("TOPLEFT", 120, -40)
+    now:SetSize(LEFT_W - 134, 24)
+    local nowTick = CreateFrame("Frame", nil, lb)
+    nowTick:SetScript("OnUpdate", function()
+        local r, g, b, on = H.LedNow()
+        if on then now:SetColorTexture(r, g, b, 1) else now:SetColorTexture(0.08, 0.08, 0.08, 1) end
+    end)
+    S.Text(lb, "Base colour: Setup", 14, -80, LEFT_W - 28, 11, DIM)
+    -- Sound: the link
+    local sb = CreateFrame("Frame", nil, left)
+    sb:SetPoint("TOPLEFT", 0, 0)
+    sb:SetSize(LEFT_W, 136)
+    ui.box.sound = sb
+    ui.soundNote = S.Note(sb, 14, -42, LEFT_W - 28, 3, 12, GREY)
+    -- Stop, for every kind
     ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
-        V.StopSimulation(); V.Stop(); if H then H.Stop() end; Say("Stopped")
+        V.StopSimulation(); V.Stop(); if H then H.Stop(); H.LightStop() end
+        if LT then LT.ApplyBase() end
+        Say("Stopped")
     end, nil, 12, 28)
-    S.Heading(left, "Events", 10, -136, LEFT_W - 20)
+    S.Heading(left, "Moments", 10, -136, LEFT_W - 20)
 
     local groups = {}
     for _, g in ipairs(GROUPS) do groups[#groups + 1] = { key = g.key, label = g.key } end
@@ -326,11 +577,19 @@ local function Build(frame, header)
     local b = HUI.GroupBrowser(frame, groups, { left = list, leftWidth = LEFT_W, top = -8, width = W - LEFT_W - 10,
         pageTop = 0 })
     ui.browser = b
+    ui.cards = {}
+    local cw = W - LEFT_W - 10
     for _, g in ipairs(GROUPS) do
         local panel = b.panels[g.key]
-        local card = S.Card(panel, g.key, 0, 0, W - LEFT_W - 10, 44 + #g.items * HUI.ROW_H)
-        for i, item in ipairs(g.items) do
-            MakeRow(card, -38 - (i - 1) * HUI.ROW_H, W - LEFT_W - 10, item[1], item[2])
+        ui.cards[g.key] = {}
+        for _, k in ipairs(KINDS) do
+            local items = Items(k[1], g.key)
+            local card = S.Card(panel, g.key, 0, 0, cw, max(90, 44 + #items * HUI.ROW_H))
+            if #items == 0 then S.Text(card, "None here", 14, -44, cw - 28, 12, DIM) end
+            for i, item in ipairs(items) do
+                MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw, item[1], item[2])
+            end
+            ui.cards[g.key][k[1]] = card
         end
     end
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
@@ -340,10 +599,16 @@ end
 
 Refresh = function()
     if not ui.enable then return end
+    local kind = ui.kind
     local s = V.Settings()
     local other = V.Other()
-    ui.enable:SetChecked(s.enabled and not other)
-    ui.enable:SetEnabled(not other)
+    for k, btn in pairs(ui.seg) do S.SetSelected(btn, k == kind) end
+    for k, box in pairs(ui.box) do box:SetShown(k == kind) end
+    if ui.left.title then ui.left.title:SetText(kind == "feel" and "Feel" or kind == "light" and "Light" or "Sound") end
+    local enabled = ENABLE[kind].get()
+    ui.enable:SetChecked(enabled)
+    ui.enable:SetEnabled(not (kind == "feel" and other))
+    S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
     local n = floor(s.intensity * 10 + 0.5)
     ui.strength:SetText((n * 10) .. "%")
     ui.minus:SetEnabled(n > 1)
@@ -351,23 +616,33 @@ Refresh = function()
     for i, t in ipairs(ui.bar) do
         if i <= n then t:SetColorTexture(1, 0.78, 0.25, 0.9) else t:SetColorTexture(1, 1, 1, 0.12) end
     end
-    ui.other:SetText(other and "Improved Forever: Vibration is on: Companion stays off" or "")
+    ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
+    ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on: Companion stays off" or "")
     for _, row in ipairs(ui.rows) do
         local I = ITEM[row.kind]
-        local name, icon, sub, off = I.show(row.key)
-        row:SetChoice(name, icon, sub, off, nil, I.isDefault(row.key))
-        row:SetAlpha((s.enabled and not other) and 1 or 0.55)
+        local name, icon, sub, off, rgb = I.show(row.key)
+        row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key))
+        row:SetMarks(Marks(row))
+        local rk = KIND_OF[row.kind]
+        local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
+        row:SetAlpha(live and 1 or 0.55)
     end
     for _, g in ipairs(GROUPS) do
+        for k, card in pairs(ui.cards[g.key]) do card:SetShown(k == kind) end
+        local items = Items(kind, g.key)
         local on = 0
-        for _, item in ipairs(g.items) do
+        for _, item in ipairs(items) do
             local _, _, _, off = ITEM[item[1]].show(item[2])
             if not off then on = on + 1 end
         end
-        ui.browser.buttons[g.key].count:SetText(on .. "/" .. #g.items)
+        ui.browser.buttons[g.key].count:SetText(#items > 0 and (on .. "/" .. #items) or "")
     end
     for _, fn in ipairs(pg.refresh) do fn() end
-    Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Rumble off"))
+    if kind == "feel" then
+        Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Rumble off"))
+    else
+        Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or "Sounds off"))
+    end
 end
 ui.Refresh = function() Refresh() end
 ns.RumblePage = ui
@@ -381,9 +656,9 @@ Shell.AddPage({
     end,
 })
 
-function API.OpenRumble() Shell.Open("moments") end
+function API.OpenRumble() Shell.Open("moments"); ui.SetKind("feel") end
 -- /gpc light: Moments on a kind
 function API.OpenMoments(kind)
     Shell.Open("moments")
-    if kind and ui.SetKind then ui.SetKind(kind) end
+    if kind then ui.SetKind(kind) end
 end

@@ -53,7 +53,7 @@ local function BuildHelper(frame)
         link:SetChecked(K.Enabled())
         local d = type(C.Data) == "function" and C.Data() or nil
         if d and d.at then
-            local sounds = type(d.sounds) == "table" and #d.sounds or 0
+            local sounds = tonumber(d.sounds) or 0
             data:SetText("Data " .. tostring(d.at) .. (sounds > 0 and (" · " .. sounds .. " sounds") or ""))
         else
             data:SetText(K.Enabled() and "No data yet: /reload after WoW Helper runs" or "")

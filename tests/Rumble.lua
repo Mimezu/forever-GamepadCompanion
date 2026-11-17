@@ -195,7 +195,8 @@ assert(math.abs(V.Settings().intensity - 0.9) < 1e-9 and strength.text == "90%",
 -- Rows by key, groups down the left
 local page = ns.RumblePage
 local rowFor = {}
-for _, f in ipairs(created) do if rawget(f, "kind") and rawget(f, "pick") then rowFor[f.key] = f end end
+local FEEL = { r = true, c = true, l = true }
+for _, f in ipairs(created) do if FEEL[rawget(f, "kind")] and rawget(f, "pick") then rowFor[f.key] = f end end
 assert(rowFor.levelUp and rowFor.hit and rowFor.gather and rowFor.rain, "Rumble's, the Beta engine's and the cast sets' rows")
 assert(rowFor.wading and rowFor.footsteps, "Wading has its own row and switch beside Footsteps")
 page.browser.Select("Progress")
@@ -231,7 +232,7 @@ assert(V.CastPreset("gather") == "pulse" and gather.pick.label.text == "Pulse", 
 assert(gather.sub.text:find("Pulse", 1, true), "its moments shown")
 -- Off, and the other addon
 local enable
-for _, f in ipairs(created) do if f.kind == "CheckButton" and f:IsVisible() and f.label and f.label.text == "Rumble" then enable = f end end
+for _, f in ipairs(created) do if f.kind == "CheckButton" and f:IsVisible() and f.label and f.label.text == "On" then enable = f end end
 enable.checked = false
 enable.scripts.OnClick(enable)
 assert(V.Settings().enabled == false and not V.Active(), "switched off")

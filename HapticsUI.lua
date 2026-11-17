@@ -148,10 +148,13 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw)
     popup:Raise()
 end
 
--- A Rumble-tab row: icon, name, a second line, a plate showing the choice
--- (opens its grid), Try; opts.default / opts.edit add Default and Edit
+-- The one row (Moments, Gestures): icon, name, a second line, a plate showing
+-- the choice (opens its grid), Try. opts.default / opts.edit / opts.clear add
+-- those buttons; opts.level (Stepper opts) a level beside the plate;
+-- opts.marks (a number) room for that many marks of the moment's other kinds
+-- (r:SetMarks({ { rgb = or icon =, tip =, onClick = } ... })).
 HUI.ROW_H = 44
-function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
+function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     opts = opts or {}
     local ROW_H = HUI.ROW_H
     local r = CreateFrame("Frame", nil, parent)
@@ -189,6 +192,13 @@ function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         S.Tooltip(r.try, "Try", label)
         x = x - 4
     end
+    if opts.level then
+        x = x - 124
+        local lv = opts.level
+        lv.labelWidth, lv.width = 0, 122
+        r.level = HUI.Stepper(opts.pg, r, "", x, -8, lv)
+        x = x - 6
+    end
     x = x - 136
     r.pick = S.NewButton(r, "", x, -5, 136, nil, nil, 11, 30)
     r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
@@ -200,10 +210,36 @@ function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r.pick.label:SetJustifyH("LEFT")
     r.pick:SetScript("OnClick", function(self) onPick(self) end)
     if tip then S.Tooltip(r.pick, label, tip) end
-    r.label = S.Text(r, label, 40, -4, x - 48, 13, GOLD)
+    -- marks, just left of the plate
+    r.marks = {}
+    for i = 1, opts.marks or 0 do
+        local m = CreateFrame("Button", nil, r)
+        m:SetSize(14, 14)
+        m:SetPoint("TOPLEFT", x - 8 - i * 18, -13)
+        m.tex = m:CreateTexture(nil, "ARTWORK")
+        m.tex:SetAllPoints()
+        m:SetScript("OnEnter", S.ShowTooltip)
+        m:SetScript("OnLeave", S.HideTooltip)
+        m:Hide()
+        r.marks[i] = m
+    end
+    local textW = x - 48 - (opts.marks or 0) * 18
+    r.label = S.Text(r, label, 40, -4, textW, 13, GOLD)
     r.label:SetWordWrap(false)
-    r.sub = S.Text(r, "", 40, -22, x - 48, 11, GREY)
+    r.sub = S.Text(r, "", 40, -22, textW, 11, GREY)
     r.sub:SetWordWrap(false)
+    function r:SetMarks(list)
+        for i, m in ipairs(r.marks) do
+            local e = list and list[i]
+            m:SetShown(e ~= nil)
+            if e then
+                if e.rgb then m.tex:SetTexture(nil); m.tex:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
+                else m.tex:SetTexture(e.icon) end
+                S.Tooltip(m, e.tip)
+                m:SetScript("OnClick", e.onClick)
+            end
+        end
+    end
     -- off: dimmed, the plate's name in red; isDefault: Default greyed
     function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
         r.pick.label:SetText(name or "")
@@ -219,9 +255,11 @@ function HUI.ChoiceRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         r.label:SetAlpha(off and 0.6 or 1)
         if r.default then r.default:SetEnabled(not isDefault) end
         if r.clear then r.clear:SetEnabled(not off) end
+        if r.level then r.level:SetAlpha(off and 0.45 or 1) end
     end
     return r
 end
+HUI.ChoiceRow = HUI.MomentRow
 
 -- Groups down the left, one shown at a time on the right. opts: left (a
 -- frame to put the list in, else a card of its own), top (the list's first

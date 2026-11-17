@@ -15,8 +15,9 @@ local function Now() return GetTime and GetTime() or 0 end
 -- The log: what set something off, newest first
 ---------------------------------------------------------------------------
 D.log = {}
-function D.Note(text)
-    table.insert(D.log, 1, { at = Now(), text = text })
+-- key, kind (feel, light): the moment, so a page can find its row
+function D.Note(text, key, kind)
+    table.insert(D.log, 1, { at = Now(), text = text, key = key, kind = kind })
     while #D.log > 30 do table.remove(D.log) end
     if D.onNote then D.onNote(text) end
 end
@@ -24,7 +25,7 @@ end
 function D.Latest()
     local e = D.log[1]
     if not e then return nil end
-    return e.text, Now() - e.at
+    return e.text, Now() - e.at, e.key, e.kind
 end
 
 -- The Rumble tab's group of an event (Attacks, Moving...), from its page
@@ -139,7 +140,7 @@ local function Wrap()
                 local e = RumbleEvent(key)
                 local label = e and e.label or (key == "cast" and "Casting") or key
                 D.lastRumble = Named(key, label, PatternLabel(pattern))
-                D.Note(D.lastRumble)
+                D.Note(D.lastRumble, key, "feel")
             end
         end
         V.EndLoop = function(key, ...)
@@ -153,7 +154,7 @@ local function Wrap()
             fire(key, ...)
             local e = L.EVENT[key]
             if e and H.Engine() and L.EventSettings(key).on then
-                D.Note(Named(key, e.label, FeelLabel(L.EventSettings(key).feel)))
+                D.Note(Named(key, e.label, FeelLabel(L.EventSettings(key).feel)), key, "feel")
             end
         end
     end
@@ -162,11 +163,11 @@ local function Wrap()
         local fire, start = LT.Fire, LT.StartState
         LT.Fire = function(key, ...)
             fire(key, ...)
-            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label) end
+            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label, key, "light") end
         end
         LT.StartState = function(key, ...)
             start(key, ...)
-            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label .. " (while it lasts)") end
+            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label .. " (while it lasts)", key, "light") end
         end
     end
 end
