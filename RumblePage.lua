@@ -355,6 +355,12 @@ local Jump
 local function Marks(row)
     local list = {}
     local kind = KIND_OF[row.kind]
+    -- the feel, from a light or a sound row
+    local feelOf = kind == "light" and FEEL_OF[row.key] or kind == "sound" and C and C.MomentFeel and C.MomentFeel(row.key) and row.key
+    if feelOf then
+        list[#list + 1] = { icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration", tip = "Feel",
+            onClick = function() Jump(feelOf, "feel") end }
+    end
     local feelKey = kind == "feel" and row.key or (kind == "light" and FEEL_OF[row.key]) or row.key
     local lightKey = kind == "light" and row.key or LIGHT_OF[feelKey]
     if kind ~= "light" and lightKey and LT then
@@ -386,9 +392,9 @@ local function MakeRow(parent, y, width, kind, key)
     -- Edit: in WoW Helper once its data is there, else a copy of your own in Lab's editor
     local function Edit()
         local data = C and type(C.HelperData) == "function" and C.HelperData()
-        if data and type(C.EditHD) == "function" then
-            local ok, why = C.EditHD(key)
-            return Say(ok and (label .. ": in WoW Helper") or (why or "Not sent"), not ok)
+        if data and K and K.Enabled() and K.V2() and type(C.EditHD) == "function" then
+            local ok = C.EditHD(key)
+            if ok then return Say(label .. ": in WoW Helper") end
         end
         local feel, name = I.feel(key)
         if not feel then return Say("Nothing to copy: pick a feel first", true) end
@@ -419,9 +425,11 @@ local function MakeRow(parent, y, width, kind, key)
             Refresh()
         end,
         edit = I.feel and Edit or nil,
+        editTip = "WoW Helper, else Lab",
+        defaultTip = "As it ships",
         level = I.level and I.level(key) or nil,
         pg = pg,
-        marks = 2,
+        marks = 3,
     })
     row.kind, row.key = kind, key
     ui.rows[#ui.rows + 1] = row
@@ -442,7 +450,7 @@ local ENABLE = {
         end, tip = "Off: nothing vibrates" },
     light = { get = function() return H.DB().light == true end, set = function(on) LT.SetOn(on) end, tip = "Off: the game's own colour" },
     sound = { get = function() return C ~= nil and C.Settings().sounds == true end,
-        set = function(on) C.Settings().sounds = on; C.Refresh() end, tip = "With WoW Helper" },
+        set = function(on) if C then C.Settings().sounds = on; C.Refresh() end end, tip = "With WoW Helper" },
 }
 
 function ui.SetKind(kind)
@@ -515,28 +523,10 @@ local function Build(frame, header)
     fb:SetPoint("TOPLEFT", 0, 0)
     fb:SetSize(LEFT_W, 136)
     ui.box.feel = fb
-    S.Text(fb, "Strength", 14, -46, 100, 13, GOLD)
-    ui.minus = S.NewButton(fb, "-", 120, -38, 34, function()
-        local s = V.Settings()
-        s.intensity = max(0.1, floor(s.intensity * 10 + 0.5) / 10 - 0.1)
-        V.Play("pulse")
-        Refresh()
-    end, nil, 16, 30)
-    ui.strength = S.Text(fb, "", 156, -45, 70, 14, YELLOW)
-    ui.strength:SetJustifyH("CENTER")
-    ui.plus = S.NewButton(fb, "+", 228, -38, 34, function()
-        local s = V.Settings()
-        s.intensity = min(1, floor(s.intensity * 10 + 0.5) / 10 + 0.1)
-        V.Play("pulse")
-        Refresh()
-    end, nil, 16, 30)
-    ui.bar = {}
-    for i = 1, 10 do
-        local t = fb:CreateTexture(nil, "ARTWORK")
-        t:SetPoint("TOPLEFT", 14 + (i - 1) * 27, -78)
-        t:SetSize(23, 8)
-        ui.bar[i] = t
-    end
+    ui.strength = HUI.Stepper(pg, fb, "Strength", 14, -42, { labelWidth = 110, width = LEFT_W - 28, step = 0.1, min = 0.1, max = 1,
+        format = Pct, get = function() return V.Settings().intensity end,
+        set = function(v) V.Settings().intensity = v; V.Play("pulse") end })
+    pg.Refresh = function() Refresh() end
     ui.pulse = S.NewButton(fb, "Try", 14, -96, 86, function() if On() then V.Play("pulse") end end, nil, 12, 28)
     ui.sides = S.NewButton(fb, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
     S.Tooltip(ui.sides, "Each motor", "Left grip, right grip, triggers")
@@ -609,13 +599,6 @@ Refresh = function()
     ui.enable:SetChecked(enabled)
     ui.enable:SetEnabled(not (kind == "feel" and other))
     S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
-    local n = floor(s.intensity * 10 + 0.5)
-    ui.strength:SetText((n * 10) .. "%")
-    ui.minus:SetEnabled(n > 1)
-    ui.plus:SetEnabled(n < 10)
-    for i, t in ipairs(ui.bar) do
-        if i <= n then t:SetColorTexture(1, 0.78, 0.25, 0.9) else t:SetColorTexture(1, 1, 1, 0.12) end
-    end
     ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
     ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on: Companion stays off" or "")
     for _, row in ipairs(ui.rows) do

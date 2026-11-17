@@ -56,7 +56,7 @@ local function BuildHelper(frame)
             local sounds = tonumber(d.sounds) or 0
             data:SetText("Data " .. tostring(d.at) .. (sounds > 0 and (" · " .. sounds .. " sounds") or ""))
         else
-            data:SetText(K.Enabled() and "No data yet: /reload after WoW Helper runs" or "")
+            data:SetText("No data")
         end
     end
 end
@@ -70,7 +70,7 @@ local function BuildTriggers(frame)
     if not C then return end
     local checks, n = {}, 0
     for _, g in ipairs(C.GROUPS) do
-        if g.key:find("Trigger", 1, true) then
+        if g.key:find("Trigger", 1, true) or g.key == "clips" then
             n = n + 1
             local c = S.NewCheck(card, g.label, 12, -38 - (n - 1) * 30, function(self)
                 C.Settings()[g.key] = self:GetChecked() == true
@@ -97,7 +97,7 @@ local function BuildRange(frame)
     local bw = (COL - 30) / 2
     for side = 1, 2 do
         find[side] = S.NewButton(card, side == 1 and "Find left" or "Find right", 12 + (side - 1) * (bw + 6), -66, bw, function()
-            if HUI.Calibrate(side, "floor") then Say("Rising: Felt it as soon as you feel it") end
+            if HUI.Calibrate(side, "floor") then Say("Rising… Felt it") end
             Refresh()
         end, nil, 12, 28)
         S.Tooltip(find[side], "Faintest", "The lowest level you feel")
@@ -193,7 +193,6 @@ local function BuildBase(frame)
         local r, g, b, on = H.LedNow()
         if on then swatch:SetColorTexture(r, g, b, 1) else swatch:SetColorTexture(0.08, 0.08, 0.08, 1) end
     end)
-    S.Tooltip(swatch, "Now")
     Choice(card, "", -100, -40, LT.BASE_MODES, function() return LT.Base().mode end, function(v)
         LT.Base().mode = v
         LT.ApplyBase()
@@ -254,7 +253,5 @@ Shell.AddPage({
     build = Build, refresh = Refresh,
     hide = function()
         if L.Ramping() then L.StopRamp() end
-        if L.sync then L.StepSyncCancel() end
-        if V.strikeSync then V.StrikeSyncCancel() end
     end,
 })

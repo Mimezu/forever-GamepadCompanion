@@ -220,7 +220,10 @@ function Shell.Open(key)
     Fit()
     if not window:IsShown() then window:Show() end
     window:Raise()
-    Shell.Select(key or current or defs[1].key)
+    -- (the last page, unless its tab is hidden now: Lab after an Edit)
+    local last = current and Def(current)
+    if not key and last and not Listed(last) then last = nil end
+    Shell.Select(key or (last and last.key) or defs[1].key)
 end
 
 function Shell.Toggle(key)

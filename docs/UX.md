@@ -193,3 +193,9 @@ Stages 1-4 in the addon (commits "Tabs for a player…", "Moments: Feel | Light 
 "Words…"). Stage 5 pieces already live through the setup flow's API: per-moment sounds, Edit →
 WoW Helper with its data, Setup's data line, gesture names. WoW Helper's page rename (Motion →
 Gestures) is the WoW Helper main session's.
+
+Build review (0.27.0), fixed: Edit falls back to Lab's editor when the link is off; True haptics
+has its switch again (Setup › Triggers); reopening never lands on a hidden Lab; Setup no longer
+cancels a running sync when closed; a cast's line finds its row; Strength is a shared Stepper;
+Light and Sound rows mark their feel; row tooltips per page; Lab's second "why" line removed;
+every command in Help. Kept: no "More with WoW Helper" line (every moment can have a sound).

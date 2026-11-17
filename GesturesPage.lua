@@ -12,9 +12,8 @@ local ACCEPTS = { spell = true, item = true, macro = true, halo = true, window =
 -- A slot's name: WoW Helper's (its data addon), else "Gesture <n>"
 local function Name(G, slot)
     local C = ns.HelperCues
-    local d = C and type(C.HelperData) == "function" and C.HelperData() or nil
-    local names = d and type(d.gestures) == "table" and d.gestures
-    return names and names[slot] or G.Label(slot)
+    local name = C and type(C.GestureName) == "function" and C.GestureName(slot) or nil
+    return type(name) == "string" and name or G.Label(slot)
 end
 
 local function Refresh()

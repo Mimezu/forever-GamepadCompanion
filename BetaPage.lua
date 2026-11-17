@@ -1044,7 +1044,7 @@ local function BuildTune(p)
         CRow("Curve", -114, { get = function() return db().gamma[side] end,
             set = function(v) db().gamma[side] = v end, step = 0.05, min = 0.3, max = 3 })
         c.ceil = S.NewButton(cal, "Find ceiling", x, -148, cw / 2 - 3, function()
-            if HUI.Calibrate(side, "ceil") then Say("Rising: No stronger when it stops growing") end
+            if HUI.Calibrate(side, "ceil") then Say("Rising… No stronger") end
             Refresh()
         end, nil, 11, 28)
         S.NewButton(cal, "Test steps", x + cw / 2 + 3, -148, cw / 2 - 3, function()
@@ -1245,24 +1245,6 @@ local function Build(frame, header)
         Shell.Open(to or "moments")
     end, nil, 12, 26)
     ui.backButton:Hide()
-    ui.why = S.Text(header, "", 260, -10, W - 720, 11, GREY)
-    ui.why:SetWordWrap(false)
-    local whyTick = CreateFrame("Frame", nil, header)
-    local whyAcc = 0
-    whyTick:SetScript("OnUpdate", function(_, elapsed)
-        whyAcc = whyAcc + (elapsed or 0)
-        if whyAcc < 0.25 then return end
-        whyAcc = 0
-        local D = ns.HapticsDebug
-        local text, ago
-        if D then text, ago = D.Latest() end
-        local playing = D and #H.ActiveVoices() or 0
-        if text then
-            ui.why:SetText(string.format("%s · %ds ago%s", text, floor(ago), playing > 0 and ("  ·  " .. playing .. " playing") or ""))
-        else
-            ui.why:SetText(playing > 0 and (playing .. " playing: Debug") or "")
-        end
-    end)
     -- A small live meter in the header
     ui.meterL = header:CreateTexture(nil, "ARTWORK")
     ui.meterR = header:CreateTexture(nil, "ARTWORK")

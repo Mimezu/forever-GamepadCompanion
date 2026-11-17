@@ -791,8 +791,22 @@ do
     ns.HapticsDebug.Note("Defense · Hit taken: Thud", "hitTaken", "feel")
     M.why.scripts.OnClick(M.why)
     assert(M.kind == "feel" and M.browser.current == "Defense", "jumped to Hit taken")
+    -- Edit with WoW Helper's data but the link off: Lab's editor all the same; reopening skips a hidden Lab
+    WowHelperData = { at = "18:02" }
+    ns.HelperLink.SetEnabled(false)
+    API.SetLab(false)
+    M.SetKind("feel")
+    for _, f in ipairs(created) do
+        if rawget(f, "edit") and rawget(f, "key") == "critted" then f.edit.scripts.OnClick(f.edit) end
+    end
+    assert(ns.Shell.Current() == "lab", "link off: Lab's editor")
+    local win = ns.ShellWindow()
+    win:Hide()
+    ns.Shell.Open()
+    assert(ns.Shell.Current() ~= "lab", "reopened: not on a hidden Lab")
+    WowHelperData = nil
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Sync run"), "range and timing on Setup")
+    assert(visible("Find left") and visible("Sync run") and visible("True haptics"), "range, timing, true haptics on Setup")
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 

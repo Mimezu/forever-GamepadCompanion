@@ -140,7 +140,7 @@ local function Wrap()
                 local e = RumbleEvent(key)
                 local label = e and e.label or (key == "cast" and "Casting") or key
                 D.lastRumble = Named(key, label, PatternLabel(pattern))
-                D.Note(D.lastRumble, key, "feel")
+                D.Note(D.lastRumble, key == "cast" and (V.castKind or "spell") or key, "feel")
             end
         end
         V.EndLoop = function(key, ...)

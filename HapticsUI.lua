@@ -172,13 +172,13 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     if opts.edit then
         x = x - 44
         r.edit = S.NewButton(r, "Edit", x, -5, 42, function() opts.edit() end, nil, 11, 30)
-        S.Tooltip(r.edit, "Edit", "A copy of your own, in the editor")
+        S.Tooltip(r.edit, "Edit", opts.editTip)
         x = x - 4
     end
     if opts.default then
         x = x - 62
         r.default = S.NewButton(r, "Default", x, -5, 60, function() opts.default() end, nil, 11, 30)
-        S.Tooltip(r.default, "Default", "The feel it ships with")
+        S.Tooltip(r.default, "Default", opts.defaultTip)
         x = x - 4
     end
     if opts.clear then

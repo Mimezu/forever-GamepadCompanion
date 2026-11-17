@@ -551,7 +551,7 @@ local topics = {
     { "Gestures", "Record them in WoW Helper › Gestures\nHere: what each one runs\nKeys Ctrl Shift Alt F1-F12" },
     { "Setup", "WoW Helper: run it, Link on, game windowed\nRange: Find, stop when you feel it\nBase colour: the light bar between moments\nTriggers, timing: footsteps and mining in step" },
     { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
-    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab (Tools › Lab)\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
+    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab, on for good\n/gpc beta | haptics  lab, else moments\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }
 
 local help = { buttons = {} }
