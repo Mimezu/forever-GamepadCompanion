@@ -789,7 +789,7 @@ do
     local function tile(label)
         for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t.label.text == label and t:IsShown() then return t end end
     end
-    assert(critLight.level and not critLight.edit, "a level, no Edit on a light")
+    assert(not critLight.level and not critLight.edit, "strength in the picker, no Edit on a light")
     -- Sound: every moment, loot's coin by default, None
     M.SetKind("sound")
     M.browser.Select("Progress")

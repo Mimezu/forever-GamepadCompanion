@@ -267,10 +267,7 @@ ITEM.light = {
     isDefault = function(key) return LT.IsDefault(key) end,
     default = function(key) LT.Default(key) end,
     try = function(key) LT.Try(key) end,
-    level = function(key)
-        return { step = 1, min = 0, max = 7, format = function(v) return Pct(LT.Strength(v)) end,
-            get = function() return LT.Settings(key).strength end, set = function(v) LT.Settings(key).strength = v end }
-    end,
+    -- (strength: in the picker, one control)
 }
 
 local function SoundOn() return C and K and K.Enabled() and C.Settings().sounds == true end
