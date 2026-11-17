@@ -21,9 +21,8 @@ function M.Refresh()
 end
 
 local function Confirm(anchor, title, word, fn)
-    HUI.Popup(anchor, title, { { key = "yes", label = word }, { key = "no", label = "Cancel" } }, nil, function(k)
-        if k == "yes" then fn() end
-    end, 2, 110)
+    HUI.Popup(anchor, title, { { key = "yes", label = word, icon = false }, { key = "no", label = "Cancel", icon = false } }, nil,
+        function(k) if k == "yes" then fn() end end, 2, 110, true)
 end
 
 local function ClassName()
@@ -36,11 +35,11 @@ function M.Open(kind, anchor)
     if not current then return end
     local word = kind == "feel" and "Feel" or "Controls"
     local entries = {}
-    for _, name in ipairs(P.Names(kind)) do entries[#entries + 1] = { key = "use:" .. name, label = name } end
+    for _, name in ipairs(P.Names(kind)) do entries[#entries + 1] = { key = "use:" .. name, label = name, icon = false } end
     for _, a in ipairs({ { "new", "New" }, { "copy", "Copy" }, { "rename", "Rename" },
-        { "start", "For new " .. ClassName() .. (P.IsStart(kind) and ": on" or "") },
+        { "start", P.IsStart(kind) and "Class start: on" or "Class start" },
         { "reset", "Reset" }, { "delete", "Delete" }, { "share", "Share" } }) do
-        entries[#entries + 1] = { key = a[1], label = a[2] }
+        entries[#entries + 1] = { key = a[1], label = a[2], icon = false }
     end
     HUI.Popup(anchor, word, entries, "use:" .. current, function(key)
         local name = key:match("^use:(.+)$")
@@ -61,16 +60,16 @@ function M.Open(kind, anchor)
             P.StartHere(kind, not P.IsStart(kind))
             Say(P.IsStart(kind) and ("New " .. ClassName() .. ": " .. current) or "")
         elseif key == "reset" then
-            Confirm(anchor, "Reset " .. current .. "?", "Reset", function()
+            Confirm(anchor, kind == "feel" and "Back to Recommended?" or "Start empty?", "Reset", function()
                 if not P.Reset(kind) then Say("Not in combat", true) end
             end)
         elseif key == "delete" then
             local unused = {}
-            for _, n in ipairs(P.Names(kind)) do if not P.InUse(kind, n) then unused[#unused + 1] = { key = n, label = n } end end
+            for _, n in ipairs(P.Names(kind)) do if not P.InUse(kind, n) then unused[#unused + 1] = { key = n, label = n, icon = false } end end
             if #unused == 0 then return Say("All in use", true) end
             HUI.Popup(anchor, "Delete", unused, nil, function(n)
                 Confirm(anchor, "Delete " .. n .. "?", "Delete", function() P.Delete(kind, n); Say("Deleted: " .. n) end)
-            end, 2, 150)
+            end, 2, 150, true)
         elseif key == "share" then
             local text = P.Export(kind, current)
             HUI.TextWindow("Share · paste one to add it", text, function(pasted)
@@ -80,7 +79,7 @@ function M.Open(kind, anchor)
             end, "Add")
         end
         M.Refresh()
-    end, 2, 150)
+    end, 2, 150, true)
 end
 
 -- Into the footer, left of `right` (the version)

@@ -909,7 +909,7 @@ do
     assert(ns.Shell.Current() ~= "lab", "reopened: not on a hidden Lab")
     WowHelperData = nil
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Sync run") and visible("True haptics"), "range, timing, true haptics on Setup")
+    assert(visible("Find left") and visible("Sync run") and visible("USB feels"), "range, timing, USB feels on Setup")
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 

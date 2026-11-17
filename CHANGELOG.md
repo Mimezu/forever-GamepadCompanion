@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.37.0 — 2026-11-17
+
+Release UI pass: two reviews (a new player, a UI designer), fixes, a re-check (docs/UX-AUDIT.md).
+
+- Tabs always in one order: Controller, Moments, Gestures, Setup, Bars, Tools, Help (Lab last)
+- **Edit** only with Tools › Lab or WoW Helper, and your own copy opens again instead of a second one
+- Plain words everywhere a player looks: Try names the moment (no "rumble (HD link off)"), "Detail" (was HD), "Not read yet", "Feel off", "Base colour", "As it ships", "Synced / Not synced"; no "Game / WoW Helper" on each light, no ticking seconds on the last moment, no "Guess"
+- Setup: both columns line up; **USB feels** on the WoW Helper card (was "True haptics" among the triggers); the hit delay labelled; "Battery —" when unknown
+- Profile menus: plain words, open upward from the footer; "Class start"; "Back to Recommended?"
+- Gestures: cards hug their rows; the footer status no longer runs under the chips; Help › Profiles rewritten
+
 ## 0.36.0 — 2026-11-17
 
 - **Profiles.** Each character uses a **Controls** profile (buttons, layers, touchpad, gestures, bars) and a **Feel** profile (moments: feel, light, sound, volume, on or off; Strength; base colour; your spells; landing and steps; trigger cues), by name, account-wide. Two chips in the window's footer, each with its menu: switch (reloads), New, Copy, Rename, For new <class>, Reset, Delete, Share (a text to copy, or paste one to add it). The pad's own settings stay account-wide: calibration, mixer, battery, the link, the Sounds volume, learned timings, your feels

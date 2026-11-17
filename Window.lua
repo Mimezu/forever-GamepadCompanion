@@ -191,7 +191,7 @@ local function Build()
     for _, def in ipairs(defs) do Page(def.key) end
 
     -- Footer: status, version, Close
-    window.status = S.Note(window, inset.left + 2, -(inset.top + HEADER + Shell.H + 14), Shell.W - 300, 1, 12, S.GREY)
+    window.status = S.Note(window, inset.left + 2, -(inset.top + HEADER + Shell.H + 14), Shell.W - 600, 1, 12, S.GREY)
     local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")
     window.version = S.Text(window, type(version) == "string" and ("v" .. version) or "", 0, 0, 80, 11, S.DIM)
     window.version:ClearAllPoints()

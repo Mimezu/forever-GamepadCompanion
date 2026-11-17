@@ -1185,6 +1185,14 @@ local SECTIONS = {
 }
 
 -- A copy of a feel, yours, open in the editor (the Rumble tab's Edit)
+-- One of your own feels, open in the editor (with Back)
+function ui.EditOwn(key)
+    ui.back = Shell.Current()
+    Shell.Open("lab")
+    ed.key, ed.sel = key, nil
+    ui.Select("editor")
+end
+
 function ui.EditCopy(feel, label)
     ui.back = Shell.Current()
     Shell.Open("lab")

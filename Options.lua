@@ -439,7 +439,7 @@ local function BuildTools(frame, header)
         ui.lab = S.NewCheck(header, "Lab", W - 90, -4, function(self)
             API.SetLab(self:GetChecked() == true)
         end, 50)
-        S.Tooltip(ui.lab, "Lab", "Mixer, probes, editor")
+        S.Tooltip(ui.lab, "Lab", "Advanced")
     end
     -- Blizzard's windows
     local blizz = S.Card(frame, "Blizzard", 0, 0, half, 210)
@@ -547,11 +547,11 @@ local topics = {
     { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
     { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
-    { "Moments", "What the pad does when: Feel, Light, Sound\nEach moment: pick, Try, Default, Edit\nMarks after a name: its light, its sound\nThe line top right: the last moment, click to find it\nOff while Improved Forever: Vibration is on" },
+    { "Moments", "What the pad does when: Feel, Light, Sound\nEach moment: pick, Try, Default\nMarks after a name: its light, its sound\nThe line top right: the last moment, click to find it\nOff while Improved Forever: Vibration is on" },
     { "Gestures", "Record them in WoW Helper › Gestures\nHere: what each one runs\nKeys Ctrl Shift Alt F1-F12" },
     { "Setup", "WoW Helper: run it, Link on, game windowed\nRange: Find, stop when you feel it\nBase colour: the light bar between moments\nTriggers, timing: footsteps and mining in step" },
-    { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
-    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab, on for good\n/gpc beta | haptics  lab, else moments\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
+    { "Profiles", "Controls: buttons, touchpad, bars\nFeel: vibration, light, sound\nNew character: Recommended\nSwitch: the footer's chips" },
+    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab, on for good\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }
 
 local help = { buttons = {} }
@@ -598,7 +598,7 @@ API.RefreshOptions = function() Refresh() end
 ns.RefreshOptions = Refresh
 
 Shell.AddPage({
-    key = "bars", name = "Bars", order = 3,
+    key = "bars", name = "Bars", order = 5,
     icon = "Interface\\Icons\\INV_Misc_Gear_01",
     build = BuildBars, refresh = RefreshBars,
     -- Bars stay shown, and live state updates, while the window is open
@@ -614,11 +614,11 @@ Shell.AddPage({
     end,
 })
 Shell.AddPage({
-    key = "tools", name = "Tools", order = 4,
+    key = "tools", name = "Tools", order = 6,
     icon = "Interface\\Icons\\Ability_Repair", build = BuildTools, refresh = RefreshTools,
 })
 Shell.AddPage({
-    key = "help", name = "Help", order = 5, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
+    key = "help", name = "Help", order = 7, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
 })
 
 local events = CreateFrame("Frame")

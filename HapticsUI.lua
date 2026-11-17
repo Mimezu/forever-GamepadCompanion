@@ -89,7 +89,8 @@ end
 -- A grid of choices next to a control (the Rumble tab's pattern grid):
 -- entries { key, label, icon or rgb (a colour swatch) }
 local popup
-function HUI.Popup(anchor, title, entries, current, onPick, cols, tw)
+-- up: opens above its anchor (a control at the window's foot)
+function HUI.Popup(anchor, title, entries, current, onPick, cols, tw, up)
     if not popup then
         popup = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
         popup:SetFrameStrata("DIALOG")
@@ -129,7 +130,11 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw)
             t.icon:SetTexture(nil)
             t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
         else
-            t.icon:SetTexture(e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
+            -- (icon false: none, a plain word)
+            t.icon:SetTexture(e.icon ~= false and (e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse") or nil)
+            t.label:ClearAllPoints()
+            t.label:SetPoint("LEFT", e.icon == false and 8 or 30, 0)
+            t.label:SetPoint("RIGHT", -3, 0)
         end
         if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
         S.SetSelected(t, e.key == current)
@@ -143,7 +148,8 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw)
     popup:SetSize(24 + cols * (tw + 3), 48 + rows * (th + 3))
     popup.title:SetWidth(cols * (tw + 3))
     popup:ClearAllPoints()
-    popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
+    if up then popup:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 6)
+    else popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8) end
     popup:SetClampedToScreen(true)
     popup:Show()
     popup:Raise()

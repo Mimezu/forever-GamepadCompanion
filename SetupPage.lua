@@ -28,7 +28,7 @@ local function Pct(v) return floor((v or 0) * 100 + 0.5) .. "%" end
 ---------------------------------------------------------------------------
 local function BuildHelper(frame)
     local K, C = ns.HelperLink, ns.HelperCues
-    local card = S.Card(frame, "WoW Helper", 0, 0, COL, 300)
+    local card = S.Card(frame, "WoW Helper", 0, 0, COL, 200)
     if not (K and C) then return end
     local link = S.NewCheck(card, "Link", 12, -38, function(self)
         K.SetEnabled(self:GetChecked() == true)
@@ -47,16 +47,23 @@ local function BuildHelper(frame)
         C.Settings().hdFeels = v == "auto"
         C.Refresh()
     end
-    Choice(card, "HD", 12, -118, { { "auto", "Auto" }, { "off", "Off" } }, HD, SetHD)
-    local data = S.Note(card, 12, -160, COL - 24, 2, 11, DIM)
+    Choice(card, "Detail", 12, -108, { { "auto", "Auto" }, { "off", "Off" } }, HD, SetHD)
+    -- (USB: WoW Helper's own short clips for crits, landings, swings)
+    local usb = S.NewCheck(card, "USB feels", 12, -140, function(self)
+        C.Settings().clips = self:GetChecked() == true
+        C.Refresh()
+    end, 120)
+    S.Tooltip(usb, "USB feels", "USB only")
+    local data = S.Note(card, 12, -172, COL - 24, 1, 11, DIM)
     pg.refresh[#pg.refresh + 1] = function()
         link:SetChecked(K.Enabled())
+        usb:SetChecked(C.Settings().clips == true)
         local d = type(C.Data) == "function" and C.Data() or nil
         if d and d.at then
             local sounds = tonumber(d.sounds) or 0
-            data:SetText("Data " .. tostring(d.at) .. (sounds > 0 and (" · " .. sounds .. " sounds") or ""))
+            data:SetText("Read " .. tostring(d.at))
         else
-            data:SetText("No data")
+            data:SetText("Not read yet")
         end
     end
 end
@@ -66,11 +73,11 @@ end
 ---------------------------------------------------------------------------
 local function BuildTriggers(frame)
     local C = ns.HelperCues
-    local card = S.Card(frame, "Triggers", 0, -310, COL, PH - 310)
+    local card = S.Card(frame, "Triggers", 0, -210, COL, PH - 210)
     if not C then return end
     local checks, n = {}, 0
     for _, g in ipairs(C.GROUPS) do
-        if g.key:find("Trigger", 1, true) or g.key == "clips" then
+        if g.key:find("Trigger", 1, true) then
             n = n + 1
             local c = S.NewCheck(card, g.label, 12, -38 - (n - 1) * 30, function(self)
                 C.Settings()[g.key] = self:GetChecked() == true
@@ -91,13 +98,13 @@ end
 -- Range: the faintest each grip feels, low battery, the battery
 ---------------------------------------------------------------------------
 local function BuildRange(frame)
-    local card = S.Card(frame, "Range", X2, 0, COL, 250)
+    local card = S.Card(frame, "Range", X2, 0, COL, 200)
     local faint = S.Text(card, "", 12, -40, COL - 24, 13, YELLOW)
     local find = {}
     local bw = (COL - 30) / 2
     for side = 1, 2 do
         find[side] = S.NewButton(card, side == 1 and "Find left" or "Find right", 12 + (side - 1) * (bw + 6), -66, bw, function()
-            if HUI.Calibrate(side, "floor") then Say("Rising… Felt it") end
+            if HUI.Calibrate(side, "floor") then Say("Rising · click Felt it") end
             Refresh()
         end, nil, 12, 28)
         S.Tooltip(find[side], "Faintest", "The lowest level you feel")
@@ -116,7 +123,7 @@ local function BuildRange(frame)
         local B = ns.Battery
         local _, _, name = nil, nil, nil
         if B then _, _, name = B.Look(B.Level()) end
-        battery:SetText(name and ("Battery  " .. name) or "")
+        battery:SetText("Battery  " .. (name or "—"))
     end
 end
 
@@ -124,7 +131,7 @@ end
 -- Timing: footsteps and mining in step with the game, the landing's range
 ---------------------------------------------------------------------------
 local function BuildTiming(frame)
-    local card = S.Card(frame, "Timing", X2, -260, COL, PH - 260)
+    local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210)
     local gaits, buttons, texts = { { "run", "Run" }, { "walk", "Walk" } }, {}, {}
     local bw = (COL - 30) / 2
     S.Text(card, "Footsteps", 12, -40, COL - 24, 12, GOLD)
@@ -171,14 +178,14 @@ local function BuildTiming(frame)
     S.Tooltip(try, "Try", "The next swings, felt at this time")
     local function kindNow() return V.hitSync and V.hitSync.kind or V.WeaponKind(16) end
     -- (earlier / later by 20 ms, no squeezing needed)
-    Stepper(card, "", 18 + bw, -306, { labelWidth = 0, width = bw, step = 0.02, min = 0, max = 1, format = secs,
+    Stepper(card, "Delay", 18 + bw, -306, { labelWidth = 44, width = bw, step = 0.02, min = 0, max = 1, format = secs,
         get = function() return (V.HitDelay(kindNow())) end, set = function(v) V.SetHitDelay(kindNow(), v) end })
     pg.refresh[#pg.refresh + 1] = function()
         local parts = {}
         local footsteps = L.EventSettings("footsteps").on
         for _, g in ipairs(gaits) do
             local cal = L.StepCal(g[1])
-            parts[#parts + 1] = g[2] .. (cal and string.format(" %.2f/s", cal.rate) or ": a guess")
+            parts[#parts + 1] = g[2] .. (cal and " synced" or ": not synced")
             local busy = L.sync and L.sync.band == g[1]
             buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
             S.SetSelected(buttons[g[1]], busy and true or false)
@@ -186,14 +193,12 @@ local function BuildTiming(frame)
         end
         texts.steps:SetText(footsteps and table.concat(parts, " · ") or "Footsteps off: Moments › Moving")
         local period, _, synced, mineSource, mineStrikes = V.StrikeTiming("mining")
-        texts.mine:SetText((synced or mineSource == "set") and string.format("%.2f s a swing", period)
-            or mineSource == "learned" and string.format("%.2f s · learned · %s", period, mineStrikes or "?") or "A guess")
+        texts.mine:SetText((synced or mineSource == "set") and "Synced" or mineSource == "learned" and "Learned" or "Not synced")
         mine.label:SetText(V.strikeSync and "Cancel" or "Sync")
         S.SetSelected(mine, V.strikeSync and true or false)
         local kind = kindNow()
         local _, _, source, hits = V.HitDelay(kind)
-        hitKind:SetText(V.HitKindLabel(kind) .. (source == "learned" and (" · learned · " .. (hits or "?"))
-            or source == "guess" and " · a guess" or ""))
+        hitKind:SetText(V.HitKindLabel(kind) .. (source == "learned" and " · learned" or source == "guess" and " · not synced" or ""))
         hit.label:SetText(V.hitSync and "Cancel" or "Sync")
         S.SetSelected(hit, V.hitSync and true or false)
         S.SetSelected(try, V.HitTrying() and true or false)
@@ -206,7 +211,7 @@ end
 local function BuildBase(frame)
     local LT = ns.Lights
     local cw = W - X3
-    local card = S.Card(frame, "Light", X3, 0, cw, PH)
+    local card = S.Card(frame, "Base colour", X3, 0, cw, PH)
     if not LT then return end
     local swatch = card:CreateTexture(nil, "ARTWORK")
     swatch:SetPoint("TOPRIGHT", -14, -10)
@@ -269,7 +274,7 @@ local function BuildBase(frame)
     local who = S.Text(card, "", 12, y - 134, cw - 24, 11, GREY)
     pg.refresh[#pg.refresh + 1] = function()
         local helper = LT.HelperDrives()
-        who:SetText(helper and "Lights: WoW Helper" or "Lights: game")
+        who:SetText("")
         mic:SetAlpha(helper and 1 or 0.45)
         micNote:SetText(helper and "Whispers, invites, low health pulse it" or "Needs WoW Helper")
     end

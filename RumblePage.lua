@@ -26,7 +26,7 @@ end
 local function On()
     if V.Other() then Say("Improved Forever: Vibration is on", true); return false end
     if V.Settings().enabled then return true end
-    Say("Rumble is off", true)
+    Say("Feel off", true)
     return false
 end
 
@@ -156,8 +156,8 @@ ITEM.r = {
             V.SimulateCombo(key, function(n) Say(e.label .. (n > 1 and " x" .. n or "")) end)
         else
             V.Play(pattern, false, V.Scaled(nil, key))
-            local what = C and C.TryHD and C.TryHD(key, L.FeelFor(pattern))
-            if what then Say(e.label .. ": " .. what) end
+            if C and C.TryHD then C.TryHD(key, L.FeelFor(pattern)) end
+            Say(e.label)
         end
     end,
     level = Volume("feel"),
@@ -223,8 +223,8 @@ ITEM.l = {
     try = function(key)
         L.Try(key)
         local s = L.EventSettings(key)
-        local what = s.on and C and C.TryHD and C.TryHD(key, s.feel)
-        if what then Say(L.EVENT[key].label .. ": " .. what) end
+        if s.on and C and C.TryHD then C.TryHD(key, s.feel) end
+        Say(L.EVENT[key].label)
     end,
     level = Volume("feel"),
 }
@@ -281,7 +281,7 @@ ITEM.light = {
         if not s.on then return "Off", V.OFF_ICON, nil, true end
         local l = LT.Light(s.light)
         -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
-        local sub = (LT.EVENT[key].state and "While it lasts · " or "") .. (LT.HelperDrives() and "WoW Helper" or "Game")
+        local sub = LT.EVENT[key].state and "While it lasts" or nil
         return l and l.name or "?", nil, sub, false, LT.ColorRGB(s.color)
     end,
     pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
@@ -413,9 +413,11 @@ local function MakeRow(parent, y, width, kind, key)
             if ok then return Say(label .. ": in WoW Helper") end
         end
         local feel, name = I.feel(key)
-        if not feel then return Say("Nothing to copy: pick a feel first", true) end
+        if not feel then return Say("Pick a feel first", true) end
         local beta = ns.BetaPage
         if not (beta and beta.EditCopy) then return end
+        -- (already yours: open it, no second copy)
+        if feel.key and H.IsOwn(feel.key) and beta.EditOwn then return beta.EditOwn(feel.key) end
         local own = beta.EditCopy(feel, (name or label) .. " (mine)")
         I.assign(key, own)
         Say(label .. ": your copy, in the editor")
@@ -605,10 +607,10 @@ local function BuildSpells(panel, cw)
                 default = function()
                     if not row.plan then return end
                     O.Clear(row.plan.name)
-                    Say(row.plan.name .. ": as the rules have it")
+                    Say(row.plan.name .. ": as it ships")
                     Refresh()
                 end,
-                defaultTip = "Back to the rules",
+                defaultTip = "As it ships",
                 level = { step = 0.1, min = 0, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
                     get = function() return row.plan and O.Volume(row.plan.name) or 1 end,
                     set = function(v) if row.plan then O.SetVolume(row.plan.name, v) end end },
@@ -640,7 +642,7 @@ local function BuildSpells(panel, cw)
                 row.icon:SetTexture(e.icon)
                 row.label:SetText(plan.name)
                 local name, icon, off = PlateOf(plan)
-                local sub = (WHEN[plan.when] or "") .. (plan.guess and " · Guess" or "")
+                local sub = WHEN[plan.when] or ""
                 row:SetChoice(name, icon, sub, off, nil, O.Get(plan.name) == nil)
                 if row.level then row.level:SetShown(not Linked(plan)) end
                 row:SetMarks({})
@@ -680,7 +682,7 @@ local function Build(frame, header)
         local D = ns.HapticsDebug
         local text, ago
         if D then text, ago = D.Latest() end
-        ui.why.text:SetText(text and string.format("%s · %ds ago ›", text, floor(ago)) or "")
+        ui.why.text:SetText(text and (text .. " ›") or "")
     end)
 
     -- Left: the kind's master, then the groups
@@ -699,8 +701,8 @@ local function Build(frame, header)
     ui.pulse = S.NewButton(fb, "Try", 14, -96, 86, function()
         if not On() then return end
         V.Play("pulse")
-        local what = C and C.TryHD and C.TryHD(nil, L.FeelFor("pulse"))
-        if what then Say("Strength: " .. what) end
+        if C and C.TryHD then C.TryHD(nil, L.FeelFor("pulse")) end
+        Say("Strength " .. floor(V.Settings().intensity * 100 + 0.5) .. "%")
     end, nil, 12, 28)
     ui.sides = S.NewButton(fb, "Motors", 107, -96, 86, function() V.TestSides() end, nil, 12, 28)
     S.Tooltip(ui.sides, "Each motor", "Left grip, right grip, triggers")
@@ -796,7 +798,8 @@ Refresh = function()
         local name, icon, sub, off, rgb = I.show(row.key)
         row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
         if row.edit then
-            -- the word follows where it goes: Shape in WoW Helper, Edit in Lab
+            -- the word follows where it goes: Shape in WoW Helper, Edit in Lab (only with Lab on)
+            row.edit:SetShown(toHelper or H.DB().lab == true)
             local word = toHelper and "Shape" or "Edit"
             row.edit.label:SetText(word)
             S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or "In Lab")
@@ -818,7 +821,7 @@ Refresh = function()
     end
     for _, fn in ipairs(pg.refresh) do fn() end
     if kind == "feel" then
-        Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Rumble off"))
+        Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Feel off"))
     else
         Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or "Sounds off"))
     end

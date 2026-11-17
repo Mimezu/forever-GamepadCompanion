@@ -41,7 +41,7 @@ local function Build(frame, header)
     end
     local CW = floor((W - 10) / 2)
     for col = 0, 1 do
-        local card = S.Card(frame, nil, col * (CW + 10), 0, CW, PH)
+        local card = S.Card(frame, nil, col * (CW + 10), 0, CW, 14 + (G.SLOTS / 2) * HUI.ROW_H + 10)
         for i = 1, G.SLOTS / 2 do
             local slot = col * (G.SLOTS / 2) + i
             local function Pick()

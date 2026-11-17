@@ -277,7 +277,7 @@ do
     assert(#shown == 3, "Fireball once (ranks share a name), Frost Nova, Renew: " .. #shown)
     local fire, nova, renew = shown[1], shown[2], shown[3]
     assert(fire.label.text == "Fireball" and fire.pick.label.text == "Subtle" and fire.sub.text == "At the cast", "a cast set")
-    assert(nova.sub.text == "At the cast · Guess", "a guess: " .. tostring(nova.sub.text))
+    assert(nova.sub.text == "At the cast", "when only: " .. tostring(nova.sub.text))
     assert(renew.pick.label.text == "None" and renew.default.enabled == false, "quiet: None, nothing to undo")
     -- a cast set of its own, then Off, then Default
     fire.pick.scripts.OnClick(fire.pick)
