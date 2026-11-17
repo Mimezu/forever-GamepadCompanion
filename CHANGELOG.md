@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.1 — 2026-11-17
+
+- Spell table: a fear or a taunt around you (Psychic Scream, Challenging Shout) plays Burst, as agreed, before the control rule (Psychic Scream would have played Shock)
+
 ## 0.39.0 — 2026-11-17
 
 - Spell coverage (every class's spells checked): stuns and interrupts with no hit (Sap, Cheap Shot, Kidney Shot, Hammer of Justice, Concussion Blow, Bash, Disarm, Counterspell, Repentance, Sweeping Strikes, Blade Flurry) are felt as you cast them; a dodge or parry of one still shows. They no longer take the next swing's feel

@@ -2464,7 +2464,11 @@ do
     V.Release = release
     UnitCastingInfo = nil
     -- the kinds table (WoW Helper): letters, school, tick
-    WowHelperData = { spellKinds = { [900041] = { "nc", 1 }, [900042] = { "h", 32 }, [900043] = { "h", 16 } } }
+    WowHelperData = { spellKinds = { [900041] = { "nc", 1 }, [900042] = { "h", 32 }, [900043] = { "h", 16 },
+        [900044] = { "nca", 32 }, [900045] = { "nta" }, [900046] = { "nt" }, [900047] = { "ni", 64 }, [900048] = { "sb", 8 } } }
+    assert(V.SpellPlan(900044).pattern == "burst" and V.SpellPlan(900045).pattern == "burst", "a fear or a taunt around you: Burst")
+    assert(V.SpellPlan(900046).moment == "quiet" and V.SpellPlan(900048).moment == "quiet", "a single taunt, a helpful totem: quiet")
+    assert(V.SpellPlan(900047).pattern == "shock", "a magic interrupt: Shock")
     assert(V.SpellPlan(900041).pattern == "bash" and V.SpellPlan(900041).when == "cast", "a physical control: Bash at the cast")
     assert(V.SpellPlan(900042).pattern == "shock" and V.SpellPlan(900042).when == "hit", "a shadow hit: Shock at the hit")
     assert(V.SpellPlan(900043).set == "frostSpells", "a frost cast not listed: the Frost set")

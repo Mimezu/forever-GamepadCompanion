@@ -2185,8 +2185,9 @@ function V.SpellRule(spellID, castTime)
             elseif nohit ~= nil or (kinds and kinds.n and not kinds.h) then
                 local fam = nohit
                 if fam == nil then
-                    if kinds.c or kinds.i then fam = (kinds.school == nil or kinds.school == PHYSICAL) and "bash" or "shock"
-                    elseif kinds.a and (kinds.t or kinds.c) then fam = "burst"
+                    -- (a big taunt or fear around you first: Psychic Scream "nca" is a Burst)
+                    if kinds.a and (kinds.t or kinds.c) then fam = "burst"
+                    elseif kinds.c or kinds.i then fam = (kinds.school == nil or kinds.school == PHYSICAL) and "bash" or "shock"
                     else fam = false end
                 end
                 r.avoidOnly = true
