@@ -148,7 +148,7 @@ IsShiftKeyDown = function() return false end
 function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
-for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Volume.lua",
     "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -859,8 +859,45 @@ do
     L.Fire("loot")
     assert(#K.queue == n or (K.queue[#K.queue].sound or 0) == 0, "sounds off: no sound")
     C.Settings().sounds = true
+    -- Volumes: full by default, a moment's own and every sound's, sent as the cue's gain
+    local Vol = ns.Volume
+    assert(Vol.Gain(1) == 7 and Vol.Gain(0.5) == 3 and Vol.Gain(0) == nil and Vol.Intensity(1) == 4, "volume to gain")
+    now = now + 1
+    L.Fire("loot")
+    last = K.queue[#K.queue]
+    assert(last.sound == K.SOUNDS.coin and last.gain == 7, "full by default: " .. tostring(last.gain))
+    Vol.SetSounds(0.5)
+    Vol.SetSound("loot", 0.5)
+    now = now + 1
+    L.Fire("loot")
+    last = K.queue[#K.queue]
+    assert(last.sound == K.SOUNDS.coin and last.gain == 1, "a quarter: gain 1, " .. tostring(last.gain))
+    Vol.SetSound("loot", 0)
+    n = #K.queue
+    now = now + 1
+    L.Fire("loot")
+    assert(#K.queue == n or (K.queue[#K.queue].sound or 0) == 0, "0%: no sound")
+    Vol.SetSound("loot", 1)
+    Vol.SetSounds(1)
+    assert(Vol.DB().sound.loot == nil, "full is the default, not saved")
+    Vol.SetFeel("levelUp", 0.5)
+    assert(V.Scaled({ strength = 0.8 }, "levelUp").strength == 0.4 and V.Scaled(nil, "jump") == nil, "a feel at its volume")
+    Vol.SetFeel("levelUp", 1)
+    -- the rows: a volume beside each feel and sound
+    ns.Shell.Open("moments")
+    local M = ns.RumblePage
+    M.SetKind("sound")
+    M.browser.Select("Progress")
+    local lootRow
+    for _, r in ipairs(M.rows) do if r.kind == "sound" and r.key == "loot" then lootRow = r end end
+    assert(lootRow.level and lootRow.level.value.text == "100%", "loot: 100%")
+    lootRow.level.minus.scripts.OnClick(lootRow.level.minus)
+    assert(math.abs(Vol.Sound("loot") - 0.9) < 1e-9 and lootRow.level.value.text == "90%", "loot: 90%")
+    Vol.SetSound("loot", 1)
+    M.SetKind("feel")
     K.SetEnabled(false)
     io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
+    io.write("PASS: volumes: full by default, per moment and for every sound, as the cue's gain; on the rows" .. string.char(10))
 end
 
 -- Setup flow: moments numbered (append only), a sound per moment, WoW Helper's data, Edit HD, the export

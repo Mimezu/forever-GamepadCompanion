@@ -1214,6 +1214,16 @@ function V.ResetLast(eventKey)
     comboLast[eventKey] = nil
 end
 
+-- A moment's shape at its own volume (Volume.lua): a copy, strength scaled
+function V.Scaled(shape, eventKey)
+    local f = ns.Volume and ns.Volume.Feel(eventKey) or 1
+    if f >= 1 then return shape end
+    local copy = {}
+    for k, v in pairs(shape or {}) do copy[k] = v end
+    copy.strength = (copy.strength or 1) * f
+    return copy
+end
+
 function V.Fire(eventKey)
     if not IF.db then return end
     local pattern = V.EventPattern(eventKey)
@@ -1222,7 +1232,7 @@ function V.Fire(eventKey)
         V.EndLoop(eventKey)
         local shape
         if eventKey == "cast" then shape = CastShape() else shape = RestShape(eventKey, pattern) end
-        V.looping = { key = eventKey, pattern = pattern, shape = shape }
+        V.looping = { key = eventKey, pattern = pattern, shape = V.Scaled(shape, eventKey) }
         if eventKey == "cast" then cast.shaped = V.looping.shape ~= nil end
         loops[#loops + 1] = V.looping
         Resume(V.looping)
@@ -1235,7 +1245,7 @@ function V.Fire(eventKey)
     last[eventKey] = now
     local shape = combo and ComboShape(eventKey, since ~= nil and since < COMBO_WINDOW) or nil
     if eventKey == "autoAttack" and V.swingShape then shape = V.swingShape end
-    V.Play(pattern, false, shape)
+    V.Play(pattern, false, V.Scaled(shape, eventKey))
 end
 
 -- A looping event is over (the cast ended): its loop stops

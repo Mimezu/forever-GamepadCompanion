@@ -820,7 +820,8 @@ function L.Fire(key, gain, feel, absolute, stretch)
     local now = Now()
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
-    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = absolute and (gain or 1) or Strength() * (gain or 1),
+    local own = ns.Volume and ns.Volume.Feel(key) or 1
+    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = own * (absolute and (gain or 1) or Strength() * (gain or 1)),
         stretch = stretch })
     if L.onFire then L.onFire(key) end
 end
@@ -831,7 +832,7 @@ function L.Try(key)
     local e = EVENT[key]
     local feel = H.Feel(s.feel)
     if not feel then return end
-    local opts = { voice = "ev_" .. key, gain = Strength() }
+    local opts = { voice = "ev_" .. key, gain = Strength() * (ns.Volume and ns.Volume.Feel(key) or 1) }
     if e.live then
         opts.loop = true
         H.Play(feel, opts)
@@ -1094,6 +1095,8 @@ local liveFeel = {}
 -- (weather and water: under everything else)
 local AMBIENT = { rain = true, thunder = true, snow = true, sand = true, embers = true, underwater = true }
 
+local function LiveVolume(key) return ns.Volume and ns.Volume.Feel(key) or 1 end
+
 local function StartLive(key, fn)
     local id = "live_" .. key
     -- (turned off, or Rumble off: stops now, not when the condition ends)
@@ -1104,10 +1107,10 @@ local function StartLive(key, fn)
     if H.Playing(id) then return end
     -- (a feel other than the default: played looped instead of the live one)
     if s.feel ~= EVENT[key].feel then
-        H.Play(s.feel, { voice = id, loop = true, gain = Strength(), ambient = AMBIENT[key] })
+        H.Play(s.feel, { voice = id, loop = true, gain = Strength() * LiveVolume(key), ambient = AMBIENT[key] })
         return
     end
-    H.Fn(id, fn, { gain = Strength(), ambient = AMBIENT[key] })
+    H.Fn(id, fn, { gain = Strength() * LiveVolume(key), ambient = AMBIENT[key] })
 end
 
 ---------------------------------------------------------------------------

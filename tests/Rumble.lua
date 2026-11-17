@@ -128,7 +128,7 @@ GamepadCompanionCharDB = nil
 local haloListeners = {}
 Halo = { On = function(kind, fn) haloListeners[kind] = haloListeners[kind] or {}; table.insert(haloListeners[kind], fn) end }
 local function HaloFire(kind, ...) for _, fn in ipairs(haloListeners[kind] or {}) do fn(...) end end
-for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Volume.lua",
     "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "LightPicker.lua", "RumblePage.lua", "SetupPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end

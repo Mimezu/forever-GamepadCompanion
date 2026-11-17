@@ -58,6 +58,18 @@ for _, k in ipairs(V.CAST_KINDS) do KIND[k.key] = k end
 
 local OFF = { key = "off", label = "Off", icon = V.OFF_ICON }
 
+-- A moment's volume beside its plate (Volume.lua): kind "feel" or "sound"
+local function Volume(kind)
+    return function(key)
+        local Vol = ns.Volume
+        if not Vol then return nil end
+        local get = kind == "feel" and Vol.Feel or Vol.Sound
+        local set = kind == "feel" and Vol.SetFeel or Vol.SetSound
+        return { step = Vol.STEP, min = 0, max = 1, format = Vol.Pct, get = function() return get(key) end,
+            set = function(v) set(key, v) end }
+    end
+end
+
 ---------------------------------------------------------------------------
 -- Each kind of row: what it shows, how it is picked, tried, reset, copied
 ---------------------------------------------------------------------------
@@ -143,9 +155,10 @@ ITEM.r = {
         elseif e.combo then
             V.SimulateCombo(key, function(n) Say(e.label .. (n > 1 and " x" .. n or "")) end)
         else
-            V.Play(pattern)
+            V.Play(pattern, false, V.Scaled(nil, key))
         end
     end,
+    level = Volume("feel"),
 }
 
 -- The cast sets (spells, gathering, crafting): a set for the four moments
@@ -206,6 +219,7 @@ ITEM.l = {
         s.on, s.feel = true, ownKey
     end,
     try = function(key) L.Try(key) end,
+    level = Volume("feel"),
 }
 
 ---------------------------------------------------------------------------
@@ -296,9 +310,13 @@ ITEM.sound = {
         local id = C.MomentSound(key)
         if not id then return Say(LabelOf(key) .. ": no sound", true) end
         if not K.Enabled() then return Say("Link is off: Setup", true) end
-        K.Play(id, 2)
+        local gain = 7
+        if ns.Volume then gain = ns.Volume.Gain(ns.Volume.SoundLevel(key)) end
+        if not gain then return Say(LabelOf(key) .. ": volume 0%", true) end
+        K.Play(id, gain)
         Say(LabelOf(key) .. ": " .. C.SoundName(id))
     end,
+    level = Volume("sound"),
 }
 
 ---------------------------------------------------------------------------
@@ -523,7 +541,18 @@ local function Build(frame, header)
     sb:SetPoint("TOPLEFT", 0, 0)
     sb:SetSize(LEFT_W, 136)
     ui.box.sound = sb
-    ui.soundNote = S.Note(sb, 14, -42, LEFT_W - 28, 3, 12, GREY)
+    if ns.Volume then
+        local Vol = ns.Volume
+        HUI.Stepper(pg, sb, "Volume", 14, -42, { labelWidth = 110, width = LEFT_W - 28, step = Vol.STEP, min = 0.1, max = 1,
+            format = Vol.Pct, get = Vol.Sounds, set = Vol.SetSounds })
+    end
+    S.NewButton(sb, "Try", 14, -96, 86, function()
+        local Vol = ns.Volume
+        local gain = Vol and Vol.Gain(Vol.Sounds()) or 7   -- (Sounds: never under 10%)
+        if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
+        K.Play("chime", gain)
+    end, nil, 12, 28)
+    ui.soundNote = S.Note(sb, 14, -76, LEFT_W - 28, 1, 11, GREY)
     -- Stop, for every kind
     ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
         V.StopSimulation(); V.Stop(); if H then H.Stop(); H.LightStop() end

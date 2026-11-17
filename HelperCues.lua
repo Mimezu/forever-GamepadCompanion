@@ -255,17 +255,34 @@ local function Strength()
 end
 local function HdGain(gain) return floor(max(0, min(1, Strength() * (gain or 1))) * 7 + 0.5) end
 
--- One cue for a moment: its HD feel and its sound together, with its number
+-- One cue for a moment: its HD feel and its sound together, with its number.
+-- Volumes (Volume.lua): gain = the sound's volume when there is a sound,
+-- else the feel's; intensity = the feel's strength (4 = as designed).
 function C.Moment(key, feelKey, opts)
     opts = opts or {}
     if not (K and K.Enabled()) then return false end
+    local Vol = ns.Volume
     local sound = (opts.open or On("sounds")) and C.MomentSound(key) or nil
+    local soundGain
+    if sound then
+        if Vol then soundGain = Vol.Gain(Vol.SoundLevel(key)) else soundGain = 7 end
+    end
+    if not soundGain then sound = nil end
     if not K.V2() then
-        if sound and sound <= 255 then return K.Play(sound, 2) end
+        if sound and sound <= 255 then return K.Play(sound, soundGain) end
         return false
     end
-    local touch = (opts.open or On("hdFeels")) and feelKey and L.HdId(feelKey) or nil
-    return K.Cue({ moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = HdGain(opts.gain), open = opts.open })
+    local feel = max(0, min(1, Strength() * (opts.gain or 1) * (Vol and Vol.Feel(key) or 1)))
+    local touch = (opts.open or On("hdFeels")) and feel > 0 and feelKey and L.HdId(feelKey) or nil
+    if not (touch or sound or opts.open) then return false end
+    local gain, intensity
+    if sound then
+        gain, intensity = soundGain, Vol and Vol.Intensity(feel) or 4
+    else
+        gain, intensity = HdGain(opts.gain), 4
+        if Vol then gain = Vol.Gain(feel) or 0 end
+    end
+    return K.Cue({ moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open })
 end
 
 -- Edit HD: the moment plays and opens in WoW Helper. Returns ok, why.
