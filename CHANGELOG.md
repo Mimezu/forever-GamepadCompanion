@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.31.1 — 2026-11-16
+
+- Hit sync says what it sees, live: "swings 4 · squeezes 3 · paired 2"; "Can't read R2 from the pad" when the triggers give nothing; both lists logged on every squeeze (`timing.log`)
+- Easier to finish: five pairs; one stray squeeze left out; a hand's wander up to about 120 ms kept. Uneven keeps listening (the oldest squeezes give way) instead of starting over
+- Setup › Timing › Hits: **Try** (the next six swings each play your weapon's swing at the impact, even with Auto attack off) and the seconds in 20 ms steps: earlier / later by feel, no squeezing
+
 ## 0.31.0 — 2026-11-16
 
 - **Sync pass** (docs/TIMING.md): every moment checked against the animation or sound it stands for; one place for the timing (`Timing.lua`)

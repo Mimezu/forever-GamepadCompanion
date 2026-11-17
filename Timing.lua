@@ -176,7 +176,7 @@ end)
 -- half an interval, before or after it (the news may come late too: a
 -- signed delay); the median, unless they spread too wide
 ---------------------------------------------------------------------------
-T.SPREAD = 0.06
+T.SPREAD = 0.12
 
 function T.PairTaps(anchors, taps, interval)
     local half = (interval or 1) / 2
@@ -202,14 +202,24 @@ local function Median(list)
 end
 T.Median = Median
 
--- The delay from paired squeezes, or nil and why ("few", "uneven")
+-- The delay from paired squeezes, or nil and why ("few", "uneven"): the
+-- closest 70% (at least need) around the median, their median, unless even
+-- those spread wider than T.SPREAD (a hand's squeezes wander; one stray
+-- squeeze must not spoil the rest)
 function T.FitDelay(delays, need)
-    if #delays < (need or 6) then return nil, "few" end
+    need = need or 5
+    if #delays < need then return nil, "few" end
     local m = Median(delays)
+    local byDev = {}
+    for i, d in ipairs(delays) do byDev[i] = d end
+    table.sort(byDev, function(x, y) return abs(x - m) < abs(y - m) end)
+    local keep = {}
+    for i = 1, max(need, math.ceil(#delays * 0.7)) do keep[i] = byDev[i] end
+    local m2 = Median(keep)
     local dev = {}
-    for i, d in ipairs(delays) do dev[i] = abs(d - m) end
+    for i, d in ipairs(keep) do dev[i] = abs(d - m2) end
     if Median(dev) > T.SPREAD then return nil, "uneven" end
-    return m
+    return m2
 end
 
 -- The raw pairs, kept for a look (the news against the sound you heard)

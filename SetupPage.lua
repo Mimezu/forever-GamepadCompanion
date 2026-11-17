@@ -158,13 +158,20 @@ local function BuildTiming(frame)
     -- Hits: each weapon's blow lands after the swing's news (the weapon in hand)
     S.Text(card, "Hits", 12, -288, 80, 12, GOLD)
     local hitKind = S.Text(card, "", 60, -288, COL - 72, 11, GREY)
-    local hit = S.NewButton(card, "Sync", 12, -306, bw, function()
+    local half = floor((bw - 6) / 2)
+    local hit = S.NewButton(card, "Sync", 12, -306, half, function()
         if V.hitSync then V.HitSyncCancel() else V.HitSync() end
         Refresh()
     end, nil, 12, 28)
     S.Tooltip(hit, "Sync", "Squeeze R2 on each impact")
+    local try = S.NewButton(card, "Try", 18 + half, -306, half, function()
+        V.HitTry()
+        Refresh()
+    end, nil, 12, 28)
+    S.Tooltip(try, "Try", "The next swings, felt at this time")
     local function kindNow() return V.hitSync and V.hitSync.kind or V.WeaponKind(16) end
-    Stepper(card, "", 18 + bw, -306, { labelWidth = 0, width = bw, step = 0.01, min = 0, max = 1, format = secs,
+    -- (earlier / later by 20 ms, no squeezing needed)
+    Stepper(card, "", 18 + bw, -306, { labelWidth = 0, width = bw, step = 0.02, min = 0, max = 1, format = secs,
         get = function() return (V.HitDelay(kindNow())) end, set = function(v) V.SetHitDelay(kindNow(), v) end })
     pg.refresh[#pg.refresh + 1] = function()
         local parts = {}
@@ -187,6 +194,7 @@ local function BuildTiming(frame)
         hitKind:SetText(V.HitKindLabel(kind) .. (hitSet and "" or " · a guess"))
         hit.label:SetText(V.hitSync and "Cancel" or "Sync")
         S.SetSelected(hit, V.hitSync and true or false)
+        S.SetSelected(try, V.HitTrying() and true or false)
     end
 end
 

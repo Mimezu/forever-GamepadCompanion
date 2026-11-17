@@ -2102,6 +2102,12 @@ end
 -- (Quiet while syncing hits: you squeeze to the game's sound, not to us)
 function V.SwingImpact(slot, result, mine)
     if V.hitSync then return end
+    if mine and (swing.tryLeft or 0) > 0 then
+        swing.tryLeft = swing.tryLeft - 1
+        V.Play(V.SwingPattern(slot or 16), false, SIDES[slot or 16])
+        if swing.tryLeft == 0 and V.onHitSync then V.onHitSync("") end
+        return
+    end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
     result = result or "hit"
     if result == "crit" then return YourCrit(false) end
@@ -2138,22 +2144,44 @@ end
 -- they spread too wide, is kept for the weapon and hand. The raw pairs go
 -- to the log (GamepadCompanionHapticsDB.timing.log).
 ---------------------------------------------------------------------------
-V.HIT_SYNC_TAPS = 6
+V.HIT_SYNC_TAPS = 5
 local function HitSay(text) if V.onHitSync then V.onHitSync(text) end end
+
+-- What the sync sees, live: "swings 4 · squeezes 3 · paired 2"
+local function HitSeen(s, paired)
+    return string.format("swings %d · squeezes %d · paired %d", s.swings, s.squeezes, paired or s.paired or 0)
+end
+
+-- (no reading of the triggers: say so, once)
+local function HitWatch(now)
+    local s = V.hitSync
+    if not s or s.noAxes ~= nil then return end
+    local L = ns.HapticsLab
+    local l = L and L.TriggerAxes and L.TriggerAxes()
+    if l == nil and now - s.began > 1 then
+        s.noAxes = true
+        HitSay("Can't read R2 from the pad · use the seconds instead")
+    elseif l ~= nil then
+        s.noAxes = false
+    end
+end
 
 function V.HitSync(kind, hand)
     if not kind then
         if ranged.auto then kind, hand = "ranged", "ranged" else kind, hand = V.WeaponKind(16), "main" end
     end
-    local s = { kind = kind, hand = HandOf(kind, hand), anchors = {}, taps = {} }
+    local s = { kind = kind, hand = HandOf(kind, hand), anchors = {}, taps = {}, swings = 0, squeezes = 0,
+        began = GetTime() }
     V.hitSync = s
+    swing.tryLeft = nil
     ns.Timing.StartSync({ name = "hits",
         onTap = function(now) V.HitSyncTap(now) end,
+        onUpdate = HitWatch,
         onStop = function(cancelled)
             if V.hitSync == s then V.hitSync = nil end
             if cancelled then HitSay("") end
         end })
-    HitSay(ns.Timing.Label(kind) .. ": attack, squeeze R2 on each impact you hear")
+    HitSay(ns.Timing.Label(kind) .. ": attack, squeeze R2 on each impact you hear · feels off meanwhile")
 end
 
 function V.HitSyncCancel()
@@ -2166,28 +2194,40 @@ function V.HitSyncEvent(kind, hand, at)
     local s = V.hitSync
     if not s or kind ~= s.kind or hand ~= s.hand then return end
     s.anchors[#s.anchors + 1] = at
+    s.swings = s.swings + 1
     while #s.anchors > 24 do table.remove(s.anchors, 1) end
+    HitSay(HitSeen(s))
 end
 
--- A squeeze at t: paired again with all the news; enough pairs, the fit
+-- A squeeze at t: paired again with all the news; enough pairs, the fit.
+-- Uneven: the oldest squeezes give way to new ones (never a silent restart).
+-- Both lists logged each time (seconds after the sync began).
 function V.HitSyncTap(t)
     local s = V.hitSync
     if not s then return nil end
     s.taps[#s.taps + 1] = t
+    s.squeezes = s.squeezes + 1
+    while #s.taps > 10 do table.remove(s.taps, 1) end
     local T = ns.Timing
     local delays = T.PairTaps(s.anchors, s.taps, Interval(s.hand) or 2)
-    if #delays < V.HIT_SYNC_TAPS then
-        HitSay(#delays .. " impacts")
-        return #delays
+    s.paired = #delays
+    local function list(l)
+        local out = {}
+        for i, v in ipairs(l) do out[i] = string.format("%.2f", v - s.began) end
+        return table.concat(out, " ")
     end
     local parts = {}
     for i, d in ipairs(delays) do parts[i] = string.format("%+.2f", d) end
-    T.Log(T.Key(s.kind, s.hand) .. ": " .. table.concat(parts, " "))
+    T.Log(T.Key(s.kind, s.hand) .. " swings " .. list(s.anchors) .. " | squeezes " .. list(s.taps)
+        .. " | pairs " .. table.concat(parts, " "))
+    if #delays < V.HIT_SYNC_TAPS then
+        HitSay(HitSeen(s))
+        return #delays
+    end
     local d = T.FitDelay(delays, V.HIT_SYNC_TAPS)
     if not d then
-        s.taps, s.anchors = {}, {}
-        HitSay("Uneven: squeeze on the sound, again")
-        return nil
+        HitSay(HitSeen(s) .. " · uneven: keep squeezing on the sound")
+        return #delays
     end
     T.Set(s.kind, s.hand, d)
     T.StopSync("hits")
@@ -2199,6 +2239,17 @@ function V.HitSyncTap(t)
     end
     return #delays
 end
+
+-- Try: the next swings each play the weapon's swing feel at the impact (even
+-- with Auto attack off), to check the timing by feel
+V.HIT_TRY_SWINGS = 6
+function V.HitTry()
+    if V.hitSync then V.HitSyncCancel() end
+    swing.tryLeft = V.HIT_TRY_SWINGS
+    HitSay(swing.on and ("Try: the next " .. V.HIT_TRY_SWINGS .. " swings") or "Try: attack something")
+end
+
+function V.HitTrying() return (swing.tryLeft or 0) > 0 end
 
 function V.SwingStart()
     swing.on, swing.last = true, {}

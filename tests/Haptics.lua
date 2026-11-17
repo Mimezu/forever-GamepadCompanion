@@ -1497,22 +1497,56 @@ do
     local said
     V.onHitSync = function(t) said = t end
     fired = {}
-    for i, lag in ipairs({ 0.3, 0.32, 0.28, 0.31, 0.9, 0.3 }) do
+    for i, lag in ipairs({ 0.3, 0.32, 0.28, 0.31, 0.9 }) do
         now = now + 3.6
         rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
         land()
-        assert(V.HitSyncTap(now + lag) or i == 6, "a squeeze after the news")
+        if i == 1 then assert(said == "swings 1 · squeezes 0 · paired 0", tostring(said)) end
+        assert(V.HitSyncTap(now + lag), "a squeeze after the news")
+        if i == 2 then assert(said == "swings 2 · squeezes 2 · paired 2", tostring(said)) end
     end
     assert(#fired == 0, "quiet while syncing: you squeeze to the game's sound")
     d, s = V.HitDelay("twoHand")
-    assert(s and math.abs(d - 0.305) < 1e-9 and not V.hitSync and said:find("Synced", 1, true), "median: " .. d)
+    assert(s and math.abs(d - 0.31) < 1e-9 and not V.hitSync and said:find("Synced", 1, true), "five pairs, a stray one left out: " .. d)
+    assert(ns.Timing.Store().log[#ns.Timing.Store().log]:find("swings .* | squeezes .* | pairs "), "both lists logged")
     assert(V.HitSyncTap(now) == nil and not ns.Timing.Syncing(), "done")
     assert(#ns.Timing.Store().log >= 1, "the raw pairs kept")
     -- signed: the sound before the news (a squeeze before it) pairs too; uneven squeezes are refused
     local T = ns.Timing
     local pairs1 = T.PairTaps({ 10, 13.6, 17.2 }, { 9.95, 13.58, 17.3 }, 3.6)
     assert(#pairs1 == 3 and math.abs(pairs1[1] + 0.05) < 1e-9 and math.abs(pairs1[3] - 0.1) < 1e-9, "signed pairs")
-    assert(T.FitDelay({ 0.1, 0.4, 0.05, 0.5, 0.2, 0.35 }) == nil, "uneven: refused")
+    assert(T.FitDelay({ 0.0, 0.5, 0.1, 0.7, 0.3, 0.9 }) == nil, "uneven: refused")
+    assert(math.abs(T.FitDelay({ 0.2, 0.3, 0.25, 0.35, 0.28 }) - 0.28) < 1e-9, "a hand's wander (about 120 ms): kept")
+    -- uneven keeps going (no silent restart); no squeeze seen: says so
+    V.HitSync("twoHand", "main")
+    for i, lag in ipairs({ 0.0, 0.6, 0.15, 0.9, 0.35 }) do
+        now = now + 3.6
+        rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+        V.HitSyncTap(now + lag)
+    end
+    assert(V.hitSync and said:find("uneven: keep squeezing", 1, true) and #V.hitSync.taps == 5, tostring(said))
+    V.HitSyncCancel()
+    V.HitSync("twoHand", "main")
+    local axes = L.TriggerAxes
+    L.TriggerAxes = function() return nil end
+    now = now + 2
+    ns.Timing.watcher.scripts.OnUpdate(ns.Timing.watcher, 0.01)
+    assert(said:find("Can't read R2", 1, true), tostring(said))
+    L.TriggerAxes = axes
+    V.HitSyncCancel()
+    -- Try: the next swings play the weapon's swing at the impact, Auto attack on or off
+    local played = {}
+    local play = V.Play
+    V.Play = function(key) played[#played + 1] = key end
+    V.HitTry()
+    assert(V.HitTrying(), "trying")
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    land()
+    assert(played[1] == "swMace2", "the two-hander's swing: " .. tostring(played[1]))
+    V.Play = play
+    for _ = 1, V.HIT_TRY_SWINGS do now = now + 3.6; rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1); land() end
+    assert(not V.HitTrying(), "a few swings, then done")
     assert(select(2, T.FitDelay({ 0.1, 0.1 })) == "few", "few")
     -- faster than the animation: the impact in proportion
     T.Set("twoHand", "main", 0.4)
