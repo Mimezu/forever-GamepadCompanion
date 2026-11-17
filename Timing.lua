@@ -67,8 +67,9 @@ function T.Offset(kind, hand)
     local store = T.Store()
     local key = T.Key(kind, hand)
     if type(store.set[key]) == "number" then return store.set[key], "set" end
-    local l = store.learned[key]
-    if type(l) == "table" and type(l.v) == "number" then return l.v, "learned" end
+    -- (WoW Helper's keys are race-sex|kind|hand, no form)
+    local l = store.learned[key] or store.learned[(key:gsub("%-f%d+|", "|", 1))]
+    if type(l) == "table" and type(l.v) == "number" then return l.v, "learned", l.hits end
     local k = KIND[kind] or KIND.oneHand
     local model = T.Model():match("^(%d+%-%d+)") or ""
     return k.delay * (T.MODEL_FACTOR[model] or 1), "guess"
@@ -82,9 +83,31 @@ function T.Clear(kind, hand) T.Store().set[T.Key(kind, hand)] = nil end
 
 -- WoW Helper's slot (it may hear the game's hit sounds one day): needs a
 -- shared clock before it can be trusted
-function T.Learn(key, seconds)
-    T.Store().learned[key] = { v = seconds, at = date and date("%Y-%m-%d %H:%M") or "" }
+function T.Learn(key, seconds, hits)
+    T.Store().learned[key] = { v = seconds, hits = hits, at = date and date("%Y-%m-%d %H:%M") or "" }
 end
+
+-- WoW Helper's data addon (WowHelperData, written by the helper, read at
+-- load): its confident hit delays (hitOffsets) and the link's latency
+function T.LoadHelper()
+    local d = _G.WowHelperData
+    if type(d) ~= "table" then return 0 end
+    local n = 0
+    if type(d.hitOffsets) == "table" then
+        for key, v in pairs(d.hitOffsets) do
+            if type(key) == "string" and type(v) == "table" and type(v.delay) == "number" then
+                T.Learn(key, v.delay, tonumber(v.hits))
+                n = n + 1
+            end
+        end
+    end
+    if type(d.linkLatency) == "number" then T.SetLinkLatency(d.linkLatency) end
+    return n
+end
+
+local loader = CreateFrame("Frame")
+loader:RegisterEvent("ADDON_LOADED")
+loader:SetScript("OnEvent", function(_, _, name) if name == "GamepadCompanion" then T.LoadHelper() end end)
 
 -- The impact after the news: the offset, in proportion when the swing comes
 -- round sooner than the animation (interval: the live swing time)

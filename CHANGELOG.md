@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.0 — 2026-11-17
+
+- WoW Helper learns your hit timing while you fight: with the HD link on, each melee swing and shot sends a marker the moment its news arrives (the weapon type and hand, your race and sex, the addon's delay, the result). WoW Helper hears the impact, learns each weapon's delay, and plays the blow's HD feel itself at the impact it learned; the addon doesn't send that cue again
+- Its learned delays come back at load (`WowHelperData.hitOffsets`) for the rumble too: above the guesses, under a value you set or synced. Setup › Timing › Hits says "learned · 42" (hits heard)
+- WoW Helper's measured link delay (`linkLatency`), when it writes one, is applied
+
 ## 0.32.1 — 2026-11-17
 
 - Fight log: the last 600 moments kept in the saved settings (`GamepadCompanionHapticsDB.fightLog`, written on /reload and logout): seconds since login, the moment, its feel, rumble or rumble+HD, the gain, and why it played (the game event, or "swing hit main hand +0.25" at a blow's impact); combat on (with the target's name) and off between them

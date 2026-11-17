@@ -1961,10 +1961,12 @@ local CAST_HANDLERS = {
             ranged.shot = GetTime()
             if V.HitSyncEvent then V.HitSyncEvent("ranged", "ranged", ranged.shot) end
             local d = V.ImpactDelay("ranged", "ranged")
+            local timed = V.SwingMarker("ranged", "ranged", "hit", d)
             return AtImpact(d, function()
                 V.why1, V.why2, V.why3 = "shot", "ranged", d
+                V.cueTimed = timed or nil
                 V.Fire("shot")
-                V.why1 = nil
+                V.cueTimed, V.why1 = nil, nil
             end)
         end
         -- The cast in progress, done
@@ -2096,11 +2098,12 @@ local function Migrate()
     wipe(old)
 end
 
--- An offset (game time) and whether yours or learned (not a guess)
+-- An offset (game time), whether yours or learned (not a guess), where it
+-- comes from ("set", "learned", "guess") and, learned, from how many hits
 function V.HitDelay(kind, hand)
     Migrate()
-    local v, source = ns.Timing.Offset(kind, HandOf(kind, hand))
-    return v, source ~= "guess"
+    local v, source, hits = ns.Timing.Offset(kind, HandOf(kind, hand))
+    return v, source ~= "guess", source, hits
 end
 
 function V.SetHitDelay(kind, seconds, hand) ns.Timing.Set(kind, HandOf(kind, hand), seconds) end
@@ -2161,6 +2164,70 @@ end
 
 local function result_or_hit(r) return r or "hit" end
 
+---------------------------------------------------------------------------
+-- Swing markers for WoW Helper (its src/calib.rs; the side-session note
+-- swing-marker-proposal.md): at each swing's or shot's news, while the HD
+-- link is on, a marker cue: moment 110-117 main hand by kind (Timing's
+-- order), 118-125 off hand, 126 ranged; side = race id; seed = sex (bit 7)
+-- and the addon's delay in 5 ms steps (127: unknown); level = the result.
+-- It carries the blow's own HD cue (and sound) when there is one: WoW Helper
+-- plays it at the impact it has learned, and the addon doesn't send it again.
+---------------------------------------------------------------------------
+V.MARKER_KINDS = { "dagger", "oneHand", "twoHand", "polearm", "staff", "fist", "unarmed", "form" }
+local MARKER_INDEX = {}
+for i, k in ipairs(V.MARKER_KINDS) do MARKER_INDEX[k] = i - 1 end
+local MARKER_LEVEL = { hit = 0, crit = 1, miss = 2, dodge = 2, parry = 2, block = 3 }
+
+function V.MarkerMoment(kind, hand)
+    if hand == "ranged" or kind == "ranged" then return 126 end
+    local i = MARKER_INDEX[kind]
+    if not i then return nil end
+    return (hand == "off" and 118 or 110) + i
+end
+
+-- The moment (and its feel) that plays at the blow, for its cue
+local function BlowCue(result)
+    local L = ns.HapticsLab
+    if result == "shot" then
+        local p = V.EventPattern("shot")
+        return p and "shot", p and L and L.FeelFor(p)
+    end
+    if result == "crit" then
+        local p = V.EventPattern("crit")
+        return p and "crit", p and L and L.FeelFor(p)
+    end
+    local lab = LAB_RESULT[result or "hit"]
+    if result ~= "hit" and lab and LabPlays(lab) then return lab, L.EventSettings(lab).feel end
+    local p = V.EventPattern("autoAttack")
+    if p then return "autoAttack", L and L.FeelFor(p) end
+    if lab and LabPlays(lab) then return lab, L.EventSettings(lab).feel end
+    return nil
+end
+
+-- Send the marker; true: it carries the blow's cue (WoW Helper times it)
+function V.SwingMarker(kind, hand, result, delay)
+    local K, C = ns.HelperLink, ns.HelperCues
+    if not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
+    local moment = V.MarkerMoment(kind, hand)
+    if not moment then return false end
+    local item
+    if not V.hitSync and C and C.MomentItem then
+        local key, feel = BlowCue(kind == "ranged" and "shot" or (result or "hit"))
+        if key then item = C.MomentItem(key, feel) end
+        if type(item) ~= "table" then item = nil end
+    end
+    local carries = item ~= nil and ((item.touch or 0) > 0 or (item.sound or 0) > 0)
+    item = item or {}
+    local race = UnitRace and select(3, UnitRace("player")) or 0
+    local sex = UnitSex and UnitSex("player") or 2
+    if secret(race) or type(race) ~= "number" then race = 0 end
+    local steps = delay and math.min(126, math.max(0, math.floor(delay / 0.005 + 0.5))) or 127
+    item.moment, item.side, item.level, item.open = moment, math.min(15, race), MARKER_LEVEL[result or "hit"] or 0, nil
+    item.seed = (sex == 3 and 128 or 0) + steps
+    K.Marker(item)
+    return carries
+end
+
 -- A real swing landed: its feel at the impact (sure: the combat log said it
 -- was yours; result: hit, crit, miss, dodge, parry, block)
 function V.SwingLanded(slot, sure, result)
@@ -2175,10 +2242,14 @@ function V.SwingLanded(slot, sure, result)
     local kind, hand = V.WeaponKind(slot), HANDS[slot] or "main"
     if V.HitSyncEvent then V.HitSyncEvent(kind, hand, now) end
     local d = V.ImpactDelay(kind, hand)
+    -- (WoW Helper on: a marker now; it learns the delay, and plays the
+    -- blow's HD cue itself when it carries one)
+    local timed = V.SwingMarker(kind, hand, result, d)
     AtImpact(d, function()
         V.why1, V.why2, V.why3 = "swing " .. result_or_hit(result), hand .. " hand", d
+        V.cueTimed = timed or nil
         V.SwingImpact(slot, result, true)
-        V.why1 = nil
+        V.cueTimed, V.why1 = nil, nil
     end)
 end
 

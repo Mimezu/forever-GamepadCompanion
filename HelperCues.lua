@@ -271,12 +271,13 @@ function C.Moment(key, feelKey, opts)
     -- (a quieter instance of the moment: its sound as much quieter)
     if sound and opts.gain and opts.gain < 1 then soundGain = max(0, floor(soundGain * opts.gain + 0.5)) end
     if not K.V2() then
+        if opts.build then return nil end
         if sound and sound <= 255 then return K.PlaySound(sound, soundGain) end
         return false
     end
     local feel = max(0, min(1, Strength() * (opts.gain or 1) * (Vol and Vol.Feel(key) or 1)))
     local touch = (opts.open or On("hdFeels")) and feel > 0 and feelKey and L.HdId(feelKey) or nil
-    if not (touch or sound or opts.open) then return false end
+    if not (touch or sound or opts.open) then return opts.build and nil or false end
     local gain, intensity
     if sound then
         gain, intensity = soundGain, Vol and Vol.Intensity(feel) or 4
@@ -286,7 +287,17 @@ function C.Moment(key, feelKey, opts)
     end
     -- (a cast swelling with its progress: the caller's intensity)
     if opts.intensity then intensity = max(0, min(7, floor(opts.intensity + 0.5))) end
-    return K.Cue({ moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open })
+    local item = { moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
+    if opts.build then return item end
+    return K.Cue(item)
+end
+
+-- The cue a moment would send now (nil: none), not sent: a swing marker
+-- carries it for WoW Helper to time
+function C.MomentItem(key, feelKey, opts)
+    opts = opts or {}
+    opts.build = true
+    return C.Moment(key, feelKey, opts)
 end
 
 -- Try a moment's feel as play does: the game's rumble (the caller plays it) and, while the link
@@ -492,6 +503,8 @@ local function Wrap()
         local fire, endLoop = V.Fire, V.EndLoop
         V.Fire = function(key, ...)
             fire(key, ...)
+            -- (WoW Helper times this blow's cue itself: the marker carried it)
+            if V.cueTimed then return end
             local okA, active = pcall(V.Active)
             local pattern = okA and active and V.EventPattern(key)
             C.Moment(key, pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
@@ -518,6 +531,8 @@ local function Wrap()
         local fire = L.Fire
         L.Fire = function(key, ...)
             fire(key, ...)
+            local V = ns.Rumble
+            if V and V.cueTimed then return end
             local e = L.EVENT and L.EVENT[key]
             -- (a landing under a real jump: its HD cue, sound and clip fade
             -- with it, as the rumble does)

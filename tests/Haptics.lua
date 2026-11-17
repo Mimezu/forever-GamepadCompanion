@@ -1949,3 +1949,100 @@ do
     UnitName, UnitCanAttack = nil, nil
     io.write("PASS: fight log: why each moment played, combat markers, a ring in the saved settings" .. string.char(10))
 end
+
+-- Swing markers for WoW Helper: each swing's news on the strip (moment, race, sex, delay, result), the
+-- blow's HD cue carried for the helper to time (not sent again); learned delays read back
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local T, K, C = ns.Timing, ns.HelperLink, ns.HelperCues
+    T.Store().set, T.Store().learned = {}, {}
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    local cues = {}
+    local cue = K.Cue
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    UnitCanAttack = function() return true end
+    UnitAttackSpeed = function() return 3.6, 1.5 end
+    GetInventoryItemID = function(_, slot) return slot == 16 and 100 or slot == 17 and 200 or nil end
+    local oldItem = C_Item
+    C_Item = { GetItemInfoInstant = function(id)
+        if id == 100 then return nil, nil, nil, nil, nil, 2, 5 end
+        if id == 200 then return nil, nil, nil, nil, nil, 2, 15 end
+    end }
+    V.SetEventPattern("autoAttack", "auto")
+    assert(V.MarkerMoment("dagger", "main") == 110 and V.MarkerMoment("form", "main") == 117
+        and V.MarkerMoment("dagger", "off") == 118 and V.MarkerMoment("ranged", "ranged") == 126, "moments: Timing's kinds, by hand")
+    for i, k in ipairs(V.MARKER_KINDS) do assert(T.KINDS[i].key == k, "the helper's order is Timing's") end
+    wipe(K.queue)
+    now = now + 5
+    rev("PLAYER_ENTER_COMBAT")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    local m = K.queue[1]
+    assert(m and m.moment == 112 and m.side == 1 and m.level == 0, "a two-hander's main-hand marker, race 1, a hit")
+    assert(m.seed == math.floor(T.Impact("twoHand", "main", 3.6) / 0.005 + 0.5), "the addon's delay in 5 ms steps, male")
+    assert(m.touch >= 128 and m.touch == L.HdId("r_swMace2"), "the blow's HD cue carried")
+    -- on the strip as WoW Helper reads it
+    local cells = K.EncodeV2({ seq = 1, touch = m.touch, moment = m.moment, side = m.side, seed = m.seed, level = m.level })
+    local back = K.DecodeV2(cells)
+    assert(back and back.moment == 112 and back.side == 1 and back.seed == m.seed and back.level == 0, "decodes")
+    -- at the impact the addon doesn't send that cue again
+    cues = {}
+    RunTimers()
+    assert(#cues == 0, "WoW Helper times it: no second cue: " .. #cues)
+    -- a crit: level 1, the crit's cue; the off hand: 118 + dagger
+    wipe(K.queue)
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "WOUND", "CRITICAL", 300, 1)
+    assert(K.queue[1].level == 1 and K.queue[1].touch == L.HdId(L.FeelFor(V.EventPattern("crit"))), "a crit")
+    now = now + 0.2
+    rev("UNIT_COMBAT", "target", "MISS", "", 0, 1)
+    assert(K.queue[1].moment == 118 and K.queue[1].level == 2, "the off hand's dagger, avoided")
+    RunTimers()
+    -- a shot: 126
+    wipe(K.queue)
+    rev("PLAYER_LEAVE_COMBAT")
+    now = now + 5
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "s1", 75)
+    assert(K.queue[1] and K.queue[1].moment == 126, "a shot's marker")
+    RunTimers()
+    -- HD feels off: a marker alone (learning goes on), and the addon has nothing to send
+    C.Settings().hdFeels = false
+    wipe(K.queue)
+    now = now + 5
+    rev("PLAYER_ENTER_COMBAT")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    assert(K.queue[1] and K.queue[1].moment == 112 and K.queue[1].touch == 0, "a marker alone")
+    RunTimers()
+    C.Settings().hdFeels = true
+    -- link off: no marker
+    K.Enabled = function() return false end
+    wipe(K.queue)
+    now = now + 3.6
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    assert(#K.queue == 0, "link off: no marker")
+    RunTimers()
+    rev("PLAYER_LEAVE_COMBAT")
+    -- learned values from WowHelperData, under yours, over the guess; keys without the form
+    WowHelperData = { hitOffsets = { ["1-2|twoHand|main"] = { delay = 0.28, hits = 42, spread = 0.02 },
+        ["1-2|form|main"] = { delay = 0.15, hits = 12 } }, linkLatency = 0.04 }
+    assert(T.LoadHelper() == 2, "read")
+    local d, notGuess, source, hits = V.HitDelay("twoHand")
+    assert(d == 0.28 and notGuess and source == "learned" and hits == 42, "learned · 42")
+    V.SetHitDelay("twoHand", 0.31)
+    assert(select(3, V.HitDelay("twoHand")) == "set" and V.HitDelay("twoHand") == 0.31, "yours wins")
+    GetShapeshiftFormID = function() return 1 end
+    assert(T.Offset("form", "main") == 0.15, "a cat's: the helper's key without the form")
+    GetShapeshiftFormID = nil
+    WowHelperData = nil
+    T.Store().set, T.Store().learned, T.Store().linkLatency = {}, {}, nil
+    K.Enabled, K.Cue = enabled, cue
+    wipe(K.queue)
+    UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
+    io.write("PASS: swing markers: on the strip as WoW Helper reads them, its cue not sent twice, learned delays read back" .. string.char(10))
+end
