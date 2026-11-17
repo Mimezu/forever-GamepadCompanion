@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.1 — 2026-11-17
+
+- Swings a few ms late: the rumble is now sent 30 ms early for the game's own delay (up to a frame, then Bluetooth), and, with WoW Helper on, by its published link delay, 30 ms until it publishes one (none was published, so nothing was taken off). Hits, shots, abilities, footsteps and mining strikes; the impact defaults unchanged
+
 ## 0.33.0 — 2026-11-17
 
 - WoW Helper learns your hit timing while you fight: with the HD link on, each melee swing and shot sends a marker the moment its news arrives (the weapon type and hand, your race and sex, the addon's delay, the result). WoW Helper hears the impact, learns each weapon's delay, and plays the blow's HD feel itself at the impact it learned; the addon doesn't send that cue again

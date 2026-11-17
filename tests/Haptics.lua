@@ -153,6 +153,8 @@ for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.l
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
+-- (timings tested exact: the motor and link leads tested on their own)
+ns.Timing.MOTOR_LEAD, ns.Timing.LINK_DEFAULT = 0, 0
 for _, f in ipairs(created) do
     if f.events and f.events.ADDON_LOADED and f.scripts.OnEvent then f.scripts.OnEvent(f, "ADDON_LOADED", "GamepadCompanion") end
 end
@@ -2045,4 +2047,28 @@ do
     wipe(K.queue)
     UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
     io.write("PASS: swing markers: on the strip as WoW Helper reads them, its cue not sent twice, learned delays read back" .. string.char(10))
+end
+
+-- The leads: the game's vibration (a frame and Bluetooth) always; WoW Helper's link, its own or a default
+do
+    local T, K = ns.Timing, ns.HelperLink
+    T.MOTOR_LEAD, T.LINK_DEFAULT = 0.03, 0.03
+    local enabled = K.Enabled
+    K.Enabled = function() return false end
+    assert(math.abs(T.Lead() - 0.03) < 1e-9, "the game's vibration: sent a frame and Bluetooth early")
+    K.Enabled = function() return true end
+    T.SetLinkLatency(nil)
+    assert(math.abs(T.Lead() - 0.03) < 1e-9, "WoW Helper on, nothing published: the default")
+    T.SetLinkLatency(0.055)
+    assert(math.abs(T.Lead() - 0.055) < 1e-9, "its own, published")
+    local pending = {}
+    local after = C_Timer.After
+    C_Timer.After = function(d, fn) pending[#pending + 1] = d end
+    T.After(0.35, function() end)
+    assert(math.abs(pending[1] - 0.295) < 1e-9, "a two-hander's impact sent that much early")
+    C_Timer.After = after
+    T.SetLinkLatency(nil)
+    K.Enabled = enabled
+    T.MOTOR_LEAD, T.LINK_DEFAULT = 0, 0
+    io.write("PASS: leads: the game's vibration and WoW Helper's link, taken off scheduled feels" .. string.char(10))
 end

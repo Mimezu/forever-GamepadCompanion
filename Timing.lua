@@ -127,10 +127,14 @@ function T.SetLinkLatency(seconds)
     T.Store().linkLatency = (type(seconds) == "number" and seconds > 0) and min(0.5, seconds) or nil
 end
 
+-- (the game's own vibration lands a little after SetVibration: up to a
+-- frame, ~16 ms, and Bluetooth, ~12 ms; WoW Helper's: the strip drawn and
+-- read, its air and actuator, until it publishes what it measured)
+T.MOTOR_LEAD, T.LINK_DEFAULT = 0.03, 0.03
 function T.Lead()
     local K = ns.HelperLink
-    if not (K and K.Enabled and K.Enabled()) then return 0 end
-    return T.Store().linkLatency or 0
+    if K and K.Enabled and K.Enabled() then return max(T.MOTOR_LEAD, T.Store().linkLatency or T.LINK_DEFAULT) end
+    return T.MOTOR_LEAD
 end
 
 -- fn after delay seconds (game time), less the lead; at once when that's 0
