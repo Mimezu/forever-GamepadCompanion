@@ -1013,8 +1013,12 @@ do
     for _, l in ipairs(ns.Lights.Lights()) do if l.id ~= critLight then other = l.id; break end end
     WowHelperData.use.crit = { light = other, lightBase = critLight, stamp = 3 }
     WowHelperData.use.kill = { light = other, lightBase = -1, stamp = 3 }
+    -- sounds: whisper still has click (applied); questDone's base is stale (left alone)
+    WowHelperData.use.whisper = { sound = 900, soundBase = K.SOUNDS.click, stamp = 3 }
+    WowHelperData.use.questDone = { sound = false, soundBase = 12345, stamp = 3 }
     local killWas = C.MomentLight("kill")
-    assert(C.LoadHelperData() == 2, "a feel and a light applied")
+    assert(C.LoadHelperData() == 3, "a feel, a light and a sound applied")
+    assert(C.MomentSound("whisper") == 900 and C.MomentSound("questDone") == K.SOUNDS.chime, "sound: applied where its base held")
     assert(C.MomentLight("crit") == other and C.MomentLight("kill") == killWas, "light: applied where its base held")
     assert(H.Feel("hx_2048") and H.Feel("hx_2048").label == "Coin tap 2" and ns.HapticsLab.HdId("hx_2048") == 2048,
         "its feel joins, with its id")
@@ -1034,6 +1038,7 @@ do
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel
         and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
     assert(ex.moments.crit.light == other and ex.moments.jump.light == false, "lights exported")
+    assert(ex.moments.loot.feelVol == 1 and ex.moments.loot.soundVol, "volumes exported")
     assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
     K.SetEnabled(false)
     WowHelperData = nil

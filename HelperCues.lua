@@ -306,6 +306,16 @@ function C.Sound(name, gain) if On("sounds") then K.Play(name, gain) end end
 -- of the feel they came from), and its proposals (use) apply once, only
 -- where the moment still plays what it did when proposed
 ---------------------------------------------------------------------------
+-- A moment's name as the game shows it
+function C.MomentLabel(key)
+    local label = key
+    if ns.Lights and ns.Lights.EVENT and ns.Lights.EVENT[key] then label = ns.Lights.EVENT[key].label or label end
+    if L.EVENT and L.EVENT[key] then label = L.EVENT[key].label end
+    for _, e in ipairs(ns.Rumble and ns.Rumble.EVENTS or {}) do if e.key == key then label = e.label end end
+    for _, e in ipairs(ns.Rumble and ns.Rumble.CAST_KINDS or {}) do if e.key == key then label = e.label end end
+    return label
+end
+
 function C.Say(text) if print then print("|cff80c0ffGamepad Companion:|r " .. text) end end
 
 function C.LoadHelperData()
@@ -340,11 +350,16 @@ function C.LoadHelperData()
             if u.feel and was == u.base and H.Feel(u.feel) and u.feel ~= was then
                 C.SetMomentFeel(moment, u.feel)
                 local f, w = H.Feel(u.feel), was and H.Feel(was)
-                C.Say(string.format("%s: %s (was %s) · WoW Helper", moment, f.label or u.feel, w and (w.label or was) or "Off"))
+                C.Say(string.format("%s: %s (was %s) · WoW Helper", C.MomentLabel(moment), f.label or u.feel, w and (w.label or was) or "Off"))
                 applied = applied + 1
             end
-            if u.sound ~= nil and (C.MomentSound(moment) or false) == (u.soundBase or false) then
-                C.SetMomentSound(moment, u.sound)
+            -- a sound (false: none): only where the moment still has the sound it had
+            local had = C.MomentSound(moment)
+            if u.sound ~= nil and (had or false) == (u.soundBase or false) and (u.sound or nil) ~= had then
+                C.SetMomentSound(moment, u.sound or false)
+                C.Say(string.format("%s: %s (was %s) · WoW Helper", C.MomentLabel(moment), u.sound and C.SoundName(u.sound) or "no sound",
+                    had and C.SoundName(had) or "none"))
+                applied = applied + 1
             end
             -- a light: only where the moment still shows the light it had
             local LT = ns.Lights
@@ -366,12 +381,10 @@ local function ExportMoments(export)
     local moments = {}
     for n, m in ipairs(C.MOMENTS) do
         local key = m[1]
-        local label = key
-        if L.EVENT and L.EVENT[key] then label = L.EVENT[key].label end
-        for _, e in ipairs(ns.Rumble and ns.Rumble.EVENTS or {}) do if e.key == key then label = e.label end end
-        for _, e in ipairs(ns.Rumble and ns.Rumble.CAST_KINDS or {}) do if e.key == key then label = e.label end end
+        local label = C.MomentLabel(key)
         moments[key] = { n = n, group = m[2], label = label, feel = C.MomentFeel(key) or false,
-            sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false }
+            sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
+            feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
     end
     export.moments = moments
     local d = Data()
