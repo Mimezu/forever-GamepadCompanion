@@ -183,7 +183,7 @@ local function CrcOfBits(bits)
     return K.Crc8(bytes)
 end
 
--- state = { seq, left, right, touch, sound, gain, level, side, intensity, seed, mic }
+-- state = { seq, left, right, touch, sound, gain, level, side, intensity, seed, mic, moment, open }
 -- -> 34 cells { r, g, b } of 0 / 1.
 function K.EncodeV2(state)
     state = state or {}
@@ -199,7 +199,8 @@ function K.EncodeV2(state)
     Put(bits, 67, Int(state.intensity, 7), 3)
     Put(bits, 70, Int(state.seed, 255), 8)
     Put(bits, 78, Int(state.mic, 3), 2)
-    Put(bits, 80, 0, 8)
+    Put(bits, 80, Int(state.moment, 127), 7)
+    Put(bits, 87, state.open and 1 or 0, 1)
     Put(bits, 88, CrcOfBits(bits), 8)
     local cells = { { 1, 0, 1 }, { 0, 1, 1 } }
     for c = 0, 31 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
@@ -224,7 +225,8 @@ function K.DecodeV2(cells)
     if CrcOfBits(bits) ~= Get(bits, 88, 8) then return nil, "crc" end
     return { seq = Get(bits, 0, 4), left = GetTrigger(bits, 4), right = GetTrigger(bits, 19),
         touch = Get(bits, 34, 12), sound = Get(bits, 46, 12), gain = Get(bits, 58, 3), level = Get(bits, 61, 2),
-        side = Get(bits, 63, 4), intensity = Get(bits, 67, 3), seed = Get(bits, 70, 8), mic = Get(bits, 78, 2) }
+        side = Get(bits, 63, 4), intensity = Get(bits, 67, 3), seed = Get(bits, 70, 8), mic = Get(bits, 78, 2),
+        moment = Get(bits, 80, 7), open = Get(bits, 87, 1) == 1 }
 end
 
 ---------------------------------------------------------------------------
@@ -232,7 +234,7 @@ end
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
 K.state = { seq = 0, left = OffTrigger(), right = OffTrigger(), event = 0, gain = 0,
-    touch = 0, sound = 0, level = 0, side = 0, intensity = 4, seed = 0, mic = 0 }
+    touch = 0, sound = 0, level = 0, side = 0, intensity = 4, seed = 0, mic = 0, moment = 0, open = false }
 K.queue = {}
 local active          -- an event is on screen
 local frames, age = 0, 0
@@ -307,6 +309,19 @@ function K.PlayFeel(hdId, gain, side, intensity)
         intensity = intensity and Int(intensity, 7) or 4 })
 end
 
+-- A moment's cue (v2): its HD feel and sound in one, with the moment's number
+-- (1-127) so WoW Helper knows what played; open: also open it in WoW Helper.
+-- item = { moment, touch, sound, gain, intensity, open }
+function K.Cue(item)
+    if not K.V2() then return false end
+    local touch, sound = Int(item.touch, 4095), Int(item.sound, 4095)
+    if touch > 0 and touch < 128 then touch = 0 end
+    if touch == 0 and sound == 0 and not item.open then return false end
+    return Queue({ touch = touch, sound = sound, gain = Int(item.gain == nil and 4 or item.gain, 7),
+        intensity = item.intensity and Int(item.intensity, 7) or 4, moment = Int(item.moment, 127),
+        open = item.open and true or false })
+end
+
 -- The mic LED (v2): "leave", "off", "on", "pulse"
 function K.SetMic(mode)
     local m = K.MIC[mode] or 0
@@ -318,6 +333,7 @@ local function Start(item)
     s.seq = (s.seq + 1) % 16
     s.touch, s.sound, s.gain = item.touch or 0, item.sound or 0, item.gain or 4
     s.side, s.intensity, s.level = item.side or 0, item.intensity or 4, item.level or 0
+    s.moment, s.open = item.moment or 0, item.open or false
     s.seed = math.random and math.random(0, 255) or 0
     -- (v1: one event id, a clip or a sound up to 255)
     local v1 = s.sound ~= 0 and s.sound or s.touch
@@ -337,6 +353,7 @@ function K.Step(elapsed)
                 active = false
                 local s = K.state
                 s.event, s.gain, s.touch, s.sound = 0, 0, 0, 0   -- (seq kept: no new event)
+                s.moment, s.open = 0, false
                 dirty = true
             end
         end

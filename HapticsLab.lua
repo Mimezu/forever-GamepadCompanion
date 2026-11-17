@@ -858,7 +858,7 @@ function L.HdId(key)
     if type(db.hdIds) ~= "table" then db.hdIds = { next = 128 } end
     local ids = db.hdIds
     if not ids[key] then
-        if (ids.next or 128) > 4095 then return nil end
+        if (ids.next or 128) > 2047 then return nil end   -- (2048-4095: WoW Helper's own feels)
         ids[key] = ids.next or 128
         ids.next = ids[key] + 1
     end

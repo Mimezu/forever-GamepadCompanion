@@ -791,15 +791,81 @@ do
     now = now + 1
     L.Fire("loot")
     local last = K.queue[#K.queue]
-    assert(last and last.sound == K.SOUNDS.coin and last.touch == 0, "loot: the coin sound")
+    assert(last and last.sound == K.SOUNDS.coin and last.moment == C.MOMENT_N.loot, "loot: the coin sound, its moment")
     C.Settings().sounds = false
     local n = #K.queue
     now = now + 1
     L.Fire("loot")
-    assert(#K.queue == n, "sounds off: none")
+    assert(#K.queue == n or (K.queue[#K.queue].sound or 0) == 0, "sounds off: no sound")
     C.Settings().sounds = true
     K.SetEnabled(false)
     io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
+end
+
+-- Setup flow: moments numbered (append only), a sound per moment, WoW Helper's data, Edit HD, the export
+do
+    local K, C = ns.HelperLink, ns.HelperCues
+    -- the numbers are on the wire: pinned
+    assert(#C.MOMENTS <= 127, "moments fit 7 bits")
+    local PIN = { autoAttack = 1, crit = 3, hitTaken = 11, spell = 22, jump = 32, eat = 42, rain = 47, levelUp = 52,
+        loot = 53, whisper = 60, haloClose = 68 }
+    for key, n in pairs(PIN) do assert(C.MOMENT_N[key] == n, "moment number moved: " .. key) end
+    local seen = {}
+    for n, m in ipairs(C.MOMENTS) do assert(not seen[m[1]], "moment twice: " .. m[1]); seen[m[1]] = n end
+    -- every moment on the Rumble tab has a number
+    for _, g in ipairs(ns.RumblePage.GROUPS) do
+        for _, item in ipairs(g.items) do assert(C.MOMENT_N[item[2]], "no number: " .. item[2]) end
+    end
+    -- sounds: defaults, chosen, none, back to default
+    assert(C.MomentSound("loot") == K.SOUNDS.coin and C.IsSoundDefault("loot"), "loot: coin by default")
+    assert(C.MomentSound("jump") == nil, "jump: none")
+    C.SetMomentSound("jump", 900)
+    assert(C.MomentSound("jump") == 900 and not C.IsSoundDefault("jump"), "a chosen sound")
+    C.SetMomentSound("loot", false)
+    assert(C.MomentSound("loot") == nil, "loot: none")
+    C.SetMomentSound("loot", nil)
+    assert(C.MomentSound("loot") == K.SOUNDS.coin, "loot: default again")
+    -- no data: no helper sounds, Edit HD says so
+    WowHelperData = nil
+    K.SetEnabled(true)
+    assert(C.Data() == nil and #C.SoundList() == 6, "built-in sounds only")
+    local ok, why = C.EditHD("loot")
+    assert(not ok and why == "Needs WoW Helper", "Edit HD needs data: " .. tostring(why))
+    -- data: sounds, HD, its own feel, a proposal for loot
+    local lootFeel = C.MomentFeel("loot")
+    assert(lootFeel, "loot has a feel")
+    WowHelperData = { at = "2026-11-16 18:02", sounds = { { id = 900, name = "Far bell", group = "Quests" } },
+        hd = { [lootFeel] = true },
+        feels = { hx_2048 = { label = "Coin tap 2", hd = 2048, from = lootFeel } },
+        use = { loot = { feel = "hx_2048", base = lootFeel, stamp = 3 },
+            money = { feel = "hx_2048", base = "not_its_feel", stamp = 3 } } }
+    local d = C.Data()
+    assert(d.at == "2026-11-16 18:02" and d.sounds == 1 and d.hd == 1, "data counts")
+    assert(#C.SoundList() == 7 and C.SoundName(900) == "Far bell", "helper sounds listed")
+    assert(C.HasHD(lootFeel) and C.HasHD("hx_2048") and not C.HasHD("nope"), "HD known")
+    local moneyWas = C.MomentFeel("money")
+    assert(C.LoadHelperData() == 1, "one proposal applied")
+    assert(H.Feel("hx_2048") and H.Feel("hx_2048").label == "Coin tap 2" and ns.HapticsLab.HdId("hx_2048") == 2048,
+        "its feel joins, with its id")
+    assert(C.MomentFeel("loot") == "hx_2048", "loot uses it")
+    assert(C.MomentFeel("money") == moneyWas, "money changed since: left alone")
+    -- once per stamp: a choice made in game after it stays
+    C.SetMomentFeel("loot", lootFeel)
+    assert(C.LoadHelperData() == 0 and C.MomentFeel("loot") == lootFeel, "applied once")
+    -- Edit HD: one cue, the moment, open
+    for i = #K.queue, 1, -1 do K.queue[i] = nil end
+    ok = C.EditHD("loot")
+    local q = K.queue[#K.queue]
+    assert(ok and q.open and q.moment == C.MOMENT_N.loot and q.sound == K.SOUNDS.coin
+        and q.touch == ns.HapticsLab.HdId(lootFeel), "Edit HD: the moment's cue, open")
+    -- the export: moments with number, group, feel, sound; the data's stamp
+    local ex = ns.HapticsLab.Export()
+    assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel
+        and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
+    assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
+    K.SetEnabled(false)
+    WowHelperData = nil
+    io.write("PASS: setup flow: moments pinned, sounds per moment, WoW Helper data, proposals once, Edit HD, export" .. string.char(10))
 end
 
 -- Debug: the reasons, logged and shown

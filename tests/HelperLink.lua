@@ -132,22 +132,22 @@ end
 assert(K.Crc8({ 49, 50, 51, 52, 53, 54, 55, 56, 57 }) == 0xF4, "CRC-8 check value")
 local v2count = 0
 local FIELDS = { "seq", "lmode", "lstart", "lfinish", "lforce", "rmode", "rstart", "rfinish", "rforce",
-    "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic" }
+    "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic", "moment", "open" }
 for row in io.lines(root .. "/tests/fixtures/helperlink-v2-vectors.txt") do
     if row:sub(1, 1) ~= "#" and row:find(":") then
         local head, digits = row:match("^(.-)%s*:%s*(%d+)%s*$")
         local n, i = {}, 0
         for num in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(num) end
-        assert(i == 17 and #digits == 34, "v2 vector line: " .. row)
+        assert(i == 19 and #digits == 34, "v2 vector line: " .. row)
         local s = { seq = n.seq, left = { mode = n.lmode, start = n.lstart, finish = n.lfinish, force = n.lforce },
             right = { mode = n.rmode, start = n.rstart, finish = n.rfinish, force = n.rforce },
             touch = n.touch, sound = n.sound, gain = n.gain, level = n.level, side = n.side,
-            intensity = n.intensity, seed = n.seed, mic = n.mic }
+            intensity = n.intensity, seed = n.seed, mic = n.mic, moment = n.moment, open = n.open == 1 }
         local cells, out = K.EncodeV2(s), {}
         for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
         assert(table.concat(out) == digits, "v2 vector: " .. row .. " got " .. table.concat(out))
         local d = assert(K.DecodeV2(cells))
-        for _, f in ipairs({ "seq", "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic" }) do
+        for _, f in ipairs({ "seq", "touch", "sound", "gain", "level", "side", "intensity", "seed", "mic", "moment", "open" }) do
             assert(d[f] == s[f], "v2 round trip " .. f)
         end
         assert(d.right.mode == s.right.mode and d.left.force == s.left.force, "v2 triggers")
@@ -267,6 +267,20 @@ assert(seen2[1].sound == K.SOUNDS.chime and seen2[1].touch == 0 and seen2[1].gai
 assert(seen2[2].touch == K.CLIPS.thump and seen2[2].sound == 0 and seen2[2].gain == 6, "a clip: touch field")
 assert(seen2[3].touch == 300 and seen2[3].side == 1 and seen2[3].intensity == 6 and seen2[3].gain == 7, "an HD feel, left")
 assert(prev.touch == 0 and prev.sound == 0, "cleared after")
+-- a moment's cue: HD feel and sound together, its number, open
+assert(K.Cue({ moment = 42, touch = 300, sound = 900, gain = 5, open = true }))
+assert(K.Cue({ moment = 1 }) == false, "nothing to play")
+assert(K.Cue({ moment = 7, open = true }), "open alone")
+local cues = {}
+for _ = 1, 100 do
+    local d = renderV2()
+    if d.seq ~= prev.seq then cues[#cues + 1] = d end
+    prev = d
+end
+assert(#cues == 2, "two moment cues: " .. #cues)
+assert(cues[1].moment == 42 and cues[1].open and cues[1].touch == 300 and cues[1].sound == 900, "moment, open, both")
+assert(cues[2].moment == 7 and cues[2].open and cues[2].touch == 0, "open alone")
+assert(prev.moment == 0 and not prev.open, "moment cleared after")
 K.SetMic("pulse")
 local dm = renderV2()
 assert(dm.mic == K.MIC.pulse and dm.seq == prev.seq, "mic: a state, no cue")
