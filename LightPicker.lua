@@ -137,6 +137,7 @@ function LP.Open(anchor, key, onChange)
             t:ClearAllPoints()
             t:SetPoint("TOPLEFT", 12 + col * (TILE_W + 3), y - row * (TILE_H + 3))
             t.label:SetText(l.name)
+            S.Tooltip(t, l.name, l.mic and "Pulses the mic" or nil)
             t.light = l
             t:SetScript("OnClick", function()
                 local s = LT.Settings(key)

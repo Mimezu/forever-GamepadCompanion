@@ -37,7 +37,7 @@ ns.LIGHT_PRESETS = {
   { id = 24, key = "kill", name = "Target killed", kind = "once", group = "Combat",
     bar = { { 0, "tint", 0.9, "step" }, { 0.15, "tint", 0.7, "linear" }, { 0.8, "dark", 0, "out" } }, leds = { { 0, 31, 2 }, { 0.3, 0, 1 } }, },
   { id = 25, key = "lowHp", name = "Low health", kind = "hold", group = "Combat", loop = { 0, 1.1 },
-    bar = { { 0, "tint", 0.15, "linear" }, { 0.05, "tint", 1, "out" }, { 0.16, "tint", 0.3, "out" }, { 0.24, "tint", 0.75, "out" }, { 0.55, "tint", 0.15, "out" }, { 1.1, "tint", 0.15, "linear" } }, leds = { { 0, 10, 1 }, { 0.05, 10, 3 }, { 0.3, 10, 1 } }, },
+    bar = { { 0, "tint", 0.15, "linear" }, { 0.05, "tint", 1, "out" }, { 0.16, "tint", 0.3, "out" }, { 0.24, "tint", 0.75, "out" }, { 0.55, "tint", 0.15, "out" }, { 1.1, "tint", 0.15, "linear" } }, leds = { { 0, 10, 1 }, { 0.05, 10, 3 }, { 0.3, 10, 1 } }, mic = { { 0, "pulse" } }, },
   { id = 26, key = "combat", name = "In combat", kind = "hold", group = "Combat", loop = { 0, 3.6 },
     bar = { { 0, "tint", 0.45, "linear" }, { 1.8, "tint", 0.8, "smooth" }, { 3.6, "tint", 0.45, "smooth" } }, },
   { id = 27, key = "cast", name = "Casting", kind = "hold", group = "Casting", loop = { 1, 1.4 }, fit = true,
@@ -65,7 +65,7 @@ ns.LIGHT_PRESETS = {
   { id = 38, key = "whisper", name = "Whisper", kind = "once", group = "Social",
     bar = { { 0, "dark", 0, "linear" }, { 0.08, "tint", 0.7, "out" }, { 0.22, "tint", 0.15, "smooth" }, { 0.34, "tint", 0.7, "out" }, { 0.8, "dark", 0, "out" } }, mic = { { 0, "pulse" }, { 2.5, "off" } }, },
   { id = 39, key = "readyCheck", name = "Ready check", kind = "once", group = "Social",
-    bar = { { 0, "tint", 0.8, "step" }, { 0.1, "dark", 0, "step" }, { 0.2, "tint", 0.8, "step" }, { 0.3, "dark", 0, "step" }, { 0.4, "tint", 0.8, "step" }, { 0.8, "dark", 0, "out" } }, leds = { { 0, 31, 3 }, { 0.8, 0, 1 } }, },
+    bar = { { 0, "tint", 0.8, "step" }, { 0.1, "dark", 0, "step" }, { 0.2, "tint", 0.8, "step" }, { 0.3, "dark", 0, "step" }, { 0.4, "tint", 0.8, "step" }, { 0.8, "dark", 0, "out" } }, leds = { { 0, 31, 3 }, { 0.8, 0, 1 } }, mic = { { 0, "pulse" }, { 3, "off" } }, },
   { id = 40, key = "invite", name = "Invites, duels", kind = "once", group = "Social",
     bar = { { 0, "dark", 0, "linear" }, { 0.15, "tint", 0.7, "smooth" }, { 0.5, "tint", 0.2, "smooth" }, { 0.65, "tint", 0.7, "smooth" }, { 1.2, "dark", 0, "smooth" } }, mic = { { 0, "pulse" }, { 2, "off" } }, },
 }

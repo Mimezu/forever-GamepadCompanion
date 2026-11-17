@@ -182,7 +182,8 @@ function LT.Base()
     if b.light == nil then b.light = b.breathe and "breathe" or "steady" end   -- (0.27: breathe yes / no)
     if not LT.LightByKey(b.light) then b.light = "steady" end
     b.breathe = nil
-    b.mic = b.mic or "off"
+    -- the mic light: in combat by default (0.29 saved "off" without asking: once)
+    if b.micV ~= 2 then b.mic, b.micV = (b.mic == nil or b.mic == "off") and "combat" or b.mic, 2 end
     return b
 end
 

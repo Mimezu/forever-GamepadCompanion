@@ -126,6 +126,9 @@ ok(s.light == LT.LightByKey("double").id and s.strength == 2, "loot: Double at 3
 s = LT.Settings("kill")
 ok(s.light == LT.LightByKey("glow").id and s.on == false and s.strength == 3, "kill: Glow, off kept")
 ok(LT.Base().light == "breathe" and LT.Base().breathe == nil, "base: Breathe")
+ok(LT.Base().mic == "combat", "the mic light: in combat by default")
+GamepadCompanionHapticsDB.lightBase.mic = "off"
+ok(LT.Base().mic == "off", "a chosen Off stays")
 LT.Default("crit")
 ok(LT.IsDefault("crit"), "Default")
 -- a light deleted in WoW Helper: back to the moment's own
@@ -213,6 +216,7 @@ LT.Base().mic = "combat"
 UnitAffectingCombat = function() return true end
 LT.ApplyMic()
 ok(K.state.mic == K.MIC.on, "mic on in combat")
+ok(K.DecodeV2(K.EncodeV2(K.state)).mic == K.MIC.on, "the strip carries it (v2 bits 78-79)")
 UnitAffectingCombat = function() return false end
 LT.ApplyMic()
 ok(K.state.mic == K.MIC.off, "mic off out of combat")

@@ -231,15 +231,20 @@ local function BuildBase(frame)
         get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
     Stepper(card, "Resting", 12, y - 28, { labelWidth = 110, width = cw - 24, list = LT.RESTING,
         get = function() return LT.Base().light end, set = function(v) LT.Base().light = v; LT.ApplyBase() end })
-    -- the mic LED (WoW Helper only: the game can't reach it)
-    local mic = Stepper(card, "Mic", 12, y - 56, { labelWidth = 110, width = cw - 24, list = LT.MIC_MODES,
-        get = function() return LT.Base().mic end, set = function(v) LT.Base().mic = v; LT.ApplyMic() end })
+    -- the mic light (WoW Helper only: the game can't reach it); moments' lights can pulse it
+    S.Heading(card, "Mic light", 10, y - 64, cw - 20)
+    local mic = Choice(card, "", -100, y - 84, LT.MIC_MODES, function() return LT.Base().mic end, function(v)
+        LT.Base().mic = v
+        LT.ApplyMic()
+    end, floor((cw - 24 - 8) / 3))
+    local micNote = S.Text(card, "", 12, y - 116, cw - 24, 11, GREY)
     -- who draws the lights now
-    local who = S.Text(card, "", 12, y - 90, cw - 24, 11, GREY)
+    local who = S.Text(card, "", 12, y - 134, cw - 24, 11, GREY)
     pg.refresh[#pg.refresh + 1] = function()
         local helper = LT.HelperDrives()
         who:SetText(helper and "Lights: WoW Helper" or "Lights: game")
-        mic:SetEnabled(helper)
+        mic:SetAlpha(helper and 1 or 0.45)
+        micNote:SetText(helper and "Whispers, invites, low health pulse it" or "Needs WoW Helper")
     end
     pg.refresh[#pg.refresh + 1] = function()
         local base = LT.Base()
