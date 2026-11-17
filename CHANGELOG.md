@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.0 — 2026-11-16
+
+- **Wading** (Moving): footsteps in shallow water, their own event and switch, on by default (land Footsteps stay off). Each step a faint wet slap and a fainter spray, on the Steps timing. Shallow water = `IsSubmerged()` and not swimming: untested in this client, so `/gpc debug` shows a Water line (wading / submerged / swimming)
+- Landing in water: shallow water splashes instead of the thud; a jump into deep water plays one splash, scaled by the air time (no thud, no second Into water). A landing waits one frame for the swim to start
+- Mining: a short firm knock and a faint ring on each swing, timed from the cast's start, and a crack when the ore breaks loose (was a 150 ms hit at 90% looping on its own clock: a plain rumble). Swing and first strike on the Rumble tab (Steps and landing → Mining), a guess (1.00 s, first 0.50 s) until set or synced (squeeze R2 on each strike, over a cast or two). Gathering's Try plays a vein mined
+- The gathering spell names are looked up again until all are known (a name not loaded at login no longer turns mining into a plain spell for the session)
+
 ## 0.25.0 — 2026-11-16
 
 - Gestures (Haptics tab): twelve slots for WoW Helper's motion gestures, each a spell, item, macro, window, Halo ring or typed macro (`/dance`) from the Choose picker. The helper presses Ctrl+Shift+Alt+F1-F12; bound per character, out of combat

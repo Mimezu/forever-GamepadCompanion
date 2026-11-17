@@ -347,6 +347,8 @@ local air = L.airFrame
 air.scripts.OnUpdate(air, 0.01); now = now + 1
 falling = false
 air.scripts.OnUpdate(air, 0.01)
+assert(fired[1] == nil, "a landing waits a frame (the swim may start on the next)")
+air.scripts.OnUpdate(air, 0.01)
 assert(fired[1] == "landing", "landing: " .. tostring(fired[1]))
 assert(H.DB().landings[1] == 1, "air time kept: " .. tostring(H.DB().landings[1]))
 assert(H.Playing("ev_landing"), "a landing shaped by its fall")
@@ -364,7 +366,7 @@ H.DB().stepSync = {}
 -- Another feel on Landing: stretched with the landing's weight
 L.EventSettings("landing").feel = "flick"
 falling = true; air.scripts.OnUpdate(air, 0.01); now = now + 2
-falling = false; air.scripts.OnUpdate(air, 0.01)
+falling = false; air.scripts.OnUpdate(air, 0.01); air.scripts.OnUpdate(air, 0.01)
 assert(L.lastLanding.feel == "Flick", "the feel played, named")
 assert(math.abs(H.Peak(H.Feel("flick")) - 0.55) < 1e-9, "a feel's peak")
 frame(0.01)
@@ -937,4 +939,162 @@ do
     B.Update()
     assert(not g:IsShown() and art:IsShown(), "no reading: the art")
     io.write("PASS: battery: in the icon, steps, wired, the art when unknown" .. string.char(10))
+end
+
+-- Water: wading steps instead of footsteps, splashes instead of thuds
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    assert(L.IsWading(true, false) and not L.IsWading(true, true) and not L.IsWading(false, false)
+        and not L.IsWading(nil, false), "wading: in water, not swimming")
+    -- a wet step: a faint slap, a fainter spray, then nothing; faint micro taps
+    assert(L.WetStep(0) == L.WET_SLAP and L.WetStep(0.12) == L.WET_SPRAY and L.WetStep(0.07) == 0
+        and L.WetStep(0.3) == 0, "slap, spray")
+    assert(L.WET_SLAP <= 0.15 and L.WET_SPRAY < L.WET_SLAP, "faint, contrast")
+    local sub, swim, speed, fall = false, false, 7, false
+    IsSubmerged = function() return sub end
+    IsSwimming = function() return swim end
+    IsFalling = function() return fall end
+    GetUnitSpeed = function() return speed end
+    IsMounted = function() return false end
+    L.EventSettings("footsteps").on = true
+    L.EventSettings("wading").on = true
+    L.Poll()
+    assert(H.Playing("live_footsteps") and not H.Playing("live_wading"), "on land: footsteps")
+    sub = true
+    L.Poll()
+    assert(H.Playing("live_wading") and not H.Playing("live_footsteps"), "in shallow water: wading")
+    assert(L.water.wading and L.water.submerged and L.water.api, "the water state, for the debug window")
+    assert(ns.HapticsDebug.WaterText() == "Water: wading · submerged yes · swimming no", ns.HapticsDebug.WaterText())
+    L.EventSettings("footsteps").on = false
+    L.Poll()
+    assert(H.Playing("live_wading"), "wading alone, land footsteps off")
+    sub = false
+    L.Poll()
+    assert(not H.Playing("live_wading") and not H.Playing("live_footsteps"), "out of water, footsteps off: quiet")
+    -- the wading feel: faint slaps a step apart
+    local wade = H.Feel("wade")
+    assert(wade and H.Peak(wade) <= 0.15, "the Wading feel is faint")
+    -- landing in shallow water: a splash, not the thud
+    local air = L.airFrame
+    local played = {}
+    local play = H.Play
+    H.Play = function(feel, opts) played[#played + 1] = { feel = feel, voice = opts and opts.voice }; return play(feel, opts) end
+    local function jump(seconds, deep)
+        played = {}
+        fall = true; air.scripts.OnUpdate(air, 0.01)
+        now = now + seconds
+        fall = false; air.scripts.OnUpdate(air, 0.01)
+        if deep then swim = true end
+        air.scripts.OnUpdate(air, 0.01)
+        L.Poll()
+        now = now + 0.2
+    end
+    sub = true
+    jump(0.6)
+    assert(#played == 1 and played[1].voice == "ev_landing" and L.lastLanding.feel == "Splash, shallow",
+        "shallow water: a splash on the landing: " .. tostring(L.lastLanding.feel))
+    assert(played[1].feel.pulses[1][3] < L.LandingFeel(L.LandingWeight(0.6)).pulses[1][3] + 0.01, "no harder than a thud")
+    -- a jump into deep water: the swim starts a frame after the fall ends: one splash, no thud
+    sub = false
+    jump(2, true)
+    assert(#played == 1 and played[1].voice == "ev_splash", "deep water: one splash: " .. #played)
+    local big = played[1].feel
+    swim = false; L.Poll(); now = now + 2
+    jump(0.4, true)
+    local small = played[1] and played[1].feel
+    assert(small and big.pulses[1][2] > small.pulses[1][2] and big.pulses[1][3] > small.pulses[1][3]
+        and #big.pulses > #small.pulses, "scaled by the air time")
+    -- walking into deep water still splashes once
+    swim = false; L.Poll(); now = now + 2
+    played = {}
+    swim = true; L.Poll()
+    assert(#played == 1 and played[1].voice == "ev_splash", "walked in: Into water")
+    H.Play = play
+    swim, sub = false, false
+    L.Poll()
+    L.EventDefault("footsteps"); L.EventDefault("wading")
+    IsSubmerged, IsSwimming, IsFalling = nil, nil, nil
+    io.write("PASS: water: wading steps, shallow landing splash, one scaled splash into deep water" .. string.char(10))
+end
+
+-- Mining: a knock and a ring on each swing, in time from the cast's start, a crack on success
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local K, R = V.STRIKE_KNOCK, V.STRIKE_RING
+    assert(V.StrikeEnv(0) == K and V.StrikeEnv(0.12) == R and V.StrikeEnv(0.07) == 0 and V.StrikeEnv(0.3) == 0,
+        "a strike: knock, gap, ring, then still")
+    assert(K <= 0.5 and R < 0.1, "a firm knock, a faint ring")
+    assert(V.StrikeAt(0.3, 1, 0.5) == 0 and V.StrikeAt(1.51, 1, 0.5) == K and V.StrikeAt(2.62, 1, 0.5) == R,
+        "strikes from the first one, a period apart")
+    local p, o, synced = V.StrikeTiming("mining")
+    assert(p == 1 and o == 0.5 and not synced, "a guess until set")
+    V.SetStrikeTiming("mining", 1.2, nil)
+    p, o = V.StrikeTiming("mining")
+    assert(p == 1.2 and o == 0.5, "the swing set by hand")
+    V.SetStrikeTiming("mining", 99, -1)
+    p, o = V.StrikeTiming("mining")
+    assert(p == 3 and o == 0, "kept in range")
+    -- the fit: two casts, a strike missed in the second
+    local fp, fo = V.FitStrikes({ { 0.6, 1.8, 3.0 }, { 0.6, 1.8, 4.2 } })
+    assert(fp and math.abs(fp - 1.2) < 1e-6 and math.abs(fo - 0.6) < 1e-6, "period and first strike: "
+        .. tostring(fp) .. " " .. tostring(fo))
+    assert(V.FitStrikes({ { 0.6, 1.8 } }) == nil, "too few")
+    -- a real mining cast (Match the action): strikes in time, then the crack
+    V.Settings().strikes = {}
+    V.SetCastPreset("gather", "auto")
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local start = now
+    UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "cast-m", 2575)
+    assert(V.castKind == "gather" and V.castAction == "mining", "mining known: " .. tostring(V.castAction))
+    local shape = V.looping and V.looping.shape
+    assert(shape, "mining strikes in time (a shape, not the looped pattern)")
+    assert(shape(start + 0.3) == 0 and shape(start + 0.52) == K and shape(start + 1.52) == K
+        and shape(start + 0.62) == R and shape(start + 0.8) == 0, "a strike on each swing")
+    -- sync: squeeze R2 on the strikes, over two casts
+    V.StrikeSync("mining")
+    local said
+    V.onStrikeSync = function(text) said = text end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "cast-m2", 2575)
+    local depth = 0
+    local axesFn = L.TriggerAxes
+    L.TriggerAxes = function() return 0, depth end
+    local strikeFrameUpdate = V.strikeFrame
+    assert(strikeFrameUpdate:IsShown(), "the sync listens")
+    local function squeeze(t) now = start + t; depth = 1; strikeFrameUpdate.scripts.OnUpdate(strikeFrameUpdate, 0.01)
+        depth = 0; strikeFrameUpdate.scripts.OnUpdate(strikeFrameUpdate, 0.01) end
+    squeeze(0.7); squeeze(1.9); squeeze(3.1)
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_STOP", "player", "cast-m2")
+    assert(said == "3 strikes: mine again", tostring(said))
+    start = now + 1
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "cast-m3", 2575)
+    squeeze(0.7); squeeze(1.9); squeeze(3.1)
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_STOP", "player", "cast-m3")
+    p, o, synced = V.StrikeTiming("mining")
+    assert(synced and math.abs(p - 1.2) < 1e-6 and math.abs(o - 0.7) < 1e-6, "synced: " .. p .. " " .. o)
+    assert(not V.strikeSync and said:find("Synced", 1, true), "sync done")
+    -- success: the crack
+    start = now + 1
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "cast-m4", 2575)
+    local crack, release = V.Crack, V.Release
+    local cracked, released = false, false
+    V.Crack = function() cracked = true end
+    V.Release = function() released = true end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_STOP", "player", "cast-m4")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-m4", 2575)
+    assert(cracked and not released, "the ore cracks loose")
+    V.Crack, V.Release = crack, release
+    local l1, r1 = V.CrackAt(0.05)
+    assert(l1 > 0.8 and r1 > 0.8 and V.CrackAt(0.7) == nil, "a crack, then done")
+    UnitCastingInfo = nil
+    V.Settings().strikes = {}
+    V.onStrikeSync = nil
+    L.TriggerAxes = axesFn
+    io.write("PASS: mining: a knock and ring per swing from the cast start, sync by R2, a crack on success" .. string.char(10))
 end

@@ -71,7 +71,7 @@ end
 -- Why a voice plays, from its id
 ---------------------------------------------------------------------------
 local LIVE_WHY = {
-    footsteps = "moving", riding = "riding", heartbeat = "under half health", underwater = "breath running",
+    footsteps = "moving", wading = "in shallow water", riding = "riding", heartbeat = "under half health", underwater = "breath running",
     bandage = "bandaging", tension = "casting",
 }
 
@@ -200,7 +200,7 @@ end
 
 local function Build()
     win = CreateFrame("Frame", "GamepadCompanionHapticsDebug", UIParent)
-    win:SetSize(340, 128 + (LINES_NOW + LINES_LOG) * 14)
+    win:SetSize(340, 142 + (LINES_NOW + LINES_LOG) * 14)
     win:SetFrameStrata("MEDIUM")
     win:SetClampedToScreen(true)
     win:SetMovable(true)
@@ -249,11 +249,12 @@ local function Build()
     win.lightLabel:SetJustifyH("RIGHT")
     win.lightLabel:SetWidth(120)
     win.state = Line(win, -66, 10, 0.75, 0.75, 0.75)
-    local nowTitle = Line(win, -84, 10, 1, 0.82, 0)
+    win.water = Line(win, -80, 10, 0.6, 0.8, 1)
+    local nowTitle = Line(win, -98, 10, 1, 0.82, 0)
     nowTitle:SetText("Playing")
     win.now = {}
-    for i = 1, LINES_NOW do win.now[i] = Line(win, -84 - i * 14, 10, 0.95, 0.9, 0.8) end
-    local logY = -84 - (LINES_NOW + 1) * 14 - 4
+    for i = 1, LINES_NOW do win.now[i] = Line(win, -98 - i * 14, 10, 0.95, 0.9, 0.8) end
+    local logY = -98 - (LINES_NOW + 1) * 14 - 4
     local logTitle = Line(win, logY, 10, 1, 0.82, 0)
     logTitle:SetText("Last cues")
     win.logs = {}
@@ -285,6 +286,7 @@ function D.Update()
     local okA, active = pcall(function() return V.Active() end)
     win.state:SetText(string.format("Rumble %s · Light %s · %d sends/s",
         (okA and active) and "on" or "off", db.light and "on" or "off", H.SendRate()))
+    win.water:SetText(D.WaterText())
     -- playing now: vibrations, then lights
     local rows = {}
     for _, v in ipairs(H.ActiveVoices()) do
@@ -309,6 +311,17 @@ function D.Update()
         local e = D.log[i]
         line:SetText(e and string.format("%3ds  %s", floor(now - e.at), e.text) or "")
     end
+end
+
+-- The water as the client tells it (IsSubmerged is untested in this client):
+-- "Water: wading · submerged yes · swimming no"
+local function YesNo(v) if v == nil then return "?" end return v and "yes" or "no" end
+function D.WaterText()
+    local w = L.WaterState and L.WaterState()
+    if not w then return "Water: ?" end
+    local where = w.swimming and "swimming" or w.wading and "wading" or "dry"
+    return string.format("Water: %s · submerged %s · swimming %s", where,
+        w.api and YesNo(w.submerged) or "no API", YesNo(w.swimming))
 end
 
 function D.Show(on)

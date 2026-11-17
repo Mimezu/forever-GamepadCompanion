@@ -197,6 +197,7 @@ local page = ns.RumblePage
 local rowFor = {}
 for _, f in ipairs(created) do if rawget(f, "kind") and rawget(f, "pick") then rowFor[f.key] = f end end
 assert(rowFor.levelUp and rowFor.hit and rowFor.gather and rowFor.rain, "Rumble's, the Beta engine's and the cast sets' rows")
+assert(rowFor.wading and rowFor.footsteps, "Wading has its own row and switch beside Footsteps")
 page.browser.Select("Progress")
 local level = rowFor.levelUp
 assert(level:IsVisible() and level.pick.label.text == "Crescendo", tostring(level.pick.label.text))

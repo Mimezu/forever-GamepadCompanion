@@ -40,7 +40,7 @@ local GROUPS = {
         { "l", "missedYou" }, { "r", "lowHp" }, { "l", "heartbeat" }, { "l", "control" }, { "l", "targetCast" }, { "l", "aggro" } } },
     { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "r", "instant" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" } } },
-    { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "riding" }, { "l", "splash" },
+    { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
         { "l", "underwater" }, { "l", "mount" }, { "l", "dismount" }, { "l", "taxi" } } },
     { key = "Care", items = { { "r", "eat" }, { "r", "drink" }, { "l", "bandage" }, { "l", "potion" }, { "l", "rested" } } },
     { key = "Weather", items = { { "l", "rain" }, { "l", "thunder" }, { "l", "snow" }, { "l", "sand" }, { "l", "embers" } } },
@@ -288,6 +288,23 @@ local function BuildSteps(sp, width)
         get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
     S.Note(sync, 12, -228, 396, 3, 11, DIM):SetText("Sync: stand still, start moving, squeeze R2 on each footfall")
 
+    -- Mining: the pickaxe's swing (a strike each), a guess until synced
+    local mine = S.Card(sp, "Mining", 0, -310, 420, 190)
+    local mineButton = S.NewButton(mine, "Sync", 12, -40, 110, function()
+        if V.strikeSync then V.StrikeSyncCancel() else V.StrikeSync("mining") end
+        Refresh()
+    end, nil, 12, 28)
+    S.Tooltip(mineButton, "Sync", "Squeeze R2 on each strike")
+    local mineText = S.Text(mine, "", 132, -48, 276, 11, GREY)
+    local mineStatus = S.Note(mine, 12, -76, 396, 1, 11, GOLD)
+    local function secs(v) return string.format("%.2f s", v) end
+    Row(mine, "Swing", -100, 396, { step = 0.02, min = 0.3, max = 3, format = secs,
+        get = function() return (V.StrikeTiming("mining")) end, set = function(v) V.SetStrikeTiming("mining", v) end })
+    Row(mine, "First strike", -128, 396, { step = 0.02, min = 0, max = 3, format = secs,
+        get = function() return select(2, V.StrikeTiming("mining")) end,
+        set = function(v) V.SetStrikeTiming("mining", nil, v) end })
+    V.onStrikeSync = function(text) mineStatus:SetText(text); Refresh() end
+
     local lw = width - 430
     local land = S.Card(sp, "Landing", 430, 0, lw, 300)
     Row(land, "Soft at", -40, lw - 24, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
@@ -310,6 +327,10 @@ local function BuildSteps(sp, width)
         landed:SetText(text)
     end
     pg.refresh[#pg.refresh + 1] = function()
+        local period, first, synced = V.StrikeTiming("mining")
+        mineText:SetText(synced and string.format("Synced: %.2f s, first %.2f s", period, first) or "Not synced: a guess")
+        mineButton.label:SetText(V.strikeSync and "Cancel" or "Sync")
+        S.SetSelected(mineButton, V.strikeSync and true or false)
         for _, g in ipairs(gaits) do
             local cal = L.StepCal(g[1])
             g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")

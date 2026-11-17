@@ -143,6 +143,9 @@ local LIB = {
     { "gallop", "Gallop", "Life", "charge", Pulses({ P(0, 0.05, 0.14, -0.3), P(0.12, 0.05, 0.1, 0), P(0.24, 0.09, 0.4, 0.3) },
         { loop = true, length = 0.6 }) },
     { "steps", "Footsteps", "Life", "tick", Pulses({ P(0, 0.05, 0.12, -1), P(0.45, 0.05, 0.12, 1) }, { loop = true, length = 0.9 }) },
+    -- (wading: each step a faint wet slap, a fainter spray after it)
+    { "wade", "Wading", "Life", "bubble", Pulses({ P(0, 0.055, 0.1, -1), P(0.1, 0.05, 0.03, -0.6), P(0.45, 0.055, 0.1, 1),
+        P(0.55, 0.05, 0.03, 0.6) }, { loop = true, length = 0.9 }) },
     { "purr", "Purr", "Life", "purr", Pulses({ P(0, 0.05, 0.06), P(0.25, 0.05, 0.04) }, { loop = true, length = 0.5 }) },
     { "breath", "Breath", "Life", "mend", Pulses({ P(0, 0.05, 0.04), P(0.4, 0.05, 0.07), P(0.8, 0.05, 0.04),
         P(1.8, 0.05, 0.03), P(2.2, 0.05, 0.02) }, { loop = true, length = 3.2 }) },
@@ -727,6 +730,8 @@ L.EVENTS = {
     { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
         tip = "Softer or harder by the time in the air" },
     { key = "footsteps", icon = ART .. "vibe_tick", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
+    { key = "wading", icon = ART .. "vibe_bubble", group = "Moving", label = "Wading", feel = "wade", on = true, live = true,
+        tip = "Footsteps in shallow water" },
     { key = "riding", icon = ART .. "vibe_charge", group = "Moving", label = "Riding", feel = "gallop", on = false, live = true },
     { key = "splash", icon = ART .. "vibe_bubble", group = "Moving", label = "Into water", feel = "splash", on = true },
     { key = "underwater", icon = ART .. "vibe_bubble", group = "Moving", label = "Underwater", feel = "bubbles", on = true,
@@ -987,8 +992,9 @@ function L.StepTiming(speed)
     return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, synced and true or false
 end
 
-local function Steps(now, v)
-    if not (live.moving and not live.mounted) then return nil end
+-- The step clock: which step (n) and the seconds since it, or nil before
+-- the first one
+local function StepClock(now, v)
     local rate, offset = L.StepTiming(max(0.5, live.speed))
     -- (walk to run or back: the other animation starts its cycle now)
     local band = Band(max(0.5, live.speed))
@@ -1001,13 +1007,56 @@ local function Steps(now, v)
         v.phase = v.phase + (now - v.at) * rate
     end
     v.at = now
-    if v.phase < 0 then return 0, 0 end
+    if v.phase < 0 then return nil end
     local n = floor(v.phase)
-    if (v.phase - n) / rate < PULSE then
+    return n, (v.phase - n) / rate
+end
+
+local function Steps(now, v)
+    if not (live.moving and not live.mounted and not live.wading) then return nil end
+    local n, d = StepClock(now, v)
+    if n and d < PULSE then
         local left = n % 2 == 0
         return left and 0.12 or 0, left and 0 or 0.12
     end
     return 0, 0
+end
+
+-- A step in shallow water, d seconds on: a faint wet slap, then a fainter
+-- spray (splash splash splash)
+L.WET_SLAP, L.WET_SPRAY, L.WET_SPRAY_AT = 0.1, 0.03, 0.1
+function L.WetStep(d)
+    if d < 0 then return 0 end
+    if d < PULSE then return L.WET_SLAP end
+    if d >= L.WET_SPRAY_AT and d < L.WET_SPRAY_AT + PULSE then return L.WET_SPRAY end
+    return 0
+end
+
+local function Wades(now, v)
+    if not (live.moving and not live.mounted and live.wading) then return nil end
+    local n, d = StepClock(now, v)
+    if not n then return 0, 0 end
+    local s = L.WetStep(d)
+    if n % 2 == 0 then return s, 0 end
+    return 0, s
+end
+
+-- Shallow water: in water (IsSubmerged) but not swimming. (IsSubmerged is in
+-- the client but untested: the debug window shows both)
+function L.IsWading(submerged, swimming)
+    return submerged == true and not swimming
+end
+
+-- The water now: { api, submerged, swimming, wading } (nil: unknown)
+function L.WaterState()
+    local api = type(IsSubmerged) == "function"
+    local submerged = call(IsSubmerged)
+    if secret(submerged) then submerged = nil end
+    local swimming = call(IsSwimming)
+    if secret(swimming) then swimming = nil end
+    submerged = submerged ~= nil and (submerged and true or false) or nil
+    swimming = swimming and true or false
+    return { api = api, submerged = submerged, swimming = swimming, wading = L.IsWading(submerged, swimming) }
 end
 
 -- Three hooves, left to right, a stride quicker with speed
@@ -1328,11 +1377,11 @@ handlers.MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then live.unde
 handlers.UNIT_SPELLCAST_CHANNEL_STOP = handlers.UNIT_SPELLCAST_STOP
 handlers.PLAYER_STARTED_MOVING = function()
     live.moveStart = Now()
-    H.Stop("live_footsteps")
+    H.Stop("live_footsteps"); H.Stop("live_wading")
     if L.sync and L.sync.waiting then L.sync.waiting, L.sync.start = false, live.moveStart end
 end
 handlers.PLAYER_STOPPED_MOVING = function()
-    H.Stop("live_footsteps")
+    H.Stop("live_footsteps"); H.Stop("live_wading")
     if L.sync and L.sync.start then L.StepSyncEnd() end
 end
 handlers.PLAYER_ENTERING_WORLD = function()
@@ -1526,7 +1575,8 @@ L.WEATHER_KEYS = { "rain", "thunder", "snow", "sand", "embers" }
 local was = { falling = false, fallStart = 0, swimming = false, mounted = nil, taxi = nil }
 local function Poll()
     if not H.Engine() then
-        H.Stop("live_heartbeat"); H.Stop("live_footsteps"); H.Stop("live_riding"); H.Stop("live_underwater")
+        H.Stop("live_heartbeat"); H.Stop("live_footsteps"); H.Stop("live_wading"); H.Stop("live_riding")
+        H.Stop("live_underwater")
         for _, k in ipairs(L.WEATHER_KEYS) do H.Stop("live_" .. k) end
         return
     end
@@ -1536,7 +1586,8 @@ local function Poll()
     local swimming = call(IsSwimming) and true or false
     local taxi = call(UnitOnTaxi, "player") and true or false
     local mounted = call(IsMounted) and true or false
-    if swimming and not was.swimming and was.mounted ~= nil then L.Fire("splash") end
+    -- (into water: once; a jump into it splashed on landing already)
+    if swimming and not was.swimming and was.mounted ~= nil and not L.SplashedLately(now) then L.Fire("splash") end
     if was.mounted ~= nil and mounted ~= was.mounted and not taxi then
         L.Fire(mounted and "mount" or "dismount")
     end
@@ -1548,7 +1599,10 @@ local function Poll()
     live.speed = speed
     live.mounted = mounted
     live.moving = speed > 0 and not falling and not swimming and not flying and not taxi
-    if live.moving and not mounted then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
+    L.water = L.WaterState()
+    live.wading = L.water.wading
+    if live.moving and not mounted and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
+    if live.moving and not mounted and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
     if live.moving and mounted then StartLive("riding", Gallop) else H.Stop("live_riding") end
     -- Heartbeat: under half health when it can be read, else the game's warning
     local hp = HealthFraction("player")
@@ -1618,11 +1672,81 @@ function L.LandingFeel(k)
     return { pulses = list, duck = { amount = 0.4 + 0.5 * k, time = 0.1 + len } }
 end
 
+-- A splash shaped by its weight (0-1): a wet slap, longer the heavier, then
+-- spray taps left and right, fainter each. Shallow: a lighter one.
+function L.SplashFeel(k, shallow)
+    if shallow then k = k * 0.6 end
+    local longest = H.DB().landLong or L.LAND_LONG
+    local main = max(0.04, L.LandingLevel(k) * 0.9)
+    local len = 0.06 + max(0, longest * 0.8 - 0.06) * k
+    local list = { { 0, len, main, 0 } }
+    local at = len + 0.08
+    for i = 1, (shallow and 1 or 2) + floor(k * 3) do
+        list[#list + 1] = { at, 0.05, max(0.02, main * 0.35 / i), i % 2 == 0 and 0.7 or -0.7 }
+        at = at + 0.1 + 0.03 * i
+    end
+    return { pulses = list, duck = { amount = 0.3 + 0.4 * k, time = 0.1 + len } }
+end
+
+-- (a jump into water splashed on landing: the swim's own splash skips it)
+local splashedAt = -math.huge
+function L.SplashedLately(now) return (now or Now()) - splashedAt < 1 end
+
 local air = CreateFrame("Frame")
 L.airFrame = air
 local airState = { falling = false, since = 0 }
+
+-- A landing after t seconds in the air: on ground a thud, in water a splash
+local function Land(t, now)
+    local db = H.DB()
+    db.landings = db.landings or {}
+    table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
+    while #db.landings > 12 do table.remove(db.landings) end
+    local k = L.LandingWeight(t)
+    L.lastLanding = { t = t, k = k }
+    if L.onLand then L.onLand(t, k) end
+    local s = L.EventSettings("landing")
+    -- (Rumble's strength for a light one, full output for the heaviest:
+    -- at 70% strength a full landing felt faint)
+    local strength = Strength()
+    local gain = (strength + (1 - strength) * k) * L.LandingLevel(k)
+    local water = L.WaterState()
+    if water.swimming then
+        -- deep water: one splash (Into water), as heavy as the fall
+        splashedAt = now
+        L.Fire("splash", strength + (1 - strength) * k, L.SplashFeel(k), true)
+        L.lastLanding.feel = "Splash, shaped"
+    elseif water.wading then
+        splashedAt = now
+        L.Fire("landing", strength + (1 - strength) * k, L.SplashFeel(k, true), true)
+        L.lastLanding.feel = "Splash, shallow"
+    elseif s.feel == EVENT.landing.feel then
+        L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
+    else
+        -- (another feel: as strong, and stretched as long, as the landing
+        -- is heavy: in game a short one felt faint whatever its strength)
+        local f = H.Feel(s.feel)
+        local longest = H.DB().landLong or L.LAND_LONG
+        local want = 0.06 + max(0, longest - 0.06) * k
+        -- (a light landing shrinks the feel toward a micro tap; pulses
+        -- never under the shortest pulse setting)
+        local stretch = f and max(0.4, want / max(0.06, H.Length(f))) or 1
+        -- (its strongest pulse at full for a full landing, whatever the
+        -- feel's own strength: Flick's 80% went out at 74%)
+        local peak = f and H.Peak(f) or 1
+        L.Fire("landing", gain / max(0.05, peak), nil, true, stretch)
+    end
+    if not L.lastLanding.feel then
+        local played = H.Feel(s.feel)
+        L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
+    end
+    L.lastLanding.sent = { start = now, peak = 0, last = now }
+    -- (the run starts again on landing: footsteps from here)
+    if live.moving then live.moveStart = now; H.Stop("live_footsteps"); H.Stop("live_wading") end
+end
+
 air:SetScript("OnUpdate", function()
-    if not H.Engine() then airState.falling = false; return end
+    if not H.Engine() then airState.falling, airState.pending = false, nil; return end
     -- (what the motors were sent after the last landing: its peak and length)
     local sent = L.lastLanding and L.lastLanding.sent
     if sent and not sent.done then
@@ -1636,45 +1760,18 @@ air:SetScript("OnUpdate", function()
     end
     local falling = call(IsFalling) and true or false
     local now = Now()
+    -- (a landing waits one frame: falling into water, the swim may start a
+    -- frame after the fall ends, and a thud must not come before the splash)
+    local pending = airState.pending
+    if pending then
+        airState.pending = nil
+        if not falling then Land(pending.t, now) end
+    end
     if falling and not airState.falling then airState.since = now end
     if airState.falling and not falling then
-        local blocked = call(IsSwimming) or call(IsFlying) or call(UnitOnTaxi, "player")
+        local blocked = call(IsFlying) or call(UnitOnTaxi, "player")
         local t = now - airState.since
-        if not blocked and t > 0.25 then
-            local db = H.DB()
-            db.landings = db.landings or {}
-            table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
-            while #db.landings > 12 do table.remove(db.landings) end
-            local k = L.LandingWeight(t)
-            L.lastLanding = { t = t, k = k }
-            if L.onLand then L.onLand(t, k) end
-            local s = L.EventSettings("landing")
-            -- (Rumble's strength for a light one, full output for the heaviest:
-            -- at 70% strength a full landing felt faint)
-            local strength = Strength()
-            local gain = (strength + (1 - strength) * k) * L.LandingLevel(k)
-            if s.feel == EVENT.landing.feel then
-                L.Fire("landing", strength + (1 - strength) * k, L.LandingFeel(k), true)
-            else
-                -- (another feel: as strong, and stretched as long, as the landing
-                -- is heavy: in game a short one felt faint whatever its strength)
-                local f = H.Feel(s.feel)
-                local longest = H.DB().landLong or L.LAND_LONG
-                local want = 0.06 + max(0, longest - 0.06) * k
-                -- (a light landing shrinks the feel toward a micro tap; pulses
-                -- never under the shortest pulse setting)
-                local stretch = f and max(0.4, want / max(0.06, H.Length(f))) or 1
-                -- (its strongest pulse at full for a full landing, whatever the
-                -- feel's own strength: Flick's 80% went out at 74%)
-                local peak = f and H.Peak(f) or 1
-                L.Fire("landing", gain / max(0.05, peak), nil, true, stretch)
-            end
-            local played = H.Feel(s.feel)
-            L.lastLanding.feel = s.feel == EVENT.landing.feel and "Thud, shaped" or (played and played.label or s.feel)
-            L.lastLanding.sent = { start = now, peak = 0, last = now }
-            -- (the run starts again on landing: footsteps from here)
-            if live.moving then live.moveStart = now; H.Stop("live_footsteps") end
-        end
+        if not blocked and t > 0.25 then airState.pending = { t = t } end
     end
     airState.falling = falling
 end)

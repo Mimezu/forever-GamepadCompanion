@@ -70,8 +70,8 @@ V.PATTERNS = {
     -- Actions, felt as they go (a cast's loop): gathering, then crafting
     { key = "pluck", label = "Rustle", action = true,      -- herbalism: leaves, then the pull
         steps = { { 0.2, 0.3, 0.1 }, { 0.3, 0.2, 0.1 }, { 0, 0, 0.15 }, { 0.25, 0.35, 0.1 }, { 0, 0, 0.25 } } },
-    { key = "pickaxe", label = "Pickaxe", action = true,   -- mining: a hard strike, its ring, a swing
-        steps = { { 1, 0.8, 0.12 }, { 0.25, 0.15, 0.1 }, { 0, 0, 0.55 } } },
+    { key = "pickaxe", label = "Pickaxe", action = true,   -- mining: a firm knock, its faint ring, the swing
+        steps = { { 0.7, 0.6, 0.1 }, { 0.15, 0.1, 0.1 }, { 0, 0, 0.68 } } },
     { key = "skin", label = "Cut", action = true,          -- skinning: the knife drawn back and forth
         steps = { { 0.5, 0.1, 0.15 }, { 0.1, 0.5, 0.15 }, { 0, 0, 0.15 } } },
     { key = "reel", label = "Line", action = true,         -- fishing: a still line, a bob now and then
@@ -263,7 +263,10 @@ local PULSES = {
     -- Gathering and crafting, while the cast lasts
     pluck = { cycle = 0.85, Pu(0, 0.05, 0.07, -0.4), Pu(0.11, 0.05, 0.1, 0.4), Pu(0.2, 0.05, 0.06, -0.2),
         Pu(0.45, 0.12, 0.35) },
-    pickaxe = { cycle = 0.9, Pu(0, 0.15, 0.9), Pu(0.22, 0.05, 0.15), Pu(0.32, 0.05, 0.07) },
+    -- (a short firm knock, a faint ring: in game the old 150 ms hit at 90%
+    -- felt like a plain rumble; a cast with known timing strikes in time
+    -- with the swings instead, V.StrikeAt)
+    pickaxe = { cycle = 1, Pu(0, 0.055, 0.45), Pu(0.1, 0.05, 0.07) },
     skin = { cycle = 0.45, Pu(0, 0.05, 0.15, -0.8), Pu(0.15, 0.05, 0.15, 0.8) },
     reel = { cycle = 1.2, Pu(0, 0.05, 0.05), Pu(0.6, 0.05, 0.05), Pu(0.75, 0.1, 0.25) },
     click = { cycle = 0.9, Pu(0, 0.05, 0.1), Pu(0.3, 0.05, 0.1), Pu(0.5, 0.12, 0.3) },
@@ -526,6 +529,7 @@ function V.Settings()
         if not PRESET[s.casts[k.key]] then s.casts[k.key] = k.preset end
     end
     s.intensity = s.intensity or 0.8
+    s.strikes = s.strikes or {}
     s.events = s.events or {}
     for _, e in ipairs(V.EVENTS) do
         local cfg = s.events[e.key]
@@ -977,6 +981,73 @@ local function Fishing(now)
     return 0, 0
 end
 
+---------------------------------------------------------------------------
+-- Mining: a strike on each swing of the pickaxe, from the cast's start to
+-- its end, then a crack when the ore breaks loose. The swing's period and
+-- first strike are a guess until set or synced (squeeze R2 on each strike).
+---------------------------------------------------------------------------
+local STRIKES = { mining = { period = 1, offset = 0.5 } }
+V.STRIKES = STRIKES
+-- A strike d seconds on: a short firm knock, then a faint ring
+V.STRIKE_KNOCK, V.STRIKE_RING, V.STRIKE_RING_AT = 0.45, 0.07, 0.1
+function V.StrikeEnv(d)
+    if d < 0 then return 0 end
+    if d < PULSE then return V.STRIKE_KNOCK end
+    if d >= V.STRIKE_RING_AT and d < V.STRIKE_RING_AT + PULSE then return V.STRIKE_RING end
+    return 0
+end
+
+-- An action's swing period and first strike (seconds), and whether synced
+function V.StrikeTiming(action)
+    local guess = STRIKES[action] or STRIKES.mining
+    local cal = V.Settings().strikes[action]
+    if type(cal) ~= "table" then return guess.period, guess.offset, false end
+    return cal.period or guess.period, cal.offset or guess.offset, (cal.taps or 0) > 0
+end
+
+-- Set by hand (period or first strike; nil keeps it)
+function V.SetStrikeTiming(action, period, offset)
+    local all = V.Settings().strikes
+    local p, o = V.StrikeTiming(action)
+    local cal = type(all[action]) == "table" and all[action] or { taps = 0 }
+    cal.period = math.max(0.3, math.min(3, period or p))
+    cal.offset = math.max(0, math.min(3, offset or o))
+    all[action] = cal
+end
+
+-- The strike envelope t seconds into the cast
+function V.StrikeAt(t, period, offset)
+    if t < offset then return 0 end
+    return V.StrikeEnv((t - offset) % period)
+end
+
+local function Strikes(now)
+    local t = cast.timing
+    local period, offset = V.StrikeTiming(t.strikes)
+    local e = V.StrikeAt(now - t.start, period, offset)
+    return e, e
+end
+
+-- The ore breaks loose: a longer crack, then crumbling taps left and right
+local CRACK = { { 0, 0.2, 0.85, 0 }, { 0.28, 0.05, 0.14, -0.6 }, { 0.38, 0.05, 0.09, 0.6 }, { 0.5, 0.05, 0.05, -0.3 } }
+local crackedAt = -math.huge
+function V.CrackAt(d)
+    for _, p in ipairs(CRACK) do
+        if d >= p[1] and d < p[1] + p[2] then
+            return p[3] * math.min(1, 1 - p[4]), p[3] * math.min(1, 1 + p[4])
+        end
+    end
+    if d >= 0.6 then return nil end
+    return 0, 0
+end
+local function Crack(now) return V.CrackAt(now - crackedAt) end
+
+function V.Crack()
+    if not (C_GamePad and C_GamePad.SetVibration and V.Active()) then return end
+    crackedAt = GetTime()
+    StartShape(Crack, true)
+end
+
 -- The cast in progress' shape, or nil: its own pattern loops instead (a
 -- set other than Match the action, gathering, crafting, a channel whose
 -- ticks we don't know, a cast whose timing is hidden)
@@ -988,6 +1059,10 @@ local function CastShape()
     if V.castKind == "gather" and V.castAction == "fishing" and t.channel then
         t.fishing = true
         return Fishing
+    end
+    if V.castKind == "gather" and STRIKES[V.castAction] and not t.channel then
+        t.strikes = V.castAction
+        return Strikes
     end
     if V.castKind ~= "spell" then return nil end
     if t.channel and not t.interval then return nil end
@@ -1165,6 +1240,7 @@ end
 
 -- A looping event is over (the cast ended): its loop stops
 function V.EndLoop(eventKey)
+    if eventKey == "cast" and V.StrikeCastOver then V.StrikeCastOver() end
     for i = #loops, 1, -1 do
         if loops[i].key == eventKey then table.remove(loops, i) end
     end
@@ -1300,13 +1376,17 @@ function V.SimulateCast(onStep, kind, action)
         onStep(nil)
     end
     local preset = PRESET[V.CastPreset(V.castKind)]
-    -- Gathering, Match the action: a herb picked; then fishing: the throw
+    -- Gathering, Match the action: a vein mined, the ore cracking loose;
+    -- then fishing: the throw
     if V.castKind == "gather" and preset and preset.auto then
-        V.castAction = "herbalism"
-        onStep(SpellName(2366) or "Herbalism")
+        local now = GetTime()
+        V.castAction = "mining"
+        cast.timing = { start = now, finish = now + 3.2 }
+        cast.ended = false
+        onStep(SpellName(2575) or "Mining")
         play("cast", true)
-        at(2.5, function() V.EndLoop("cast") end)
-        at(3.5, function()
+        at(3.2, function() V.EndLoop("cast"); V.Crack() end)
+        at(4.2, function()
             local now = GetTime()
             V.castAction = "fishing"
             cast.timing = { start = now, finish = now + 30, channel = true }
@@ -1314,7 +1394,7 @@ function V.SimulateCast(onStep, kind, action)
             onStep((SpellName(7620) or "Fishing") .. ": the throw")
             play("cast", true)
         end)
-        at(5.5, finish)
+        at(6.2, finish)
         return
     end
     -- A spell, Match the action: a Fireball pushed back, then released;
@@ -1478,8 +1558,12 @@ local REST_SPELLS = {
     both = { 167152, 25990, 26263, 29055, 1312719, 1269354 },
 }
 local gatherByName, craftByName, spellByName, ticksByName, shotByName, moveByName, restByName
+-- (built again until every gathering spell has its name: a name not loaded
+-- yet at login would leave mining a plain spell all session)
+local namesComplete = false
 local function Names()
-    if gatherByName then return end
+    if gatherByName and namesComplete then return end
+    namesComplete = true
     gatherByName, craftByName, ticksByName, shotByName, moveByName, restByName = {}, {}, {}, {}, {}, {}
     for kind, ids in pairs(REST_SPELLS) do
         for _, id in ipairs(ids) do
@@ -1504,7 +1588,7 @@ local function Names()
     for action, ids in pairs(GATHER_IDS) do
         for _, id in ipairs(ids) do
             local name = SpellName(id)
-            if name then gatherByName[name] = action end
+            if name then gatherByName[name] = action else namesComplete = false end
         end
     end
     spellByName = {}
@@ -1612,6 +1696,7 @@ local function CastStarted(event, _, guid, spellID)
     cast.timing = start and { start = start, finish = finish, channel = channel,
         interval = channel and ChannelTicks(spellID) or nil } or nil
     V.Fire("cast")
+    if V.strikeSync then V.StrikeCastBegan(V.castAction, cast.timing and cast.timing.start or GetTime()) end
 end
 
 local function CastEnded(how)
@@ -1628,8 +1713,116 @@ local function CastReleased()
     V.EndLoop("cast")
     if cast.ended then return end
     cast.ended = true
-    if cast.shaped and not cast.timing.fishing then V.Release() end
+    if cast.shaped and not cast.timing.fishing then
+        if cast.timing.strikes then V.Crack() else V.Release() end
+    end
 end
+
+---------------------------------------------------------------------------
+-- Strike sync: mine and squeeze R2 (or L2) on each strike of the pickaxe,
+-- over one cast or more; the squeezes give the swing's period and the first
+-- strike's time after the cast starts
+---------------------------------------------------------------------------
+local strikeFrame = CreateFrame("Frame")
+strikeFrame:Hide()
+V.strikeFrame = strikeFrame
+V.STRIKE_SYNC_TAPS = 6
+
+local function StrikeSay(text) if V.onStrikeSync then V.onStrikeSync(text) end end
+
+function V.StrikeSync(action)
+    V.strikeSync = { action = action or "mining", casts = {}, down = false }
+    strikeFrame:Show()
+    StrikeSay("Mine: squeeze R2 on each strike")
+end
+
+function V.StrikeSyncCancel()
+    strikeFrame:Hide()
+    V.strikeSync = nil
+    StrikeSay("")
+end
+
+function V.StrikeCastBegan(action, start)
+    local s = V.strikeSync
+    if not s then return end
+    s.current = action == s.action and { start = start } or nil
+end
+
+-- The taps of each cast (seconds after its start) to a period and a first
+-- strike: strikes may be missed, so each tap counts as the nearest whole
+-- number of strikes after the earliest first one; then a straight line
+function V.FitStrikes(casts)
+    local gaps, total, first = {}, 0, math.huge
+    for _, c in ipairs(casts) do
+        for i = 2, #c do gaps[#gaps + 1] = c[i] - c[i - 1] end
+        total = total + #c
+        if c[1] and c[1] < first then first = c[1] end
+    end
+    if total < 4 or #gaps < 2 then return nil end
+    table.sort(gaps)
+    local period = gaps[math.floor((#gaps + 1) / 2)]
+    if period < 0.3 then return nil end
+    local sx, sy, sxx, sxy, m = 0, 0, 0, 0, 0
+    for _, c in ipairs(casts) do
+        for _, t in ipairs(c) do
+            local n = math.max(0, math.floor((t - first) / period + 0.5))
+            sx, sy, sxx, sxy, m = sx + n, sy + t, sxx + n * n, sxy + n * t, m + 1
+        end
+    end
+    local den = m * sxx - sx * sx
+    if den == 0 then return nil end
+    local b = (m * sxy - sx * sy) / den
+    local a = (sy - b * sx) / m
+    if b < 0.3 or b > 3 then return nil end
+    while a < 0 do a = a + b end
+    return b, a
+end
+
+function V.StrikeSyncEnd()
+    local s = V.strikeSync
+    strikeFrame:Hide()
+    V.strikeSync = nil
+    if not s then return end
+    local period, offset = V.FitStrikes(s.casts)
+    if not period then return StrikeSay("|cffff7a5cToo few strikes: try again|r") end
+    local n = 0
+    for _, c in ipairs(s.casts) do n = n + #c end
+    V.SetStrikeTiming(s.action, period, offset)
+    V.Settings().strikes[s.action].taps = n
+    StrikeSay(string.format("Synced: a strike every %.2f s, first after %.2f s", period, offset))
+end
+
+-- A cast over: its taps kept; enough of them, the sync is done
+function V.StrikeCastOver()
+    local s = V.strikeSync
+    if not (s and s.current) then return end
+    local taps = s.current
+    s.current = nil
+    if #taps > 0 then s.casts[#s.casts + 1] = taps end
+    local n = 0
+    for _, c in ipairs(s.casts) do n = n + #c end
+    if n >= V.STRIKE_SYNC_TAPS then return V.StrikeSyncEnd() end
+    StrikeSay(n .. " strikes: mine again")
+end
+
+strikeFrame:SetScript("OnUpdate", function()
+    local s = V.strikeSync
+    if not s then return strikeFrame:Hide() end
+    if not s.current then return end
+    local L = ns.HapticsLab
+    local l, r
+    if L and L.TriggerAxes then l, r = L.TriggerAxes() end
+    local depth = math.max(l or 0, r or 0)
+    if not s.down and depth > 0.5 then
+        s.down = true
+        s.current[#s.current + 1] = GetTime() - s.current.start
+        local n = #s.current
+        for _, c in ipairs(s.casts) do n = n + #c end
+        StrikeSay(n .. " strikes")
+    elseif s.down and depth < 0.2 then
+        s.down = false
+    end
+end)
 
 local CAST_HANDLERS = {
     UNIT_SPELLCAST_START = CastStarted,
