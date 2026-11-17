@@ -2,7 +2,7 @@
 
 ## 0.31.4 — 2026-11-16
 
-- Looping moments (casts and channels, Hearthstone, eating, drinking, low health): their HD feel through WoW Helper plays again each cycle while the loop lasts, in step with the rumble (was once at the start, then silent). A cast swells toward its end (intensity 2 to 6); a cancelled or interrupted cast stops at once. Volumes as before
+- Looping moments (casts and channels, Hearthstone, eating, drinking, low health): their HD feel through WoW Helper plays again each cycle while the loop lasts, in step with the rumble (was once at the start, then silent). A cast swells toward its end (intensity 4, as designed, to 6); a cancelled or interrupted cast stops at once. Volumes as before
 
 ## 0.31.3 — 2026-11-16
 

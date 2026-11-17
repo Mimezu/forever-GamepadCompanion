@@ -1737,13 +1737,14 @@ do
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "hs-1", 8690)
     assert(V.looping and V.looping.pattern == "hearth", "Hearthstone's loop: " .. tostring(V.looping and V.looping.pattern))
     assert(#cues == 1 and cues[1].touch and cues[1].touch >= 128, "its HD cue at the start")
-    assert(C.LoopPeriod("r_hearth") >= 0.6 and C.LoopPeriod("r_arcane") >= 0.6, "cycles at least 0.6 s apart")
+    assert(math.abs(C.LoopPeriod("r_hearth") - 1.2) < 1e-9 and math.abs(C.LoopPeriod("r_arcane") - 0.6) < 1e-9
+        and math.abs(C.LoopPeriod("r_heart") - 0.9) < 1e-9, "each feel's own cycle (the export's length); arcane every second")
     for _ = 1, 990 do
         now = now + 0.01
         C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01)
     end
     assert(#cues >= 7 and #cues <= 10, "a 10 s cast: a cue each cycle: " .. #cues)
-    assert(cues[1].intensity == 2 and cues[#cues].intensity >= 5, "swelling: " .. cues[1].intensity .. " -> " .. cues[#cues].intensity)
+    assert(cues[1].intensity == 4 and cues[#cues].intensity == 6, "swelling 4 to 6: " .. cues[1].intensity .. " -> " .. cues[#cues].intensity)
     local n = #cues
     for i = 2, n do assert(cues[i].touch == cues[1].touch and not (cues[i].sound and cues[i].sound > 0), "the HD feel again, no sound") end
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "hs-1")

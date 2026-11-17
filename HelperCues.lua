@@ -423,7 +423,8 @@ C.ExportMoments = ExportMoments
 -- Looping moments (a cast, Hearthstone, eating, drinking, low health): the
 -- rumble loops on its own, so their HD cue goes again each cycle while the
 -- loop lasts, timed from the loop's start (no drift), a cast's swelling with
--- its progress (intensity 2 to 6); stopped as the loop ends
+-- its progress (intensity 4 to 6: the middle no fainter than designed);
+-- stopped as the loop ends
 ---------------------------------------------------------------------------
 C.LOOP_MIN = 0.6
 local loopCue
@@ -440,13 +441,13 @@ function C.LoopPeriod(feelKey)
     return len
 end
 
--- A cast's HD intensity, 2 at its start to 6 at its end (nil: not a cast)
+-- A cast's HD intensity, 4 (as designed) at its start to 6 at its end (nil: not a cast)
 function C.LoopIntensity(key)
     if key ~= "cast" then return nil end
     local V = ns.Rumble
     local p = V and V.CastProgress and V.CastProgress()
     if not p then return nil end
-    return 2 + 4 * p
+    return 4 + 2 * p
 end
 
 -- loop: Rumble's V.looping; sent: cues already sent for it (1: its first, at the fire)
