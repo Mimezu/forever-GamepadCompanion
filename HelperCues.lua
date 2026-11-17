@@ -32,7 +32,7 @@ C.MOMENTS = {
     { "hitTaken", "Defense" }, { "critted", "Defense" }, { "dodge", "Defense" }, { "parry", "Defense" },
     { "block", "Defense" }, { "missedYou", "Defense" }, { "lowHp", "Defense" }, { "heartbeat", "Defense" },
     { "control", "Defense" }, { "targetCast", "Defense" }, { "aggro", "Defense" },
-    { "spell", "Abilities" }, { "gather", "Abilities" }, { "craft", "Abilities" }, { "instant", "Abilities" },
+    { "spell", "Abilities" }, { "gather", "Abilities" }, { "craft", "Abilities" }, { "instant", "Attacks" },
     { "tension", "Abilities" }, { "gcd", "Abilities" }, { "combo", "Abilities" }, { "comboFull", "Abilities" },
     { "full", "Abilities" }, { "oom", "Abilities" },
     { "jump", "Moving" }, { "landing", "Moving" }, { "footsteps", "Moving" }, { "wading", "Moving" },

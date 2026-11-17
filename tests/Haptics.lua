@@ -1645,19 +1645,22 @@ do
     -- next-swing abilities: Heroic Strike's blow is the swing (no ability guard)
     local rf
     for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
-    local swingsSeen = 0
-    V.Fire = function(k) if k == "autoAttack" then swingsSeen = swingsSeen + 1 end end
+    local swingsSeen, abilities = 0, {}
+    V.Fire = function(k)
+        if k == "autoAttack" then swingsSeen = swingsSeen + 1 end
+        if k == "instant" then abilities[#abilities + 1] = V.instantMove end
+    end
     UnitCanAttack = function() return true end
     for _, k in ipairs(T.KINDS) do T.Set(k.key, "main", 0); T.Set(k.key, "off", 0) end
     now = now + 5
     rf.scripts.OnEvent(rf, "PLAYER_ENTER_COMBAT")
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "hs", 78)
     rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 200, 1)
-    assert(swingsSeen == 1, "Heroic Strike's blow: the swing")
+    assert(swingsSeen == 0 and abilities[1] == "slash", "Heroic Strike's blow: the swing, felt as the ability")
     now = now + 5
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "ss", 1752)
     rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 200, 1)
-    assert(swingsSeen == 1, "Sinister Strike's blow: not a swing")
+    assert(swingsSeen == 0 and abilities[2] == "stab", "Sinister Strike's blow: not a swing; its own")
     rf.scripts.OnEvent(rf, "PLAYER_LEAVE_COMBAT")
     V.Fire = vfire
     UnitCanAttack = nil
@@ -1812,4 +1815,94 @@ do
     IsFalling = nil
     H.DB().landMin, H.DB().landMax = nil, nil
     io.write("PASS: landings fade under a real jump: rumble, HD cue, clip; continuous, never silent" .. string.char(10))
+end
+
+-- Your abilities as they land: paired with their own result, at the blow, matched; never others' damage
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local T = ns.Timing
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired, labs, pending = {}, {}, {}
+    local vfire, lfire, after = V.Fire, L.Fire, C_Timer.After
+    V.Fire = function(k) fired[#fired + 1] = k == "instant" and ("instant:" .. tostring(V.instantMove)) or k end
+    L.Fire = function(k) labs[#labs + 1] = k end
+    C_Timer.After = function(d, fn) pending[#pending + 1] = { d, fn } end
+    local function land() local l = pending; pending = {}; for _, p in ipairs(l) do p[2]() end; return l end
+    UnitCanAttack = function() return true end
+    GetInventoryItemID = function(_, slot) return slot == 16 and 100 or nil end
+    local oldItem = C_Item
+    C_Item = { GetItemInfoInstant = function(id) if id == 100 then return nil, nil, nil, nil, nil, 2, 15 end end }
+    T.Store().set = {}
+    local re = V.EVENT and V.EVENT.instant
+    for _, e in ipairs(V.EVENTS) do if e.key == "instant" then re = e end end
+    assert(re.label == "Your abilities" and re.auto == "Match the ability" and re.on, "one clear moment, on by default")
+    assert(ns.HelperCues.MOMENT_N.instant, "its moment number kept")
+    now = now + 5
+    -- someone else's damage: no cast of yours, no feel
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
+    land()
+    assert(#fired == 0, "others' damage: nothing")
+    -- Sinister Strike: its stab at the dagger's impact
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ss1", 1752)
+    assert(#fired == 0, "not at the cast: when it lands")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
+    local l = land()
+    assert(l[1] and math.abs(l[1][1] - T.Impact("dagger", "main")) < 1e-9, "at the blow (the dagger's impact)")
+    assert(fired[1] == "instant:stab", tostring(fired[1]))
+    -- parried: the Beta engine's Target parries, no stab; crit: the Crit feel
+    fired, labs = {}, {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ss2", 1752)
+    rev("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+    land()
+    assert(#fired == 0 and labs[1] == "targetParry", "parried: " .. table.concat(labs, ","))
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ss3", 1752)
+    rev("UNIT_COMBAT", "target", "WOUND", "CRITICAL", 600, 1)
+    land()
+    assert(fired[1] == "crit", "a crit: the Crit feel: " .. tostring(fired[1]))
+    -- the window passes: a later blow is not the ability's
+    fired = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ss4", 1752)
+    now = now + 1
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
+    land()
+    assert(#fired == 0, "too late: not paired")
+    -- the Lab leaves your ability's result alone (no Hit on top)
+    labs = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ss5", 1752)
+    ev("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
+    assert(#labs == 0, "no Hit for your ability")
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
+    land()
+    -- a seal: at once, as you use it; Judgement and Arcane Shot: a bright strike when it lands
+    fired = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "seal", 20154)
+    assert(fired[1] == "instant:seal", "a seal: at once")
+    fired = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "as", 3044)
+    assert(#fired == 0, "Arcane Shot: not a plain shot now")
+    now = now + 1
+    rev("UNIT_COMBAT", "target", "WOUND", "", 200, 64)
+    land()
+    assert(fired[1] == "instant:judge", "Arcane Shot lands: " .. tostring(fired[1]))
+    -- an ability we don't know: the default Blow, in a shorter window
+    fired = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "x", 99999)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+    land()
+    assert(fired[1] == "instant:blow", tostring(fired[1]))
+    assert(V.Pattern("blow") and V.Pattern("blow").feel and H.Feel("r_blow"), "Blow, in the library for its HD")
+    V.Fire, L.Fire, C_Timer.After = vfire, lfire, after
+    UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
+    io.write("PASS: your abilities: paired with their own result, at the blow, matched; others' damage never" .. string.char(10))
 end

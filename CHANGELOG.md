@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.32.0 — 2026-11-17
+
+- **Your abilities** (Attacks; was Abilities, "Match the move"): your own attack abilities felt as they land on your target, at the blow, each its own: Match the ability. A heavy strike (Heroic Strike, Mortal Strike), a stab (Sinister Strike, Backstab), a bash (Shield Bash, Hammer of Justice), a sweep (Cleave, Whirlwind), a bright strike (Judgement, Arcane Shot), **Blow** (new) for any other. Paired with your own cast: others' damage, pets' and DoT ticks never set it off
+- A crit plays the Crit feel; a miss, dodge, parry or block on your target its own moment, at the same blow. Seals, shouts, shields still play as you use them
+- Heroic Strike, Cleave, Maul, Raptor Strike: the swing they ride on is felt as the ability, not a plain swing. Arcane Shot is an ability now (was a plain shot)
+- The ability's Now line shows its feel
+
 ## 0.31.5 — 2026-11-17
 
 - Landings under your real jump (Setup › Timing › Landing, "Soft at"): quieter and quieter the shorter the drop, eased, down to a faint tap for a step down a stair (30% of a real jump's landing), never silent, never above a real jump, no step at the minimum. The rumble, WoW Helper's HD cue (gain and intensity), its sound and clip all fade alike; a drop into water too. Drops from 0.08 s count (were 0.25 s); real jumps unchanged

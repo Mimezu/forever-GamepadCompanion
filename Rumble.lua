@@ -166,6 +166,8 @@ V.PATTERNS = {
         steps = { { 0.9, 0.9, 0.12 }, { 0.45, 0.45, 0.12 }, { 0.2, 0.2, 0.15 } } },
     { key = "seal", label = "Seal", action = true, move = true,       -- a seal or a blessing: light gathering, settling
         steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.5, 0.5, 0.12 }, { 0.25, 0.25, 0.12 }, { 0.1, 0.1, 0.12 } } },
+    { key = "blow", label = "Blow", action = true, move = true,       -- any other ability landing: a firm blow
+        steps = { { 0.65, 0.6, 0.12 }, { 0, 0, 0.08 }, { 0.15, 0.15, 0.1 } } },
     { key = "judge", label = "Judgement", action = true, move = true, -- a seal let loose: a bright strike
         steps = { { 0.3, 0.3, 0.1 }, { 1, 1, 0.12 }, { 0.5, 0.5, 0.1 }, { 0.2, 0.2, 0.12 } } },
     { key = "ward", label = "Ward", action = true, move = true,       -- a shield raised around you
@@ -224,7 +226,7 @@ V.MOVES = {
     -- Martyrdom (their base IDs in Forever's spell table)
     seal = { 20154, 21082, 20375, 20165, 20166, 20164, 19740, 19742, 20217, 1044, 588, 139,
         324, 626, 1023, 1037, 3694, 13903, 407798 },
-    judge = { 20271, 20066 },                               -- Judgement, Repentance
+    judge = { 20271, 20066, 3044 },                         -- Judgement, Repentance, Arcane Shot
     -- Power Word: Shield, Divine Shield, Divine Protection, Blessing of
     -- Protection, Holy Shield, Ice Barrier, Ice Block, Mana Shield, Shield
     -- Block, Shield Wall, Evasion
@@ -309,6 +311,7 @@ local PULSES = {
     slash = { Pu(0, 0.05, 0.08), Pu(0.1, 0.18, 0.9), Pu(0.33, 0.05, 0.12) },
     cleave = { Pu(0, 0.12, 0.7, -1), Pu(0.14, 0.05, 0.3), Pu(0.22, 0.12, 0.7, 1) },
     stab = { Pu(0, 0.1, 0.6, 0.3) },
+    blow = { Pu(0, 0.12, 0.65), Pu(0.2, 0.05, 0.15) },
     rend = { Pu(0, 0.05, 0.3, -0.6), Pu(0.08, 0.05, 0.3, 0.6), Pu(0.16, 0.05, 0.25, -0.6), Pu(0.24, 0.05, 0.15, 0.6) },
     slam = { Pu(0, 0.3, 1), Pu(0.4, 0.05, 0.2), Pu(0.52, 0.05, 0.1), Pu(0.64, 0.05, 0.05) },
     bash = { Pu(0, 0.2, 1, -0.3), Pu(0.3, 0.05, 0.12) },
@@ -399,11 +402,11 @@ V.EVENTS = {
     { key = "pushback", group = "combat", parent = "spellcast", label = "Pushed back", icon = EVENT_ICONS .. "pushback",
         on = true, pattern = "micro", tip = "A hit while you cast or channel costs you cast time: the"
             .. " cast slows, or the channel shortens." },
-    { key = "instant", group = "casting", label = "Abilities", icon = EVENT_ICONS .. "instant", on = true,
-        pattern = "auto", auto = "Match the move", family = "move", gap = 0.15, tip = "Each instant ability you"
-            .. " use (Heroic Strike, Sinister Strike, a seal, a shock...). Match the move: each its own feel (a"
-            .. " slash, a stab, a bash, a charge, a whirl, a seal's light, a Judgement...); any other: none. A"
-            .. " pattern: every instant ability." },
+    { key = "instant", group = "combat", label = "Your abilities", icon = EVENT_ICONS .. "instant", on = true,
+        pattern = "auto", auto = "Match the ability", family = "move", gap = 0.15, tip = "Your own attack"
+            .. " abilities as they land on your target (Heroic Strike, Sinister Strike, Shield Bash, Cleave,"
+            .. " Judgement, Arcane Shot...), at the blow; a seal, a shout, a shield as you use it. Match the"
+            .. " ability: each its own feel." },
     { key = "eat", group = "rest", label = "Eating", icon = EVENT_ICONS .. "eat", on = true,
         pattern = "chew", loop = true, family = "rest", tip = "While you sit eating, until you stand up or the"
             .. " food is done. Munch goes with your character: a bite as the hand reaches the mouth, chewing"
@@ -1576,6 +1579,7 @@ end
 local function UnitCombat(unit, action, flag, _, school)
     if secret(action) then return end
     if secret(school) then school = nil end
+    if unit == "target" and V.AbilityResult(action, flag) then return end
     if unit == "target" and V.ClaimsSwing(action, school) then
         local result = V.SWING_RESULT[action]
         if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
@@ -1638,7 +1642,7 @@ local CHANNEL_TICKS = {
 -- Throw, and a hunter's instant shots and stings
 local SHOT_IDS = {
     75, 5019, 3018, 2480, 7918, 7919, 2764,
-    3044, 2643, 5116, 1978, 3043, 3034, 19386, 19503, 20736, 19801,
+    2643, 5116, 1978, 3043, 3034, 19386, 19503, 20736, 19801,
 }
 -- Eating and drinking: the buffs of sitting with food or a drink (each
 -- also the spell the item casts). Most are Food or Drink; a few have their
@@ -1950,8 +1954,9 @@ local CAST_HANDLERS = {
     -- (a channel's start says so too: not its end)
     UNIT_SPELLCAST_SUCCEEDED = function(_, _, guid, spellID)
         -- (an ability's blow is not a swing; a next-swing one, Heroic Strike,
-        -- is the swing itself)
-        if (secret(spellID) or spellID ~= ATTACK) and not NextSwing(spellID) then swing.ability = GetTime() end
+        -- is the swing itself, felt as the ability)
+        if NextSwing(spellID) then return V.AbilityCast(V.MoveOf(spellID) or "slash", spellID, true) end
+        if secret(spellID) or spellID ~= ATTACK then swing.ability = GetTime() end
         if IsShot(spellID) then
             ranged.shot = GetTime()
             if V.HitSyncEvent then V.HitSyncEvent("ranged", "ranged", ranged.shot) end
@@ -1970,8 +1975,14 @@ local CAST_HANDLERS = {
         if not secret(spellID) and spellID == ATTACK then return end
         -- (sitting down with food or a drink: Eating, Drinking)
         if RestOf(spellID) then return end
-        V.instantMove = V.MoveOf(spellID)
-        V.Fire("instant")
+        local move = V.MoveOf(spellID)
+        -- (a seal, a shout, a shield, a charge: felt as you use it)
+        if move and not V.LANDS[move] then
+            V.instantMove = move
+            return V.Fire("instant")
+        end
+        -- (an attack: felt when its result on your target comes, at the blow)
+        V.AbilityCast(move, spellID)
     end,
     UNIT_SPELLCAST_DELAYED = function()
         if cast.ended then return end
@@ -2157,6 +2168,82 @@ function V.SwingLanded(slot, sure, result)
     local kind, hand = V.WeaponKind(slot), HANDS[slot] or "main"
     if V.HitSyncEvent then V.HitSyncEvent(kind, hand, now) end
     AtImpact(V.ImpactDelay(kind, hand), function() V.SwingImpact(slot, result, true) end)
+end
+
+---------------------------------------------------------------------------
+-- Your abilities as they land: an attack ability's cast (UNIT_SPELLCAST_
+-- SUCCEEDED, the player's own) waits a moment for its result on your target
+-- (UNIT_COMBAT: a wound, a crit, a miss, dodge, parry or block); then its
+-- feel at the blow (the weapon's impact, as a swing's; ranged its own; a
+-- spell's at once). Nothing comes of others' damage: no cast of yours, no
+-- feel. A next-swing ability (Heroic Strike) is the swing, felt as itself.
+---------------------------------------------------------------------------
+-- (the families felt as they land; the others as you use them)
+V.LANDS = { slash = true, stab = true, rend = true, bash = true, cleave = true, whirl = true, flurry = true,
+    judge = true, shock = true, slam = true, blow = true }
+local SPELL_MOVES = { shock = true }
+local ABILITY_RESULT = { WOUND = "hit", MISS = "miss", DODGE = "dodge", PARRY = "parry", BLOCK = "block",
+    DEFLECT = "parry", ABSORB = "hit", IMMUNE = "miss", EVADE = "miss", RESIST = "miss" }
+V.ABILITY_WINDOW, V.ABILITY_WINDOW_UNKNOWN, V.ABILITY_WINDOW_FAR = 0.6, 0.4, 1.5
+local RANGED_ABILITIES = { [3044] = true }
+local pending
+
+-- move: its family (nil: an ability we don't know: the default, Blow);
+-- nextSwing: on the next swing (until a swing time has passed)
+function V.AbilityCast(move, spellID, nextSwing)
+    local now = GetTime()
+    local ranged = not secret(spellID) and RANGED_ABILITIES[spellID] or false
+    local window = nextSwing and ((Speeds()) + 0.5) or (ranged or move == "judge" or SPELL_MOVES[move]) and V.ABILITY_WINDOW_FAR
+        or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
+    pending = { move = move or "blow", at = now, until_ = now + window, ranged = ranged, next = nextSwing,
+        spell = SPELL_MOVES[move] or move == "judge" and not ranged }
+end
+
+local function Pending(action)
+    if not pending or GetTime() > pending.until_ then pending = nil; return nil end
+    if secret(action) or not ABILITY_RESULT[action] then return nil end
+    local can = UnitCanAttack and UnitCanAttack("player", "target")
+    if not secret(can) and not can then return nil end
+    return pending
+end
+
+-- A UNIT_COMBAT result on your target is your ability's (the Lab leaves it)
+function V.ClaimsResult(action, school)
+    return V.ClaimsSwing(action, school) or Pending(action) ~= nil
+end
+
+-- Your ability's result: its feel at the blow (true: taken)
+function V.AbilityResult(action, flag)
+    local p = Pending(action)
+    if not p then return false end
+    pending = nil
+    local result = ABILITY_RESULT[action]
+    if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
+    local now = GetTime()
+    local delay = 0
+    if p.ranged then
+        delay = V.ImpactDelay("ranged", "ranged")
+    elseif not p.spell then
+        delay = V.ImpactDelay(V.WeaponKind(16), "main")
+        -- (a next-swing ability is the main hand's swing: its timer goes on)
+        if p.next then swing.last[16] = now end
+    end
+    AtImpact(delay, function() V.AbilityImpact(p.move, result, p.ranged or p.spell) end)
+    return true
+end
+
+-- The blow: a crit the Crit feel; a miss, dodge, parry, block the Beta
+-- engine's own; a hit the ability's family
+function V.AbilityImpact(move, result, far)
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+    if result == "crit" then return YourCrit(far and true or false) end
+    if result ~= "hit" then
+        local lab = LAB_RESULT[result]
+        if lab and LabPlays(lab) then ns.HapticsLab.Fire(lab) end
+        return
+    end
+    V.instantMove = move
+    V.Fire("instant")
 end
 
 ---------------------------------------------------------------------------

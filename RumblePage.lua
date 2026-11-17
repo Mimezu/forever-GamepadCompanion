@@ -35,11 +35,11 @@ end
 -- Beta engine's events
 ---------------------------------------------------------------------------
 local GROUPS = {
-    { key = "Attacks", items = { { "r", "autoAttack" }, { "l", "hit" }, { "r", "crit" }, { "r", "critRanged" }, { "r", "shot" },
+    { key = "Attacks", items = { { "r", "autoAttack" }, { "l", "hit" }, { "r", "crit" }, { "r", "critRanged" }, { "r", "shot" }, { "r", "instant" },
         { "l", "miss" }, { "l", "targetDodge" }, { "l", "targetParry" }, { "l", "targetBlock" }, { "l", "kill" } } },
     { key = "Defense", items = { { "l", "hitTaken" }, { "r", "critted" }, { "l", "dodge" }, { "l", "parry" }, { "l", "block" },
         { "l", "missedYou" }, { "r", "lowHp" }, { "l", "heartbeat" }, { "l", "control" }, { "l", "targetCast" }, { "l", "aggro" } } },
-    { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "r", "instant" }, { "l", "tension" },
+    { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" } } },
     { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
         { "l", "underwater" }, { "l", "mount" }, { "l", "dismount" }, { "l", "taxi" } } },
@@ -86,7 +86,7 @@ ITEM.r = {
         local choice = V.EventChoice(key)
         if choice == "off" then return "Off", V.OFF_ICON, nil, true end
         if choice == "auto" then
-            local now = e.family ~= "move" and V.Pattern(V.EventPattern(key))
+            local now = V.Pattern(V.EventPattern(key))
             return e.auto, e.icon, now and ("Now: " .. now.label) or "Each one its own feel"
         end
         local p = V.Pattern(choice)

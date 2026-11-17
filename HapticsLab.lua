@@ -1257,9 +1257,9 @@ end
 local handlers = {}
 handlers.UNIT_COMBAT = function(unit, action, flag, amount, school)
     if secret(action) then return end
-    -- (your own melee swing's result: Rumble plays it at the blow's impact)
+    -- (your own swing's or ability's result: Rumble plays it at the blow)
     local V = ns.Rumble
-    if unit == "target" and V and V.ClaimsSwing and V.ClaimsSwing(action, school) then return end
+    if unit == "target" and V and V.ClaimsResult and V.ClaimsResult(action, school) then return end
     if unit == "player" then
         if action == "WOUND" then
             local gain = 1
