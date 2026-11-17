@@ -282,6 +282,8 @@ function C.Moment(key, feelKey, opts)
         gain, intensity = HdGain(opts.gain), 4
         if Vol then gain = Vol.Gain(feel) or 0 end
     end
+    -- (a cast swelling with its progress: the caller's intensity)
+    if opts.intensity then intensity = max(0, min(7, floor(opts.intensity + 0.5))) end
     return K.Cue({ moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open })
 end
 
@@ -417,6 +419,69 @@ local function ExportMoments(export)
 end
 C.ExportMoments = ExportMoments
 
+---------------------------------------------------------------------------
+-- Looping moments (a cast, Hearthstone, eating, drinking, low health): the
+-- rumble loops on its own, so their HD cue goes again each cycle while the
+-- loop lasts, timed from the loop's start (no drift), a cast's swelling with
+-- its progress (intensity 2 to 6); stopped as the loop ends
+---------------------------------------------------------------------------
+C.LOOP_MIN = 0.6
+local loopCue
+local loopFrame = CreateFrame("Frame")
+loopFrame:Hide()
+C.loopFrame = loopFrame
+
+-- A cycle: the feel's own length; whole cycles, at least LOOP_MIN apart
+function C.LoopPeriod(feelKey)
+    local f = feelKey and H.Feel(feelKey)
+    local len = f and H.Length(f) or 0
+    if not len or len <= 0 then len = 1 end
+    if len < C.LOOP_MIN then len = len * math.ceil(C.LOOP_MIN / len) end
+    return len
+end
+
+-- A cast's HD intensity, 2 at its start to 6 at its end (nil: not a cast)
+function C.LoopIntensity(key)
+    if key ~= "cast" then return nil end
+    local V = ns.Rumble
+    local p = V and V.CastProgress and V.CastProgress()
+    if not p then return nil end
+    return 2 + 4 * p
+end
+
+-- loop: Rumble's V.looping; sent: cues already sent for it (1: its first, at the fire)
+local function LoopStart(loop, sent)
+    local feel = loop and loop.pattern and L.FeelFor(loop.pattern)
+    if not feel then loopCue = nil; loopFrame:Hide(); return end
+    loopCue = { loop = loop, key = loop.key, feel = feel, start = GetTime(), period = C.LoopPeriod(feel), sent = sent }
+    loopFrame:Show()
+end
+
+function C.LoopBegan(loop) LoopStart(loop, 1) end
+
+function C.LoopStop()
+    loopCue = nil
+    loopFrame:Hide()
+end
+
+function C.LoopCue() return loopCue end
+
+loopFrame:SetScript("OnUpdate", function()
+    local V = ns.Rumble
+    local cur = V and V.looping
+    if not cur then return C.LoopStop() end
+    -- (the loop under it picked up again: its cue at once, then each cycle)
+    if not loopCue or loopCue.loop ~= cur then
+        LoopStart(cur, 0)
+        if not loopCue then return end
+    end
+    local due = floor((GetTime() - loopCue.start) / loopCue.period) + 1
+    if due > loopCue.sent then
+        loopCue.sent = due
+        C.Moment(loopCue.key, loopCue.feel, { noSound = true, intensity = C.LoopIntensity(loopCue.key) })
+    end
+end)
+
 local function Wrap()
     local V = ns.Rumble
     if V and not V.cuesWrapped then
@@ -426,7 +491,9 @@ local function Wrap()
             fire(key, ...)
             local okA, active = pcall(V.Active)
             local pattern = okA and active and V.EventPattern(key)
-            C.Moment(key, pattern and L.FeelFor(pattern) or nil)
+            C.Moment(key, pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
+            -- (a looping moment: its HD cue again each cycle while it lasts)
+            if V.looping and V.looping.key == key then C.LoopBegan(V.looping) end
             local c = CLIP[key]
             if c then C.Clip(c[1], c[2]) end
             if key == "autoAttack" then
@@ -438,6 +505,8 @@ local function Wrap()
         end
         V.EndLoop = function(key, ...)
             endLoop(key, ...)
+            -- (none left: the HD cycles stop now; another under it: picked up)
+            if not V.looping then C.LoopStop() end
             if key == "lowHp" then low = false; UpdateL2() end
         end
     end

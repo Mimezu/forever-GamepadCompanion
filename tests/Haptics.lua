@@ -1714,3 +1714,42 @@ do
     assert(ev.crit.pattern == "critHit" and ev.critRanged.pattern == "critHit", "new settings: Crit")
     io.write("PASS: crits: their own feel, saved defaults moved once" .. string.char(10))
 end
+
+-- Looping moments: their HD cue again each cycle, a cast swelling, stopped at once on cancel
+do
+    local C = ns.HelperCues
+    local K = ns.HelperLink
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.SetCastPreset("spell", "auto")
+    local enabled, cue = K.Enabled, K.Cue
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    local cues = {}
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    now = now + 5
+    local start = now
+    UnitCastingInfo = function() return "Hearthstone", nil, nil, start * 1000, (start + 10) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "hs-1", 8690)
+    assert(V.looping and V.looping.pattern == "hearth", "Hearthstone's loop: " .. tostring(V.looping and V.looping.pattern))
+    assert(#cues == 1 and cues[1].touch and cues[1].touch >= 128, "its HD cue at the start")
+    assert(C.LoopPeriod("r_hearth") >= 0.6 and C.LoopPeriod("r_arcane") >= 0.6, "cycles at least 0.6 s apart")
+    for _ = 1, 990 do
+        now = now + 0.01
+        C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01)
+    end
+    assert(#cues >= 7 and #cues <= 10, "a 10 s cast: a cue each cycle: " .. #cues)
+    assert(cues[1].intensity == 2 and cues[#cues].intensity >= 5, "swelling: " .. cues[1].intensity .. " -> " .. cues[#cues].intensity)
+    local n = #cues
+    for i = 2, n do assert(cues[i].touch == cues[1].touch and not (cues[i].sound and cues[i].sound > 0), "the HD feel again, no sound") end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "hs-1")
+    for _ = 1, 300 do now = now + 0.01; C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01) end
+    assert(#cues - n <= 1 and not C.LoopCue() and not C.loopFrame:IsShown(), "cancelled: no hum after: " .. (#cues - n))
+    UnitCastingInfo = nil
+    K.Enabled, K.Cue = enabled, cue
+    io.write("PASS: looping moments: an HD cue each cycle, swelling, stopped on cancel" .. string.char(10))
+end

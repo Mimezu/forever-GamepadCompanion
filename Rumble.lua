@@ -1093,6 +1093,14 @@ local function CastShape()
     return t.channel and Missiles or BuildUp
 end
 
+-- The cast in progress, 0 at its start to 1 at its end (nil: none, or its
+-- timing hidden)
+function V.CastProgress()
+    local t = cast.timing
+    if not (t and t.start and t.finish) or t.finish <= t.start then return nil end
+    return math.max(0, math.min(1, (GetTime() - t.start) / (t.finish - t.start)))
+end
+
 -- The spell is released (a cast done, a channel run to its end): a strong
 -- rumble, fading out as it flies off
 function V.Release()
