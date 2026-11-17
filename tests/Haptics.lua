@@ -1356,3 +1356,15 @@ do
     IsSubmerged, IsSwimming, UnitPosition = nil, nil, nil
     io.write("PASS: water probe: candidates each second, labelled, kept" .. string.char(10))
 end
+
+-- Water probe: nil, an error and a secret each told apart (the debug window's "?" is any of them)
+do
+    local D = ns.HapticsDebug
+    IsSubmerged = function(unit) if unit then error("Usage: bad unit") end return nil end
+    issecretvalue = function(v) return v == "hidden" end
+    IsSwimming = function() return "hidden" end
+    local line = D.WaterLine()
+    assert(line:find("sub=nil sub(p)=err(Usage: bad unit) swim=secret", 1, true), line)
+    IsSubmerged, IsSwimming, issecretvalue = nil, nil, nil
+    io.write("PASS: water probe: nil, error, secret apart" .. string.char(10))
+end

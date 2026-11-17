@@ -334,7 +334,8 @@ end
 local function Val(fn, ...)
     if type(fn) ~= "function" then return "none" end
     local out = { pcall(fn, ...) }
-    if not out[1] then return "err" end
+    -- (an error: its message, short, so the probe tells it from nil)
+    if not out[1] then return "err(" .. tostring(out[2]):gsub("^.-:%d+: ", ""):sub(1, 40) .. ")" end
     local parts = {}
     for i = 2, math.max(2, #out) do
         local v = out[i]
