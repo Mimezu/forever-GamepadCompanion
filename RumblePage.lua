@@ -416,7 +416,8 @@ local function MakeRow(parent, y, width, kind, key)
             Refresh()
         end,
         edit = I.feel and Edit or nil,
-        editTip = "WoW Helper, else Lab",
+        editLabel = "Shape",
+        editTip = "In WoW Helper (else Lab)",
         defaultTip = "As it ships",
         level = I.level and I.level(key) or nil,
         pg = pg,

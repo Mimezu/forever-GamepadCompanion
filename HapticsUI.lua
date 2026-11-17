@@ -170,9 +170,10 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     -- right to left: Edit, Default, Try, the plate
     local x = width - 20
     if opts.edit then
-        x = x - 44
-        r.edit = S.NewButton(r, "Edit", x, -5, 42, function() opts.edit() end, nil, 11, 30)
-        S.Tooltip(r.edit, "Edit", opts.editTip)
+        local word = opts.editLabel or "Edit"
+        x = x - 52
+        r.edit = S.NewButton(r, word, x, -5, 50, function() opts.edit() end, nil, 11, 30)
+        S.Tooltip(r.edit, word, opts.editTip)
         x = x - 4
     end
     if opts.default then
