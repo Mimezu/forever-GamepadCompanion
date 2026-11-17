@@ -229,6 +229,14 @@ function C.SetMomentFeel(key, feelKey)
     return false
 end
 
+-- A moment's light (Lights.lua: a light id), or nil where the moment has no light
+function C.MomentLight(key)
+    local LT = ns.Lights
+    if not (LT and LT.EVENT and LT.EVENT[key]) then return nil end
+    local s = LT.Settings(key)
+    return s.on ~= false and s.light or nil
+end
+
 -- HD: "auto" (HD while the link is on) or "off" (the Setup tab's WoW Helper card)
 function C.HDMode() return C.Settings().hdFeels == false and "off" or "auto" end
 function C.SetHDMode(v) C.Settings().hdFeels = v ~= "off" end
@@ -321,6 +329,13 @@ function C.LoadHelperData()
             if u.sound ~= nil and (C.MomentSound(moment) or false) == (u.soundBase or false) then
                 C.SetMomentSound(moment, u.sound)
             end
+            -- a light: only where the moment still shows the light it had
+            local LT = ns.Lights
+            if tonumber(u.light) and LT and LT.Light and LT.Light(tonumber(u.light)) and C.MomentLight(moment)
+                and C.MomentLight(moment) == tonumber(u.lightBase) then
+                LT.Settings(moment).light = tonumber(u.light)
+                applied = applied + 1
+            end
         end
     end
     if L.RegisterInRumble then L.RegisterInRumble() end
@@ -339,7 +354,7 @@ local function ExportMoments(export)
         for _, e in ipairs(ns.Rumble and ns.Rumble.EVENTS or {}) do if e.key == key then label = e.label end end
         for _, e in ipairs(ns.Rumble and ns.Rumble.CAST_KINDS or {}) do if e.key == key then label = e.label end end
         moments[key] = { n = n, group = m[2], label = label, feel = C.MomentFeel(key) or false,
-            sound = C.MomentSound(key) or false }
+            sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false }
     end
     export.moments = moments
     local d = Data()

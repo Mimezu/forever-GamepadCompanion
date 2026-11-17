@@ -910,7 +910,15 @@ do
     assert(C.HDMode() == "off" and not C.Settings().hdFeels, "HD off")
     C.SetHDMode("auto")
     local moneyWas = C.MomentFeel("money")
-    assert(C.LoadHelperData() == 1, "one proposal applied")
+    local critLight = C.MomentLight("crit")
+    assert(critLight, "crit has a light")
+    local other
+    for _, l in ipairs(ns.Lights.Lights()) do if l.id ~= critLight then other = l.id; break end end
+    WowHelperData.use.crit = { light = other, lightBase = critLight, stamp = 3 }
+    WowHelperData.use.kill = { light = other, lightBase = -1, stamp = 3 }
+    local killWas = C.MomentLight("kill")
+    assert(C.LoadHelperData() == 2, "a feel and a light applied")
+    assert(C.MomentLight("crit") == other and C.MomentLight("kill") == killWas, "light: applied where its base held")
     assert(H.Feel("hx_2048") and H.Feel("hx_2048").label == "Coin tap 2" and ns.HapticsLab.HdId("hx_2048") == 2048,
         "its feel joins, with its id")
     assert(C.MomentFeel("loot") == "hx_2048", "loot uses it")
@@ -928,6 +936,7 @@ do
     local ex = ns.HapticsLab.Export()
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel
         and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
+    assert(ex.moments.crit.light == other and ex.moments.jump.light == false, "lights exported")
     assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
     K.SetEnabled(false)
     WowHelperData = nil
