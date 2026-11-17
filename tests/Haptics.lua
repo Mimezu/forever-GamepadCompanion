@@ -152,7 +152,7 @@ UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
 for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -2271,4 +2271,114 @@ do
     assert(fired[3] == "judge", "its hit: " .. tostring(fired[3]))
     V.Fire, GetSpellInfo, UnitCanAttack = vfire, spellInfo, nil
     io.write("PASS: ground effects: Consecration and totems felt at the cast, once" .. string.char(10))
+end
+
+-- Your spells: the plan the page shows is what plays (one rule); a spell's own choice honoured
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local O = ns.SpellOverrides
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired, played = {}, {}
+    local vfire, vplay, after, spellInfo = V.Fire, V.Play, C_Timer.After, GetSpellInfo
+    V.Fire = function(k, ...) fired[#fired + 1] = k == "instant" and V.instantMove or k; return vfire(k, ...) end
+    V.Play = function(key, loop, shape) played[#played + 1] = { key = key, strength = shape and shape.strength }; end
+    C_Timer.After = function(_, fn) fn() end
+    local names = { [900021] = "Holy Strike", [900022] = "Flash of Light", [900023] = "Searing Totem", [900024] = "Mystic Lash" }
+    GetSpellInfo = function(id)
+        if id == 133 then return "Spell 133", nil, nil, 3500 end
+        return names[id] or ("Spell " .. tostring(id)), nil, nil, 0
+    end
+    IsSpellHelpful = function(id) return id == 900022 end
+    UnitCanAttack = function() return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    -- what the plan says, then what plays
+    local function cast(id)
+        fired, played = {}, {}
+        now = now + 3
+        rev("UNIT_SPELLCAST_SUCCEEDED", "player", "c" .. id, id)
+        rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1)
+        return fired[#fired]
+    end
+    local cases = {
+        { 1752, "instant", "hit", "stab" },       -- Sinister Strike: known, at the hit
+        { 20154, "instant", "cast", "seal" },     -- a seal: at the cast
+        { 900021, "instant", "hit", "judge" },    -- Holy Strike: by its name
+        { 900023, "instant", "cast", "surge" },   -- a totem: no direct hit
+        { 900024, "instant", "hit", "blow" },     -- unknown: Blow
+        { 900022, "quiet", "none", nil },         -- a heal: nothing
+    }
+    for _, c in ipairs(cases) do
+        local plan = V.SpellPlan(c[1])
+        assert(plan and plan.moment == c[2] and plan.when == c[3] and plan.pattern == c[4],
+            c[1] .. ": plan " .. tostring(plan and plan.moment) .. " " .. tostring(plan and plan.when) .. " " .. tostring(plan and plan.pattern))
+        local got = cast(c[1])
+        if c[4] then assert(got == c[4], c[1] .. ": plays " .. tostring(got) .. ", the plan said " .. c[4])
+        else assert(#fired == 0, c[1] .. ": the plan says nothing; nothing plays") end
+    end
+    local fb = V.SpellPlan(133)
+    assert(fb.moment == "spell" and fb.when == "cast" and fb.set == "fire" and fb.why:find("Its family"), "Fireball: the spell set's fire")
+    assert(V.SpellPlan(6603).moment == "autoAttack" and V.SpellPlan(75).moment == "shot", "linked moments")
+    assert(V.SpellPlan(1752).timing == "default", "its timing: the default")
+    -- your own choice: off plays nothing; a feel replaces; the volume scales once; a heal given a feel plays at the cast
+    O.SetOn("Spell 1752", false)
+    assert(V.SpellPlan(1752).off and cast(1752) == nil, "off: nothing")
+    O.Clear("Spell 1752")
+    O.SetFeel("Spell 1752", "r_bash")
+    O.SetVolume("Spell 1752", 0.5)
+    local plan = V.SpellPlan(1752)
+    assert(plan.pattern == "bash" and plan.own and plan.volume == 0.5, "its own feel and volume")
+    assert(cast(1752) == "bash", "plays its own feel")
+    local last = played[#played]
+    assert(last and last.key == "bash" and math.abs((last.strength or 1) - 0.5) < 1e-9, "at its volume, once: " .. tostring(last and last.strength))
+    O.Clear("Spell 1752")
+    O.SetFeel("Flash of Light", "r_mend")
+    assert(V.SpellPlan(900022).when == "cast", "a heal given a feel: at the cast")
+    cast(900022)
+    assert(fired[1] == "mend", "plays it: " .. tostring(fired[1]))
+    O.Clear("Flash of Light")
+    -- a cast-time spell: its own set, or off
+    O.SetSet("Spell 133", "pulse")
+    assert(V.SpellPlan(133).set == "pulse", "its own set")
+    UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 3.5) * 1000 end
+    rev("UNIT_SPELLCAST_START", "player", "fb", 133)
+    assert(V.EventPattern("cast") == "pulse", "the cast plays its own set: " .. tostring(V.EventPattern("cast")))
+    rev("UNIT_SPELLCAST_INTERRUPTED", "player", "fb")
+    O.SetOn("Spell 133", false)
+    fired = {}
+    rev("UNIT_SPELLCAST_START", "player", "fb2", 133)
+    rev("UNIT_SPELLCAST_INTERRUPTED", "player", "fb2")
+    assert(#fired == 0, "off: no cast, no interrupted")
+    O.Clear("Spell 133")
+    -- a loop at a volume under 100% keeps its shape (eating, a shaped cast)
+    ns.Volume = ns.Volume or {}
+    UnitCastingInfo = nil
+    V.Fire, V.Play, C_Timer.After, GetSpellInfo = vfire, vplay, after, spellInfo
+    IsSpellHelpful, UnitCanAttack = nil, nil
+    io.write("PASS: Your spells: the plan is what plays; off, own feel, own set, volume honoured" .. string.char(10))
+end
+
+-- A loop at a moment volume under 100% keeps its shape and plays (was replaced by a table)
+do
+    local Vol = ns.Volume
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.SetCastPreset("spell", "auto")
+    Vol.SetFeel("cast", 0.5)
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    now = now + 5
+    local start = now
+    UnitCastingInfo = function() return "Fireball", nil, nil, start * 1000, (start + 2.5) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "fbv", 133)
+    assert(V.looping and type(V.looping.shape) == "function" and math.abs(V.looping.gain - 0.5) < 1e-9,
+        "a shaped cast at 50%: its shape kept, its gain 0.5")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "fbv")
+    Vol.SetFeel("cast", 1)
+    UnitCastingInfo = nil
+    io.write("PASS: loops at a volume keep their shape" .. string.char(10))
 end

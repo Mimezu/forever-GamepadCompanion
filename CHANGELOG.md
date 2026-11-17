@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.0 — 2026-11-17
+
+- **Your spells** shows: each spell's row says what plays for it (at the hit, at the cast, while channelling, nothing), its feel or cast set, and why, from the very rule that plays it (`V.SpellPlan`, one code path)
+- A spell's own choice plays: Off plays nothing (no cast, no interrupted either); another feel or cast set replaces the rule's; its volume scales it once, over the moment's. A heal or buff given a feel plays at the cast. Try plays it
+- Fix: a looping moment (a cast, eating) at a volume under 100% lost its shape and stopped playing; now it keeps it at that volume
+
 ## 0.37.0 — 2026-11-17
 
 Release UI pass: two reviews (a new player, a UI designer), fixes, a re-check (docs/UX-AUDIT.md).

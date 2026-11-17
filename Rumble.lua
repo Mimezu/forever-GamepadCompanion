@@ -647,7 +647,7 @@ end
 -- set of the kind of cast going on)
 function V.EventPattern(eventKey)
     if PHASE[eventKey] then
-        local preset = PRESET[V.CastPreset(V.castKind)]
+        local preset = PRESET[V.castSet or V.CastPreset(V.castKind)]
         if preset and preset.auto then
             local kind = CAST_KIND[V.castKind]
             preset = PRESET[V.castAction] or PRESET[kind and kind.fallback or "subtle"]
@@ -776,9 +776,10 @@ function V.Stop()
     silence()
 end
 
-local function StartShape(fn, once)
+local shapeScale = 1
+local function StartShape(fn, once, scale)
     V.Stop()
-    shapeFn, shapeOnce, shapeSent = fn, once, 0
+    shapeFn, shapeOnce, shapeSent, shapeScale = fn, once, 0, scale or 1
     shaper:Show()
 end
 
@@ -794,7 +795,7 @@ shaper:SetScript("OnUpdate", function()
         if resume then Resume(resume) end
         return
     end
-    local gain = V.Settings().intensity
+    local gain = V.Settings().intensity * shapeScale
     motors(math.min(1, low * gain), math.min(1, high * gain))
 end)
 
@@ -891,9 +892,9 @@ end
 -- A loop: its shape (a spell's, below) or its pattern, over and over
 Resume = function(loop)
     if loop.shape then
-        StartShape(loop.shape)
+        StartShape(loop.shape, nil, loop.gain)
     else
-        V.Play(loop.pattern, true)
+        V.Play(loop.pattern, true, loop.gain and { strength = loop.gain } or nil)
     end
 end
 
@@ -1094,7 +1095,7 @@ end
 local function CastShape()
     local t = cast.timing
     if not t then return nil end
-    local preset = PRESET[V.CastPreset(V.castKind)]
+    local preset = PRESET[V.castSet or V.CastPreset(V.castKind)]
     if not (preset and preset.auto) then return nil end
     if V.castKind == "gather" and V.castAction == "fishing" and t.channel then
         t.fishing = true
@@ -1263,8 +1264,9 @@ function V.ResetLast(eventKey)
 end
 
 -- A moment's shape at its own volume (Volume.lua): a copy, strength scaled
-function V.Scaled(shape, eventKey)
-    local f = ns.Volume and ns.Volume.Feel(eventKey) or 1
+-- (extra: a spell's own volume, over the moment's)
+function V.Scaled(shape, eventKey, extra)
+    local f = (ns.Volume and ns.Volume.Feel(eventKey) or 1) * (extra or 1)
     if f >= 1 then return shape end
     local copy = {}
     for k, v in pairs(shape or {}) do copy[k] = v end
@@ -1280,7 +1282,9 @@ function V.Fire(eventKey)
         V.EndLoop(eventKey)
         local shape
         if eventKey == "cast" then shape = CastShape() else shape = RestShape(eventKey, pattern) end
-        V.looping = { key = eventKey, pattern = pattern, shape = V.Scaled(shape, eventKey) }
+        -- (a loop keeps its shape: its volume as a gain, a spell's own on top)
+        local gain = (ns.Volume and ns.Volume.Feel(eventKey) or 1) * (V.fireGain or 1)
+        V.looping = { key = eventKey, pattern = pattern, shape = shape, gain = gain < 1 and gain or nil }
         if eventKey == "cast" then cast.shaped = V.looping.shape ~= nil end
         loops[#loops + 1] = V.looping
         Resume(V.looping)
@@ -1293,7 +1297,7 @@ function V.Fire(eventKey)
     last[eventKey] = now
     local shape = combo and ComboShape(eventKey, since ~= nil and since < COMBO_WINDOW) or nil
     if eventKey == "autoAttack" and V.swingShape then shape = V.swingShape end
-    V.Play(pattern, false, V.Scaled(shape, eventKey))
+    V.Play(pattern, false, V.Scaled(shape, eventKey, V.fireGain))
 end
 
 -- A looping event is over (the cast ended): its loop stops
@@ -1868,6 +1872,10 @@ local function CastStarted(event, _, guid, spellID)
     -- (a gathering cast still open: it stopped)
     GatherEnd(false)
     V.castKind, V.castAction = CastKind(spellID)
+    -- (the spell's own choice: off, its set, its volume; Your spells)
+    local rule = V.castKind == "spell" and V.SpellRule(spellID, 1) or nil
+    V.castSet = rule and rule.own and rule.set or nil
+    cast.off = rule and rule.off or false
     cast.ended, cast.shaped = false, false
     cast.guid = guid
     local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
@@ -1883,8 +1891,9 @@ local function CastStarted(event, _, guid, spellID)
         gatherOpen = { action = V.castAction, guid = guid }
     end
     V.cueTimed = timed or nil
-    V.Fire("cast")
-    V.cueTimed = nil
+    V.fireGain = rule and rule.volume < 1 and rule.volume or nil
+    if not cast.off then V.Fire("cast") end
+    V.cueTimed, V.fireGain = nil, nil
     cast.helperTimed = timed
     if timed and V.looping and V.looping.key == "cast" then V.looping.helperTimed = true end
     if V.strikeSync then V.StrikeCastBegan(V.castAction, cast.timing and cast.timing.start or GetTime()) end
@@ -1895,6 +1904,7 @@ local function CastEnded(how)
     V.EndLoop("cast")
     if cast.ended then return end
     cast.ended = true
+    if cast.off then return end
     -- (fishing stopped early: most often the catch, looted)
     if how == "cancelled" and cast.timing and cast.timing.fishing then return end
     V.Fire(how)
@@ -1906,6 +1916,7 @@ local function CastReleased()
     V.EndLoop("cast")
     if cast.ended then return end
     cast.ended = true
+    if cast.off then return end
     if cast.shaped and not cast.timing.fishing then
         if cast.timing.strikes then V.Crack() else V.Release() end
     end
@@ -2007,6 +2018,147 @@ function V.StrikeCastOver()
 end
 
 
+---------------------------------------------------------------------------
+-- A spell's rule: what plays for it. One function for both: the play path
+-- acts on it (casts, instants, abilities at the hit) and Your spells shows
+-- it (V.SpellPlan), so the page never says other than what plays.
+-- { id, name, moment ("spell" a cast-time spell's set, "instant" a feel,
+-- "quiet" none by the rules, or a linked moment: autoAttack, shot, gather,
+-- craft, eat, drink), when ("hit", "cast", "channel", "none"), move /
+-- pattern (Rumble's pattern), feel (the library's), set (a cast set),
+-- how { melee, ranged, atCast }, guessed, own (Your spells has a choice),
+-- off, volume, timing ("default", "learned", "yours"), hd, why }
+---------------------------------------------------------------------------
+-- A spell's cast time in seconds (0: instant; nil: unknown)
+local function CastTimeOf(spellID)
+    local ms
+    if C_Spell and C_Spell.GetSpellInfo then
+        local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
+        if ok and type(info) == "table" then ms = info.castTime end
+    end
+    if ms == nil and GetSpellInfo then
+        local ok, _, _, _, t = pcall(GetSpellInfo, spellID)
+        if ok then ms = t end
+    end
+    if type(ms) ~= "number" or secret(ms) then return nil end
+    return ms / 1000
+end
+
+local TIMING_WORD = { guess = "default", learned = "learned", set = "yours" }
+
+-- castTime: known by the caller (a cast started: > 0; an instant: 0)
+function V.SpellRule(spellID, castTime)
+    if not spellID or secret(spellID) then return nil end
+    Names()
+    local name = SpellName(spellID)
+    if not name or secret(name) then return nil end
+    local r = { id = spellID, name = name, volume = 1 }
+    local L = ns.HapticsLab
+    local linked = false
+    if spellID == ATTACK then
+        r.moment, r.when, r.why, linked = "autoAttack", "hit", "Auto attack: each swing as it lands", true
+    elseif IsShot(spellID) then
+        r.moment, r.when, r.why, linked = "shot", "cast", "A shot: as it leaves", true
+    elseif RestOf(spellID) then
+        r.moment, r.when, linked = RestOf(spellID) == "drink" and "drink" or "eat", "channel", true
+        r.why = "Food or drink: with each bite or sip"
+    end
+    if not linked then
+        local ct = castTime or CastTimeOf(spellID) or 0
+        local channel = ChannelTicks(spellID) ~= nil
+        if ct > 0 or channel then
+            local kind, action = CastKind(spellID)
+            if kind == "gather" or kind == "craft" then
+                r.moment, r.when, r.why, linked = kind, "cast", kind == "gather" and "Gathering" or "Crafting", true
+            else
+                r.moment, r.when = "spell", channel and "channel" or "cast"
+                local preset = PRESET[V.CastPreset("spell")]
+                if preset and preset.auto then
+                    r.set = action or CAST_KIND.spell.fallback
+                    r.why = action and ("Its family: " .. (PRESET[action] and PRESET[action].label or action)) or "A cast: the spell set"
+                else
+                    r.set = V.CastPreset("spell")
+                    r.why = "Your cast set"
+                end
+            end
+        else
+            local move = V.MoveOf(spellID)
+            r.moment = "instant"
+            if NextSwing(spellID) then
+                r.move, r.when, r.next = move or "slash", "hit", true
+                r.why = "On the next swing: felt as the ability"
+            elseif move then
+                r.move, r.when = move, V.LANDS[move] and "hit" or "cast"
+                r.why = "Known: " .. (PATTERN[move] and PATTERN[move].label or move)
+            elseif V.SpellHelpful(spellID) then
+                r.moment, r.when, r.why = "quiet", "none", "Helpful: a heal or a buff"
+            else
+                local m, how = V.FamilyOfName(name)
+                r.move, r.how, r.guessed = m or "blow", how, m == nil
+                r.when = how and how.atCast and "cast" or "hit"
+                r.why = how and how.atCast and "No direct hit: at the cast"
+                    or m and ("By its name: " .. (PATTERN[m] and PATTERN[m].label or m)) or "Blow; its school decides at the hit"
+            end
+        end
+    end
+    r.pattern = r.move
+    r.feel = r.move and L and L.FeelFor(r.move) or nil
+    -- (your own choice, Your spells: off, another feel or set, a volume)
+    local O = ns.SpellOverrides
+    local o = not linked and O and O.Get(name) or nil
+    if o then
+        r.own = true
+        if o.on == false then r.off = true end
+        if o.feel and (r.moment == "instant" or r.moment == "quiet") then
+            r.feel = o.feel
+            r.pattern = L and L.PatternFor(o.feel) or o.feel
+            if r.moment == "quiet" then r.when = "cast" end
+            r.guessed = false
+            r.why = "Your choice"
+        end
+        if o.set and r.moment == "spell" and PRESET[o.set] then r.set, r.why = o.set, "Your choice" end
+        if type(o.volume) == "number" then r.volume = o.volume end
+    end
+    if r.off then r.why = "Off: your choice" end
+    -- (when it waits for the hit: where its timing comes from)
+    if r.when == "hit" then
+        local kind = r.how and r.how.ranged and "ranged" or V.WeaponKind and V.WeaponKind(16) or "oneHand"
+        local _, _, source = V.HitDelay and V.HitDelay(kind)
+        r.timing = TIMING_WORD[source] or "default"
+    else
+        r.timing = "default"
+    end
+    local C = ns.HelperCues
+    r.hd = r.feel and C and C.HasHD and C.HasHD(r.feel) or false
+    return r
+end
+
+-- Your spells: what plays for a spell (the rule itself)
+function V.SpellPlan(spellID) return V.SpellRule(spellID) end
+
+-- An instant felt as you use it: its pattern at its volume
+function V.FireSpell(rule)
+    if not (rule and rule.pattern) then return end
+    V.instantMove = rule.pattern
+    V.fireGain = rule.volume < 1 and rule.volume or nil
+    V.Fire("instant")
+    V.fireGain = nil
+end
+
+-- Try (Your spells): the spell's feel as it would play (its set's cast for a cast-time one)
+function V.TrySpell(spellID)
+    local r = V.SpellRule(spellID)
+    if not r or r.off then return false end
+    local pattern = r.pattern
+    if r.moment == "spell" then pattern = PRESET[r.set] and PRESET[r.set].cast end
+    if not pattern then return false end
+    V.Play(pattern, false, r.volume < 1 and { strength = r.volume } or nil)
+    local C = ns.HelperCues
+    if C and C.TryHD and r.feel then C.TryHD("instant", r.feel) end
+    return true
+end
+
+
 local CAST_HANDLERS = {
     UNIT_SPELLCAST_START = CastStarted,
     UNIT_SPELLCAST_CHANNEL_START = CastStarted,
@@ -2047,7 +2199,11 @@ local CAST_HANDLERS = {
     UNIT_SPELLCAST_SUCCEEDED = function(_, _, guid, spellID)
         -- (an ability's blow is not a swing; a next-swing one, Heroic Strike,
         -- is the swing itself, felt as the ability)
-        if NextSwing(spellID) then return V.AbilityCast(V.MoveOf(spellID) or "slash", spellID, true) end
+        if NextSwing(spellID) then
+            local rule = V.SpellRule(spellID, 0)
+            if rule and not rule.off then V.AbilityCast(rule.pattern, spellID, true, rule.how, rule) end
+            return
+        end
         if secret(spellID) or spellID ~= ATTACK then swing.ability = GetTime() end
         if IsShot(spellID) then
             ranged.shot = GetTime()
@@ -2075,24 +2231,12 @@ local CAST_HANDLERS = {
         if not secret(spellID) and spellID == ATTACK then return end
         -- (sitting down with food or a drink: Eating, Drinking)
         if RestOf(spellID) then return end
-        local move = V.MoveOf(spellID)
-        -- (a seal, a shout, a shield, a charge: felt as you use it)
-        if move and not V.LANDS[move] then
-            V.instantMove = move
-            return V.Fire("instant")
-        end
-        -- (a heal, a buff: never an attack)
-        if V.SpellHelpful(spellID) then return end
-        -- (an attack: felt when its result on your target comes, at the blow;
-        -- one not in the lists (Forever's new ones, Holy Strike): by its name)
-        local how
-        if not move then move, how = V.FamilyOfName(SpellName(spellID)) end
-        -- (a ground effect, a totem, a trap: no direct hit to wait for: now)
-        if how and how.atCast then
-            V.instantMove = move
-            return V.Fire("instant")
-        end
-        V.AbilityCast(move, spellID, nil, how)
+        -- (an instant: as its rule says, the one Your spells shows)
+        local rule = V.SpellRule(spellID, 0)
+        if not rule or rule.off or rule.when == "none" then return end
+        if rule.moment ~= "instant" and rule.moment ~= "quiet" then return end
+        if rule.when == "cast" then return V.FireSpell(rule) end
+        V.AbilityCast(rule.pattern, spellID, nil, rule.how, rule)
     end,
     UNIT_SPELLCAST_DELAYED = function()
         if cast.ended then return end
@@ -2376,16 +2520,17 @@ local pending
 
 -- move: its family (nil: an ability we don't know: the default, Blow);
 -- nextSwing: on the next swing (until a swing time has passed)
--- how (from the name): { melee: a weapon strike, ranged: a shot }
-function V.AbilityCast(move, spellID, nextSwing, how)
+-- how (from the name): { melee: a weapon strike, ranged: a shot }; rule: its
+-- rule (V.SpellRule), for its volume and whether its school may decide
+function V.AbilityCast(move, spellID, nextSwing, how, rule)
     how = how or {}
     local now = GetTime()
     local ranged = how.ranged or (not secret(spellID) and RANGED_ABILITIES[spellID]) or false
     local spell = not how.melee and not ranged and (SPELL_MOVES[move] or move == "judge") or false
     local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
-    pending = { move = move or "blow", guessed = move == nil, at = now, until_ = now + window, ranged = ranged,
-        next = nextSwing, spell = spell }
+    pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
+        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1 }
 end
 
 -- A helpful spell (a heal, a buff), when the client says so
@@ -2464,7 +2609,7 @@ function V.AbilityResult(action, flag, school)
     end
     AtImpact(delay, function()
         V.why1, V.why2, V.why3 = "ability " .. result, p.move, delay
-        V.AbilityImpact(p.move, result, p.ranged or p.spell)
+        V.AbilityImpact(p.move, result, p.ranged or p.spell, p.gain)
         V.why1 = nil
     end)
     return true
@@ -2472,7 +2617,7 @@ end
 
 -- The blow: a crit the Crit feel; a miss, dodge, parry, block the Beta
 -- engine's own; a hit the ability's family
-function V.AbilityImpact(move, result, far)
+function V.AbilityImpact(move, result, far, gain)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
     if result == "crit" then return YourCrit(far and true or false) end
     if result ~= "hit" then
@@ -2481,7 +2626,9 @@ function V.AbilityImpact(move, result, far)
         return
     end
     V.instantMove = move
+    V.fireGain = gain and gain < 1 and gain or nil
     V.Fire("instant")
+    V.fireGain = nil
 end
 
 ---------------------------------------------------------------------------
