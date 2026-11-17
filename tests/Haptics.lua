@@ -2072,3 +2072,68 @@ do
     T.MOTOR_LEAD, T.LINK_DEFAULT = 0, 0
     io.write("PASS: leads: the game's vibration and WoW Helper's link, taken off scheduled feels" .. string.char(10))
 end
+
+-- Abilities not in the lists: by their name (Holy Strike), by their damage's school, never a heal or a buff
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local T = ns.Timing
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired, pending = {}, {}
+    local vfire, after, spellInfo = V.Fire, C_Timer.After, GetSpellInfo
+    V.Fire = function(k) fired[#fired + 1] = k == "instant" and V.instantMove or k end
+    C_Timer.After = function(d, fn) pending[#pending + 1] = { d, fn } end
+    local function land() local l = pending; pending = {}; for _, p in ipairs(l) do p[2]() end; return l end
+    local names = { [900001] = "Holy Strike", [900002] = "Mystic Lash", [900003] = "Holy Light", [900004] = "Exorcism Shot" }
+    GetSpellInfo = function(id) return names[id] or ("Spell " .. tostring(id)) end
+    UnitCanAttack = function() return true end
+    GetInventoryItemID = function(_, slot) return slot == 16 and 100 or nil end
+    local oldItem = C_Item
+    C_Item = { GetItemInfoInstant = function(id) if id == 100 then return nil, nil, nil, nil, nil, 2, 7 end end }
+    T.Store().set = {}
+    assert(V.FamilyOfName("Holy Strike") == "judge" and select(2, V.FamilyOfName("Holy Strike")).melee, "Holy Strike: a bright weapon strike")
+    assert(V.FamilyOfName("Crusader Strike") == "judge" and V.FamilyOfName("Mortal Strike") == "slash"
+        and V.FamilyOfName("Shadow Word: Death") == "shock" and V.FamilyOfName("Mystic Lash") == nil, "names to families")
+    now = now + 5
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "hs", 900001)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 2)
+    local l = land()
+    assert(fired[1] == "judge", "Holy Strike lands: " .. tostring(fired[1]))
+    assert(l[1] and math.abs(l[1][1] - T.Impact("oneHand", "main")) < 1e-9, "at the sword's impact (a weapon strike)")
+    -- an unknown damaging instant: Blow; its holy damage: a bright strike
+    fired = {}
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ml", 900002)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    land()
+    assert(fired[1] == "blow", "an unknown instant: Blow: " .. tostring(fired[1]))
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "ml2", 900002)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 120, 2)
+    land()
+    assert(fired[2] == "judge", "its holy damage: a bright strike: " .. tostring(fired[2]))
+    -- a heal: never, even with a blow on the target right after
+    fired = {}
+    IsSpellHelpful = function(id) return id == 900003 end
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "hl", 900003)
+    rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    land()
+    assert(#fired == 0, "a heal: no ability feel")
+    IsSpellHelpful = nil
+    -- a shot by its name: the ranged timing
+    T.Set("ranged", "ranged", 0.12)
+    now = now + 2
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "es", 900004)
+    now = now + 1
+    rev("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
+    l = land()
+    assert(l[1] and math.abs(l[1][1] - 0.12) < 1e-9 and fired[1] == "blow", "a shot: its own timing, a far window")
+    V.Fire, C_Timer.After, GetSpellInfo = vfire, after, spellInfo
+    UnitCanAttack, GetInventoryItemID, C_Item = nil, nil, oldItem
+    T.Store().set = {}
+    io.write("PASS: abilities not in the lists: by name (Holy Strike), by school, never heals" .. string.char(10))
+end

@@ -1579,7 +1579,7 @@ end
 local function UnitCombat(unit, action, flag, _, school)
     if secret(action) then return end
     if secret(school) then school = nil end
-    if unit == "target" and V.AbilityResult(action, flag) then return end
+    if unit == "target" and V.AbilityResult(action, flag, school) then return end
     if unit == "target" and V.ClaimsSwing(action, school) then
         local result = V.SWING_RESULT[action]
         if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
@@ -1988,8 +1988,13 @@ local CAST_HANDLERS = {
             V.instantMove = move
             return V.Fire("instant")
         end
-        -- (an attack: felt when its result on your target comes, at the blow)
-        V.AbilityCast(move, spellID)
+        -- (a heal, a buff: never an attack)
+        if V.SpellHelpful(spellID) then return end
+        -- (an attack: felt when its result on your target comes, at the blow;
+        -- one not in the lists (Forever's new ones, Holy Strike): by its name)
+        local how
+        if not move then move, how = V.FamilyOfName(SpellName(spellID)) end
+        V.AbilityCast(move, spellID, nil, how)
     end,
     UNIT_SPELLCAST_DELAYED = function()
         if cast.ended then return end
@@ -2267,19 +2272,58 @@ V.LANDS = { slash = true, stab = true, rend = true, bash = true, cleave = true, 
 local SPELL_MOVES = { shock = true }
 local ABILITY_RESULT = { WOUND = "hit", MISS = "miss", DODGE = "dodge", PARRY = "parry", BLOCK = "block",
     DEFLECT = "parry", ABSORB = "hit", IMMUNE = "miss", EVADE = "miss", RESIST = "miss" }
-V.ABILITY_WINDOW, V.ABILITY_WINDOW_UNKNOWN, V.ABILITY_WINDOW_FAR = 0.6, 0.4, 1.5
+V.ABILITY_WINDOW, V.ABILITY_WINDOW_UNKNOWN, V.ABILITY_WINDOW_FAR = 0.6, 0.5, 1.5
 local RANGED_ABILITIES = { [3044] = true }
 local pending
 
 -- move: its family (nil: an ability we don't know: the default, Blow);
 -- nextSwing: on the next swing (until a swing time has passed)
-function V.AbilityCast(move, spellID, nextSwing)
+-- how (from the name): { melee: a weapon strike, ranged: a shot }
+function V.AbilityCast(move, spellID, nextSwing, how)
+    how = how or {}
     local now = GetTime()
-    local ranged = not secret(spellID) and RANGED_ABILITIES[spellID] or false
-    local window = nextSwing and ((Speeds()) + 0.5) or (ranged or move == "judge" or SPELL_MOVES[move]) and V.ABILITY_WINDOW_FAR
+    local ranged = how.ranged or (not secret(spellID) and RANGED_ABILITIES[spellID]) or false
+    local spell = not how.melee and not ranged and (SPELL_MOVES[move] or move == "judge") or false
+    local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
-    pending = { move = move or "blow", at = now, until_ = now + window, ranged = ranged, next = nextSwing,
-        spell = SPELL_MOVES[move] or move == "judge" and not ranged }
+    pending = { move = move or "blow", guessed = move == nil, at = now, until_ = now + window, ranged = ranged,
+        next = nextSwing, spell = spell }
+end
+
+-- A helpful spell (a heal, a buff), when the client says so
+function V.SpellHelpful(spellID)
+    if not spellID or secret(spellID) then return false end
+    local fn = C_Spell and C_Spell.IsSpellHelpful or IsSpellHelpful
+    if type(fn) ~= "function" then return false end
+    local ok, helpful = pcall(fn, spellID)
+    return ok and not secret(helpful) and helpful == true
+end
+
+-- A family from a spell's name (whole words, in this order: the school's
+-- light first, then the blow): Holy Strike a bright strike at the weapon's
+-- impact; nil: none (the default, Blow). how = { melee, ranged }
+local NAME_FAMILIES = {
+    { "holy", "judge" }, { "judgement", "judge" }, { "arcane", "judge" }, { "divine", "judge" }, { "crusader", "judge" },
+    { "shadow", "shock" }, { "frost", "shock" }, { "fire", "shock" }, { "flame", "shock" }, { "lightning", "shock" },
+    { "shock", "shock" }, { "bolt", "shock" }, { "blast", "shock" },
+    { "backstab", "stab" }, { "stab", "stab" }, { "ambush", "stab" },
+    { "slam", "bash" }, { "bash", "bash" }, { "smash", "bash" }, { "crush", "bash" },
+    { "cleave", "cleave" }, { "sweep", "cleave" }, { "whirlwind", "whirl" },
+    { "strike", "slash" }, { "slash", "slash" }, { "chop", "slash" }, { "blow", "slash" },
+}
+local MELEE_WORDS = { "strike", "blow", "slam", "bash", "smash", "crush", "cleave", "sweep", "stab", "backstab",
+    "slash", "chop", "ambush" }
+local function Word(name, w) return name:find("%f[%a]" .. w .. "%f[%A]") ~= nil end
+function V.FamilyOfName(name)
+    if type(name) ~= "string" or secret(name) then return nil, nil end
+    local lower = name:lower()
+    local how = {}
+    for _, w in ipairs(MELEE_WORDS) do if Word(lower, w) then how.melee = true end end
+    if Word(lower, "shot") or Word(lower, "shots") then how.ranged = true end
+    for _, f in ipairs(NAME_FAMILIES) do
+        if Word(lower, f[1]) then return f[2], how end
+    end
+    return nil, how
 end
 
 local function Pending(action)
@@ -2296,10 +2340,14 @@ function V.ClaimsResult(action, school)
 end
 
 -- Your ability's result: its feel at the blow (true: taken)
-function V.AbilityResult(action, flag)
+-- (school: an ability we don't know, its family from the damage: holy a
+-- bright strike, another magic a shock)
+local SCHOOL_FAMILY = { [2] = "judge", [4] = "shock", [8] = "shock", [16] = "shock", [32] = "shock", [64] = "judge" }
+function V.AbilityResult(action, flag, school)
     local p = Pending(action)
     if not p then return false end
     pending = nil
+    if p.guessed and not secret(school) and SCHOOL_FAMILY[school] then p.move = SCHOOL_FAMILY[school] end
     local result = ABILITY_RESULT[action]
     if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
     local now = GetTime()

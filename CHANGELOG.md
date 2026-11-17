@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.2 — 2026-11-17
+
+- Your abilities: any attack ability you use that lands on your target is felt, even one not in the lists (Forever's new ones, Holy Strike): its family from its name (Holy, Arcane, Judgement: a bright strike; Shadow, Frost, Fire, Bolt: a shock; Strike: a heavy strike; Slam, Bash: a bash; Stab; Cleave) or, when the name says nothing, from its damage's school, else Blow. A weapon strike lands at the weapon's impact, a shot at the ranged timing. Heals and buffs never (the game's helpful-spell check). An unknown one now waits 0.5 s for its result (was 0.4)
+
 ## 0.33.1 — 2026-11-17
 
 - Swings a few ms late: the rumble is now sent 30 ms early for the game's own delay (up to a frame, then Bluetooth), and, with WoW Helper on, by its published link delay, 30 ms until it publishes one (none was published, so nothing was taken off). Hits, shots, abilities, footsteps and mining strikes; the impact defaults unchanged
