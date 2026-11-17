@@ -1,5 +1,34 @@
 # UX: one structure for Gamepad Companion and WoW Helper
 
+## Taste: start every pass here
+
+The user's corrections, again and again, as a checklist (both programs).
+
+**Words**
+- [ ] A label is 1-4 words. It names; it never explains.
+- [ ] A sentence only for a cost, a limit or a risk ("USB only", "Not in combat").
+- [ ] The shared words: Moment, Feel, Light, Sound, Gesture; Try, Default, Shape, Edit.
+- [ ] No internals in player view: ids, keys, "HD link", "strip", "probe", "Beta", raw numbers.
+- [ ] An empty or missing state says what to do ("Needs Gamepad Companion", "Start WoW").
+
+**Controls**
+- [ ] One control per action: one place, one widget (look for the second copy).
+- [ ] The shared widget (`HUI.*` / `theme::*`), never a hand-built twin.
+- [ ] One primary action per area; Default greyed when it already is.
+- [ ] Every clickable responds on press, not only on hover.
+
+**Feel and look**
+- [ ] Faint by default; rhythm and contrast over strength; immersive, never gamey.
+- [ ] Colour by role (ok, error, action, value, label); red only for off and errors.
+- [ ] Motion only where it explains a change (a panel opening, a scrub); quick; nothing decorative.
+
+**Break it before shipping**
+- [ ] 40-letter names, empty lists, 200 items, odd ids: nothing overflows; a cut name shows in
+  full on hover; long lists page or scroll.
+- [ ] Rows added or removed: the list stays in place (no jumps of the rest).
+- [ ] Two reviewers (a new player, a product designer), fix, re-check.
+
+
 v3, 2026-11-16. Owner: the UX session. Feature content belongs to its own session
 (setup flow: sounds, HD, the helper's data addon; lights: light editor; WoW Helper main:
 gestures; crafting: feel data). This page fixes where things live and what they are called.

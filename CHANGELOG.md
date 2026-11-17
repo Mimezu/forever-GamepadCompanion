@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.2 — 2026-11-17
+
+- Long names: a label cut short (a 40-letter spell on a plate, a row's name) shows in full on hover
+- Long lists: a picker with more than 12 rows pages ("‹ 5/6 ›"), opening on the chosen one's page (a 200-sound library no longer runs off screen)
+- docs/UX.md opens with the taste checklist every UI pass starts from
+
 ## 0.39.1 — 2026-11-17
 
 - Spell table: a fear or a taunt around you (Psychic Scream, Challenging Shout) plays Burst, as agreed, before the control rule (Psychic Scream would have played Shock)

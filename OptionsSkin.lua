@@ -136,10 +136,19 @@ function S.Tooltip(frame, title, body)
     frame.tipTitle, frame.tipBody = title, body
 end
 
+-- A label cut short shows in full (a 40-letter spell on a 136 px plate)
+local function Cut(fs)
+    return fs and fs.IsTruncated and fs:IsTruncated() and fs:GetText() or nil
+end
+S.Cut = Cut
+
 function S.ShowTooltip(self)
-    if not self.tipTitle or not GameTooltip then return end
+    if not GameTooltip then return end
+    local full = Cut(self.label)
+    if not self.tipTitle and not full then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(self.tipTitle, 1, 0.82, 0)
+    GameTooltip:SetText(full or self.tipTitle, 1, 0.82, 0)
+    if full and self.tipTitle and self.tipTitle ~= full then GameTooltip:AddLine(self.tipTitle, 1, 1, 1, true) end
     if self.tipBody then GameTooltip:AddLine(self.tipBody, 1, 1, 1, true) end
     GameTooltip:Show()
 end

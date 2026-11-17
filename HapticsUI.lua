@@ -89,7 +89,10 @@ end
 -- A grid of choices next to a control (the Rumble tab's pattern grid):
 -- entries { key, label, icon or rgb (a colour swatch) }
 local popup
--- up: opens above its anchor (a control at the window's foot)
+-- up: opens above its anchor (a control at the window's foot). A long list
+-- (a 200-sound library) pages, 12 rows at a time, from the current one's page.
+local POPUP_ROWS = 12
+local DrawPopup
 function HUI.Popup(anchor, title, entries, current, onPick, cols, tw, up)
     if not popup then
         popup = CreateFrame("Frame", "GamepadCompanionBetaFeels", Shell.Window())
@@ -98,61 +101,91 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw, up)
         popup:EnableMouse(true)
         S.Panel(popup)
         popup.title = S.Text(popup, "", 14, -12, 600, 13, YELLOW)
+        popup.title:SetWordWrap(false)
         popup.tiles = {}
+        popup.prev = S.NewButton(popup, "‹", 0, 0, 26, function() popup.page = popup.page - 1; DrawPopup() end, nil, 13, 22)
+        popup.next = S.NewButton(popup, "›", 0, 0, 26, function() popup.page = popup.page + 1; DrawPopup() end, nil, 13, 22)
+        popup.pageText = S.Text(popup, "", 0, 0, 44, 11, GREY)
+        popup.pageText:SetJustifyH("CENTER")
         popup:Hide()
         UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaFeels"
     end
     if popup:IsShown() and popup.anchor == anchor then return popup:Hide() end
     popup.anchor = anchor
     cols, tw = cols or 8, tw or 112
-    local th = 28
-    popup.title:SetText(title or "")
-    for _, t in ipairs(popup.tiles) do t:Hide() end
-    for i, e in ipairs(entries) do
-        local t = popup.tiles[i]
-        if not t then
-            t = S.NewButton(popup, "", 0, 0, tw, nil, nil, 11, th)
-            t.icon = t:CreateTexture(nil, "OVERLAY")
-            t.icon:SetSize(20, 20)
-            t.icon:SetPoint("LEFT", 5, 0)
-            t.label:ClearAllPoints()
-            t.label:SetPoint("LEFT", 30, 0)
-            t.label:SetPoint("RIGHT", -3, 0)
-            t.label:SetJustifyH("LEFT")
-            popup.tiles[i] = t
-        end
-        t:SetWidth(tw)
-        local col, row = (i - 1) % cols, floor((i - 1) / cols)
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -36 - row * (th + 3))
-        t.label:SetText(e.label or e.key)
-        if e.rgb then
-            t.icon:SetTexture(nil)
-            t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
-        else
-            -- (icon false: none, a plain word)
-            t.icon:SetTexture(e.icon ~= false and (e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse") or nil)
-            t.label:ClearAllPoints()
-            t.label:SetPoint("LEFT", e.icon == false and 8 or 30, 0)
-            t.label:SetPoint("RIGHT", -3, 0)
-        end
-        if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
-        S.SetSelected(t, e.key == current)
-        t:SetScript("OnClick", function()
-            popup:Hide()
-            onPick(e.key)
-        end)
-        t:Show()
-    end
-    local rows = math.ceil(#entries / cols)
-    popup:SetSize(24 + cols * (tw + 3), 48 + rows * (th + 3))
-    popup.title:SetWidth(cols * (tw + 3))
+    popup.args = { title = title, entries = entries, current = current, onPick = onPick, cols = cols, tw = tw }
+    popup.page = 1
+    for i, e in ipairs(entries) do if e.key == current then popup.page = math.ceil(i / (cols * POPUP_ROWS)) end end
+    DrawPopup()
     popup:ClearAllPoints()
     if up then popup:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 6)
     else popup:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8) end
     popup:SetClampedToScreen(true)
     popup:Show()
     popup:Raise()
+end
+
+DrawPopup = function()
+    local a = popup.args
+    local entries, cols, tw = a.entries, a.cols, a.tw
+    local th = 28
+    local per = cols * POPUP_ROWS
+    local pages = math.max(1, math.ceil(#entries / per))
+    popup.page = math.max(1, math.min(pages, popup.page))
+    local first = (popup.page - 1) * per
+    popup.title:SetText(a.title or "")
+    for _, t in ipairs(popup.tiles) do t:Hide() end
+    local shown = 0
+    for i = first + 1, math.min(#entries, first + per) do
+        local e = entries[i]
+        shown = shown + 1
+        local t = popup.tiles[shown]
+        if not t then
+            t = S.NewButton(popup, "", 0, 0, tw, nil, nil, 11, th)
+            t.icon = t:CreateTexture(nil, "OVERLAY")
+            t.icon:SetSize(20, 20)
+            t.icon:SetPoint("LEFT", 5, 0)
+            t.label:SetJustifyH("LEFT")
+            popup.tiles[shown] = t
+        end
+        t:SetWidth(tw)
+        local col, row = (shown - 1) % cols, floor((shown - 1) / cols)
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", 12 + col * (tw + 3), -36 - row * (th + 3))
+        t.label:SetText(e.label or e.key)
+        t.label:ClearAllPoints()
+        t.label:SetPoint("LEFT", (e.icon == false and not e.rgb) and 8 or 30, 0)
+        t.label:SetPoint("RIGHT", -3, 0)
+        if e.rgb then
+            t.icon:SetTexture(nil)
+            t.icon:SetColorTexture(e.rgb[1], e.rgb[2], e.rgb[3], 1)
+        else
+            -- (icon false: none, a plain word)
+            t.icon:SetTexture(e.icon ~= false and (e.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse") or nil)
+        end
+        if e.key == "off" then t.label:SetTextColor(RED[1], RED[2], RED[3]) else t.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end
+        S.SetSelected(t, e.key == a.current)
+        t:SetScript("OnClick", function()
+            popup:Hide()
+            a.onPick(e.key)
+        end)
+        t:Show()
+    end
+    local rows = math.max(1, math.ceil(shown / cols))
+    local w = 24 + cols * (tw + 3)
+    popup:SetSize(w, 48 + rows * (th + 3))
+    local paged = pages > 1
+    popup.title:SetWidth(cols * (tw + 3) - (paged and 110 or 0))
+    for _, b in ipairs({ popup.prev, popup.next }) do b:SetShown(paged) end
+    popup.pageText:SetShown(paged)
+    if paged then
+        popup.next:ClearAllPoints(); popup.next:SetPoint("TOPRIGHT", -10, -6)
+        popup.pageText:ClearAllPoints(); popup.pageText:SetPoint("RIGHT", popup.next, "LEFT", -2, 0)
+        popup.prev:ClearAllPoints(); popup.prev:SetPoint("RIGHT", popup.pageText, "LEFT", -2, 0)
+        popup.pageText:SetText(popup.page .. "/" .. pages)
+        popup.prev:SetEnabled(popup.page > 1)
+        popup.next:SetEnabled(popup.page < pages)
+    end
 end
 
 -- The one row (Moments, Gestures): icon, name, a second line, a plate showing
@@ -236,6 +269,15 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r.label:SetWordWrap(false)
     r.sub = S.Text(r, "", 40, -22, textW, 11, GREY)
     r.sub:SetWordWrap(false)
+    r:EnableMouse(true)
+    r:SetScript("OnEnter", function(self)
+        local full = S.Cut(r.label)
+        if not (full and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(full, 1, 0.82, 0)
+        GameTooltip:Show()
+    end)
+    r:SetScript("OnLeave", S.HideTooltip)
     function r:SetMarks(list)
         for i, m in ipairs(r.marks) do
             local e = list and list[i]

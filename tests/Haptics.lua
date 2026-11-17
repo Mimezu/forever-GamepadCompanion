@@ -999,6 +999,21 @@ do
     K.SetEnabled(false)
     io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
     io.write("PASS: volumes: full by default, per moment and for every sound, as the cue's gain; on the rows" .. string.char(10))
+    -- Break the UI: a 200-sound library pages, opening on the chosen one's page; a long name stays one line
+    local HUI = ns.HapticsUI
+    local many = {}
+    for i = 1, 200 do many[i] = { key = "k" .. i, label = (i == 150) and "Garrison Toast Mission Complete Fanfare" or ("Sound " .. i) } end
+    local anchor = CreateFrame("Button")
+    HUI.Popup(anchor, "Loot", many, "k150", function() end, 3, 150)
+    local pop = GamepadCompanionBetaFeels
+    local shownTiles = 0
+    for _, t in ipairs(pop.tiles) do if t:IsShown() then shownTiles = shownTiles + 1 end end
+    assert(shownTiles <= 36 and pop.page == 5 and pop.pageText.text == "5/6", "paged: " .. shownTiles .. " tiles, page " .. tostring(pop.page))
+    assert(pop:GetHeight() <= 48 + 12 * 31, "fits on screen: " .. pop:GetHeight())
+    pop.next.scripts.OnClick(pop.next)
+    assert(pop.page == 6, "next page")
+    HUI.HidePopup()
+    io.write("PASS: break the UI: 200 entries page, opening on the current one" .. string.char(10))
 end
 
 -- Setup flow: moments numbered (append only), a sound per moment, WoW Helper's data, Edit HD, the export
