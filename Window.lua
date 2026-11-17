@@ -20,9 +20,16 @@ function Shell.AddPage(def)
     table.sort(defs, function(a, b) return (a.order or 99) < (b.order or 99) end)
 end
 
+-- A page by its key, or by an old key it answers to (def.aliases)
 local function Def(key)
-    for _, def in ipairs(defs) do if def.key == key then return def end end
+    for _, def in ipairs(defs) do
+        if def.key == key then return def end
+        for _, alias in ipairs(def.aliases or {}) do if alias == key then return def end end
+    end
 end
+
+-- A page whose def.shown() says false has no tab (Lab, until Tools › Lab); it still opens by key
+local function Listed(def) return def.shown == nil or def.shown() == true end
 
 -- Status line, bottom left. A message from the player's last action stays a few seconds.
 function Shell.SetStatus(text, sticky)
@@ -78,7 +85,7 @@ local function Page(key)
 end
 
 function Shell.Select(key)
-    if not Def(key) then key = defs[1].key end
+    key = (Def(key) or defs[1]).key
     local page = Page(key)
     for k, p in pairs(built) do
         local on = k == key
@@ -148,6 +155,22 @@ local function Tab(def, index)
     return tab
 end
 
+-- Tabs in order, the hidden ones left out
+function Shell.Relayout()
+    if not window then return end
+    local previous
+    for _, def in ipairs(defs) do
+        local tab = tabs[def.key]
+        tab:ClearAllPoints()
+        tab:SetShown(Listed(def))
+        if tab:IsShown() then
+            if previous then tab:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -2)
+            else tab:SetPoint("TOPLEFT", window, "TOPRIGHT", -6 / TAB_SCALE, -52 / TAB_SCALE) end
+            previous = tab
+        end
+    end
+end
+
 local function Build()
     window = CreateFrame("Frame", "GamepadCompanionOptions", UIParent)
     window:SetPoint("CENTER")
@@ -163,14 +186,8 @@ local function Build()
     content:SetSize(Shell.W, HEADER + Shell.H)
 
     -- Side tabs, outside the right edge
-    local anchor = window.chrome.border or window
-    local previous
-    for index, def in ipairs(defs) do
-        local tab = Tab(def, index)
-        if previous then tab:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -2)
-        else tab:SetPoint("TOPLEFT", window, "TOPRIGHT", -6 / TAB_SCALE, -52 / TAB_SCALE) end
-        previous = tab
-    end
+    for index, def in ipairs(defs) do Tab(def, index) end
+    Shell.Relayout()
     for _, def in ipairs(defs) do Page(def.key) end
 
     -- Footer: status, version, Close
@@ -213,3 +230,6 @@ end
 
 -- Harness access
 ns.ShellWindow = function() return window, tabs, built end
+
+-- /gpc gestures, setup, lab: a page by its key
+function API.OpenPage(key) Shell.Open(key) end

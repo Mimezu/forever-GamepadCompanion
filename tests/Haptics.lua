@@ -149,7 +149,7 @@ function methods:HighlightText() end
 function methods:SetMaxLetters() end
 
 for _, file in ipairs({ "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -414,12 +414,16 @@ ev("QUEST_TURNED_IN", 1)
 assert(#fired == 0, "engine off: no beta events")
 io.write("PASS: beta events: hits, avoid, errors, own loot only, quests, whispers, landing, heartbeat; off with the engine\n")
 
--- The Beta tab ----------------------------------------------------------------------------
+-- The Lab tab (once Beta) ------------------------------------------------------------------
 ns.Shell.Open("beta")
 local window, tabs = ns.ShellWindow()
-assert(window:IsShown() and ns.Shell.Current() == "beta" and tabs.beta, "Beta tab")
+assert(window:IsShown() and ns.Shell.Current() == "lab" and tabs.lab, "Lab, from the old key")
+assert(not tabs.lab:IsShown() and not tabs.beta, "no tab until Tools › Lab")
+API.SetLab(true)
+assert(tabs.lab:IsShown(), "Tools › Lab: its tab")
+assert(tabs.moments and tabs.gestures and tabs.setup, "Moments, Gestures, Setup tabs")
 local ui = ns.BetaPage
-for _, key in ipairs({ "light", "feels", "editor", "tune", "helper", "gestures", "probes" }) do
+for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes", "light" }) do
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
@@ -427,7 +431,7 @@ end
 do
     local G = ns.Gestures
     G.Set(2, "text:/dance")
-    ui.Select("gestures")
+    ns.Shell.Open("gestures")
     local n, dance = 0, nil
     for _, f in ipairs(created) do
         if type(rawget(f, "label")) == "table" and f.label.text == "Clear" and f:IsVisible() then n = n + 1 end
@@ -435,6 +439,7 @@ do
     end
     assert(n == 12 and dance, "twelve gesture rows, slot 2 /dance: " .. n)
     G.Set(2, nil)
+    ns.Shell.Open("lab")
     io.write("PASS: gestures page: twelve slots, each an action" .. string.char(10))
 end
 local function button(label)
@@ -464,14 +469,15 @@ assert(cvars.maxFPS == "60" and L.FpsCapped(), "capped")
 cap.scripts.OnClick(cap)
 assert(cvars.maxFPS == "100" and not L.FpsCapped(), "put back")
 C_CVar = nil
-ui.Select("tune")
-local find = assert(button("Find floor"), "Find floor")
+ns.Shell.Open("setup")
+local find = assert(button("Find left"), "Find left, on Setup")
 find.scripts.OnClick(find)
 assert(L.Ramping(), "ramping")
 run(0.5)
 L.ramp.level = 0.23
 find.scripts.OnClick(find)
 near(H.DB().floor[1], 0.23, "floor set")
+ns.Shell.Open("lab")
 ui.Select("editor")
 local new = assert(button("New"), "New")
 new.scripts.OnClick(new)
@@ -506,7 +512,7 @@ local recorded
 for _, f in pairs(H.DB().feels) do if (f.label or ""):find("Recorded") then recorded = f end end
 assert(recorded and recorded.pulses and recorded.pulses[1][4] == -1 and recorded.pulses[1][3] > 0.5,
     "a squeeze of L2: a left pulse as deep as it was")
-io.write("PASS: Beta tab: seven sections, probe played and answered, floor found, editor shape to keys, recorded, engine switch\n")
+io.write("PASS: Lab tab: seven sections, probe played and answered, floor found, editor shape to keys, recorded, engine switch\n")
 
 -- Review fixes ---------------------------------------------------------------------------
 H.Stop()
@@ -549,7 +555,7 @@ L.Run({ { 0, function() end } })
 assert(L.Measured() == nil, "a probe without taps keeps no tap lengths")
 L.Halt()
 -- Trigger test: each squeeze plays the next variation on its side
-ns.Shell.Open("beta"); ns.BetaPage.Select("probes")
+ns.Shell.Open("lab"); ns.BetaPage.Select("probes")
 local trigB
 for _, f in ipairs(created) do
     if type(rawget(f, "label")) == "table" and f.label.text == "Trigger test" and f:IsVisible() then trigB = f end
@@ -743,8 +749,11 @@ do
     end
     local ownCrit = V.EventChoice("critted")
     assert(ownCrit:match("^x_own"), "Critical hit taken: your copy " .. ownCrit)
-    assert(H.IsOwn(ownCrit:sub(3)) and ns.Shell.Current() == "beta", "in the editor")
-    ns.Shell.Open("beta")
+    assert(H.IsOwn(ownCrit:sub(3)) and ns.Shell.Current() == "lab", "in the editor")
+    assert(ui.backButton:IsShown(), "Back to the moment")
+    ui.backButton.scripts.OnClick(ui.backButton)
+    assert(ns.Shell.Current() == "moments", "back on Moments")
+    ns.Shell.Open("lab")
     ui.Select("light")
     local effectBtn
     for _, f in ipairs(created) do
@@ -757,9 +766,9 @@ do
     for _, t in ipairs(pop.tiles) do if t.label.text == "Strobe" and t:IsShown() then strobe = t end end
     strobe.scripts.OnClick(strobe)
     assert(ns.Lights.Settings("crit").effect == "strobe", "effect picked")
-    ui.Select("tune")
-    assert(visible("Find floor"), "calibration on Tune")
-    io.write("PASS: pages: an event Off from its grid, a light effect picked, calibration on Tune\n")
+    ns.Shell.Open("setup")
+    assert(visible("Find left") and visible("Base colour") == nil and visible("Sync run"), "range and timing on Setup")
+    io.write("PASS: pages: an event Off from its grid, Edit and Back, a light effect picked, Setup\n")
 end
 
 -- Helper cues: casts tighten R2, low health shakes L2, loot and releases queue clips and sounds

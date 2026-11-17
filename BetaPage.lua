@@ -1,9 +1,10 @@
--- The Haptics tab: the light bar, the feels and their editor, the mixer and
--- calibration, the helper, the probes (Haptics.lua, HapticsLab.lua). The events are on the Rumble tab.
--- Sections: Probes (what the pad really does, answers kept), Calibrate,
--- Feels (the library), Editor (shape, keyframes, recorded with L2 / R2),
--- Events (more of the game), Light (the light bar), Engine (mixer settings
--- and a live view). Untested in game: this is where we find out.
+-- The Lab tab (Tools › Lab; once the Beta / Haptics tab): what a player never
+-- needs. Sections: Feels (the library), Editor (shape, keyframes, recorded
+-- with L2 / R2; a moment's Edit lands here, with Back), Tune (the mixer, a
+-- live view, each grip's ceiling and curve), Timing (step rates, nudge, the
+-- mining swing, the longest landing), Link (WoW Helper's link details,
+-- triggers by hand, raw clips and sounds), Probes. The moments are on the
+-- Moments tab, the pad's own settings on Setup (Haptics.lua, HapticsLab.lua).
 local _, ns = ...
 local S, Shell, H, L = ns.OptionsSkin, ns.Shell, ns.Haptics, ns.HapticsLab
 local API = GamepadCompanionAPI
@@ -995,49 +996,6 @@ local function BuildLight(p)
         local r, g, bb, on = H.LedNow()
         if on then swatch:SetColorTexture(r, g, bb, 1) else swatch:SetColorTexture(0.08, 0.08, 0.08, 1) end
     end)
-    S.Heading(base, "Base colour", 10, -78, 308)
-    Choice(base, "", -100, -96, LT.BASE_MODES, function() return LT.Base().mode end, function(v)
-        LT.Base().mode = v
-        LT.ApplyBase()
-    end, 64)
-    -- the palette
-    local swatches = {}
-    local n = 0
-    for _, c in ipairs(LT.PALETTE) do
-        if c.rgb then
-            n = n + 1
-            local col, row = (n - 1) % 5, floor((n - 1) / 5)
-            local sw = CreateFrame("Button", nil, base)
-            sw:SetSize(52, 26)
-            sw:SetPoint("TOPLEFT", 14 + col * 60, -134 - row * 34)
-            sw.tex = sw:CreateTexture(nil, "ARTWORK")
-            sw.tex:SetPoint("TOPLEFT", 3, -3)
-            sw.tex:SetPoint("BOTTOMRIGHT", -3, 3)
-            sw.tex:SetColorTexture(c.rgb[1], c.rgb[2], c.rgb[3], 1)
-            sw.sel = sw:CreateTexture(nil, "BACKGROUND")
-            sw.sel:SetAllPoints()
-            sw.sel:SetColorTexture(1, 0.82, 0, 1)
-            sw:SetScript("OnClick", function()
-                local b = LT.Base()
-                b.mode, b.color = "color", c.key
-                LT.ApplyBase()
-                Refresh()
-            end)
-            sw:SetScript("OnEnter", S.ShowTooltip)
-            sw:SetScript("OnLeave", S.HideTooltip)
-            S.Tooltip(sw, c.label)
-            sw.key = c.key
-            swatches[#swatches + 1] = sw
-        end
-    end
-    local function BRow(label, y, opts)
-        opts.labelWidth, opts.width = 110, 306
-        return Stepper(base, label, 12, y, opts)
-    end
-    BRow("Brightness", -214, { step = 0.05, min = 0.05, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
-        get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
-    BRow("Breathe", -242, { list = { { false, "No" }, { true, "Yes" } },
-        get = function() return LT.Base().breathe end, set = function(v) LT.Base().breathe = v; LT.ApplyBase() end })
     S.Heading(base, "Try", 10, -282, 308)
     S.NewButton(base, "A cast", 12, -306, 146, function() LT.Try("cast") end, nil, 12, 30)
     S.NewButton(base, "A crit", 166, -306, 146, function() LT.Try("crit") end, nil, 12, 30)
@@ -1127,8 +1085,6 @@ local function BuildLight(p)
 
     ui.refresh[#ui.refresh + 1] = function()
         master:SetChecked(H.DB().light == true)
-        local b = LT.Base()
-        for _, sw in ipairs(swatches) do sw.sel:SetShown(b.mode == "color" and b.color == sw.key) end
         for _, r in ipairs(rows) do
             local s = LT.Settings(r.e.key)
             local ef = LT.Effect(s.effect)
@@ -1220,30 +1176,11 @@ local function BuildTune(p)
             set = function(v) db().ceil[side] = max(v, db().floor[side] + 0.05) end, step = 0.01, min = 0.1, max = 1 })
         CRow("Curve", -114, { get = function() return db().gamma[side] end,
             set = function(v) db().gamma[side] = v end, step = 0.05, min = 0.3, max = 3 })
-        c.find = S.NewButton(cal, "Find floor", x, -148, cw / 2 - 3, function()
-            if L.Ramping() and calib.active == c and calib.mode == "floor" then
-                db().floor[side] = floor(L.StopRamp() * 100 + 0.5) / 100
-                if db().ceil[side] <= db().floor[side] then db().ceil[side] = 1 end
-                calib.active = nil
-            else
-                calib.active, calib.mode = c, "floor"
-                L.StartRamp(side, 0, 8)
-                Say("Rising: Felt it as soon as you feel it")
-            end
+        c.ceil = S.NewButton(cal, "Find ceiling", x, -148, cw / 2 - 3, function()
+            if HUI.Calibrate(side, "ceil") then Say("Rising: No stronger when it stops growing") end
             Refresh()
         end, nil, 11, 28)
-        c.ceil = S.NewButton(cal, "Find ceiling", x + cw / 2 + 3, -148, cw / 2 - 3, function()
-            if L.Ramping() and calib.active == c and calib.mode == "ceil" then
-                db().ceil[side] = max(db().floor[side] + 0.05, floor(L.StopRamp() * 100 + 0.5) / 100)
-                calib.active = nil
-            else
-                calib.active, calib.mode = c, "ceil"
-                L.StartRamp(side, db().floor[side], 6)
-                Say("Rising: No stronger when it stops growing")
-            end
-            Refresh()
-        end, nil, 11, 28)
-        S.NewButton(cal, "Test steps", x, -182, cw / 2 - 3, function()
+        S.NewButton(cal, "Test steps", x + cw / 2 + 3, -148, cw / 2 - 3, function()
             H.Stop()
             local keys = {}
             for i = 0, 9 do keys[#keys + 1] = { i * 0.3, (i + 1) / 10, "hold" } end
@@ -1251,13 +1188,12 @@ local function BuildTune(p)
             local zero = { { 0, 0 }, { 3, 0 } }
             H.Play({ keys = side == 1 and { left = keys, right = zero } or { left = zero, right = keys } }, { voice = "beta" })
         end, nil, 11, 28)
-        S.NewButton(cal, "Reset", x + cw / 2 + 3, -182, cw / 2 - 3, function()
+        S.NewButton(cal, "Default", x, -182, cw - 3, function()
             db().floor[side], db().ceil[side], db().gamma[side] = H.DEFAULTS.floor[side], 1, 1
             Refresh()
         end, nil, 11, 28)
         c.level = S.Text(cal, "", x, -218, cw, 12, YELLOW)
     end
-    L.onRampEnd = function() calib.active = nil; Refresh() end
     local rt = CreateFrame("Frame", nil, cal)
     rt:SetScript("OnUpdate", function()
         for side = 1, 2 do
@@ -1268,11 +1204,9 @@ local function BuildTune(p)
     ui.refresh[#ui.refresh + 1] = function()
         for side = 1, 2 do
             local c = calib[side]
-            local active = calib.active == c and L.Ramping()
-            c.find.label:SetText(active and calib.mode == "floor" and "Felt it" or "Find floor")
-            c.ceil.label:SetText(active and calib.mode == "ceil" and "No stronger" or "Find ceiling")
-            S.SetSelected(c.find, active and calib.mode == "floor")
-            S.SetSelected(c.ceil, active and calib.mode == "ceil")
+            local active = HUI.Calibrating(side, "ceil")
+            c.ceil.label:SetText(active and "No stronger" or "Find ceiling")
+            S.SetSelected(c.ceil, active)
         end
     end
 end
@@ -1281,43 +1215,27 @@ end
 -- Helper: the outside program (helper\) for the triggers, true haptics and
 -- the speaker: the link, the cues, and tries of each
 ---------------------------------------------------------------------------
-local function BuildHelper(p)
-    local K, C = ns.HelperLink, ns.HelperCues
-    if not (K and C) then
+local function BuildLink(p)
+    local K = ns.HelperLink
+    if not K then
         S.Text(p, "Helper link not loaded", 12, -12, 400, 13, RED)
         return
     end
     -- The link
-    local link = S.Card(p, "Link", 0, 0, 330, 250)
-    local on = S.NewCheck(link, "Link on", 12, -38, function(self)
-        K.SetEnabled(self:GetChecked() == true)
-        C.Refresh()
-        Refresh()
-    end, 90)
-    S.Tooltip(on, "Link on", "A few pixels bottom left, read by WoW Helper")
-    local wide = S.NewCheck(link, "HD link", 170, -38, function(self)
+    local link = S.Card(p, "Link", 0, 0, 330, PH - 40)
+    local wide = S.NewCheck(link, "HD link", 12, -38, function(self)
         K.SetV2(self:GetChecked() == true)
         Refresh()
     end, 90)
     S.Tooltip(wide, "HD link", "Off: the old strip, no HD feels")
-    S.Note(link, 12, -72, 306, 4, 11, GREY):SetText("Run WowHelper.exe" .. string.char(10) .. "Game windowed or borderless"
-        .. string.char(10) .. "Bluetooth: triggers, haptics")
-    Stepper(link, "Cell size", 12, -140, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
+    Stepper(link, "Cell size", 12, -76, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
         format = function(v) return v .. " px" end,
         get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })
-    local state = S.Note(link, 12, -176, 306, 3, 11, DIM)
-
-    -- The cues
-    local cues = S.Card(p, "Cues", 0, -260, 330, PH - 40 - 260)
-    local checks = {}
-    for i, g in ipairs(C.GROUPS) do
-        local c = S.NewCheck(cues, g.label, 12, -38 - (i - 1) * 30, function(self)
-            C.Settings()[g.key] = self:GetChecked() == true
-            C.Refresh()
-        end, 220)
-        S.Tooltip(c, g.label, g.tip)
-        checks[g.key] = c
-    end
+    local state = S.Note(link, 12, -112, 306, 3, 11, DIM)
+    local dbg = S.NewButton(link, "Debug", 12, -170, 306, function()
+        if ns.HapticsDebug then ns.HapticsDebug.Show() end
+    end, nil, 12, 30)
+    S.Tooltip(dbg, "Debug", "What plays and why, while you play")
 
     -- Triggers by hand
     local trig = S.Card(p, "Triggers", 340, 0, 380, PH - 40)
@@ -1377,10 +1295,7 @@ local function BuildHelper(p)
     Buttons("Speaker", K.SOUNDS, y - 12)
 
     ui.refresh[#ui.refresh + 1] = function()
-        on:SetChecked(K.Enabled())
         wide:SetChecked(K.V2())
-        local cs = C.Settings()
-        for key, c in pairs(checks) do c:SetChecked(cs[key] == true) end
         local st, names = K.state, {}
         for name, v in pairs(K.MODES) do names[v] = name end
         state:SetText(K.Enabled() and string.format("L2 %s · R2 %s", names[st.left.mode] or "?", names[st.right.mode] or "?")
@@ -1389,41 +1304,41 @@ local function BuildHelper(p)
 end
 
 ---------------------------------------------------------------------------
--- Gestures: what each of WoW Helper's motion gestures runs (Gestures.lua)
+-- Timing: the fine steps behind Setup's syncs
 ---------------------------------------------------------------------------
-local function BuildGestures(p)
-    local G = ns.Gestures
-    if not G then return end
-    local ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true }
-    local CW = floor((W - 10) / 2)
-    local rows = {}
-    for col = 0, 1 do
-        local card = S.Card(p, col == 0 and "Gestures" or nil, col * (CW + 10), 0, CW, PH - 40)
-        if col == 0 then
-            S.Text(card, "Recorded in WoW Helper", 110, -14, CW - 130, 11, GREY)
-        end
-        for i = 1, G.SLOTS / 2 do
-            local slot = col * (G.SLOTS / 2) + i
-            local r
-            local function Pick()
-                ns.Picker.Open({ title = "Choose · " .. G.Label(slot), accepts = ACCEPTS, current = G.Get(slot),
-                    onPick = function(action) G.Set(slot, action); Refresh() end })
-            end
-            r = HUI.ChoiceRow(card, -40 - (i - 1) * HUI.ROW_H, CW, "Interface\\Icons\\Ability_Rogue_Sprint", G.Label(slot),
-                Pick, nil, "Spell, item, macro or /emote", { clear = function() G.Set(slot, nil); Refresh() end })
-            r.slot = slot
-            rows[#rows + 1] = r
-        end
+local function BuildTiming(p)
+    local card = S.Card(p, "Timing", 0, 0, 560, PH - 40)
+    local function Row(label, y, opts)
+        opts.labelWidth, opts.width = 140, 536
+        return Stepper(card, label, 12, y, opts)
     end
-    ui.refresh[#ui.refresh + 1] = function()
-        for _, r in ipairs(rows) do
-            local action = G.Get(r.slot)
-            local name, icon = nil, nil
-            if action and ns.Touch then name, icon = ns.Touch.ActionLook(action) end
-            local sub = "Ctrl Shift Alt F" .. r.slot
-            if G.IsPending() then sub = sub .. " · after combat" end
-            r:SetChoice(action and (name or action) or "Off", icon, sub, action == nil)
+    local function secs(v) return string.format("%.2f s", v) end
+    local function rate(label, y, band)
+        Row(label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
+            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
+    end
+    rate("Run steps", -40, "run")
+    rate("Walk steps", -68, "walk")
+    Row("Nudge", -96, { step = 0.01, min = -0.5, max = 0.5,
+        format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
+        get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
+    local V = ns.Rumble
+    Row("Mining swing", -136, { step = 0.02, min = 0.3, max = 3, format = secs,
+        get = function() return (V.StrikeTiming("mining")) end, set = function(v) V.SetStrikeTiming("mining", v) end })
+    Row("First strike", -164, { step = 0.02, min = 0, max = 3, format = secs,
+        get = function() return select(2, V.StrikeTiming("mining")) end,
+        set = function(v) V.SetStrikeTiming("mining", nil, v) end })
+    Row("Longest landing", -204, { step = 0.05, min = 0.1, max = 1.5, format = secs,
+        get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
+    local landed = S.Note(card, 12, -244, 536, 3, 12, GREY)
+    landed:SetText("No landing yet")
+    L.onLand = function(t, k, sent)
+        local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
+        if sent then
+            text = text .. string.format("\nSent %d%% for %.2f s", floor(sent.peak * 100 + 0.5), max(0, sent.last - sent.start))
+            if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
         end
+        landed:SetText(text)
     end
 end
 
@@ -1431,18 +1346,19 @@ end
 -- The page
 ---------------------------------------------------------------------------
 local SECTIONS = {
-    { "light", "Light", BuildLight },
     { "feels", "Feels", BuildFeels },
     { "editor", "Editor", BuildEditor },
     { "tune", "Tune", BuildTune },
-    { "helper", "Helper", BuildHelper },
-    { "gestures", "Gestures", BuildGestures },
+    { "timing", "Timing", BuildTiming },
+    { "link", "Link", BuildLink },
     { "probes", "Probes", BuildProbes },
+    { "light", "Light", BuildLight },
 }
 
 -- A copy of a feel, yours, open in the editor (the Rumble tab's Edit)
 function ui.EditCopy(feel, label)
-    Shell.Open("beta")
+    ui.back = Shell.Current()
+    Shell.Open("lab")
     local key = SaveOwn(feel, label)
     ed.key, ed.sel = key, nil
     ui.Select("editor")
@@ -1456,11 +1372,13 @@ function ui.Select(key)
 end
 
 local function Build(frame, header)
-    -- Why it vibrates: the debug window, and the latest reason in the header
-    local dbg = S.NewButton(header, "Debug", W - 450, -4, 80, function()
-        if ns.HapticsDebug then ns.HapticsDebug.Show() end
+    -- Back to the moment that opened the editor
+    ui.backButton = S.NewButton(header, "Back", W - 450, -4, 80, function()
+        local to = ui.back
+        ui.back = nil
+        Shell.Open(to or "moments")
     end, nil, 12, 26)
-    S.Tooltip(dbg, "Debug", "What vibrates and why, while you play")
+    ui.backButton:Hide()
     ui.why = S.Text(header, "", 260, -10, W - 720, 11, GREY)
     ui.why:SetWordWrap(false)
     local whyTick = CreateFrame("Frame", nil, header)
@@ -1507,7 +1425,7 @@ local function Build(frame, header)
         s[3](panel)
     end
     ui.tabs = tabs
-    ui.current = ui.current or "light"
+    ui.current = ui.current or "feels"
 end
 
 Refresh = function()
@@ -1515,6 +1433,7 @@ Refresh = function()
     for i, s in ipairs(SECTIONS) do S.SetSelected(ui.tabs[i], s[1] == ui.current) end
     for k, panel in pairs(ui.panels) do panel:SetShown(k == ui.current) end
     for _, fn in ipairs(ui.refresh) do fn() end
+    if ui.backButton then ui.backButton:SetShown(ui.back ~= nil) end
     local V = ns.Rumble
     if H.Engine() and V and V.Other and V.Other() then
         Shell.SetStatus("Improved Forever: Vibration rumbles: Rumble not routed")
@@ -1524,10 +1443,12 @@ ui.Refresh = function() Refresh() end
 ns.BetaPage = ui
 
 Shell.AddPage({
-    key = "beta", name = "Haptics", order = 2.5, icon = "Interface\\Icons\\Spell_Nature_Lightning",
-    sub = "Light, feels, tuning",
+    key = "lab", name = "Lab", order = 9, icon = "Interface\\Icons\\Spell_Nature_Lightning",
+    aliases = { "beta", "haptics" },
+    shown = function() return H.DB().lab == true end,
     build = Build, refresh = function() Refresh() end,
     hide = function()
+        ui.back = nil
         if trigWin then trigWin:Hide() end
         L.Halt()
         probe.playing = false
@@ -1539,4 +1460,9 @@ Shell.AddPage({
     end,
 })
 
-function API.OpenBeta() Shell.Open("beta") end
+-- /gpc beta, /gpc haptics: Lab when it is on, else Moments
+function API.OpenBeta() Shell.Open(H.DB().lab and "lab" or "moments") end
+function API.SetLab(on)
+    H.DB().lab = on and true or nil
+    Shell.Relayout()
+end

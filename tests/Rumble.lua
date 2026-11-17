@@ -129,7 +129,7 @@ local haloListeners = {}
 Halo = { On = function(kind, fn) haloListeners[kind] = haloListeners[kind] or {}; table.insert(haloListeners[kind], fn) end }
 local function HaloFire(kind, ...) for _, fn in ipairs(haloListeners[kind] or {}) do fn(...) end end
 for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua",
-    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "RumblePage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "RumblePage.lua", "SetupPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V = ns.Rumble
@@ -181,7 +181,7 @@ io.write("PASS: engine ported: profile settings, defaults, events, off beside th
 -- Page -------------------------------------------------------------------------------
 ns.Shell.Open("rumble")
 local window, tabs = ns.ShellWindow()
-assert(window:IsShown() and ns.Shell.Current() == "rumble" and tabs.rumble, "Rumble tab")
+assert(window:IsShown() and ns.Shell.Current() == "moments" and tabs.moments, "Moments tab (from its old key)")
 local strength
 for _, f in ipairs(created) do if f.kind == "FontString" and f.text == "80%" and f:IsVisible() then strength = f end end
 assert(strength, "strength shown")

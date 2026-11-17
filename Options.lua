@@ -432,8 +432,15 @@ local function ToolNote(parent, text, x, y, width)
     return Text(parent, text, x, y, width, 11, DIM)
 end
 
-local function BuildTools(frame)
+local function BuildTools(frame, header)
     local half = (W - 12) / 2
+    -- Lab: the tuning and probes tab, for the curious
+    if header and API.SetLab then
+        ui.lab = S.NewCheck(header, "Lab", W - 90, -4, function(self)
+            API.SetLab(self:GetChecked() == true)
+        end, 50)
+        S.Tooltip(ui.lab, "Lab", "Mixer, probes, editor")
+    end
     -- Blizzard's windows
     local blizz = S.Card(frame, "Blizzard", 0, 0, half, 210)
     local bw = (half - 36) / 2
@@ -518,6 +525,7 @@ end
 
 local function RefreshTools()
     if not ui.spread then return end
+    if ui.lab and ns.Haptics then ui.lab:SetChecked(ns.Haptics.DB().lab == true) end
     local state = API.GetState()
     ui.spread.label:SetText(state.spread and "Spread view: On" or "Spread view: Off")
     SetSelected(ui.spread, state.spread == true)
@@ -539,10 +547,11 @@ local topics = {
     { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
     { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
     { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
-    { "Haptics", "Light bar, feels, editor (record with L2 / R2)\nMixer and calibration, helper, probes\nEvents: the Rumble tab" },
-    { "Rumble", "The motors on game events and casts\nEach event: a pattern, or Off\nCasts: a set for casting, interrupted, cancelled, pushed back\nMatch the action: each spell, profession or weapon its own feel\nTry: as the game would play it\nOff while Improved Forever: Vibration is on" },
+    { "Moments", "What the pad does when: Feel, Light, Sound\nEach moment: pick, Try, Default, Edit\nMarks after a name: its light, its sound\nThe line top right: the last moment, click to find it\nOff while Improved Forever: Vibration is on" },
+    { "Gestures", "Record them in WoW Helper › Gestures\nHere: what each one runs\nKeys Ctrl Shift Alt F1-F12" },
+    { "Setup", "WoW Helper: run it, Link on, game windowed\nRange: Find, stop when you feel it\nBase colour: the light bar between moments\nTriggers, timing: footsteps and mining in step" },
     { "Profiles", "Bindings: per character\nNew characters start from a copy\nBar layout: all characters" },
-    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  rumble\n/gpc rumble test  each motor\n/gpc beta  haptics lab\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
+    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab (Tools › Lab)\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }
 
 local help = { buttons = {} }

@@ -257,91 +257,6 @@ local function MakeRow(parent, y, width, kind, key)
 end
 
 ---------------------------------------------------------------------------
--- Steps and landing: the footsteps sync, the landing's range
----------------------------------------------------------------------------
-local function BuildSteps(sp, width)
-    local function Stepper(...) return HUI.Stepper(pg, ...) end
-    local sync = S.Card(sp, "Footsteps", 0, 0, 420, 300)
-    local gaits, buttons = { { "run", "Run" }, { "walk", "Walk" } }, {}
-    for i, g in ipairs(gaits) do
-        local y = -40 - (i - 1) * 34
-        buttons[g[1]] = S.NewButton(sync, "Sync " .. g[2]:lower(), 12, y, 110, function()
-            if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
-            Refresh()
-        end, nil, 12, 28)
-        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), "Squeeze R2 on each footfall")
-        g.text = S.Text(sync, "", 132, y - 8, 276, 11, GREY)
-    end
-    local status = S.Note(sync, 12, -112, 396, 1, 11, GOLD)
-    local function Row(card, label, y, w, opts)
-        opts.labelWidth, opts.width = 120, w
-        return Stepper(card, label, 12, y, opts)
-    end
-    local function rateRow(label, y, band)
-        Row(sync, label, y, 396, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
-            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
-    end
-    rateRow("Run steps", -136, "run")
-    rateRow("Walk steps", -164, "walk")
-    Row(sync, "Nudge", -192, 396, { step = 0.01, min = -0.5, max = 0.5,
-        format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
-        get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
-    S.Note(sync, 12, -228, 396, 3, 11, DIM):SetText("Sync: stand still, start moving, squeeze R2 on each footfall")
-
-    -- Mining: the pickaxe's swing (a strike each), a guess until synced
-    local mine = S.Card(sp, "Mining", 0, -310, 420, 190)
-    local mineButton = S.NewButton(mine, "Sync", 12, -40, 110, function()
-        if V.strikeSync then V.StrikeSyncCancel() else V.StrikeSync("mining") end
-        Refresh()
-    end, nil, 12, 28)
-    S.Tooltip(mineButton, "Sync", "Squeeze R2 on each strike")
-    local mineText = S.Text(mine, "", 132, -48, 276, 11, GREY)
-    local mineStatus = S.Note(mine, 12, -76, 396, 1, 11, GOLD)
-    local function secs(v) return string.format("%.2f s", v) end
-    Row(mine, "Swing", -100, 396, { step = 0.02, min = 0.3, max = 3, format = secs,
-        get = function() return (V.StrikeTiming("mining")) end, set = function(v) V.SetStrikeTiming("mining", v) end })
-    Row(mine, "First strike", -128, 396, { step = 0.02, min = 0, max = 3, format = secs,
-        get = function() return select(2, V.StrikeTiming("mining")) end,
-        set = function(v) V.SetStrikeTiming("mining", nil, v) end })
-    V.onStrikeSync = function(text) mineStatus:SetText(text); Refresh() end
-
-    local lw = width - 430
-    local land = S.Card(sp, "Landing", 430, 0, lw, 300)
-    Row(land, "Soft at", -40, lw - 24, { step = 0.05, min = 0.2, max = 3, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landMin or L.LAND_MIN end,
-        set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
-    Row(land, "Full at", -68, lw - 24, { step = 0.05, min = 0.25, max = 4, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landMax or L.LAND_MAX end,
-        set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
-    Row(land, "Longest", -96, lw - 24, { step = 0.05, min = 0.1, max = 1.5, format = function(v) return string.format("%.2f s", v) end,
-        get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
-    local landed = S.Note(land, 12, -136, lw - 24, 3, 12, GREY)
-    landed:SetText("No landing yet")
-    L.onSync = function(text) status:SetText(text) end
-    L.onLand = function(t, k, sent)
-        local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))
-        if sent then
-            text = text .. string.format("\nSent %d%% for %.2f s", floor(sent.peak * 100 + 0.5), max(0, sent.last - sent.start))
-            if L.lastLanding and L.lastLanding.feel then text = text .. " · " .. L.lastLanding.feel end
-        end
-        landed:SetText(text)
-    end
-    pg.refresh[#pg.refresh + 1] = function()
-        local period, first, synced = V.StrikeTiming("mining")
-        mineText:SetText(synced and string.format("Synced: %.2f s, first %.2f s", period, first) or "Not synced: a guess")
-        mineButton.label:SetText(V.strikeSync and "Cancel" or "Sync")
-        S.SetSelected(mineButton, V.strikeSync and true or false)
-        for _, g in ipairs(gaits) do
-            local cal = L.StepCal(g[1])
-            g.text:SetText(cal and string.format("%.2f steps/s, first %.2f s", cal.rate, cal.offset) or "Not synced: a guess")
-            local busy = L.sync and L.sync.band == g[1]
-            buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
-            S.SetSelected(buttons[g[1]], busy and true or false)
-        end
-    end
-end
-
----------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
 local LEFT_W = 300
@@ -405,7 +320,6 @@ local function Build(frame, header)
 
     local groups = {}
     for _, g in ipairs(GROUPS) do groups[#groups + 1] = { key = g.key, label = g.key } end
-    groups[#groups + 1] = { key = "steps", label = "Steps and landing" }
     local list = CreateFrame("Frame", nil, left)
     list:SetPoint("TOPLEFT", 0, -150)
     list:SetSize(LEFT_W, PH - 150)
@@ -419,7 +333,6 @@ local function Build(frame, header)
             MakeRow(card, -38 - (i - 1) * HUI.ROW_H, W - LEFT_W - 10, item[1], item[2])
         end
     end
-    BuildSteps(b.panels.steps, W - LEFT_W - 10)
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
     ui.credit = S.Text(left, "Patterns: Improved Forever: Vibration (markg) and Easy Controller (moust4ki), MIT",
         14, -(PH - 46), LEFT_W - 28, 9, DIM)
@@ -460,7 +373,7 @@ ui.Refresh = function() Refresh() end
 ns.RumblePage = ui
 
 Shell.AddPage({
-    key = "rumble", name = "Rumble", order = 2, icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration",
+    key = "moments", name = "Moments", order = 2, aliases = { "rumble" }, icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration",
     build = Build, refresh = function() Refresh() end,
     hide = function()
         V.StopSimulation()
@@ -468,4 +381,9 @@ Shell.AddPage({
     end,
 })
 
-function API.OpenRumble() Shell.Open("rumble") end
+function API.OpenRumble() Shell.Open("moments") end
+-- /gpc light: Moments on a kind
+function API.OpenMoments(kind)
+    Shell.Open("moments")
+    if kind and ui.SetKind then ui.SetKind(kind) end
+end

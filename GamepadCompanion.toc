@@ -39,5 +39,7 @@ Options.lua
 HapticsUI.lua
 RumblePage.lua
 BetaPage.lua
+SetupPage.lua
+GesturesPage.lua
 Picker.lua
 ControllerWindow.lua

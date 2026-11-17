@@ -256,6 +256,35 @@ function HUI.GroupBrowser(p, groups, opts)
     return b
 end
 
+-- A grip's range, found by a rising ramp: "floor" stops on "Felt it",
+-- "ceil" on "No stronger". One for Setup's Find and Lab's calibration.
+local cal = {}
+function HUI.Calibrating(side, mode)
+    local L = ns.HapticsLab
+    return L.Ramping() and cal.side == side and (mode == nil or cal.mode == mode)
+end
+
+-- Start, or (pressed again) keep the level reached; true while rising
+function HUI.Calibrate(side, mode)
+    local L, db = ns.HapticsLab, H.DB()
+    if HUI.Calibrating(side, mode) then
+        local v = floor(L.StopRamp() * 100 + 0.5) / 100
+        if mode == "floor" then
+            db.floor[side] = v
+            if db.ceil[side] <= v then db.ceil[side] = 1 end
+        else
+            db.ceil[side] = max(db.floor[side] + 0.05, v)
+        end
+        cal.side = nil
+        return false
+    end
+    if L.Ramping() then L.StopRamp() end
+    cal.side, cal.mode = side, mode
+    if mode == "floor" then L.StartRamp(side, 0, 8) else L.StartRamp(side, db.floor[side], 6) end
+    L.onRampEnd = function() cal.side = nil; Shell.Refresh() end
+    return true
+end
+
 function HUI.HidePopup()
     if popup then popup:Hide() end
     if HUI.HidePalette then HUI.HidePalette() end

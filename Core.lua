@@ -742,8 +742,10 @@ local commandHelp = {
     "/gpc pad  controller",
     "/gpc touch  touchpad",
     "/gpc bars  bar layout",
-    "/gpc rumble  rumble · test: each motor",
-    "/gpc haptics  light, feels, tuning",
+    "/gpc rumble  moments · test: each motor",
+    "/gpc light  moments: light",
+    "/gpc gestures | setup  their tab",
+    "/gpc lab  tuning and probes",
     "/gpc debug  why it vibrates",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
@@ -775,6 +777,15 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if (command == "haptics" or command == "beta") and API.OpenBeta then
         API.OpenBeta()
+        return
+    end
+    if (command == "light" or command == "moments") and API.OpenMoments then
+        API.OpenMoments(command == "light" and "light" or nil)
+        return
+    end
+    if (command == "gestures" or command == "setup" or command == "lab") and API.OpenPage then
+        if command == "lab" and API.SetLab then API.SetLab(true) end
+        API.OpenPage(command)
         return
     end
     if command == "bars" and API.OpenBars then
