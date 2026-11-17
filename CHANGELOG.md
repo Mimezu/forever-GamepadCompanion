@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.31.3 — 2026-11-16
+
+- Critical hit (melee and ranged): its own feel, **Crit**: a hard, sharp strike with a short bright ring, above any plain hit (was Tick, shared with Halo open). A saved Tick moves once; a feel picked by hand stays
+
 ## 0.31.2 — 2026-11-16
 
 - New defaults after WoW Helper's HD strength pass (your own picks untouched): **Low mana** plays Alert (it shared Dive with Death; a saved Dive that was only the old default moves once); **Mount** and **Dismount** at 50% volume. Money was already Coin

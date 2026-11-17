@@ -58,6 +58,9 @@ V.PATTERNS = {
     -- Ours: a hard knock, its opposite, three taps, a soft purr (a cast's:
     -- it loops while the cast lasts) and a rumble that fades out
     { key = "impact", label = "Impact", steps = { { 1, 1, 0.16 } } },
+    -- A critical hit: a hard, sharp strike with a short bright ring, above any
+    -- plain hit (HD scale tier 4); no lead-in
+    { key = "critHit", label = "Crit", steps = { { 1, 1, 0.1 }, { 0, 0, 0.06 }, { 0.35, 0.35, 0.1 } } },
     { key = "triple", label = "Triple tick",
         steps = { { 0.7, 0.7, 0.11 }, { 0, 0, 0.1 }, { 0.7, 0.7, 0.11 }, { 0, 0, 0.1 }, { 0.7, 0.7, 0.11 } } },
     { key = "purr", label = "Purr",
@@ -256,6 +259,7 @@ local PULSES = {
     heart = { cycle = 0.9, Pu(0, 0.12, 0.7, -0.3), Pu(0.25, 0.05, 0.2, -0.3) },
     rise = { Pu(0, 0.05, 0.1), Pu(0.15, 0.05, 0.2), Pu(0.28, 0.05, 0.35), Pu(0.4, 0.5, 1) },
     impact = { Pu(0, 0.25, 1) },
+    critHit = { Pu(0, 0.08, 1), Pu(0.14, 0.05, 0.3), Pu(0.24, 0.05, 0.12) },
     triple = { Pu(0, 0.05, 0.25), Pu(0.1, 0.05, 0.25), Pu(0.2, 0.05, 0.25) },
     purr = { cycle = 0.56, Pu(0, 0.05, 0.06), Pu(0.28, 0.05, 0.04) },
     sweep = { cycle = 0.6, Pu(0, 0.05, 0.12, -1), Pu(0.15, 0.05, 0.12), Pu(0.3, 0.05, 0.12, 1), Pu(0.45, 0.05, 0.12) },
@@ -360,10 +364,10 @@ V.GROUPS = {
 }
 V.EVENTS = {
     { key = "crit", group = "combat", label = "Critical hit: melee", icon = EVENT_ICONS .. "crit", on = true,
-        combo = true, pattern = "tick", tip = "Your melee lands a critical hit: a swing or a melee ability (in"
+        combo = true, pattern = "critHit", tip = "Your melee lands a critical hit: a swing or a melee ability (in"
             .. " WoW Forever: your target takes a critical physical hit while you aren't shooting)." },
     { key = "critRanged", group = "combat", label = "Critical hit: ranged", icon = EVENT_ICONS .. "crit", on = false,
-        combo = true, pattern = "tick", tip = "A shot or a spell of yours lands a critical hit, or a heal"
+        combo = true, pattern = "critHit", tip = "A shot or a spell of yours lands a critical hit, or a heal"
             .. " a critical heal (in WoW Forever: your target takes one while you shoot, a spell's, or a"
             .. " critical heal lands on you or it). Off by default: Shooting and spell casts have their own." },
     { key = "critted", group = "combat", label = "Critical hit taken", icon = EVENT_ICONS .. "critted", on = true,
@@ -518,6 +522,9 @@ for _, e in ipairs(V.EVENTS) do
     end
 end
 
+-- Defaults that changed (the old pattern, a version number)
+V.MOVED = { crit = { from = "tick", v = 1 }, critRanged = { from = "tick", v = 1 } }
+
 -- db.vibration = { enabled, intensity, events = { key = { on, pattern } } }
 function V.Settings()
     IF.db.fishLog, IF.db.eatLog = nil, nil   -- (logs of probes, since removed)
@@ -537,6 +544,13 @@ function V.Settings()
         if type(cfg) ~= "table" then
             cfg = { on = e.on, pattern = e.pattern }
             s.events[e.key] = cfg
+        end
+        -- (a default that changed: a saved pattern still on the old default
+        -- moves to the new one, once; one picked by hand stays)
+        local moved = V.MOVED[e.key]
+        if moved and (cfg.moved or 0) < moved.v then
+            if cfg.pattern == moved.from then cfg.pattern = e.pattern end
+            cfg.moved = moved.v
         end
         -- (a Beta feel, "x_...": kept, even before the Beta tab registers it)
         if not (PATTERN[cfg.pattern] or (e.auto and cfg.pattern == "auto")

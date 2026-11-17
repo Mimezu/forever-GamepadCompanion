@@ -1690,3 +1690,27 @@ do
     assert(d3 == 0, "with the link lead, the step goes out early")
     io.write("PASS: steps latched, the lead ahead" .. string.char(10))
 end
+
+-- Critical hits: their own feel (was Tick, shared with Halo open); a saved Tick moves once, a hand pick stays
+do
+    local ev = V.Settings().events
+    assert(V.Pattern("critHit") and V.Pattern("critHit").feel, "the Crit pattern, as pulses")
+    local crit = V.Pattern("critHit").feel
+    assert(H.Peak(crit) == 1 and crit.pulses[1][1] == 0 and crit.pulses[1][3] == 1, "a hard strike first, no lead-in")
+    assert(H.Peak(crit) > H.Peak(H.Feel("strike")) and H.Length(crit) >= 0.29, "above a plain hit; tier 4 length")
+    assert(H.Feel("r_critHit"), "in the library for WoW Helper's HD version")
+    ev.crit = { on = true, pattern = "tick" }
+    ev.critRanged = { on = false, pattern = "pulse" }
+    ev.haloOpen = { on = true, pattern = "tick" }
+    V.Settings()
+    assert(ev.crit.pattern == "critHit" and ev.crit.moved == 1, "a saved Tick moves to Crit")
+    assert(ev.critRanged.pattern == "pulse", "a hand pick stays")
+    assert(ev.haloOpen.pattern == "tick", "Halo open keeps Tick")
+    ev.crit.pattern = "tick"
+    V.Settings()
+    assert(ev.crit.pattern == "tick", "once: Tick picked again by hand stays")
+    ev.crit, ev.critRanged = nil, nil
+    V.Settings()
+    assert(ev.crit.pattern == "critHit" and ev.critRanged.pattern == "critHit", "new settings: Crit")
+    io.write("PASS: crits: their own feel, saved defaults moved once" .. string.char(10))
+end
