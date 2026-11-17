@@ -876,6 +876,15 @@ do
         if rawget(f, "edit") and rawget(f, "key") == "critted" then f.edit.scripts.OnClick(f.edit) end
     end
     assert(ns.Shell.Current() == "lab", "link off: Lab's editor")
+    ns.Shell.Open("moments")
+    local crittedRow
+    for _, r in ipairs(M.rows) do if r.kind == "r" and r.key == "critted" then crittedRow = r end end
+    assert(crittedRow.edit.label.text == "Edit", "link off: Edit (Lab)")
+    ns.HelperLink.SetEnabled(true)
+    ns.Shell.Refresh()
+    assert(crittedRow.edit.label.text == (ns.HelperLink.V2() and "Shape" or "Edit"), "linked: Shape (WoW Helper)")
+    ns.HelperLink.SetEnabled(false)
+    ns.Shell.Open("lab")
     local win = ns.ShellWindow()
     win:Hide()
     ns.Shell.Open()

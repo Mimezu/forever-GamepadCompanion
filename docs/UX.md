@@ -33,7 +33,8 @@ light bar*, *is WoW Helper working?*
 | **Gesture** | a pad movement that runs an action | motion |
 | **Try** | play once, now | Feel it, Play, Test |
 | **Default** | back to what it ships with | Reset, Revert |
-| **Edit** | open it in the editor (WoW Helper when linked) | Shape, Craft |
+| **Shape** | open it in WoW Helper to make or refine (HD feel, light sequence, sound) | Edit HD, Craft |
+| **Edit** | edit in place, in the same program (the Lab's editor without WoW Helper) | Shape (for that) |
 | **WoW Helper** | the outside program | helper link, strip |
 
 "HD" is only a badge.
@@ -81,9 +82,9 @@ its data is there.
 - **One row widget** (`HUI.MomentRow`, today's `ChoiceRow` generalised): icon, name, marks, a
   plate (opens the kind's picker), Try, Default (greyed when unchanged), Edit. A Light plate
   shows effect + swatch; its picker holds effect, colour and strength.
-- **Edit**: with WoW Helper's data, opens the feel in WoW Helper; without it, opens the addon's
-  editor (it lives in Lab, opened from the row with a Back button; Lab need not be switched on).
-  A player without WoW Helper can still make a feel.
+- **Shape / Edit**: one button, its word follows where it goes. With WoW Helper's data and the
+  HD link: **Shape**, opening the moment in WoW Helper. Without: **Edit**, a copy in the addon's
+  editor (Lab, with Back). Choose in game, shape in WoW Helper.
 - Edit on Light rows: hidden until WoW Helper has light data (the lights session's editor).
   Sound rows: no Edit (sounds are made in WoW Helper › Sounds).
 - Light-only moments (In combat, Spell released, Halo ring open, Interrupted, …) appear only
@@ -199,3 +200,7 @@ has its switch again (Setup › Triggers); reopening never lands on a hidden Lab
 cancels a running sync when closed; a cast's line finds its row; Strength is a shared Stepper;
 Light and Sound rows mark their feel; row tooltips per page; Lab's second "why" line removed;
 every command in Help. Kept: no "More with WoW Helper" line (every moment can have a sound).
+
+Later: "Edit" → "Shape" on the rows (user, via the vibration session: "choose in game, shape
+in WoW Helper"); the label follows its target. (Lab's editor also has a "Shape" form mode:
+Lab only, left as is.)

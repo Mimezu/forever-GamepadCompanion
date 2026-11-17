@@ -377,13 +377,18 @@ local function CastSets()
     return entries
 end
 
+-- WoW Helper can open a moment: its data read, the HD link on
+function ui.ToHelper()
+    local data = C and type(C.HelperData) == "function" and C.HelperData()
+    return data and K and K.Enabled() and K.V2() and type(C.EditHD) == "function" and true or false
+end
+
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
-    -- Edit: in WoW Helper once its data is there, else a copy of your own in Lab's editor
+    -- Shape: in WoW Helper once it can take it; else Edit: a copy of your own in Lab's editor
     local function Edit()
-        local data = C and type(C.HelperData) == "function" and C.HelperData()
-        if data and K and K.Enabled() and K.V2() and type(C.EditHD) == "function" then
+        if ui.ToHelper() then
             local ok = C.EditHD(key)
             if ok then return Say(label .. ": in WoW Helper") end
         end
@@ -604,10 +609,17 @@ Refresh = function()
     S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
     ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
     ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on: Companion stays off" or "")
+    local toHelper = ui.ToHelper()
     for _, row in ipairs(ui.rows) do
         local I = ITEM[row.kind]
         local name, icon, sub, off, rgb = I.show(row.key)
         row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key))
+        if row.edit then
+            -- the word follows where it goes: Shape in WoW Helper, Edit in Lab
+            local word = toHelper and "Shape" or "Edit"
+            row.edit.label:SetText(word)
+            S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or "In Lab")
+        end
         row:SetMarks(Marks(row))
         local rk = KIND_OF[row.kind]
         local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
