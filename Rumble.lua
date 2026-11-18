@@ -2595,16 +2595,12 @@ local HANDS = { [16] = "main", [17] = "off" }
 local function HandOf(kind, hand) return hand or (kind == "ranged" and "ranged" or "main") end
 
 -- (0.30.0 kept one delay per kind in Rumble's settings: now yours in Timing)
+-- (0.30.0 kept one delay per kind in Rumble's settings: timing is WoW
+-- Helper's now, so they go, not into Timing (that brought set values back
+-- after Timing's own clean))
 local function Migrate()
     local old = V.Settings().hitTiming
-    if not next(old) then return end
-    for kind, v in pairs(old) do
-        if type(v) == "number" then
-            if kind == "ranged" then ns.Timing.Set(kind, "ranged", v)
-            else ns.Timing.Set(kind, "main", v); ns.Timing.Set(kind, "off", v) end
-        end
-    end
-    wipe(old)
+    if next(old) then wipe(old) end
 end
 
 -- An offset (game time), whether yours or learned (not a guess), where it

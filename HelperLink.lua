@@ -468,9 +468,13 @@ function K.Marker(item)
     if not ((m >= 96 and m <= 98) or (m >= 100 and m <= 108) or (m >= 110 and m <= 126)) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
-    table.insert(K.queue, 1, { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),
+    -- (ahead of the cues, behind the markers already waiting: a stop and a
+    -- start in one frame keep their order)
+    local at = 1
+    while K.queue[at] and K.queue[at].marker do at = at + 1 end
+    table.insert(K.queue, at, { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),
         intensity = item.intensity and Int(item.intensity, 7) or 4, moment = m, side = Int(item.side, 15),
-        seed = Int(item.seed, 255), level = Int(item.level, 3) })
+        seed = Int(item.seed, 255), level = Int(item.level, 3), marker = true })
     while #K.queue > K.QUEUE_MAX do table.remove(K.queue) end
     return true
 end

@@ -361,7 +361,9 @@ function C.Moment(key, feelKey, opts)
     end
     -- (a cast swelling with its progress: the caller's intensity)
     if opts.intensity then intensity = max(0, min(7, floor(opts.intensity + 0.5))) end
-    local item = { moment = C.MOMENT_N[key] or C.MOMENT_N[Sub(key) or ""], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
+    -- (a spell's own cue goes with no number: under its parent's, WoW Helper
+    -- took the spell's sound for the parent's and dropped a pick pending on it)
+    local item = { moment = C.MOMENT_N[key] or 0, touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
     if opts.build then return item end
     return K.Cue(item)
 end

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.52.3 — 2026-11-18
+
+- Night review, haptics (the addon's side): what WoW Helper learned is mirrored at each load (a Reset there goes here too, and is no longer sent back as the addon's own delay); its link latency clears when it no longer publishes one; the hit defaults come from its one table (the copy here only without it)
+- Lab no longer sets timing (step rates, the nudge, mining's swing and first strike: WoW Helper's), the floor (Setup's; read here) or Low battery (Setup's); the old USB clip buttons are gone
+- A spell's own cue goes without its parent's number (WoW Helper took the spell's sound for "Your abilities"), and its feel plays at its own volume over its parent's
+- Markers keep their order; 0.30.0's old hit delays are dropped, not brought back
+
 ## 0.52.2 — 2026-11-18
 
 - Lights, after the night review (L1-L16): the mic stays In combat's while you cast in combat (old profiles read in the right order, and repaired); a crit or a kill no longer blanks the mic and dots (a moment leaves them unless you pick Off); the mic goes off with the lights and is sent with the game's lights too; a fresh character starts as Recommended (Default greyed)

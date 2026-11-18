@@ -104,7 +104,10 @@ function T.Offset(kind, hand)
     if type(l) == "table" and type(l.v) == "number" then return l.v, "learned", l.hits end
     local k = KIND[kind] or KIND.oneHand
     local model = T.Model():match("^(%d+%-%d+)") or ""
-    return k.delay * (T.MODEL_FACTOR[model] or 1), "guess"
+    -- (the default: WoW Helper's published table (one, night review H10), else the copy here)
+    local hits = T.Default("hits")
+    local delay = hits and tonumber(hits[kind]) or k.delay
+    return delay * (T.MODEL_FACTOR[model] or 1), "guess"
 end
 
 function T.Set(kind, hand, seconds)
@@ -121,9 +124,17 @@ end
 
 -- WoW Helper's data addon (WowHelperData, written by the helper, read at
 -- load): its confident hit delays (hitOffsets) and the link's latency
+-- Each load mirrors WowHelperData exactly: what it learned replaces what was
+-- read before (a Reset in WoW Helper drops a key; it goes here too, and is
+-- no longer sent back to it as the addon's delay)
 function T.LoadHelper()
+    local store = T.Store()
+    store.learned, store.strikes = {}, {}
     local d = _G.WowHelperData
-    if type(d) ~= "table" then return 0 end
+    if type(d) ~= "table" then
+        store.linkLatency, store.link, store.padDelay = nil, nil, nil
+        return 0
+    end
     local n = 0
     if type(d.hitOffsets) == "table" then
         for key, v in pairs(d.hitOffsets) do
@@ -134,8 +145,7 @@ function T.LoadHelper()
         end
     end
     if type(d.strikeTiming) == "table" then
-        local strikes = T.Store().strikes or {}
-        T.Store().strikes = strikes
+        local strikes = store.strikes
         for key, v in pairs(d.strikeTiming) do
             if type(key) == "string" and type(v) == "table" and type(v.first) == "number" and type(v.period) == "number" then
                 strikes[key] = { first = v.first, period = v.period, strikes = tonumber(v.strikes) }
@@ -143,7 +153,9 @@ function T.LoadHelper()
             end
         end
     end
-    if type(d.linkLatency) == "number" then T.SetLinkLatency(d.linkLatency) end
+    -- (absent: cleared, as the link and the pad delay are: a stale Bluetooth
+    -- latency mustn't outlive a switch to USB)
+    T.SetLinkLatency(type(d.linkLatency) == "number" and d.linkLatency or nil)
     -- the pad's link (USB, Bluetooth) and its pad delay, as WoW Helper found them
     T.Store().link = (d.link == "usb" or d.link == "bt") and d.link or nil
     T.Store().padDelay = (type(d.padDelay) == "number" and d.padDelay > 0) and min(0.2, d.padDelay) or nil

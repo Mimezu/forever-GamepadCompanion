@@ -1795,9 +1795,10 @@ do
     assert(T.Lead() == 0, "WoW Helper off: no lead")
     T.SetLinkLatency(nil)
     pending = {}
-    -- 0.30.0's delays move to Timing
+    -- 0.30.0's delays go (timing is WoW Helper's): not brought back as set values (night review H17)
     V.Settings().hitTiming = { dagger = 0.15 }
-    assert(V.HitDelay("dagger") == 0.15 and V.HitDelay("dagger", "off") == 0.15 and not next(V.Settings().hitTiming), "migrated")
+    local hd, _, src = V.HitDelay("dagger")
+    assert(src ~= "set" and not next(V.Settings().hitTiming), "old delays dropped, not migrated: " .. tostring(src))
     -- ranged: the shot at its own timing
     V.SetHitDelay("ranged", 0.1)
     fired = {}
@@ -2219,7 +2220,8 @@ do
     assert(K.queue[1].level == 1 and K.queue[1].touch == L.HdId(L.FeelFor(V.EventPattern("crit"))), "a crit")
     now = now + 0.2
     rev("UNIT_COMBAT", "target", "MISS", "", 0, 1)
-    assert(K.queue[1].moment == 118 and K.queue[1].level == 2, "the off hand's dagger, avoided")
+    assert(K.queue[2].moment == 118 and K.queue[2].level == 2 and K.queue[1].level == 1,
+        "the off hand's dagger, avoided, after the crit's marker: markers in order (night review H12)")
     RunTimers()
     -- a shot: 126
     wipe(K.queue)
@@ -2944,4 +2946,65 @@ do
     K.Enabled = enabled
     GetUnitSpeed, UnitSex, IsMounted, IsFalling, IsSwimming, IsFlying = oldSpeed, oldSex, nil, nil, nil, nil
     io.write("PASS: footsteps: markers for WoW Helper (run, walk, stop), learned timing read back" .. string.char(10))
+end
+
+-- Night review, haptics: learned values mirror WowHelperData (H2), the link latency clears (H3), the old nudge
+-- is gone (H6), a spell's own cue goes without its parent's number (H7) and at its own volume (H8)
+do
+    local T, K, C, O, Vol = ns.Timing, ns.HelperLink, ns.HelperCues, ns.SpellOverrides, ns.Volume
+    -- H2: a key WoW Helper dropped (a Reset there) is dropped here, not kept as "Learned"
+    WowHelperData = { hitOffsets = { ["1-2|twoHand|main"] = { delay = 0.2, hits = 30 }, ["1-2|dagger|main"] = { delay = 0.1, hits = 12 } },
+        strikeTiming = { ["1-2|mining"] = { first = 1.5, period = 1.4, strikes = 20 } } }
+    T.LoadHelper()
+    assert(select(3, V.HitDelay("dagger")) == "learned" and T.LearnedStrikes("mining"), "learned, read")
+    WowHelperData = { hitOffsets = { ["1-2|twoHand|main"] = { delay = 0.2, hits = 30 } } }
+    T.LoadHelper()
+    assert(select(3, V.HitDelay("dagger")) == "guess", "Reset in WoW Helper: the dagger's learned delay gone here too")
+    assert(T.LearnedStrikes("mining") == nil, "and mining's")
+    -- H3: a link latency WoW Helper no longer publishes (USB now) clears
+    WowHelperData = { linkLatency = 0.06 }
+    T.LoadHelper()
+    assert(T.Store().linkLatency == 0.06, "read")
+    WowHelperData = { link = "usb" }
+    T.LoadHelper()
+    assert(T.Store().linkLatency == nil, "absent: cleared")
+    WowHelperData = nil
+    T.LoadHelper()
+    -- H6: the old hand nudge no longer moves the steps
+    H.DB().stepSync = {}
+    H.DB().stepNudge = 0.2
+    local _, offset = L.StepTiming(7)
+    assert(offset < 0.2, "a stale nudge: not applied: " .. offset)
+    H.DB().stepNudge = nil
+    -- H7, H8: a spell's own cue: no moment number, its volume over its parent's
+    local enabled, cue = K.Enabled, K.Cue
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    local sent
+    K.Cue = function(item) sent = item; return true end
+    local key = "spell:instant:Spell 1752"
+    assert(ns.SubMoment(key), "a sub-moment key")
+    C.Moment(key, "r_stab")
+    assert(sent and sent.moment == 0, "no parent's number: " .. tostring(sent and sent.moment))
+    Vol.SetFeel("instant", 0.5)
+    O.SetVolume("Spell 1752", 0.5)
+    assert(math.abs(Vol.Feel(key) - 0.25) < 1e-9, "its volume over its parent's: " .. Vol.Feel(key))
+    O.Clear("Spell 1752")
+    assert(math.abs(Vol.Feel(key) - 0.5) < 1e-9, "no volume of its own: its parent's")
+    Vol.SetFeel("instant", 1)
+    K.Enabled, K.Cue = enabled, cue
+    io.write("PASS: night review haptics: mirror (H2), latency (H3), no nudge (H6), spell cues (H7, H8)" .. string.char(10))
+end
+
+-- Night review H10: the hit defaults from WoW Helper's one table; the copy here only without it
+do
+    local T = ns.Timing
+    T.Store().set = {}
+    WowHelperData = { timingDefaults = { hits = { twoHand = 0.17, dagger = 0.1 } } }
+    T.LoadHelper()
+    assert(math.abs(T.Offset("twoHand", "main") - 0.17) < 1e-9, "the published default")
+    WowHelperData = nil
+    T.LoadHelper()
+    assert(math.abs(T.Offset("twoHand", "main") - 0.165) < 1e-9, "without WoW Helper: the copy here")
+    io.write("PASS: night review H10: hit defaults from one table" .. string.char(10))
 end

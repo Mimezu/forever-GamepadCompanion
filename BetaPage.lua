@@ -942,8 +942,6 @@ local function BuildTune(p)
         function() return db().keepAlive end, function(v) db().keepAlive = v end)
     Choice(card, "Shortest pulse", 12, -136, { { 0, "Off" }, { 0.025, "25 ms" }, { 0.033, "33 ms" }, { 0.04, "40 ms" },
         { 0.05, "50 ms" } }, function() return db().minPulse end, function(v) db().minPulse = v end)
-    Choice(card, "Low battery", 12, -168, { { true, "Softer" }, { false, "Same" } },
-        function() return db().battery end, function(v) db().battery = v end)
     Choice(card, "Triggers", 12, -200, { { "off", "Off" }, { "mirror", "Mirror" }, { "only", "Only" } },
         function() return db().triggers end, function(v) db().triggers = v; H.Stop() end)
     Choice(card, "Overdrive", 12, -232, { { 0, "Off" }, { 0.01, "10 ms" }, { 0.02, "20 ms" }, { 0.03, "30 ms" }, { 0.04, "40 ms" } },
@@ -992,8 +990,11 @@ local function BuildTune(p)
             opts.labelWidth, opts.width = 70, cw
             return Stepper(cal, label, x, y, opts)
         end
-        CRow("Floor", -58, { get = function() return db().floor[side] end,
-            set = function(v) db().floor[side] = min(v, db().ceil[side] - 0.05) end, step = 0.01, min = 0, max = 0.9 })
+        -- (the floor is set in one place, Setup › Range: read here)
+        local floorText = S.Text(cal, "", x, -64, cw, 11, GREY)
+        ui.refresh[#ui.refresh + 1] = function()
+            floorText:SetText(string.format("Floor %d%% · Setup", floor((db().floor[side] or 0) * 100 + 0.5)))
+        end
         CRow("Ceiling", -86, { get = function() return db().ceil[side] end,
             set = function(v) db().ceil[side] = max(v, db().floor[side] + 0.05) end, step = 0.01, min = 0.1, max = 1 })
         CRow("Curve", -114, { get = function() return db().gamma[side] end,
@@ -1120,8 +1121,8 @@ local function BuildLink(p)
         end
         return y - 24 - math.ceil(#names / 2) * 30
     end
-    local y = Buttons("True haptics", K.CLIPS, -72, K.Play)
-    Buttons("Speaker", K.SOUNDS, y - 12, K.PlaySound)
+    -- (USB clips are gone: the speaker's sounds only)
+    Buttons("Speaker", K.SOUNDS, -72, K.PlaySound)
 
     ui.refresh[#ui.refresh + 1] = function()
         wide:SetChecked(K.V2())
@@ -1134,7 +1135,8 @@ local function BuildLink(p)
 end
 
 ---------------------------------------------------------------------------
--- Timing: the fine steps behind Setup's syncs
+-- Timing: the landing's length (steps, mining and hits are WoW Helper's:
+-- one place, its Timing card; Setup shows them)
 ---------------------------------------------------------------------------
 local function BuildTiming(p)
     local card = S.Card(p, "Timing", 0, 0, 560, PH - 40)
@@ -1143,24 +1145,9 @@ local function BuildTiming(p)
         return Stepper(card, label, 12, y, opts)
     end
     local function secs(v) return string.format("%.2f s", v) end
-    local function rate(label, y, band)
-        Row(label, y, { step = 0.02, min = 0.5, max = 5, format = function(v) return string.format("%.2f /s", v) end,
-            get = function() return L.StepRate(band) end, set = function(v) L.SetStepRate(band, v) end })
-    end
-    rate("Run steps", -40, "run")
-    rate("Walk steps", -68, "walk")
-    Row("Nudge", -96, { step = 0.01, min = -0.5, max = 0.5,
-        format = function(v) return string.format("%+d ms", floor(v * 1000 + 0.5)) end,
-        get = function() return H.DB().stepNudge or 0 end, set = function(v) H.DB().stepNudge = v end })
-    local V = ns.Rumble
-    Row("Mining swing", -136, { step = 0.02, min = 0.3, max = 3, format = secs,
-        get = function() return (V.StrikeTiming("mining")) end, set = function(v) V.SetStrikeTiming("mining", v) end })
-    Row("First strike", -164, { step = 0.02, min = 0, max = 3, format = secs,
-        get = function() return select(2, V.StrikeTiming("mining")) end,
-        set = function(v) V.SetStrikeTiming("mining", nil, v) end })
-    Row("Longest landing", -204, { step = 0.05, min = 0.1, max = 1.5, format = secs,
+    Row("Longest landing", -40, { step = 0.05, min = 0.1, max = 1.5, format = secs,
         get = function() return H.DB().landLong or L.LAND_LONG end, set = function(v) H.DB().landLong = v end })
-    local landed = S.Note(card, 12, -244, 536, 3, 12, GREY)
+    local landed = S.Note(card, 12, -80, 536, 3, 12, GREY)
     landed:SetText("No landing yet")
     L.onLand = function(t, k, sent)
         local text = string.format("Last: %.2f s in the air, %d%%", t, floor(k * 100 + 0.5))

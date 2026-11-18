@@ -1052,7 +1052,8 @@ end
 function L.StepTiming(speed)
     local band = Band(speed)
     local cal = L.StepCal(band)
-    local nudge = H.DB().stepNudge or 0
+    -- (the old hand nudge: no longer set anywhere, so no longer read)
+    local nudge = 0
     local synced = cal and cal.rate and cal.speed and cal.speed > 0
     -- (the default: WoW Helper's published one, else the fallback here)
     if not synced then

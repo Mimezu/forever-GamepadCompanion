@@ -31,6 +31,11 @@ Vol.FEEL_DEFAULT = { mount = 0.5, dismount = 0.5 }
 -- A moment's feel / sound volume (its default unless set; full for most)
 function Vol.FeelDefault(key) return Vol.FEEL_DEFAULT[key] or 1 end
 function Vol.Feel(key)
+    -- (a spell's own, "spell:instant:Frost Nova": its own volume over its
+    -- parent's, as Vol.Sound reads it from its owner)
+    local parent, name, O
+    if key and ns.SubMoment then parent, name, O = ns.SubMoment(key) end
+    if O then return Clamp((O.Field(name, "volume") or 1) * Vol.Feel(parent)) end
     local v = key and Vol.DB().feel[key]
     if v == nil then v = key and Vol.FeelDefault(key) or 1 end
     return Clamp(v)
