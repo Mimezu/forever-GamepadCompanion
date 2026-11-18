@@ -780,11 +780,27 @@ end
 -- opts: specials, onPick(key, button), onSelect(key), current() -> key
 ---------------------------------------------------------------------------
 local TILE_W, TILE_H = 92, 70
+-- The palette's hover preview: once (a loop too), faint; only as Try would play (Feel on, not
+-- Improved Forever's, not in a fight); stopped on leave, on hide and when a fight starts
+local function PreviewOK()
+    if InCombatLockdown and InCombatLockdown() then return false end
+    local V = ns.Rumble
+    if not V then return true end
+    local ok, on = pcall(function() return V.Settings().enabled and not V.Other() end)
+    return ok and on and true or false
+end
+HUI.PreviewOK = PreviewOK
+function HUI.StopPreview() if H.Stop then H.Stop("preview") end end
+local previewStop = CreateFrame("Frame")
+pcall(previewStop.RegisterEvent, previewStop, "PLAYER_REGEN_DISABLED")
+previewStop:SetScript("OnEvent", function() HUI.StopPreview() end)
+
 function HUI.Palette(parent, x, y, w, h, opts)
     local L = ns.HapticsLab
     local pal = CreateFrame("Frame", nil, parent)
     pal:SetPoint("TOPLEFT", x, y)
     pal:SetSize(w, h)
+    pal:SetScript("OnHide", function() pal.hovered = nil; HUI.StopPreview() end)
     local listW = 150
     pal.groups = {}
     for _, g in ipairs(L.GROUPS) do pal.groups[#pal.groups + 1] = g end
@@ -831,10 +847,13 @@ function HUI.Palette(parent, x, y, w, h, opts)
             if not (C_Timer and C_Timer.After) then return end
             C_Timer.After(0.3, function()
                 local f = pal.hovered == self and self.key and self.key ~= "off" and H.Feel(self.key)
-                if f then pcall(H.Play, f, { voice = "preview", gain = 0.5 }) end
+                if f and PreviewOK() and pal:IsVisible() then pcall(H.Play, f, { voice = "preview", gain = 0.5, loop = false }) end
             end)
         end)
-        t:SetScript("OnLeave", function(self) if pal.hovered == self then pal.hovered = nil end end)
+        t:SetScript("OnLeave", function(self)
+            if pal.hovered == self then pal.hovered = nil end
+            HUI.StopPreview()
+        end)
         list[i] = t
         return t
     end
@@ -915,6 +934,7 @@ function HUI.PickFeel(anchor, current, onPick, specials, title)
         })
         palWin:Hide()
         S.Popup(palWin, "GamepadCompanionPalette", { outside = true })
+        palWin:HookScript("OnHide", function() palWin.pal.hovered = nil; HUI.StopPreview() end)
     end
     if palWin:IsShown() and palWin.anchor == anchor then return palWin:Hide() end
     palWin.anchor, palWin.current, palWin.onPick = anchor, current, onPick

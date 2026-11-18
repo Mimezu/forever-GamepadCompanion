@@ -705,3 +705,40 @@ do
     assert(not row("hit").when, "Hit: no When")
     io.write("PASS: N11: When chips (low health, heartbeat, out of mana, landing), stepper, Default, Undo, profile\n")
 end
+-- Night review 2, U2-2 / U2-3: the palette's hover preview plays once, faint, only as Try would
+-- (Feel on, no Improved Forever, not in a fight), and stops on leave, on hide and when a fight starts
+do
+    local H = ns.Haptics
+    page.SetKind("feel")
+    page.browser.Select("Attacks")
+    local hit
+    for _, r in ipairs(page.rows) do if r.key == "hit" and r:IsVisible() then hit = r end end
+    hit.pick.scripts.OnClick(hit.pick)
+    local pal = GamepadCompanionPalette
+    assert(pal:IsShown(), "the palette")
+    local rain = PaletteTile("Rain")
+    assert(rain and H.Feel(rain.key).loop, "a looping feel's tile")
+    local function hover(t) t.scripts.OnEnter(t); RunTimers() end
+    hover(rain)
+    assert(H.Playing("preview"), "hovered: it plays")
+    rain.scripts.OnLeave(rain)
+    assert(not H.Playing("preview"), "U2-2: left, the loop stops (it hummed until /reload)")
+    hover(rain)
+    pal:Hide()
+    assert(not H.Playing("preview"), "U2-2: the palette closed, it stops")
+    hit.pick.scripts.OnClick(hit.pick)
+    rain = PaletteTile("Rain")
+    V.Settings().enabled = false
+    hover(rain)
+    assert(not H.Playing("preview"), "U2-3: Feel off, no preview")
+    V.Settings().enabled = true
+    rain.scripts.OnLeave(rain)
+    local icl = InCombatLockdown
+    InCombatLockdown = function() return true end
+    hover(rain)
+    assert(not H.Playing("preview"), "U2-3: in a fight, no preview")
+    InCombatLockdown = icl
+    rain.scripts.OnLeave(rain)
+    GamepadCompanionPalette:Hide()
+    io.write("PASS: U2-2/U2-3: hover preview once, gated, stopped on leave and hide\n")
+end

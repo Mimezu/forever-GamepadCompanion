@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.53.3 — 2026-11-18
+
+- **The palette's hover preview stops** (night review 2, U2-2): hovering a looping feel (Footsteps, Purr, Bandage, Rain…) no longer leaves the pad humming until /reload. The preview plays once, and stops when the pointer leaves, the palette closes or a fight starts
+- **The preview plays only as Try would** (U2-3): not with Feel off, not while Improved Forever's vibration is on, never in a fight (Hush already applied)
+
 ## 0.53.2 — 2026-11-18
 
 - **Low health plays again** (night review 2, U2-1): 0.53.0 read health before the helper that guards hidden values was defined, so every health change raised an error and Low health never started. A test now fails if it comes back
