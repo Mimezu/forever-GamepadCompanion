@@ -619,37 +619,59 @@ T.SNIPPET = [[
 ]]
 
 -- The game windows a zone can open: the game's own button for each (the first
--- one this client has), clicked by the zone's macro. List adapted from
--- Improved Forever's Actions.lua (MIT).
-local R = "gamepad-radial-icon-"
+-- one this client has), clicked by the zone's macro, else the toggle Forever's
+-- bindings and gamepad radial run (/run). Character things, then social, then
+-- system. Started from Improved Forever's Actions.lua (MIT).
+local R, I = "gamepad-radial-icon-", "Interface\Icons\\"
 T.WINDOWS = {
-    { key = "character", label = "Character", atlas = R .. "character", icon = "Interface\\Icons\\INV_Chest_Cloth_17",
-        buttons = { "CharacterMicroButton" } },
-    { key = "bags", label = "Bags", atlas = R .. "bags", icon = "Interface\\Icons\\INV_Misc_Bag_08",
-        buttons = { "MainMenuBarBackpackButton", "BagsBarBackpackButton" } },
-    { key = "spellbook", label = "Spellbook", atlas = R .. "spellbook", icon = "Interface\\Icons\\INV_Misc_Book_09",
+    { key = "character", label = "Character", atlas = R .. "character", icon = I .. "INV_Chest_Cloth_17",
+        buttons = { "CharacterMicroButton" }, run = 'ToggleCharacter("PaperDollFrame")' },
+    { key = "reputation", label = "Reputation", icon = I .. "Achievement_Reputation_01",
+        run = 'ToggleCharacter("ReputationFrame")' },
+    { key = "currency", label = "Currency", icon = I .. "INV_Misc_Coin_01", run = "CharacterFrame:ToggleTokenFrame()" },
+    { key = "honor", label = "Honor", icon = I .. "INV_BannerPVP_01", run = 'ToggleCharacter("PVPRankFrame")' },
+    { key = "bags", label = "Bags", atlas = R .. "bags", icon = I .. "INV_Misc_Bag_08",
+        buttons = { "MainMenuBarBackpackButton", "BagsBarBackpackButton" }, run = "ToggleAllBags()" },
+    { key = "spellbook", label = "Spellbook", atlas = R .. "spellbook", icon = I .. "INV_Misc_Book_09",
         buttons = { "SpellbookMicroButton", "PlayerSpellsMicroButton" } },
-    { key = "talents", label = "Talents", atlas = R .. "talents", icon = "Interface\\Icons\\Ability_Marksmanship",
+    { key = "talents", label = "Talents", atlas = R .. "talents", icon = I .. "Ability_Marksmanship",
         buttons = { "TalentMicroButton", "PlayerSpellsMicroButton" } },
-    { key = "professions", label = "Professions", atlas = R .. "professions", icon = "Interface\\Icons\\Trade_BlackSmithing",
-        buttons = { "ProfessionMicroButton" } },
-    { key = "questlog", label = "Quests & Map", atlas = R .. "quests", icon = "Interface\\Icons\\INV_Misc_Book_08",
-        buttons = { "QuestLogMicroButton" } },
-    { key = "map", label = "World Map", icon = "Interface\\Icons\\INV_Misc_Map_01",
-        buttons = { "WorldMapMicroButton", "MiniMapWorldMapButton" } },
-    { key = "social", label = "Social", atlas = R .. "social", icon = "Interface\\Icons\\INV_Misc_GroupLooking",
-        buttons = { "SocialsMicroButton", "FriendsMicroButton" } },
-    { key = "guild", label = "Communities", atlas = R .. "communities", icon = "Interface\\Icons\\INV_BannerPVP_02",
-        buttons = { "CommunitiesMicroButton", "GuildMicroButton" } },
-    { key = "groupfinder", label = "Group Finder", atlas = R .. "groupfinder", icon = "Interface\\Icons\\INV_Misc_Eye_01",
-        buttons = { "LFGMicroButton", "LFDMicroButton", "GroupFinderMicroButton" } },
-    { key = "collections", label = "Collections", atlas = R .. "collections", icon = "Interface\\Icons\\Ability_Mount_RidingHorse",
-        buttons = { "CollectionsMicroButton" } },
-    { key = "gamemenu", label = "Game Menu", atlas = R .. "gamemenu", icon = "Interface\\Icons\\INV_Misc_Gear_01",
-        buttons = { "MainMenuMicroButton" } },
+    { key = "professions", label = "Professions", atlas = R .. "professions", icon = I .. "Trade_BlackSmithing",
+        buttons = { "ProfessionMicroButton" }, run = "ToggleProfessionsBook()" },
+    { key = "legacy", label = "Legacy", atlas = R .. "legacy", icon = I .. "INV_Misc_Book_11",
+        buttons = { "LegacyMicroButton" }, run = "ToggleLegacySystemUI()" },
+    { key = "questlog", label = "Quests & Map", atlas = R .. "quests", icon = I .. "INV_Misc_Book_08",
+        buttons = { "QuestLogMicroButton" }, run = "ToggleQuestLog()" },
+    { key = "collections", label = "Collections", atlas = R .. "collections", icon = I .. "Ability_Mount_RidingHorse",
+        buttons = { "CollectionsMicroButton" }, run = "ToggleCollectionsJournal()" },
+    { key = "mounts", label = "Mounts", icon = I .. "Ability_Mount_RidingHorse",
+        run = "ToggleCollectionsJournal(COLLECTIONS_JOURNAL_TAB_INDEX_MOUNTS)" },
+    { key = "pets", label = "Pets", icon = I .. "INV_Box_PetCarrier_01",
+        run = "ToggleCollectionsJournal(COLLECTIONS_JOURNAL_TAB_INDEX_PETS)" },
+    { key = "toys", label = "Toys", icon = I .. "INV_Misc_Toy_10",
+        run = "ToggleCollectionsJournal(COLLECTIONS_JOURNAL_TAB_INDEX_TOYS)" },
+    { key = "social", label = "Social", atlas = R .. "social", icon = I .. "INV_Misc_GroupLooking",
+        run = "ToggleFriendsFrame(FRIEND_TAB_FRIENDS)" },
+    { key = "who", label = "Who", icon = I .. "INV_Misc_Spyglass_02", run = "LFGVanilla_ToggleFrame(LFG_TAB_WHO)" },
+    { key = "raid", label = "Raid", icon = I .. "INV_Misc_GroupNeedMore", run = "ToggleRaidFrame()" },
+    { key = "channels", label = "Chat Channels", atlas = R .. "chat", icon = I .. "INV_Letter_15", run = "ToggleChannelFrame()" },
+    { key = "guild", label = "Communities", atlas = R .. "communities", icon = I .. "INV_BannerPVP_02",
+        buttons = { "GuildMicroButton", "CommunitiesMicroButton" }, run = "ToggleGuildFrame()" },
+    { key = "groupfinder", label = "Group Finder", atlas = R .. "groupfinder", icon = I .. "INV_Misc_Eye_01",
+        buttons = { "LFDMicroButton", "LFGMicroButton", "GroupFinderMicroButton" } },
+    { key = "calendar", label = "Calendar", atlas = R .. "calendar", icon = I .. "INV_Misc_Note_02", run = "ToggleCalendar()" },
+    { key = "macros", label = "Macros", icon = I .. "INV_Misc_Note_01", run = "ShowMacroFrame()" },
+    { key = "clock", label = "Clock", atlas = R .. "stopwatch", icon = I .. "INV_Misc_PocketWatch_01", run = "TimeManager_Toggle()" },
+    { key = "shop", label = "Shop", atlas = R .. "shop", icon = I .. "INV_Misc_Coin_02",
+        buttons = { "StoreMicroButton" }, run = "ToggleStoreUI()" },
+    { key = "support", label = "Support", icon = I .. "INV_Misc_QuestionMark", run = "ToggleHelpFrame()" },
+    { key = "gamemenu", label = "Game Menu", atlas = R .. "gamemenu", icon = I .. "INV_Misc_Gear_01",
+        buttons = { "MainMenuMicroButton" }, run = "ToggleGameMenu()" },
 }
 T.WINDOW_BY_KEY = {}
 for _, w in ipairs(T.WINDOWS) do T.WINDOW_BY_KEY[w.key] = w end
+-- (World Map, removed: Forever's map is Quests & Map)
+T.WINDOW_BY_KEY.map = T.WINDOW_BY_KEY.questlog
 
 --[[ A zone's macro text, or nil. lookup has the game calls:
   button(name)   true when that global button exists
@@ -662,6 +684,7 @@ function T.MacroText(action, lookup)
         for _, name in ipairs(w and w.buttons or {}) do
             if lookup.button(name) then return "/click " .. name end
         end
+        return w and w.run and ("/run " .. w.run) or nil
     elseif kind == "spell" then
         local name = lookup.spellName(tonumber(value))
         return name and ("/cast " .. name) or nil

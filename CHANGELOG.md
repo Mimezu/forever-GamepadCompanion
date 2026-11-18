@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.1 — 2026-11-18
+
+- Choose › Windows: Forever's windows, from its own bindings and gamepad radial. New: Reputation, Currency, Honor, Legacy, Mounts, Pets, Toys, Who, Raid, Chat Channels, Calendar, Macros, Clock, Shop, Support
+- World Map removed (Forever's map is Quests & Map; zones set to it open Quests & Map)
+- A window with no button on this client runs its toggle instead (Social did nothing)
+- Order: character, then social, then system
+
 ## 0.45.0 — 2026-11-18
 
 - **Your spells follows Feel, Light and Sound** like every other group (it showed feels in every view):

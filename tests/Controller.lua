@@ -381,10 +381,10 @@ eq(tp.zoneTitle.text, "Bottom right · Base", "zone picked on the art")
 ui.choose.scripts.OnClick(ui.choose)
 pui.cats.windows.scripts.OnClick(pui.cats.windows)
 local map
-for i = 1, 24 do local t = pui.tiles[i]; if t and t.entry and t.entry.action == "window:map" then map = t end end
+for i = 1, 24 do local t = pui.tiles[i]; if t and t.entry and t.entry.action == "window:questlog" then map = t end end
 map.scripts.OnClick(map)
-eq(Touch.Settings().actions.chord.base.r2c3, "window:map", "window from the picker")
-eq(ui.name.text, "World Map", "card shows the binding")
+eq(Touch.Settings().actions.chord.base.r2c3, "window:questlog", "window from the picker")
+eq(ui.name.text, "Quests & Map", "card shows the binding")
 ui.layers.lt.scripts.OnClick(ui.layers.lt)
 eq(ui.kind.text, "Window · Base", "L2: Base's, inherited")
 check(not ui.clear:IsEnabled(), "inherited: nothing to clear")

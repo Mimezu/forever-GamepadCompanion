@@ -210,7 +210,20 @@ do
         spellName = function(id) return id == 133 and "Fireball" or nil end,
         macroBody = function(n) return n == "Mount" and "/cast Swift Horse" or nil end }
     eq(T.MacroText("window:character", lookup), "/click CharacterMicroButton", "window macro")
-    eq(T.MacroText("window:bags", lookup), nil, "window without a button")
+    eq(T.MacroText("window:bags", lookup), "/run ToggleAllBags()", "window without a button: its toggle")
+    eq(T.MacroText("window:spellbook", lookup), nil, "window without a button or toggle")
+    eq(T.MacroText("window:reputation", lookup), '/run ToggleCharacter("ReputationFrame")', "a tab's toggle")
+    eq(T.MacroText("window:map", lookup), "/run ToggleQuestLog()", "old World Map: Quests & Map")
+    check(T.WINDOW_BY_KEY.worldmap == nil, "no World Map entry")
+    local seen = {}
+    for _, w in ipairs(T.WINDOWS) do
+        check(w.key ~= "map", "World Map not listed")
+        check(not seen[w.key], "window listed once: " .. w.key)
+        seen[w.key] = true
+        check(type(w.icon) == "string" and w.icon ~= "", "window has an icon: " .. w.key)
+        check((w.buttons and #w.buttons > 0) or w.run, "window opens something: " .. w.key)
+        check(not (w.run and #w.run > 200), "toggle fits a macro: " .. w.key)
+    end
     eq(T.MacroText("spell:133", lookup), "/cast Fireball", "spell macro")
     eq(T.MacroText("item:6948", lookup), "/use item:6948", "item macro")
     eq(T.MacroText("macro:Mount", lookup), "/cast Swift Horse", "macro body")
@@ -270,7 +283,7 @@ eq(GetBindingAction("CTRL-PADBACK"), "TOGGLEUIFOCUS", "B: L1 + click is Blizzard
 eq(GetBindingAction("PAD6"), "", "B: no PAD6")
 eq(cvars.GamePadTouchCursorEnable, "0", "touch cursor off while ours")
 eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "click top left: Character")
-eq(Press(0, -0.6), nil, "bottom centre (Professions): no button in this test")
+eq(Press(0, -0.6), "/run ToggleProfessionsBook()", "bottom centre (Professions): its toggle, no button here")
 
 -- Layers
 local fireball = "spell:133"
@@ -278,7 +291,7 @@ _G.GetCursorInfo = function() return "spell", 1, "spell", 133 end
 Touch.Command("set tr lt")
 _G.GetCursorInfo = nil
 eq(Press(0.8, 0.6, true, false), "/cast Fireball", "L2 + top right: the LT layer")
-eq(Press(0.8, 0.6, false, true), nil, "R2 + top right: falls back to Base (Quests, no button here)")
+eq(Press(0.8, 0.6, false, true), "/run ToggleQuestLog()", "R2 + top right: falls back to Base (Quests)")
 eq(Press(-0.8, 0.6, true, false), "/click CharacterMicroButton", "L2 + an empty LT zone: Base")
 check(fireball, "")
 
@@ -327,7 +340,7 @@ Touch.SetTap(true)
 eq(cvars.GamePadTouchTapButtons, "1", "tap to click on")
 Touch.SetTap(false)
 eq(cvars.GamePadTouchTapButtons, "0", "tap to click off: player's value back")
-check(Touch.Runs("window:bags") == nil and Touch.Runs("window:character") ~= nil, "Runs: a missing window button")
+check(Touch.Runs("window:spellbook") == nil and Touch.Runs("window:character") ~= nil, "Runs: a missing window button")
 eq(Press(0.8, 0.6, true, false, -0.8, 0.6), "/sit", "L2 + swipe: empty layer falls back to Base")
 Touch.SetZone("base", "swipe-left", "none")
 eq(click:GetAttribute("gpc-swipe"), 0, "no swipes: act on press again")
