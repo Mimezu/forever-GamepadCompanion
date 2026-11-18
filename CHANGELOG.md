@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.53.7 — 2026-11-18
+
+- **Every popover Default has Undo** (night review 2, U2-16): the volume and When steppers' Default offer Undo for 5 s, like the rows
+- **When lives on the feel row only** (U2-11): one setting, one place; the sound row no longer has its own copy. Low health's stepper names its limit: hidden health in a fight uses the game's 35 %
+- **The When chip** is as wide as its words (Landing's no longer cut, U2-10) and steps aside while WoW Helper proposes something on the row (U2-9)
+
 ## 0.53.6 — 2026-11-18
 
 - **The Feel tour stops** (night review 2, U2-8): the same button reads Stop while it plays; closing the window (Esc, the pad's B) or a fight starting stops it. It doesn't start with Feel off, with Improved Forever's vibration on, or in a fight, and Just felt names only what played

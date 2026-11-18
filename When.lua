@@ -13,7 +13,7 @@ local function Secs(v) return string.format("%.2f s", v) end
 -- { key, label (in the stepper), words (on the chip), default, step, min, max, format, saved = an older key }
 W.PARAMS = {
     lowHp = { { key = "below", label = "Below", words = "below", default = 0.35, step = 0.05, min = 0.1, max = 0.6, format = Pct,
-        note = "Health hidden in a fight: the game's warning (35 %)" } },
+        note = "Hidden health in a fight: the game's 35 %" } },
     heartbeat = { { key = "below", label = "Below", words = "below", default = 0.5, step = 0.05, min = 0.1, max = 0.9, format = Pct } },
     oom = { { key = "below", label = "Mana below", words = "below", default = 0.15, step = 0.05, min = 0.05, max = 0.5, format = Pct } },
     landing = {

@@ -589,7 +589,18 @@ function HUI.LevelPopover(anchor, lv, title, pg)
         levelPop.proxy = proxy
         levelPop.stepper = HUI.Stepper(pg, levelPop, "", 14, -44, proxy)
         levelPop.default = S.NewButton(levelPop, "Default", 14, -76, 80, function()
-            if levelPop.lv.default then levelPop.lv.default(); pg.Refresh() end
+            local lv = levelPop.lv
+            if not lv.default then return end
+            -- (as every Default: Undo for 5 s, while it's still the latest change: U2-16)
+            local okWas, was = pcall(lv.get)
+            lv.default()
+            pg.Refresh()
+            local okAfter, after = pcall(lv.get)
+            if okWas and okAfter and was ~= after and Shell.Offer then
+                local name = levelPop.title:GetText() or "Volume"
+                Shell.Offer(name .. ": Recommended", "Undo", function() lv.set(was); pg.Refresh() end, nil,
+                    function() local ok, now = pcall(lv.get); return ok and now == after end)
+            end
         end, nil, 11, 24)
         levelPop:Hide()
         S.Popup(levelPop, "GamepadCompanionLevel", { outside = true })
@@ -600,6 +611,9 @@ function HUI.LevelPopover(anchor, lv, title, pg)
     p.step, p.min, p.max = lv.step or 0.1, lv.min or 0, lv.max or 1
     levelPop.title:SetText(title or "Volume")
     levelPop.default:SetShown(lv.default ~= nil)
+    -- (a limit worth knowing, beside Default: Low health's hidden-health case)
+    if not levelPop.note then levelPop.note = S.Text(levelPop, "", 104, -74, 180, 10, GREY) end
+    levelPop.note:SetText(lv.note or "")
     levelPop:ClearAllPoints()
     levelPop:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -4)
     levelPop:SetClampedToScreen(true)

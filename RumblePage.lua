@@ -481,7 +481,7 @@ local function WhenLevel(moment, p)
     return { step = p.step, min = p.min, max = p.max, format = p.format,
         get = function() return Wh.Get(moment, p.key) end,
         set = function(v) Wh.Set(moment, p.key, v); Refresh() end,
-        default = function() Wh.Set(moment, p.key, nil); Refresh() end }
+        default = function() Wh.Set(moment, p.key, nil); Refresh() end, note = p.note }
 end
 function ui.PickWhen(anchor, moment, label)
     local Wh = ns.When
@@ -633,11 +633,12 @@ local function MakeRow(parent, y, width, kind, key)
         marks = 3,
     })
     row.kind, row.key = kind, key
-    -- its When (a threshold it waits for): a chip under its name, a click opens a stepper
-    if ns.When and ns.When.Has(key) and (KIND_OF[kind] == "feel" or KIND_OF[kind] == "sound") then
+    -- its When (a threshold it waits for): a chip under its name, a click opens a stepper. On the
+    -- feel row only: one setting, one place (U2-11)
+    if ns.When and ns.When.Has(key) and KIND_OF[kind] == "feel" then
         row.when = S.NewButton(row, "", 44, -21, 150, function(self) ui.PickWhen(self, key, label) end, nil, 10, 17)
         row.when.label:SetTextColor(GREY[1], GREY[2], GREY[3])
-        S.Tooltip(row.when, "When", "When it plays · a click to change it")
+        S.Tooltip(row.when, "When")
     end
     ui.rows[#ui.rows + 1] = row
     return row
@@ -2015,16 +2016,20 @@ Refresh = function()
             S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or lab and "In Lab" or "Needs WoW Helper")
         end
         row:SetMarks(Marks(row))
-        if row.when then
-            row.when.label:SetText("When: " .. ns.When.Words(row.key))
-            local w = (row.sub:GetText() or "") ~= "" and row.sub:GetStringWidth() or nil
-            row.when:ClearAllPoints()
-            row.when:SetPoint("TOPLEFT", 44 + (type(w) == "number" and (w + 8) or 0), -21)
-        end
         local rk = KIND_OF[row.kind]
         local p = C and C.Proposal and C.Proposal(rk, row.key)
         row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
             p and function() C.DismissProposal(row.key, p.id); Refresh() end)
+        -- (the When chip after the sub line, as wide as its words; a proposal's line wins: U2-9, U2-10)
+        if row.when then
+            row.when:SetShown(not p)
+            row.when.label:SetText("When: " .. ns.When.Words(row.key))
+            local tw = row.when.label:GetStringWidth()
+            row.when:SetWidth(math.max(90, (type(tw) == "number" and tw or 150) + 14))
+            local w = (row.sub:GetText() or "") ~= "" and row.sub:GetStringWidth() or nil
+            row.when:ClearAllPoints()
+            row.when:SetPoint("TOPLEFT", 44 + (type(w) == "number" and (w + 8) or 0), -21)
+        end
         local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
         row:SetAlpha(live and 1 or 0.55)
     end

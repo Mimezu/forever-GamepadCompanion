@@ -650,6 +650,7 @@ do
     low.when.scripts.OnClick(low.when)
     local pop = ns.HapticsUI.LevelPop()
     assert(pop:IsShown() and pop.title.text == "Low health · Below", "its stepper: " .. tostring(pop.title.text))
+    assert(pop.note and pop.note.text ~= "", "U2-11: the hidden-health limit shown")
     pop.lv.set(0.25)
     assert(Wh.Get("lowHp", "below") == 0.25 and low.when.label.text == "When: below 25 %", "set: the chip says so")
     assert(low.changed and low.changed:IsShown() and low.default.enabled ~= false, "a changed When: the dot, Default lit")
@@ -699,7 +700,7 @@ do
     page.browser.Select("Abilities")
     local oom = row("oom")
     page.Refresh()
-    assert(oom and oom.when and oom.when.label.text == "When: below 15 %", "Out of mana's sound: its When")
+    assert(oom and not oom.when, "U2-11: Out of mana's sound row: no second When (one setting, one place)")
     page.SetKind("feel")
     page.browser.Select("Attacks")
     assert(not row("hit").when, "Hit: no When")
@@ -809,4 +810,34 @@ do
     assert(tries == 0, "U2-8: Feel off, no tour")
     page.TryMoment = try
     io.write("PASS: U2-8: the tour stops on a fight, on close, on Stop; not with Feel off\n")
+end
+-- Night review 2, U2-16 / U2-9: the popover's Default has Undo; a proposal hides the When chip
+do
+    local Wh = ns.When
+    page.SetKind("feel")
+    page.browser.Select("Defense")
+    local low
+    for _, r in ipairs(page.rows) do if r.key == "lowHp" and r:IsVisible() then low = r end end
+    Wh.Set("lowHp", "below", 0.25)
+    page.Refresh()
+    low.when.scripts.OnClick(low.when)
+    local pop = ns.HapticsUI.LevelPop()
+    pop.default.scripts.OnClick(pop.default)
+    assert(Wh.Get("lowHp", "below") == 0.35, "the popover's Default")
+    local offer = ns.ShellWindow().offer
+    assert(offer:IsShown(), "U2-16: Undo offered")
+    offer.scripts.OnClick(offer)
+    assert(Wh.Get("lowHp", "below") == 0.25, "U2-16: Undo: 25 % again")
+    pop:Hide()
+    Wh.Set("lowHp", "below", nil)
+    -- a proposal on the row: its line, no chip over it
+    local C = ns.HelperCues
+    local prop = C.Proposal
+    C.Proposal = function(kind, key) if key == "lowHp" and kind == "feel" then return { id = "pulse", name = "Pulse" } end end
+    page.Refresh()
+    assert(not low.when:IsShown(), "U2-9: the proposal's line, no When chip over it")
+    C.Proposal = prop
+    page.Refresh()
+    assert(low.when:IsShown(), "the chip back")
+    io.write("PASS: U2-16/U2-9/U2-11: popover Undo, chip under a proposal, one When" .. string.char(10))
 end
