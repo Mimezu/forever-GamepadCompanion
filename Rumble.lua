@@ -2295,6 +2295,12 @@ function V.SpellRule(spellID, castTime)
         if type(o.volume) == "number" then r.volume = o.volume end
     end
     if r.off then r.why = "Off: your choice" end
+    -- (its light and sound: a moment of its own under the one it plays in,
+    -- Instant ability or Spell released; a linked spell has its moment's)
+    if not linked or proc then
+        r.base = r.moment == "spell" and "release" or "instant"
+        r.key = O and O.Key(r.base, name) or nil
+    end
     -- (when it waits for the hit: where its timing comes from)
     if r.when == "hit" and not proc then
         local kind = r.how and r.how.ranged and "ranged" or V.WeaponKind and V.WeaponKind(16) or "oneHand"
@@ -2311,12 +2317,31 @@ end
 -- Your spells: what plays for a spell (the rule itself)
 function V.SpellPlan(spellID) return V.SpellRule(spellID) end
 
+-- A spell's moment firing (V.spellNow): its own light and sound go with it
+-- (Lights, HelperCues: SpellOverrides.Now)
+local function FireAs(name, key)
+    V.spellNow = name and { name = name, parent = key } or nil
+    V.Fire(key)
+    V.spellNow = nil
+end
+V.FireAs = FireAs
+
+-- A spell whose feel plays nothing (quiet, or its feel off): its own light
+-- and sound still, at the cast
+function V.SpellCue(rule)
+    local O = ns.SpellOverrides
+    if not (O and rule and rule.base == "instant") then return end
+    local light, sound = O.MomentFor("instant", rule.name, "light"), O.MomentFor("instant", rule.name, "sound")
+    if light ~= "instant" and ns.Lights then ns.Lights.Fire(light) end
+    if sound ~= "instant" and ns.HelperCues then ns.HelperCues.Moment(sound, nil) end
+end
+
 -- An instant felt as you use it: its pattern at its volume
 function V.FireSpell(rule)
     if not (rule and rule.pattern) then return end
     V.instantMove = rule.pattern
     V.fireGain = rule.volume < 1 and rule.volume or nil
-    V.Fire("instant")
+    FireAs(rule.name, "instant")
     V.fireGain = nil
 end
 
@@ -2410,6 +2435,7 @@ local CAST_HANDLERS = {
         local rule = V.SpellRule(spellID, 0)
         -- (no blow of its own: the next swing on the target is a swing)
         if rule and rule.when ~= "hit" then swing.ability = -math.huge end
+        if rule and (rule.off or rule.when == "none") then V.SpellCue(rule) end
         if not rule or rule.off or rule.when == "none" then return end
         if rule.moment ~= "instant" and rule.moment ~= "quiet" then return end
         if rule.when == "cast" then
@@ -2713,7 +2739,8 @@ function V.AbilityCast(move, spellID, nextSwing, how, rule)
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
     pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
         until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1,
-        avoidOnly = rule and rule.avoidOnly or nil, magicOnly = rule and rule.magicOnly or nil }
+        avoidOnly = rule and rule.avoidOnly or nil, magicOnly = rule and rule.magicOnly or nil,
+        name = rule and rule.name or nil }
 end
 
 -- A helpful spell (a heal, a buff), when the client says so
@@ -2808,8 +2835,9 @@ function V.AbilityResult(action, flag, school)
     end
     AtImpact(delay, function()
         V.why1, V.why2, V.why3 = "ability " .. result, p.move, delay
+        V.spellNow = p.name and { name = p.name, parent = "instant" } or nil
         V.AbilityImpact(p.move, result, p.ranged or p.spell, p.gain)
-        V.why1 = nil
+        V.why1, V.spellNow = nil, nil
     end)
     return true
 end
@@ -2891,12 +2919,13 @@ end
 function V.ProcLanded(id, crit)
     claimedAt = GetTime()
     local r = V.SpellRule(id)
+    if r and r.off then V.SpellCue(r) end
     if not r or r.off or not r.pattern then return true end
     local gain = r.volume * (crit and 1 or V.PROC_GAIN)
     V.why1, V.why2 = crit and "proc crit" or "proc", r.name
     V.instantMove = r.pattern
     V.fireGain = gain < 1 and gain or nil
-    V.Fire("instant")
+    FireAs(r.name, "instant")
     V.fireGain, V.why1 = nil, nil
     return true
 end

@@ -24,12 +24,13 @@ end
 -- The lights to offer: { heading, { light, ... } } in order
 function LP.Sections(key)
     local LT = ns.Lights
-    local e = LT.EVENT[key]
+    local e = LT.Def(key)
     local kind = e.state and "hold" or "once"
+    local ownKey = e.parent or key
     local own, shapes, yours, more = {}, {}, {}, {}
     for _, l in ipairs(LT.Lights()) do
         if l.kind == kind and l.group ~= "Resting" then
-            if l.key == key then own[#own + 1] = l
+            if l.key == ownKey then own[#own + 1] = l
             elseif l.yours then yours[#yours + 1] = l
             elseif l.group == "Shapes" then shapes[#shapes + 1] = l
             else more[#more + 1] = l end
@@ -49,7 +50,7 @@ function LP.Colours(key)
     local LT = ns.Lights
     local list = {}
     for _, c in ipairs(LT.PALETTE) do
-        if c.key ~= "school" or LT.EVENT[key].school then list[#list + 1] = c end
+        if c.key ~= "school" or LT.Def(key).school then list[#list + 1] = c end
     end
     return list
 end
@@ -63,7 +64,7 @@ local function Build()
     pop.title = S.Text(pop, "", 14, -12, 600, 13, YELLOW)
     pop.heads, pop.tiles, pop.swatches, pop.dots = {}, {}, {}, {}
     pop:Hide()
-    S.Popup(pop, "GamepadCompanionLightPicker", { outside = true })
+    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionLightPicker"
     pop.off = S.NewButton(pop, "Off", 0, 0, 70, nil, nil, 12, 26)
     pop.off.label:SetTextColor(1, 0.48, 0.36)
     pop.try = S.NewButton(pop, "Try", 0, 0, 70, nil, nil, 12, 26)
@@ -111,7 +112,7 @@ end
 -- Open the picker for a moment's light next to `anchor`; onChange() after any pick
 function LP.Open(anchor, key, onChange)
     local LT = ns.Lights
-    if not (LT and LT.EVENT[key]) then return end
+    if not (LT and LT.Def(key)) then return end
     if not pop then Build() end
     if pop:IsShown() and pop.anchor == anchor then return pop:Hide() end
     pop.anchor, pop.key, pop.started = anchor, key, Now()
@@ -119,7 +120,7 @@ function LP.Open(anchor, key, onChange)
         if onChange then onChange() end
         LP.Refresh()
     end
-    pop.title:SetText(LT.EVENT[key].label)
+    pop.title:SetText(LT.Def(key).label)
     for _, t in ipairs(pop.tiles) do t:Hide() end
     for _, h in ipairs(pop.heads) do h:Hide() end
     local y, n = -36, 0
@@ -140,7 +141,7 @@ function LP.Open(anchor, key, onChange)
             S.Tooltip(t, l.name, l.mic and "Pulses the mic" or nil)
             t.light = l
             t:SetScript("OnClick", function()
-                local s = LT.Settings(key)
+                local s = LT.Own(key)
                 s.on, s.light = true, l.id
                 LT.Try(key)
                 Changed()
@@ -179,7 +180,7 @@ function LP.Open(anchor, key, onChange)
         S.Tooltip(sw, c.label)
         sw.key = c.key
         sw:SetScript("OnClick", function()
-            LT.Settings(key).color = c.key
+            LT.Own(key).color = c.key
             LT.Try(key)
             Changed()
         end)
@@ -205,7 +206,7 @@ function LP.Open(anchor, key, onChange)
         d:ClearAllPoints()
         d:SetPoint("TOPLEFT", 90 + i * 22, y)
         d:SetScript("OnClick", function()
-            LT.Settings(key).strength = i
+            LT.Own(key).strength = i
             LT.Try(key)
             Changed()
         end)
@@ -219,13 +220,13 @@ function LP.Open(anchor, key, onChange)
     pop.off:ClearAllPoints()
     pop.off:SetPoint("RIGHT", pop.try, "LEFT", -6, 0)
     pop.off:SetScript("OnClick", function()
-        LT.Settings(key).on = false
+        LT.Own(key).on = false
         Changed()
         pop:Hide()
     end)
     y = y - 32
     pop:SetSize(width, -y + 8)
-    pop.title:SetWidth(width - 56)
+    pop.title:SetWidth(width - 28)
     pop:ClearAllPoints()
     pop:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
     pop:SetClampedToScreen(true)

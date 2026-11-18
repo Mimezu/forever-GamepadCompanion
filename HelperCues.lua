@@ -211,7 +211,21 @@ local function SoundDB()
     return db.link.sounds
 end
 
+-- (a sub-moment, a spell's "spell:instant:Frost Nova": saved by its owner,
+-- SpellOverrides; its parent's sound until it has its own)
+local function Sub(key)
+    if not ns.SubMoment then return nil end
+    return ns.SubMoment(key)
+end
+
 function C.MomentSound(key)
+    local parent, name, O = Sub(key)
+    if O then
+        local v = O.Field(name, "sound")
+        if v == false then return nil end
+        if type(v) == "number" then return v end
+        return C.MomentSound(parent)
+    end
     local v = SoundDB()[key]
     if v == false then return nil end
     if type(v) == "number" then return v end
@@ -222,10 +236,23 @@ end
 -- id: a sound, false: none, nil: its default
 function C.SetMomentSound(key, id)
     if id ~= nil and id ~= false and type(id) ~= "number" then return end
+    local _, name, O = Sub(key)
+    if O then return O.SetField(name, "sound", id) end
     SoundDB()[key] = id
 end
 
-function C.IsSoundDefault(key) return SoundDB()[key] == nil end
+function C.IsSoundDefault(key)
+    local _, name, O = Sub(key)
+    if O then return O.Field(name, "sound") == nil end
+    return SoundDB()[key] == nil
+end
+
+-- The sound `key` plays now: the spell playing it's own, else its own
+local function Spelled(key, name)
+    local O = ns.SpellOverrides
+    return O and O.Now(key, "sound", name) or key
+end
+C.Spelled = Spelled
 
 -- The feel a moment plays now (a library key), or nil
 local function IsRumbleEvent(key)
@@ -320,7 +347,7 @@ function C.Moment(key, feelKey, opts)
     end
     -- (a cast swelling with its progress: the caller's intensity)
     if opts.intensity then intensity = max(0, min(7, floor(opts.intensity + 0.5))) end
-    local item = { moment = C.MOMENT_N[key], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
+    local item = { moment = C.MOMENT_N[key] or C.MOMENT_N[Sub(key) or ""], touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
     if opts.build then return item end
     return K.Cue(item)
 end
@@ -543,7 +570,7 @@ local function Wrap()
             if V.cueTimed then return end
             local okA, active = pcall(V.Active)
             local pattern = okA and active and V.EventPattern(key)
-            C.Moment(key, pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
+            C.Moment(Spelled(key), pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
             -- (a looping moment: its HD cue again each cycle while it lasts)
             if V.looping and V.looping.key == key then C.LoopBegan(V.looping) end
             local c = CLIP[key]
@@ -617,7 +644,7 @@ local function CastTimes(channel)
     return s / 1000, e / 1000
 end
 
-frame:SetScript("OnEvent", function(_, event, unit)
+frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
     if event == "ADDON_LOADED" then
         if unit == "GamepadCompanion" then
             Wrap()
@@ -643,6 +670,7 @@ frame:SetScript("OnEvent", function(_, event, unit)
         local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
         local s, e = CastTimes(channel)
         if s then cast.start, cast.finish, cast.channel = s, e, channel end
+        cast.spell = ns.SpellOverrides and ns.SpellOverrides.NameOf(spellID) or nil
         UpdateR2()
     elseif event == "UNIT_SPELLCAST_DELAYED" then
         local s, e = CastTimes(false)
@@ -652,10 +680,16 @@ frame:SetScript("OnEvent", function(_, event, unit)
             cast.start = nil
             UpdateR2()
             C.Clip("release_hit", 4)
+            -- (Spell released: its sound, the spell's own first)
+            C.Moment(Spelled("release", cast.spell), nil)
         end
     elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" then
+        -- (a channel run to its end: released)
+        local ran = event == "UNIT_SPELLCAST_CHANNEL_STOP" and cast.start and cast.channel and cast.finish
+            and Now() >= cast.finish - 0.3
         cast.start = nil
         UpdateR2()
+        if ran then C.Moment(Spelled("release", cast.spell), nil) end
     elseif event == "UNIT_SPELLCAST_STOP" then
         -- (a cast's end: released or not, the trigger free again shortly)
         C_Timer.After(0.15, function()

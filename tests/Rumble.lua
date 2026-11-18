@@ -144,9 +144,13 @@ local PLANS = {
 V.SpellPlan = function(id)
     local p = PLANS[id]
     if not p then return nil end
-    local o = ns.SpellOverrides.Get(({ [133] = "Fireball", [143] = "Fireball", [122] = "Frost Nova", [139] = "Renew", [6603] = "Attack" })[id])
+    local name = ({ [133] = "Fireball", [143] = "Fireball", [122] = "Frost Nova", [139] = "Renew", [6603] = "Attack" })[id]
+    local o = ns.SpellOverrides.Get(name)
     local plan = {}
     for k, v in pairs(p) do plan[k] = v end
+    -- (its light and sound: a moment of its own under Spell released or Instant ability)
+    plan.base = p.moment == "spell" and "release" or (p.moment == "instant" or p.moment == "quiet") and "instant" or nil
+    plan.key = plan.base and ns.SpellOverrides.Key(plan.base, name) or nil
     if o and o.set then plan.set = o.set end
     if o and o.feel then plan.feel = o.feel end
     return plan
@@ -299,4 +303,73 @@ do
     attack.pick.scripts.OnClick(attack.pick)
     assert(page.browser.current == "Attacks", "jumped to Auto attack")
     io.write("PASS: Your spells: a row a name, cast set / feel / link by moment, Off, volume, Default\n")
+end
+-- Your spells follow Feel / Light / Sound like every group: the spell's own light and sound
+-- (the same picker and popup as any moment's), in its overrides, Default per kind, the count
+do
+    local O, sp, K = ns.SpellOverrides, page.spells, ns.HelperLink
+    local count = page.browser.buttons.spells.count
+    page.SetKind("feel")
+    page.browser.Select("spells")
+    sp.tabs[1].scripts.OnClick(sp.tabs[1])
+    local function rows()
+        local t = {}
+        for _, r in ipairs(sp.rows) do if r:IsShown() then t[#t + 1] = r end end
+        return t
+    end
+    local fire, nova, renew = rows()[1], rows()[2], rows()[3]
+    local novaFeel = nova.pick.label.text
+    assert(novaFeel ~= "Off" and novaFeel ~= "None" and nova.level:IsShown(), "Feel: Frost Nova's feel, its volume")
+    assert(count.text == "3/4", "Feel: on of all, as every group: " .. tostring(count.text))
+    -- Light: each row the spell's own light, its parent's until it has one
+    page.SetKind("light")
+    assert(fire.pick.label.text == "Spell released" and fire.sub.text == "When released", "Fireball: Spell released's light: " .. tostring(fire.pick.label.text))
+    assert(nova.pick.label.text == "Off" and nova.default.enabled == false, "Frost Nova: Instant ability's light (off), nothing to undo")
+    assert(not nova.level:IsShown(), "a light's strength is in its picker")
+    assert(count.text == "1/4", "Light: the count follows the kind: " .. tostring(count.text))
+    nova.pick.scripts.OnClick(nova.pick)
+    local lp = GamepadCompanionLightPicker
+    assert(lp and lp:IsShown() and lp.title.text == "Frost Nova", "the light picker, for the spell")
+    local flash
+    for _, t in ipairs(lp.tiles) do if t:IsShown() and t.label.text == "Flash" then flash = t end end
+    flash.scripts.OnClick(flash)
+    local red
+    for _, sw in ipairs(lp.swatches) do if sw.key == "red" and sw:IsShown() then red = sw end end
+    red.scripts.OnClick(red)
+    lp:Hide()
+    local own = O.Get("Frost Nova").light
+    assert(own and own.on == true and own.color == "red" and own.light == ns.Lights.LightByKey("flash").id, "its own light, in its overrides")
+    assert(ns.Lights.IsDefault("instant") and ns.Lights.Settings("instant").on == false, "Instant ability's own light untouched")
+    page.Refresh()
+    assert(nova.pick.label.text == "Flash" and nova.default.enabled ~= false and count.text == "2/4", "shown, Default to undo, counted")
+    -- Feel again: the feel rows, the feel's Default untouched by the light
+    page.SetKind("feel")
+    assert(nova.pick.label.text == novaFeel and nova.default.enabled == false, "Feel: its feel again; the light is not the feel's")
+    -- Sound: a sound for the spell on the pad's speaker, its volume
+    page.SetKind("sound")
+    assert(nova.pick.label.text == "None" and nova.level:IsShown() and count.text == "0/4", "Sound: none yet, a volume")
+    nova.pick.scripts.OnClick(nova.pick)
+    local chime
+    for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t:IsShown() and t.label.text == "Chime" then chime = t end end
+    chime.scripts.OnClick(chime)
+    assert(O.Field("Frost Nova", "sound") == K.SOUNDS.chime and nova.pick.label.text == "Chime", "its own sound")
+    assert(ns.HelperCues.MomentSound("instant") == nil, "Instant ability's sound untouched")
+    nova.level.minus.scripts.OnClick(nova.level.minus)
+    assert(math.abs(O.Field("Frost Nova", "soundVolume") - 0.9) < 1e-9 and O.Volume("Frost Nova") == 1, "its sound's volume, not the feel's")
+    assert(count.text == "1/4", "counted: " .. tostring(count.text))
+    -- Default, by kind: the sound (and its volume) only, then the light
+    nova.default.scripts.OnClick(nova.default)
+    assert(O.Field("Frost Nova", "sound") == nil and O.Field("Frost Nova", "soundVolume") == nil and O.Get("Frost Nova").light, "Default: its sound only")
+    page.SetKind("light")
+    nova.default.scripts.OnClick(nova.default)
+    assert(O.Get("Frost Nova") == nil and nova.pick.label.text == "Off", "Default: its light, nothing left")
+    -- a linked spell: its moment's light or sound, a link
+    page.SetKind("sound")
+    sp.tabs[2].scripts.OnClick(sp.tabs[2])
+    local attack = sp.rows[1]
+    assert(attack.pick.label.text == "None ›" and attack.sub.text == "With Auto attack" and not attack.level:IsShown(), "Attack: Auto attack's sound, a link")
+    attack.pick.scripts.OnClick(attack.pick)
+    assert(page.kind == "sound" and page.browser.current == "Attacks", "jumped to Auto attack's sound")
+    page.SetKind("feel")
+    io.write("PASS: Your spells follow Feel / Light / Sound: own light and sound (same picker), in its overrides, Default per kind, the count\n")
 end

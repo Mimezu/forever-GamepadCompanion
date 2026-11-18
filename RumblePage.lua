@@ -262,8 +262,10 @@ end
 
 -- Any moment's name and icon, whichever list has it
 local function LabelOf(key)
-    local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key] or (LT and LT.EVENT[key])
-    return e and e.label or key
+    local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key] or (LT and LT.Def(key))
+    if e then return e.label end
+    local _, name = ns.SubMoment and ns.SubMoment(key)
+    return name or key
 end
 local function IconOf(key)
     local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key]
@@ -273,7 +275,7 @@ end
 local function Pct(v) return floor((v or 0) * 100 + 0.5) .. "%" end
 
 ITEM.light = {
-    label = function(key) return LT.EVENT[key].label end,
+    label = function(key) return LT.Def(key).label end,
     icon = function(key) return FEEL_OF[key] and IconOf(FEEL_OF[key]) or LIGHT_ICON end,
     tip = function() return "Light, colour, strength" end,
     show = function(key)
@@ -281,7 +283,7 @@ ITEM.light = {
         if not s.on then return "Off", V.OFF_ICON, nil, true end
         local l = LT.Light(s.light)
         -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
-        local sub = LT.EVENT[key].state and "While it lasts" or nil
+        local sub = LT.Def(key).state and "While it lasts" or nil
         return l and l.name or "?", nil, sub, false, LT.ColorRGB(s.color)
     end,
     pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
@@ -503,7 +505,10 @@ ui.Jump = function(key, kind) return Jump(key, kind) end
 ---------------------------------------------------------------------------
 -- Your spells (UX.md §9): the spellbook by tab, a row a spell name, what
 -- the rules play for it (V.SpellPlan, Rumble.lua) and its own choice
--- (SpellOverrides.lua). Shown once the rules can answer.
+-- (SpellOverrides.lua). Shown once the rules can answer. Like every group it
+-- follows the kind: Feel (the plan), Light and Sound (the spell as a moment
+-- of its own, "spell:instant:Frost Nova", under the moment it plays in,
+-- with the same rows as any moment's: ITEM.light, ITEM.sound).
 ---------------------------------------------------------------------------
 local SPELL_ROWS = 11
 local WHEN = { hit = "At the hit", cast = "At the cast", channel = "While channelling", none = "Nothing" }
@@ -558,7 +563,7 @@ local function PlateOf(plan)
         return p and p.label or tostring(plan.set), p and p.icon, false
     elseif plan.moment == "instant" or plan.moment == "quiet" then
         local f = plan.feel and H.Feel(plan.feel)
-        if not f then return "None", V.OFF_ICON, false end
+        if not f then return "None", V.OFF_ICON, true end
         return (f.label or plan.feel) .. (plan.hd and " · HD" or ""), f.icon, false
     end
     return (MOMENT_LABEL[plan.moment] or plan.moment) .. " ›", nil, false
@@ -566,9 +571,43 @@ end
 
 local function Linked(plan) return plan.moment ~= "spell" and plan.moment ~= "instant" and plan.moment ~= "quiet" end
 
+-- The moment a spell's row shows in a light or sound view: its own
+-- ("spell:instant:Frost Nova"), or a linked spell's moment (Attack: Auto
+-- attack's), true; nil where that moment has none
+local function SpellKey(plan, kind)
+    if Linked(plan) then
+        if kind == "light" then return LIGHT_OF[plan.moment], true end
+        return C and C.MOMENT_N[plan.moment] and plan.moment or nil, true
+    end
+    return plan.key, false
+end
+
+-- A spell's row in the kind: plate (name, icon, off, rgb), its line, Default
+-- greyed, the moment it shows (light, sound)
+local function SpellChoice(plan, kind)
+    local O = ns.SpellOverrides
+    if kind == "feel" then
+        local name, icon, off = PlateOf(plan)
+        return name, icon, off, nil, WHEN[plan.when] or "", O.IsDefault(plan.name, "feel")
+    end
+    local when = plan.base == "release" and "When released" or plan.when == "none" and "At the cast" or WHEN[plan.when] or ""
+    local key, linked = SpellKey(plan, kind)
+    if not (key and ITEM[kind]) then return "None", V.OFF_ICON, true, nil, "", true end
+    local I = ITEM[kind]
+    local name, icon, _, off, rgb = I.show(key)
+    if linked then return name .. " ›", icon, off, rgb, "With " .. LabelOf(key), true, key, true end
+    return name, icon, off, rgb, when, I.isDefault(key) and VolumeDefault(kind, key, true), key
+end
+
 local function PickSpell(row, anchor)
     local plan, O = row.plan, ns.SpellOverrides
     if not plan then return end
+    if ui.kind ~= "feel" then
+        local key, linked = SpellKey(plan, ui.kind)
+        if not key then return Say(plan.name .. ": none here", true) end
+        if linked then return Jump(key, ui.kind) end
+        return ITEM[ui.kind].pick(key, anchor)
+    end
     if Linked(plan) then return Jump(plan.moment, "feel") end
     if plan.moment == "spell" then
         local entries = { OFF }
@@ -605,55 +644,98 @@ local function BuildSpells(panel, cw)
     sp.next = S.NewButton(card, "›", cw - 38, -8, 28, function() sp.page = sp.page + 1; Refresh() end, nil, 13, 24)
     sp.empty = S.Text(card, "No spells", 14, -50, cw - 28, 12, DIM)
     local O = ns.SpellOverrides
+    local Vol = ns.Volume
     for i = 1, SPELL_ROWS do
         local row
+        -- (the volume: the feel's, or the sound's; a light has its strength in its picker)
+        local function Sound() return ui.kind == "sound" and row.key and not row.linked and Vol end
         row = HUI.MomentRow(card, -40 - (i - 1) * HUI.ROW_H, cw, nil, "", function(anchor) PickSpell(row, anchor) end,
-            type(V.TrySpell) == "function" and function() if row.plan then V.TrySpell(row.plan.id) end end or nil,
+            function()
+                if not row.plan then return end
+                if ui.kind == "feel" then
+                    if type(V.TrySpell) == "function" then V.TrySpell(row.plan.id) end
+                elseif row.key then
+                    ITEM[ui.kind].try(row.key)
+                end
+            end,
             nil, {
                 default = function()
                     if not row.plan then return end
-                    O.Clear(row.plan.name)
+                    if ui.kind == "feel" then
+                        O.ClearKind(row.plan.name, "feel")
+                    elseif row.key and not row.linked then
+                        ITEM[ui.kind].default(row.key)
+                        VolumeDefault(ui.kind, row.key)
+                    end
                     Say(row.plan.name .. ": as it ships")
                     Refresh()
                 end,
                 defaultTip = "As it ships",
                 level = { step = 0.1, min = 0, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
-                    get = function() return row.plan and O.Volume(row.plan.name) or 1 end,
-                    set = function(v) if row.plan then O.SetVolume(row.plan.name, v) end end },
+                    get = function()
+                        if Sound() then return Vol.Sound(row.key) end
+                        return row.plan and O.Volume(row.plan.name) or 1
+                    end,
+                    set = function(v)
+                        if Sound() then return Vol.SetSound(row.key, v) end
+                        if row.plan then O.SetVolume(row.plan.name, v) end
+                    end },
                 pg = pg,
             })
         row:Hide()
         sp.rows[i] = row
     end
     pg.refresh[#pg.refresh + 1] = function()
-        if not sp.card:IsVisible() and #sp.lines > 0 then return end
-        ReadBook()
-        for i, t in ipairs(sp.tabs) do
-            local line = sp.lines[i]
-            t:SetShown(line ~= nil)
-            if line then t.label:SetText(line.name or ("Tab " .. i)); S.SetSelected(t, i == sp.tab) end
-        end
-        local list, pages = Shown()
-        sp.pageText:SetText(sp.page .. "/" .. pages)
-        sp.prev:SetEnabled(sp.page > 1)
-        sp.next:SetEnabled(sp.page < pages)
-        sp.empty:SetShown(#list == 0)
-        for i, row in ipairs(sp.rows) do
-            local e = list[(sp.page - 1) * SPELL_ROWS + i]
-            local plan = e and V.SpellPlan(e.id)
-            row.plan = plan
-            row:SetShown(plan ~= nil)
-            if plan then
-                plan.id, plan.name = e.id, plan.name or e.name
-                row.icon:SetTexture(e.icon)
-                row.label:SetText(plan.name)
-                local name, icon, off = PlateOf(plan)
-                local sub = WHEN[plan.when] or ""
-                row:SetChoice(name, icon, sub, off, nil, O.Get(plan.name) == nil)
-                if row.level then row.level:SetShown(not Linked(plan)) end
-                row:SetMarks({})
+        local kind = ui.kind
+        if sp.card:IsVisible() or #sp.lines == 0 then
+            ReadBook()
+            for i, t in ipairs(sp.tabs) do
+                local line = sp.lines[i]
+                t:SetShown(line ~= nil)
+                if line then t.label:SetText(line.name or ("Tab " .. i)); S.SetSelected(t, i == sp.tab) end
+            end
+            local list, pages = Shown()
+            sp.pageText:SetText(sp.page .. "/" .. pages)
+            sp.prev:SetEnabled(sp.page > 1)
+            sp.next:SetEnabled(sp.page < pages)
+            sp.empty:SetShown(#list == 0)
+            local live = kind == "feel" and V.Settings().enabled and not V.Other() or kind == "light" and H.DB().light == true
+                or kind == "sound" and SoundOn()
+            for i, row in ipairs(sp.rows) do
+                local e = list[(sp.page - 1) * SPELL_ROWS + i]
+                local plan = e and V.SpellPlan(e.id)
+                row.plan = plan
+                row:SetShown(plan ~= nil)
+                if plan then
+                    plan.id, plan.name = e.id, plan.name or e.name
+                    row.icon:SetTexture(e.icon)
+                    row.label:SetText(plan.name)
+                    local name, icon, off, rgb, sub, isDefault, key, linked = SpellChoice(plan, kind)
+                    row.key, row.linked = key, linked
+                    row:SetChoice(name, icon, sub, off, rgb, isDefault)
+                    if row.level then
+                        row.level:SetShown(kind == "feel" and not Linked(plan) or kind == "sound" and key ~= nil and not linked)
+                    end
+                    row:SetMarks({})
+                    row:SetAlpha(live and 1 or 0.55)
+                end
             end
         end
+        -- (the count on the left, as every group's: on of all, in this kind)
+        local all, on = 0, 0
+        for _, line in ipairs(sp.lines) do
+            for _, e in ipairs(line.list) do
+                local plan = V.SpellPlan(e.id)
+                if plan then
+                    plan.name = plan.name or e.name
+                    all = all + 1
+                    local _, _, off = SpellChoice(plan, kind)
+                    if not off then on = on + 1 end
+                end
+            end
+        end
+        local btn = ui.browser and ui.browser.buttons.spells
+        if btn and btn.count then btn.count:SetText(all > 0 and (on .. "/" .. all) or "") end
     end
 end
 

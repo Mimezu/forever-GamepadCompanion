@@ -269,8 +269,33 @@ local EVENT = {}
 for _, e in ipairs(LT.EVENTS) do EVENT[e.key] = e end
 LT.EVENT = EVENT
 
--- (priority: states under events; an alarm over a flash)
+-- A moment's definition: its own, or a sub-moment's (a spell's,
+-- ns.SubMoment: "spell:instant:Frost Nova") as its parent's, under its name
+local subDefs = {}
+local function Sub(key)
+    if EVENT[key] or not ns.SubMoment then return nil end
+    return ns.SubMoment(key)
+end
+local function Def(key)
+    if EVENT[key] then return EVENT[key] end
+    local parent, name = Sub(key)
+    local pe = parent and EVENT[parent]
+    if not pe then return nil end
+    local d = subDefs[key]
+    if not d then
+        d = setmetatable({ key = key, label = name, parent = parent }, { __index = pe })
+        subDefs[key] = d
+    end
+    return d
+end
+LT.Def = Def
+
+-- (priority: states under events; an alarm over a flash; a spell's as its moment's)
 local PRIO = { combat = 1, halo = 2, cast = 3, lowHp = 4, interrupted = 7, critTaken = 7, levelUp = 8 }
+local function Prio(key)
+    local d = Def(key)
+    return PRIO[key] or (d and d.parent and PRIO[d.parent]) or 5
+end
 
 -- a moment's default light id (its own preset)
 function LT.DefaultLight(key)
@@ -286,7 +311,33 @@ local OLD_DEFAULT = { crit = "boost", critTaken = "double", hitTaken = "flash", 
 local OLD_SHAPE = { flash = "flash", boost = "crit", double = "double", strobe = "interrupted", fade = "pulse",
     rainbow = "rainbow", glow = "glow", build = "cast", heartbeat = "heartbeat", breathe = "combat" }
 
+-- A sub-moment's light: its own (saved by its owner), else a copy of its
+-- parent's (not saved: LT.Own makes it its own)
+local function SubSettings(key, own)
+    local parent, name, O = Sub(key)
+    local s = O.Field(name, "light")
+    if type(s) ~= "table" then
+        local p = LT.Settings(parent)
+        s = { on = p.on, light = p.light, color = p.color, strength = p.strength }
+        if not own then return s end
+        O.SetField(name, "light", s)
+    end
+    local p = EVENT[parent]
+    if not LT.Light(s.light) then s.light = LT.Settings(parent).light end
+    if not PALETTE[s.color] then s.color = p.color end
+    s.strength = max(0, min(7, floor(tonumber(s.strength) or p.strength)))
+    s.on = s.on ~= false
+    return s
+end
+
+-- A moment's light to change (a sub-moment's made its own first)
+function LT.Own(key)
+    if Sub(key) then return SubSettings(key, true) end
+    return LT.Settings(key)
+end
+
 function LT.Settings(key)
+    if Sub(key) then return SubSettings(key, false) end
     local db = H.DB()
     if type(db.lightEvents) ~= "table" then db.lightEvents = {} end
     local e = EVENT[key]
@@ -310,11 +361,17 @@ function LT.Settings(key)
 end
 
 function LT.IsDefault(key)
+    local _, name, O = Sub(key)
+    if O then return O.Field(name, "light") == nil end
     local e, s = EVENT[key], LT.Settings(key)
     return s.on == e.on and s.light == LT.DefaultLight(key) and s.color == e.color and s.strength == e.strength
 end
 
-function LT.Default(key) H.DB().lightEvents[key] = nil end
+function LT.Default(key)
+    local _, name, O = Sub(key)
+    if O then return O.SetField(name, "light", nil) end
+    H.DB().lightEvents[key] = nil
+end
 
 ---------------------------------------------------------------------------
 -- Who draws: WoW Helper when the link is on (v2), else the game
@@ -407,20 +464,31 @@ local function Play(key, ctx, force)
     local l = LT.Light(s.light)
     if not l then return end
     if LT.HelperDrives() then
-        if EVENT[key].state then return LT.SendHold() end
+        if Def(key).state then return LT.SendHold() end
         -- a cue on the strip; one ranking below what holds is dropped
         local hk = Holding()
-        if hk and (PRIO[hk] or 5) > (PRIO[key] or 5) then return end
+        if hk and (PRIO[hk] or 5) > Prio(key) then return end
         return K().LightCue(l.id, LT.Tint(s.color), s.strength)
     end
     if not ctx then
         local start = Now()
         ctx = { active = function() return Now() - start < 1.2 end }
     end
-    H.Light("lt_" .. key, Voice(l, Ctx(s.color, s.strength), ctx.active, ctx.progress), PRIO[key] or 5)
+    H.Light("lt_" .. key, Voice(l, Ctx(s.color, s.strength), ctx.active, ctx.progress), Prio(key))
 end
 
-function LT.Fire(key) if EVENT[key] and not EVENT[key].state then Play(key) end end
+function LT.Fire(key)
+    local d = Def(key)
+    if d and not d.state then Play(key) end
+end
+
+-- The light `key` plays now: the spell playing it's own, else its own
+-- (SpellOverrides: a spell with a light of its own)
+local function Spelled(key, name)
+    local O = ns.SpellOverrides
+    return O and O.Now(key, "light", name) or key
+end
+LT.Spelled = Spelled
 
 function LT.StartState(key, ctx)
     if not EVENT[key] then return end
@@ -444,7 +512,7 @@ end
 -- Try a moment's light (or another light for it): a state for 3 s, a cast
 -- filling up. With the link, WoW Helper plays it.
 function LT.Try(key, lightId)
-    local e = EVENT[key]
+    local e = Def(key)
     if not e then return end
     local s = LT.Settings(key)
     local l = LT.Light(lightId or s.light)
@@ -501,7 +569,7 @@ local function Wrap()
         local fire, endLoop = V.Fire, V.EndLoop
         V.Fire = function(key, ...)
             fire(key, ...)
-            if FROM_RUMBLE[key] then LT.Fire(FROM_RUMBLE[key]) end
+            if FROM_RUMBLE[key] then LT.Fire(Spelled(FROM_RUMBLE[key])) end
             if key == "lowHp" then LT.StartState("lowHp") end
             if key == "haloOpen" then LT.StartState("halo") end
             if key == "haloUse" or key == "haloClose" then LT.EndState("halo") end
@@ -548,7 +616,13 @@ local function SameCast(guid)
     return guid == cast.guid
 end
 
-frame:SetScript("OnEvent", function(_, event, unit, guid)
+-- (a cast's spell, by name: its own release light)
+local function CastSpell(spellID)
+    local O = ns.SpellOverrides
+    return O and O.NameOf(spellID) or nil
+end
+
+frame:SetScript("OnEvent", function(_, event, unit, guid, spellID)
     if event == "ADDON_LOADED" then
         if unit == "GamepadCompanion" then Wrap() end
         return
@@ -561,7 +635,7 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         local channel = event == "UNIT_SPELLCAST_CHANNEL_START"
         local s, e = CastTimes(channel)
         cast.start, cast.finish, cast.channel = s or Now(), e or (Now() + 1.5), channel
-        cast.guid, cast.stopped = guid, nil
+        cast.guid, cast.stopped, cast.spell = guid, nil, CastSpell(spellID)
         LT.StartState("cast", { progress = function()
             if not cast.start then return 1 end
             local span = cast.finish - cast.start
@@ -574,13 +648,13 @@ frame:SetScript("OnEvent", function(_, event, unit, guid)
         if cast.start and not cast.channel and SameCast(guid) and (not cast.stopped or Now() - cast.stopped < 0.5) then
             cast.start = nil
             LT.EndState("cast")
-            LT.Fire("release")
+            LT.Fire(Spelled("release", cast.spell))
         end
     elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
         local ran = cast.start and cast.finish and Now() >= cast.finish - 0.3
         cast.start = nil
         LT.EndState("cast")
-        if ran then LT.Fire("release") end
+        if ran then LT.Fire(Spelled("release", cast.spell)) end
     elseif event == "UNIT_SPELLCAST_STOP" then
         if cast.start and not cast.channel and SameCast(guid) then
             cast.stopped = Now()

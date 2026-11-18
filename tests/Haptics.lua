@@ -2373,6 +2373,116 @@ do
     io.write("PASS: procs: a mixed school's wound felt as Pillar (faint, full on a crit), yours and one school not; Your spells" .. string.char(10))
 end
 
+-- A spell's own light and sound (Your spells, Light / Sound) play as it lands, in place of
+-- its moment's: an instant at the hit, at the cast, a quiet one, a proc, a cast released
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local O, LT, C = ns.SpellOverrides, ns.Lights, ns.HelperCues
+    local rf, lf, cf
+    for _, f in ipairs(created) do
+        local e = f.events or {}
+        if e.START_AUTOREPEAT_SPELL and e.PLAYER_LEVEL_UP then rf = f end
+        if e.START_AUTOREPEAT_SPELL and e.PLAYER_DEAD then cf = f end
+        if e.PLAYER_REGEN_DISABLED and e.UNIT_SPELLCAST_FAILED and e.PLAYER_ENTERING_WORLD and not e.START_AUTOREPEAT_SPELL then lf = f end
+    end
+    assert(rf and lf and cf, "Rumble, Lights and the cues listen")
+    local lights, sounds = {}, {}
+    local ltFire, cMoment, spellInfo = LT.Fire, C.Moment, GetSpellInfo
+    LT.Fire = function(k) lights[#lights + 1] = k end
+    C.Moment = function(k) sounds[#sounds + 1] = k; return false end
+    local names = { [1752] = "Sinister Strike", [122] = "Frost Nova", [900022] = "Flash of Light", [1282503] = "Blazewind Blast",
+        [2061] = "Flash Heal" }
+    GetSpellInfo = function(id) return names[id] or ("Spell " .. tostring(id)), nil, nil, id == 2061 and 1500 or 0 end
+    IsSpellHelpful = function(id) return id == 900022 or id == 2061 end
+    UnitCanAttack = function() return true end
+    local function has(list, k) for _, v in ipairs(list) do if v == k then return true end end return false end
+    local function own(name)
+        O.SetField(name, "light", { on = true, light = LT.LightByKey("flash").id, color = "red", strength = 5 })
+        O.SetField(name, "sound", ns.HelperLink.SOUNDS.chime)
+    end
+    local function used(id, school)
+        lights, sounds = {}, {}
+        now = now + 3
+        rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "c" .. id, id)
+        rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 100, school or 1)
+        RunTimers()
+    end
+    -- an instant at the hit: its moment's until it has its own
+    used(1752)
+    assert(has(lights, "instant") and has(sounds, "instant"), "Sinister Strike: Instant ability's light and sound")
+    own("Sinister Strike")
+    assert(V.SpellPlan(1752).key == "spell:instant:Sinister Strike", "its key: under Instant ability")
+    used(1752)
+    assert(has(lights, "spell:instant:Sinister Strike") and has(sounds, "spell:instant:Sinister Strike")
+        and not has(lights, "instant"), "its own, at the hit, in place of the moment's")
+    assert(V.spellNow == nil, "only while it fires")
+    -- the light only: the sound stays the moment's
+    O.SetField("Sinister Strike", "sound", nil)
+    used(1752)
+    assert(has(lights, "spell:instant:Sinister Strike") and has(sounds, "instant"), "each kind on its own")
+    O.Clear("Sinister Strike")
+    -- a heal that plays no feel: its own light and sound still, at the cast
+    own("Flash of Light")
+    used(900022)
+    assert(has(lights, "spell:instant:Flash of Light") and has(sounds, "spell:instant:Flash of Light"), "quiet: its own all the same")
+    O.Clear("Flash of Light")
+    used(900022)
+    assert(#lights == 0 and #sounds == 0, "quiet, none of its own: nothing")
+    -- its feel off: its light and sound still
+    own("Sinister Strike")
+    O.SetOn("Sinister Strike", false)
+    used(1752)
+    assert(has(lights, "spell:instant:Sinister Strike"), "feel off: its light still")
+    O.Clear("Sinister Strike")
+    -- a proc
+    own("Blazewind Blast")
+    lights, sounds = {}, {}
+    now = now + 3
+    rf.scripts.OnEvent(rf, "UNIT_COMBAT", "target", "WOUND", "", 100, 10)
+    assert(has(lights, "spell:instant:Blazewind Blast") and has(sounds, "spell:instant:Blazewind Blast"), "a proc: its own")
+    O.Clear("Blazewind Blast")
+    -- a cast released: Spell released's light and sound, the spell's own first
+    own("Flash Heal")
+    assert(V.SpellPlan(2061).key == "spell:release:Flash Heal", "a cast: under Spell released")
+    lights, sounds = {}, {}
+    now = now + 3
+    local start = now
+    UnitCastingInfo = function() return "Flash Heal", nil, nil, start * 1000, (start + 1.5) * 1000 end
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_START", "player", "fh-1", 2061)
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_START", "player", "fh-1", 2061)
+    now = now + 1.5
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player", "fh-1", 2061)
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player", "fh-1", 2061)
+    assert(has(lights, "spell:release:Flash Heal") and has(sounds, "spell:release:Flash Heal"), "released: its own")
+    O.Clear("Flash Heal")
+    lights, sounds = {}, {}
+    now = now + 3
+    start = now
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_START", "player", "fh-2", 2061)
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_START", "player", "fh-2", 2061)
+    now = now + 1.5
+    lf.scripts.OnEvent(lf, "UNIT_SPELLCAST_SUCCEEDED", "player", "fh-2", 2061)
+    cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player", "fh-2", 2061)
+    assert(has(lights, "release") and has(sounds, "release"), "none of its own: Spell released's")
+    UnitCastingInfo = nil
+    -- the sub-moment as any moment: its parent's light until its own, Default
+    assert(LT.Settings("spell:instant:Frost Nova").on == LT.Settings("instant").on and LT.IsDefault("spell:instant:Frost Nova"),
+        "a spell's light: its moment's")
+    assert(O.Get("Frost Nova") == nil, "reading it saves nothing")
+    LT.Own("spell:instant:Frost Nova").color = "green"
+    assert(O.Get("Frost Nova").light.color == "green" and not LT.IsDefault("spell:instant:Frost Nova"), "changing it: its own")
+    LT.Default("spell:instant:Frost Nova")
+    assert(O.Get("Frost Nova") == nil, "Default: gone")
+    C.SetMomentSound("spell:instant:Frost Nova", false)
+    assert(O.Field("Frost Nova", "sound") == false and cMoment and C.MomentSound("spell:instant:Frost Nova") == nil, "none: false, saved")
+    C.SetMomentSound("spell:instant:Frost Nova", nil)
+    assert(O.Get("Frost Nova") == nil and C.IsSoundDefault("spell:instant:Frost Nova"), "its default again")
+    LT.Fire, C.Moment, GetSpellInfo, IsSpellHelpful, UnitCanAttack = ltFire, cMoment, spellInfo, nil, nil
+    io.write("PASS: a spell's own light and sound play as it lands (at the hit, at the cast, quiet, off, a proc, released)" .. string.char(10))
+end
+
 -- Your spells: the plan the page shows is what plays (one rule); a spell's own choice honoured
 do
     H.DB().engine = true

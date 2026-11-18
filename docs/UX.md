@@ -239,8 +239,9 @@ Lab only, left as is.)
 The user: a view of the class's abilities and spells showing what each one plays, editable
 later, always back to Default.
 
-**Place:** Moments, a group **Your spells** right after Abilities, in every kind (Feel edits;
-Light and Sound show the moment's light or sound, read-only, with marks). Not a new tab.
+**Place:** Moments, a group **Your spells** right after Abilities, in every kind, editable in
+each (0.45.0): Feel the plan below; Light and Sound the spell as a moment of its own (below).
+Its count on the left like every group's (on of all, in the kind). Not a new tab.
 "Spells ›" on the Spell casting and Your abilities rows opens it; the "why" line of a spell
 ("Fireball · Feel") finds its row.
 
@@ -274,7 +275,18 @@ Light and Sound show the moment's light or sound, read-only, with marks). Not a 
   spell's own choice › the moment's fixed choice › the rules.
 - **One source of truth:** `V.SpellPlan(spellID)` returns the **effective** plan, see the
   contract (`spell-plan-proposal.md`); overrides in `SpellOverrides.lua`
-  (`db.spells[name] = { on, feel, set, volume }`, only what differs).
+  (`db.spells[name] = { on, feel, set, volume, light, sound, soundVolume }`, only what differs;
+  in the Feel profile).
+- **Light and Sound (0.45.0): a spell is a moment of its own** under the moment it plays in:
+  `spell:instant:Frost Nova` (an instant, a quiet spell, a proc: Instant ability) or
+  `spell:release:Flash Heal` (a cast: Spell released). Lights, sounds and volumes take that key
+  like any moment's (`ns.SubMoment`), so its rows are the same as every moment's: the light
+  picker (light, colour, strength, Off), the sound popup (built-in and WoW Helper's library,
+  None) with a volume and Try. It has its parent's light and sound until it has its own;
+  Default (per kind) clears only that kind. A linked spell (Attack) shows its moment's light
+  or sound as a link. At play: while a spell's moment fires (`V.spellNow`) its own light and
+  sound replace the moment's; a spell whose feel plays nothing (quiet, Off) still plays its own
+  light and sound at the cast. Crits keep the Crit moment's.
 
 Review: round 1 BLOCK (two deciders for one spell, rank keys, overrides skipped by early
 returns, timing per spell untrue, Try stand-in); round 2 **SIGN OFF** with Default = clear the

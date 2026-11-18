@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.45.0 — 2026-11-18
+
+- **Your spells follows Feel, Light and Sound** like every other group (it showed feels in every view):
+  - **Light:** each spell's own light, with the same picker as any moment's (light, colour, strength, Off, Try). Until you pick one, a spell shows the light of the moment it plays in: Instant ability for instants and procs, Spell released for casts.
+  - **Sound:** each spell's own sound on the pad's speaker, from the same list as any moment's (built-in and WoW Helper's library), or None, with a volume and Try.
+  - A linked spell (Attack, Shoot, gathering) shows its moment's light or sound as a link to its row.
+  - **Default** resets only the view you're in: the feel, the light, or the sound and its volume.
+  - The count beside Your spells on the left, as for every group.
+- **They play:** when a spell lands (at the hit, at the cast, a proc as its wound lands, a cast when it's released), its own light and sound play in place of the moment's. A spell that plays no feel (a heal, or its feel Off) still plays its own light and sound at the cast. A crit keeps the Critical hit light and sound.
+- Saved with the spell's feel choice (`GamepadCompanionHapticsDB.spells`: `light`, `sound`, `soundVolume`), so they belong to the Feel profile.
+- **Spell released's sound now plays** when a cast (or a channel run to its end) is released; the row was there but nothing sent it.
+- One model for all of it: a spell is a moment of its own under the moment it plays in (`spell:instant:Frost Nova`), which Lights, sounds and volumes take like any moment's key.
+
 ## 0.44.3 — 2026-11-18
 
 - Every popup closes: a × in its header, Escape, the pad's B (Circle), and for pickers a click anywhere else. The key closes the popup only, not the window under it. One shared behaviour (S.Popup) for the feel picker, the grid popups (sounds, cast sets, trigger rules, profile menus, confirms), the light picker, the action picker, the text window and the trigger test

@@ -35,14 +35,29 @@ function Vol.Feel(key)
     if v == nil then v = key and Vol.FeelDefault(key) or 1 end
     return Clamp(v)
 end
-function Vol.Sound(key) return Clamp(key and Vol.DB().sound[key] or 1) end
+-- (a sub-moment, a spell's: saved by its owner, SpellOverrides)
+local function Sub(key)
+    if not ns.SubMoment then return nil end
+    local _, name, O = ns.SubMoment(key)
+    return name, O
+end
+function Vol.Sound(key)
+    local name, O = Sub(key)
+    if O then return Clamp(O.Field(name, "soundVolume") or 1) end
+    return Clamp(key and Vol.DB().sound[key] or 1)
+end
 -- (only what differs from the default is saved)
 function Vol.SetFeel(key, v)
     v = Clamp(v)
     if math.abs(v - Vol.FeelDefault(key)) < 1e-6 then v = nil end
     Vol.DB().feel[key] = v
 end
-function Vol.SetSound(key, v) v = Clamp(v); Vol.DB().sound[key] = v < 1 and v or nil end
+function Vol.SetSound(key, v)
+    v = Clamp(v)
+    local name, O = Sub(key)
+    if O then return O.SetField(name, "soundVolume", v < 1 and v or nil) end
+    Vol.DB().sound[key] = v < 1 and v or nil
+end
 
 -- Every sound
 function Vol.Sounds() return Clamp(Vol.DB().sounds) end
