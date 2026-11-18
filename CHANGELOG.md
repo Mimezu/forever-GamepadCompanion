@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.1 — 2026-11-18
+
+- Mining in time with the pickaxe: WoW Helper heard its strikes at 1.49 s after the cast starts (1.42-1.55 over 20 casts) and again 1.4 s later; the guess was 0.5 s, then every 1 s, so only one strike in three landed near a real one. New guess: 1.49 s, then every 1.4 s
+- The pickaxe's HD feel goes with each strike, on the strikes' own clock (it was sent every second from the cast's start, out of step with both the swings and the rumble)
+- A first strike later than the marker can carry (1.26 s) goes as "unknown", so WoW Helper uses its own measured guess
+
 ## 0.44.0 — 2026-11-18
 
 - **Procs felt as they land:** Wolfsbane's pillar of fire (Blazewind Blast, Holystorm) now has its own feel, **Pillar**: a sharp strike rising into a short rolling rumble. It's faint by default and full on a crit (the proc's own feel, not the Crit feel). It used to play nothing, because you never cast it.

@@ -1018,7 +1018,10 @@ end
 -- its end, then a crack when the ore breaks loose. The swing's period and
 -- first strike are a guess until set or synced (squeeze R2 on each strike).
 ---------------------------------------------------------------------------
-local STRIKES = { mining = { period = 1, offset = 0.5 } }
+-- (measured by WoW Helper, 2026-11-18: the pickaxe heard at +1.42..1.55 s
+-- after the cast's start, median 1.49, and again at ~2.85-2.90; the ore
+-- breaks at the cast's end, ~3.2 s. The guess was 0.5 s, then every 1 s)
+local STRIKES = { mining = { period = 1.4, offset = 1.49 } }
 V.STRIKES = STRIKES
 -- A strike d seconds on: a short firm knock, then a faint ring
 V.STRIKE_KNOCK, V.STRIKE_RING, V.STRIKE_RING_AT = 0.45, 0.07, 0.1
@@ -1068,11 +1071,25 @@ local function Strikes(now)
     local at = now + (ns.Timing and ns.Timing.Lead() or 0) - t.start
     if at >= offset then
         local i = math.floor((at - offset) / period)
-        if i ~= t.strikeN then t.strikeN, t.strikeAt = i, now end
+        if i ~= t.strikeN then
+            t.strikeN, t.strikeAt = i, now
+            -- (its HD with it, one per strike: unless WoW Helper plays them)
+            if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes) end
+        end
     end
     if not t.strikeAt then return 0, 0 end
     local e = V.StrikeEnv(now - t.strikeAt)
     return e, e
+end
+
+-- A strike's HD feel (the pickaxe's), sent with the rumble's strike: the
+-- strikes' own clock, not the loop's (each cycle from the cast's start was
+-- out of step with the swings)
+function V.StrikeHD(action)
+    local C, L = ns.HelperCues, ns.HapticsLab
+    if not (C and C.Moment and L) then return end
+    local p = V.EventPattern("cast")
+    if p then C.Moment("gather", L.FeelFor(p), { noSound = true }) end
 end
 
 -- The ore breaks loose: a longer crack, then crumbling taps left and right
@@ -1855,8 +1872,11 @@ function V.GatherMarker(action, phase)
     if not (base and K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
     local race, sexBit = RaceSex()
     local _, first, _, source = V.StrikeTiming(action)
-    local steps = (STRIKES[action] or source == "learned" or source == "synced" or source == "set")
-        and math.min(126, math.max(0, math.floor(first / 0.01 + 0.5))) or 127
+    -- (10 ms steps up to 1.26 s; later, or not known: 127, WoW Helper's own guess)
+    local steps = 127
+    if (STRIKES[action] or source == "learned" or source == "synced" or source == "set") and first <= 1.26 then
+        steps = math.max(0, math.floor(first / 0.01 + 0.5))
+    end
     local item
     if phase == "start" and source == "learned" and C and C.MomentItem then
         local pattern = V.EventPattern("cast")
@@ -1905,12 +1925,14 @@ local function CastStarted(event, _, guid, spellID)
         timed = V.GatherMarker(V.castAction, "start")
         gatherOpen = { action = V.castAction, guid = guid }
     end
-    V.cueTimed = timed or nil
+    -- (a striking cast, mining: its HD goes with each strike, from Strikes)
+    local striking = V.castKind == "gather" and STRIKES[V.castAction] ~= nil
+    V.cueTimed = (timed or striking) or nil
     V.fireGain = rule and rule.volume < 1 and rule.volume or nil
     if not cast.off then V.Fire("cast") end
     V.cueTimed, V.fireGain = nil, nil
     cast.helperTimed = timed
-    if timed and V.looping and V.looping.key == "cast" then V.looping.helperTimed = true end
+    if (timed or striking) and V.looping and V.looping.key == "cast" then V.looping.helperTimed = true end
     if V.strikeSync then V.StrikeCastBegan(V.castAction, cast.timing and cast.timing.start or GetTime()) end
 end
 

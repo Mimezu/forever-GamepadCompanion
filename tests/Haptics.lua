@@ -1360,10 +1360,10 @@ do
     assert(V.StrikeAt(0.3, 1, 0.5) == 0 and V.StrikeAt(1.51, 1, 0.5) == K and V.StrikeAt(2.62, 1, 0.5) == R,
         "strikes from the first one, a period apart")
     local p, o, synced = V.StrikeTiming("mining")
-    assert(p == 1 and o == 0.5 and not synced, "a guess until set")
+    assert(p == 1.4 and o == 1.49 and not synced, "a guess until set (as WoW Helper heard it: 1.49 s, then every 1.4 s)")
     V.SetStrikeTiming("mining", 1.2, nil)
     p, o = V.StrikeTiming("mining")
-    assert(p == 1.2 and o == 0.5, "the swing set by hand")
+    assert(p == 1.2 and o == 1.49, "the swing set by hand")
     V.SetStrikeTiming("mining", 99, -1)
     p, o = V.StrikeTiming("mining")
     assert(p == 3 and o == 0, "kept in range")
@@ -1384,10 +1384,14 @@ do
     assert(V.castKind == "gather" and V.castAction == "mining", "mining known: " .. tostring(V.castAction))
     local shape = V.looping and V.looping.shape
     assert(shape, "mining strikes in time (a shape, not the looped pattern)")
-    assert(shape(start + 0.3) == 0 and shape(start + 0.52) == K and shape(start + 0.63) == R
-        and shape(start + 0.8) == 0 and shape(start + 1.52) == K, "a strike on each swing")
+    local hd, strikeHD = 0, V.StrikeHD
+    V.StrikeHD = function() hd = hd + 1 end
+    assert(shape(start + 0.3) == 0 and shape(start + 1.51) == K and shape(start + 1.62) == R
+        and shape(start + 1.8) == 0 and shape(start + 2.91) == K, "a strike on each swing")
+    assert(hd == 2, "its HD with each strike, once: " .. hd)
     -- (a slow frame: a strike caught late still plays whole, from that frame)
-    assert(shape(start + 2.58) == K and shape(start + 2.6) == K, "a strike a slow frame caught late: whole")
+    assert(shape(start + 4.35) == K and shape(start + 4.37) == K, "a strike a slow frame caught late: whole")
+    V.StrikeHD = strikeHD
     -- sync: squeeze R2 on the strikes, over two casts
     V.StrikeSync("mining")
     local said
@@ -2221,7 +2225,8 @@ do
     now = now + 5; start = now
     rev("UNIT_SPELLCAST_START", "player", "g1", 2575)
     local m = K.queue[1]
-    assert(m and m.moment == 100 and m.side == 1 and m.seed == 50 and m.touch == 0, "mining starts: race 1, male, first 0.50 s, a marker alone")
+    assert(m and m.moment == 100 and m.side == 1 and m.seed == 127 and m.touch == 0,
+        "mining starts: race 1, male, its first strike past 1.26 s: unknown (WoW Helper's guess), a marker alone")
     rev("UNIT_SPELLCAST_STOP", "player", "g1")
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "g1", 2575)
     RunTimers()
