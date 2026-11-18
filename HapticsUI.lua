@@ -474,6 +474,17 @@ function HUI.GroupBrowser(p, groups, opts)
         for k, btn in pairs(b.buttons) do S.SetSelected(btn, k == key) end
         if opts.onSelect then opts.onSelect(key) end
     end
+    -- the next group shown (the pad's L2 / R2)
+    function b.Step(dir)
+        local list = {}
+        for _, g in ipairs(groups) do
+            local btn = b.buttons[g.key]
+            if btn and (type(btn.IsShown) ~= "function" or btn:IsShown()) then list[#list + 1] = g.key end
+        end
+        local at = 1
+        for i, k in ipairs(list) do if k == b.current then at = i end end
+        if #list > 0 then b.Select(list[(at - 1 + dir) % #list + 1]) end
+    end
     b.Select(groups[1].key)
     return b
 end

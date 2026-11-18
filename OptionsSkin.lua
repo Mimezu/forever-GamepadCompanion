@@ -240,6 +240,15 @@ end
 -- background, no header, keeps its own close), inset = { left, top, right,
 -- bottom }, outside = true.
 local popups = {}
+local shownAt = 0
+-- The popup on top: the last one shown that is still shown (the pad's focus stays in it)
+function S.TopPopup()
+    local top
+    for _, p in ipairs(popups) do
+        if p:IsShown() and (not top or (rawget(p, "gpcShownAt") or 0) > (rawget(top, "gpcShownAt") or 0)) then top = p end
+    end
+    return top
+end
 local function Call(f, method, ...)
     if f and type(f[method]) == "function" then return pcall(f[method], f, ...) end
 end
@@ -323,6 +332,8 @@ function S.Popup(frame, name, opts)
     frame:SetScript("OnKeyDown", Key)
     frame:SetScript("OnGamePadButtonDown", Key)
     frame:HookScript("OnShow", function(self)
+        shownAt = shownAt + 1
+        self.gpcShownAt = shownAt
         -- (in combat: no keys, unless they already pass on)
         TakeKeys(self, not Fighting() or self.gpcPassing == true)
         if opts.outside then Call(self, "RegisterEvent", "GLOBAL_MOUSE_DOWN") end

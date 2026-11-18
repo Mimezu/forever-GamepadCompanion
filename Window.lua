@@ -192,6 +192,21 @@ function Shell.Select(key)
     if page.def.refresh then page.def.refresh() end
 end
 
+-- A page's frames (its body and its header), for the pad's focus ring
+function Shell.PageFrames(key)
+    local page = key and built[key]
+    if page then return page.frame, page.header end
+end
+
+-- The next listed page, as the side tabs go (L1 / R1)
+function Shell.Step(dir)
+    local list = {}
+    for _, def in ipairs(defs) do if Listed(def) then list[#list + 1] = def.key end end
+    local at = 1
+    for i, k in ipairs(list) do if k == current then at = i end end
+    if #list > 0 then Shell.Select(list[(at - 1 + dir) % #list + 1]) end
+end
+
 function Shell.Refresh()
     if not (window and window:IsShown() and current) then return end
     local page = built[current]
@@ -383,6 +398,8 @@ local function Build()
     end)
     UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionOptions"
     S.RegisterWindow(window)
+    -- the pad: a focus ring, out of combat (Focus.lua)
+    if ns.Focus then ns.Focus.Attach(window) end
     window:Hide()
 end
 

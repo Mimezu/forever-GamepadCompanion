@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.52.6 — 2026-11-18
+
+- **The pad in the window** (a focus ring, out of combat): the d-pad moves to the nearest control that way; **A** picks, **B** closes the popup or the window, **X** Try, **Y** Default (the focused row's); **L1 / R1** the side tabs; **L2 / R2** Moments' groups. A legend of glyphs replaces the status line while the pad is in use; the mouse hides it. In a popup the ring stays in it
+- In combat the window lets go of the pad entirely: every press is the game's. Out of combat each handled press stops there, every other passes on. Our own ring, not Blizzard's SmartNavigation (its tables taint when written; its grid is derailed by custom widgets; it knows no Try or Default)
+- Hooks for pages: gpcTry / gpcDefault on a row, gpcFocusSkip, Focus.SetTrigger, Focus.SetProvider, Focus.OnFocus
+
 ## 0.52.5 — 2026-11-18
 
 - **Learned**, in Moments: under Attacks, **Learned · weapons**: the weapon in each hand and every one WoW Helper learned, its hit timing, "Learned ✓ · 40 hits" or "Learning…", Try. Under Abilities, **Learned · gathering**: Mining (and herbs, skinning once learned) with its first strike and rhythm, then each ore or herb it learned from (Copper Vein, Tin Vein…), Try. Read only: WoW Helper owns them (Reset there)

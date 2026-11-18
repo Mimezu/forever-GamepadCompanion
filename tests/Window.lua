@@ -122,6 +122,7 @@ GamepadCompanionAPI = {
 local api = GamepadCompanionAPI
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Focus.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/EditModeBars.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/HelpPage.lua"))("GamepadCompanion", ns)
