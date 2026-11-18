@@ -336,7 +336,31 @@ local function Sub(key)
     if EVENT[key] or not ns.SubMoment then return nil end
     return ns.SubMoment(key)
 end
+-- (a reaction of the stack: a light moment that lasts, named by its condition)
+local stack
+local rowDefs = {}
+local function RowDef(key)
+    local row = stack and stack:Row(key)
+    if not row then return nil end
+    local St = ns.Stack
+    local base = EVENT[row.condition]
+    local d = rowDefs[key]
+    if not d then
+        d = setmetatable({}, { __index = function(_, f)
+            if f == "label" then return St.Words(row) end
+            if base and base.state and base[f] ~= nil then return base[f] end
+            return ({ key = key, state = true, group = "States", look = "steady", color = "base", strength = 3,
+                dots = "pass", mic = "pass", on = true })[f]
+        end })
+        rowDefs[key] = d
+    end
+    d.row = row
+    return d
+end
+
 local function Def(key)
+    local rd = RowDef(key)
+    if rd then return rd end
     if EVENT[key] then return EVENT[key] end
     local parent, name = Sub(key)
     local pe = parent and EVENT[parent]
@@ -399,7 +423,24 @@ function LT.Own(key)
     return LT.Settings(key)
 end
 
+-- A reaction's light: the row itself ({ on, light, color, strength, dots, mic })
+local function RowSettings(key)
+    local d = RowDef(key)
+    if not d then return nil end
+    local s = d.row
+    if s.light == nil then s.light = LT.DefaultLight(s.condition) or (LT.LightByKey(d.look) or {}).id end
+    if s.light ~= 0 and not LT.Light(s.light) then s.light = (LT.LightByKey(d.look) or {}).id end
+    if not PALETTE[s.color] then s.color = d.color end
+    s.strength = max(0, min(7, floor(tonumber(s.strength) or d.strength)))
+    if not DOTS[s.dots] then s.dots = d.dots end
+    if not MICS[s.mic] then s.mic = d.mic end
+    s.on = s.on ~= false
+    return s
+end
+
 function LT.Settings(key)
+    local rs = RowSettings(key)
+    if rs then return rs end
     if Sub(key) then return SubSettings(key, false) end
     local db = H.DB()
     if type(db.lightEvents) ~= "table" then db.lightEvents = {} end
@@ -427,6 +468,7 @@ function LT.Settings(key)
 end
 
 function LT.IsDefault(key)
+    if RowDef(key) then return stack:Recommended(key) == nil or stack:IsDefault(key) end
     local _, name, O = Sub(key)
     if O then return O.Field(name, "light") == nil end
     local e, s = EVENT[key], LT.Settings(key)
@@ -460,6 +502,7 @@ function LT.MicMoments()
 end
 
 function LT.Default(key)
+    if RowDef(key) then return stack:Default(key) end
     local _, name, O = Sub(key)
     if O then return O.SetField(name, "light", nil) end
     H.DB().lightEvents[key] = nil
@@ -516,14 +559,14 @@ LT.Ctx = Ctx
 -- The stack (Stack.lua): states in the player's order over Otherwise
 ---------------------------------------------------------------------------
 local St = ns.Stack
-local stack
+local Store, FromStates, Recommended   -- (below; Migrate uses them)
 
 -- Silently, once: the mic card's "In combat" becomes the In combat state's mic
 -- (its bar passing when it had no light), a state's "off" dots / mic become
 -- Pass (before the stack nothing was below them)
 local function Migrate()
     local b = LT.Base()
-    if b.stackV == 1 then return end
+    if b.stackV == 1 then return FromStates() end
     b.stackV = 1
     local db = H.DB()
     for key, s in pairs(type(db.lightEvents) == "table" and db.lightEvents or {}) do
@@ -533,15 +576,26 @@ local function Migrate()
             if s.mic == "off" then s.mic = "pass" end
         end
     end
+    FromStates()
     if b.mic == "combat" then
-        local s = LT.Settings("combat")
+        local ev = type(db.lightEvents) == "table" and db.lightEvents or {}
+        db.lightEvents = ev
+        local s = ev.combat
+        if type(s) ~= "table" then
+            local e = EVENT.combat
+            s = { on = e.on, light = LT.DefaultLight("combat"), color = e.color, strength = e.strength, dots = "pass", mic = "pass" }
+            ev.combat = s
+        end
         if not s.on then s.on, s.light = true, 0 end
         s.mic, b.mic = "on", "off"
+        -- (rows already there: the same on In combat's)
+        local row = stack and type(Store().rows) == "table" and stack:Row("combat")
+        if row then row.on, row.mic = true, "on"; if row.light == nil or not s.light or s.light == 0 then row.light = 0 end end
     end
 end
 
 -- The stack's order is the Feel profile's (db.lightStack)
-local function Store()
+Store = function()
     local db = H.DB()
     if type(db.lightStack) ~= "table" then db.lightStack = {} end
     return db.lightStack
@@ -555,19 +609,58 @@ local function BaseValue(ch)
     return "off"
 end
 
--- A channel's value from a state (nil: it passes)
-local function LayerValue(key, ch)
-    local s = LT.Settings(key)
-    if ch == "bar" then return s.light ~= 0 and key or nil end
+-- A channel's value from a reaction (nil: it passes)
+local function LayerValue(row, ch)
+    local s = LT.Settings(row.id)
+    if ch == "bar" then return s.light ~= 0 and row.id or nil end
     local v = ch == "mic" and s.mic or s.dots
     if v == "pass" then return nil end
     return v
 end
 
+-- The Recommended reactions: the states, in LT.STACK's order, as shipped
+Recommended = function()
+    local rows = {}
+    for _, key in ipairs(LT.STACK) do
+        local e = EVENT[key]
+        rows[#rows + 1] = { id = key, condition = key, on = e.on, light = LT.DefaultLight(key), color = e.color,
+            strength = e.strength, dots = e.dots, mic = e.mic }
+    end
+    return rows
+end
+
+-- 0.48's states (an order and each state's light in lightEvents) become reactions, once
+FromStates = function()
+    local store = Store()
+    if type(store.rows) == "table" or store.fromStates then return end
+    store.fromStates = true   -- (once: Default afterwards means as shipped)
+    local db = H.DB()
+    local saved = type(db.lightEvents) == "table" and db.lightEvents or {}
+    local any = type(store.order) == "table"
+    for _, key in ipairs(LT.STACK) do if type(saved[key]) == "table" then any = true end end
+    if not any then return end
+    local order = type(store.order) == "table" and store.order or LT.STACK
+    local rows, seen = {}, {}
+    local rec = {}
+    for _, r in ipairs(Recommended()) do rec[r.id] = r end
+    local function take(key)
+        if seen[key] or not rec[key] then return end
+        seen[key] = true
+        local row, s = St.Copy(rec[key]), saved[key]
+        if type(s) == "table" then
+            for _, f in ipairs({ "on", "light", "color", "strength", "dots", "mic" }) do if s[f] ~= nil then row[f] = s[f] end end
+        end
+        rows[#rows + 1] = row
+    end
+    for _, key in ipairs(order) do take(key) end
+    for _, key in ipairs(LT.STACK) do take(key) end
+    store.rows, store.order = rows, nil
+end
+
 -- What the bar shows now -> state key (nil: Otherwise), light, colour key, strength, progress fn
 local function Holding()
     local r = stack and stack:Now()
-    local key = r and r.bar.layer ~= "base" and r.bar.layer or nil
+    local key = r and r.bar.row and r.bar.row.id or nil
     if key then
         local s = LT.Settings(key)
         return key, LT.Light(s.light), s.color, s.strength, states[key] and states[key].progress
@@ -579,16 +672,16 @@ end
 LT.Holding = Holding
 
 -- A channel's code on the strip (a light's own lanes only with its own bar)
-local function Code(list, res, barLayer, default)
+local function Code(list, res, barRow, default)
     local v = list[res.value]
     if not v then return default end
-    if v.code == 0 and res.layer ~= barLayer then return default end
+    if v.code == 0 and res.row ~= barRow then return default end
     return v.code or default
 end
 
 -- The stack's result, drawn: by WoW Helper (the light row, the steady colour
 -- under it) or by the game (the bar)
-local lastStep
+local lastStep, lastIdx
 local function Draw()
     Migrate()   -- (once; here: the Feel profile's tables are in place by now)
     local k = K()
@@ -602,10 +695,10 @@ local function Draw()
         local r = stack:Now()
         local p = progress and progress()
         lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
-        local barLayer = r.bar.layer
-        local mic = Code(MICS, r.mic, barLayer, MICS.off.code)
+        local barRow = r.bar.row
+        local mic = Code(MICS, r.mic, barRow, MICS.off.code)
         k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
-            progress = lastStep, resting = key == nil, holdDots = Code(DOTS, r.dots, barLayer, DOTS.off.code), holdMic = mic })
+            progress = lastStep, resting = key == nil, holdDots = Code(DOTS, r.dots, barRow, DOTS.off.code), holdMic = mic })
         -- (the mic's own field too: WoW Helper with the game's lights)
         if k.SetMic then k.SetMic((mic == MICS.on.code) and "on" or (mic == MICS.pulse.code or mic == MICS.blink.code) and "pulse" or "off") end
         if l then
@@ -616,7 +709,22 @@ local function Draw()
     end
     if k and k.SetLight then k.SetLight(nil) end
     if not (LT.On() and l) then return H.LightStop("lt_base") end
-    H.Light("lt_base", Voice(l, Ctx(color, strength), nil, progress), 0)
+    -- from what shows now to the new one: Fade in when a higher reaction takes over, Fade out
+    -- when it hands back
+    local r = stack:Now()
+    local idx = r.bar.row and select(2, stack:Row(r.bar.row.id)) or 1e9
+    local fade = (lastIdx and idx < lastIdx) and r.timing.fadeIn or r.timing.fadeOut
+    lastIdx = idx
+    local fr, fg, fb, lit = 0, 0, 0, false
+    if H.LedNow then fr, fg, fb, lit = H.LedNow() end
+    local voice = Voice(l, Ctx(color, strength), nil, progress)
+    local from = lit and fade > 0 and { fr, fg, fb } or nil
+    H.Light("lt_base", function(now, v)
+        local nr, ng, nb = voice(now, v)
+        local u = from and (now - v.start) / fade or 1
+        if u >= 1 or not nr then return nr, ng, nb end
+        return from[1] + (nr - from[1]) * u, from[2] + (ng - from[2]) * u, from[3] + (nb - from[3]) * u
+    end, 0)
 end
 
 -- (re-drawn when a setting changes; the stack calls it when what wins changes)
@@ -702,18 +810,16 @@ function LT.ApplyBase() LT.SendHold() end
 LT.ApplyMic = LT.ApplyBase
 
 -- The stack: states in the player's order, three channels
-local layers = {}
-for _, e in ipairs(LT.EVENTS) do if e.state then layers[#layers + 1] = { key = e.key, when = e.key } end end
 if St then
     stack = St.Kind("lights", {
         channels = { "bar", "mic", "dots" },
-        layers = layers,
-        recommended = LT.STACK,
+        recommended = Recommended(),
         store = Store,
-        enabled = function(key) return LT.On() and LT.Settings(key).on == true end,
-        value = LayerValue,
+        value = function(row, ch) if not LT.On() then return nil end return LayerValue(row, ch) end,
         base = BaseValue,
         apply = function() Draw() end,
+        timing = { fadeIn = 0.25, fadeOut = 0.4, wait = 0 },
+        prepare = function() FromStates() end,
     })
 end
 LT.stack = stack

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.49.0 — 2026-11-18
+
+- **States follow FrameGambit's gambits**: Moments › Light › States is a list of reactions, checked top to bottom, the first match wins; **Otherwise** when nothing matches. **+ Add reaction** from the families (Player, Target, Travel, Group & instances, System, Events), **×** removes, drag or ▲▼ to reorder, On / Off
+- **Requirements** (+): a reaction can need several conditions, all must be true; ones that can't hold together are refused
+- **Percentages**: Health, Power, Target health with Less than … More than (click the words); **events** hold a while and restart (a whisper: 10 s)
+- Each reaction sets only its own channels (bar, mic, dots); **Pass** leaves one to the next match. The teal row is the one driving the light now ("Now: Bar, Mic")
+- **Fade in, Fade out, Wait** for the whole list (the game's bar cross-fades; Wait keeps a reaction a moment after it stops)
+- 0.48's states and their order carry over silently; Default puts the reactions as they ship
+- For the triggers next: `Stack.lua` with gauge values and counts (docs/STACK.md)
+
 ## 0.48.2 — 2026-11-18
 
 - **Bars: one place, Blizzard's Edit Mode.** The Bars page keeps only what Edit Mode has no place for: My bar layout, a large **Edit in Edit Mode**, the layout in use (Compact or Standard, set in Edit Mode), and the whole layout's Copy from Standard / Compact and Reset layout

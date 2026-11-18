@@ -480,40 +480,169 @@ local function MakeRow(parent, y, width, kind, key)
 end
 
 ---------------------------------------------------------------------------
--- States (Light): the stack (Stack.lua), top first, as FrameGambit's list:
--- the first true state sets each channel (bar, mic, dots) it has; Pass
--- leaves one to what is below; Otherwise at the bottom. Up / Down reorder.
+-- States (Light): the stack (Stack.lua), FrameGambit's list. Reactions are
+-- checked top to bottom: the first match sets each channel (bar, mic, dots)
+-- it has; Pass leaves one to the next match; Otherwise at the bottom. A row:
+-- On, the condition and its requirements (+), the light (its picker, with
+-- Pass), Try, Default, ×; drag or Up / Down to reorder. The teal row is the
+-- one driving the light now. Timing: Fade in, Fade out, Wait.
 ---------------------------------------------------------------------------
-local STATE_STEP = 42
+local STATE_STEP, STATE_ROWS = 40, 11
+local TEAL = { 0.58, 0.76, 0.77 }
+local sts = { offset = 0, pool = {} }
+
+-- Every condition to pick, by family: { key, label } (FrameGambit's palette)
+local function ConditionEntries(skip, row)
+    local St = ns.Stack
+    local list = {}
+    for _, cat in ipairs(St.CATEGORIES) do
+        for _, c in ipairs(St.Conditions()) do
+            if c.category == cat.id and c.key ~= skip then
+                local bad = row and St.Conflict(row, c.key)
+                if not bad then
+                    local have = false
+                    for _, r in ipairs(row and row.requirements or {}) do if r == c.key then have = true end end
+                    list[#list + 1] = { key = c.key, label = (have and "✓ " or "") .. cat.label .. " · " .. c.label }
+                end
+            end
+        end
+    end
+    return list
+end
+
+-- A percentage reaction's operator, then its threshold
+local function PickPercent(anchor, row)
+    local St = ns.Stack
+    local ops = {}
+    for _, o in ipairs(St.OPERATORS) do ops[#ops + 1] = { key = o.id, label = o.label } end
+    HUI.Popup(anchor, St.Label(row.condition), ops, row.operator, function(op)
+        row.operator = op
+        local th = {}
+        for v = 10, 90, 5 do th[#th + 1] = { key = v, label = v .. "%" } end
+        HUI.Popup(anchor, St.Label(row.condition), th, row.threshold, function(v)
+            row.threshold = v
+            LT.stack:Refresh(true)
+            Refresh()
+        end, 6, 64)
+    end, 3, 120)
+end
+
+local function StateRow(card, cw, i)
+    local r
+    local function key() return r.key end
+    r = HUI.MomentRow(card, -38 - (i - 1) * STATE_STEP, cw, nil, "", function(anchor)
+        ns.LightPicker.Open(anchor, key(), Refresh)
+    end, function() LT.Try(key()) end, nil, {
+        default = function() LT.Default(key()); Refresh() end,
+        clear = function()
+            LT.stack:Remove(key())
+            Say("Removed")
+            Refresh()
+        end,
+        quiet = true,
+        defaultTip = "As it ships",
+    })
+    r.kind = "light"
+    r.icon:Hide()
+    -- the teal row: the one driving the light now
+    r.teal = r:CreateTexture(nil, "BACKGROUND", nil, 2)
+    r.teal:SetAllPoints()
+    r.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
+    r.teal:Hide()
+    -- On / Off
+    r.on = S.NewCheck(r, "", 2, -6, function(self)
+        LT.stack:SetOn(key(), self:GetChecked() == true)
+        Refresh()
+    end, 0)
+    S.Tooltip(r.on, "On")
+    -- Up / Down (the pad), drag (the mouse)
+    r.up = S.NewButton(r, "▲", 30, -1, 22, function() LT.stack:Move(key(), -1); Refresh() end, nil, 9, 17)
+    r.down = S.NewButton(r, "▼", 30, -19, 22, function() LT.stack:Move(key(), 1); Refresh() end, nil, 9, 17)
+    S.Tooltip(r.up, "Up")
+    S.Tooltip(r.down, "Down")
+    r:RegisterForDrag("LeftButton")
+    r:SetScript("OnDragStart", function(self) self.dragging = true; self:SetAlpha(0.6) end)
+    r:SetScript("OnDragStop", function(self)
+        self.dragging = false
+        self:SetAlpha(1)
+        local _, y = GetCursorPosition()
+        local scale = card:GetEffectiveScale() or 1
+        local top = card:GetTop() or 0
+        local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + sts.offset
+        if LT.stack:MoveTo(key(), n) then Refresh() end
+    end)
+    S.Tooltip(r, "Reorder reaction", "First match wins")
+    -- the condition's words; a click: a percentage's operator and threshold
+    r.label:ClearAllPoints()
+    r.label:SetPoint("TOPLEFT", 58, -4)
+    r.sub:ClearAllPoints()
+    r.sub:SetPoint("TOPLEFT", 58, -22)
+    r.words = CreateFrame("Button", nil, r)
+    r.words:SetPoint("TOPLEFT", 56, -2)
+    r.words:SetSize(220, 18)
+    r.words:SetScript("OnClick", function(self)
+        local row = LT.stack:Row(key())
+        if row and ns.Stack.IsPercentage(row.condition) then PickPercent(self, row) end
+    end)
+    -- + requirements (all must be true)
+    r.req = S.NewButton(r, "+", 280, -8, 34, function(self)
+        local row = LT.stack:Row(key())
+        if not row then return end
+        HUI.Popup(self, "Add requirements · All must be true", ConditionEntries(row.condition, row), nil, function(c)
+            if not LT.stack:RemoveRequirement(row.id, c) then
+                local ok, bad = LT.stack:AddRequirement(row.id, c)
+                if not ok and bad then Say("Can't hold with " .. ns.Stack.Label(bad), true) end
+            end
+            Refresh()
+        end, 3, 200)
+    end, nil, 11, 24)
+    S.Tooltip(r.req, "Add requirements", "All must be true")
+    return r
+end
+
 function ui.BuildStates(panel, cw)
-    local S2 = LT.stack
     local card = S.Card(panel, "States", 0, 0, cw, PH)
     ui.states, ui.stateRows = card, {}
-    S.Text(card, "First true wins", 120, -12, 200, 11, DIM)
+    S.Text(card, "First match wins", 120, -12, 200, 11, DIM)
+    ui.statesAdd = S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
+        HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
+            LT.stack:Add(c)
+            sts.offset = 0
+            Say(ns.Stack.Label(c) .. ": added on top")
+            Refresh()
+        end, 3, 200)
+    end, nil, 11, 24)
     ui.statesDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
-        S2:DefaultOrder()
-        Say("States: their order")
+        LT.stack:Default()
+        Say("States: as they ship")
         Refresh()
     end, nil, 11, 24)
-    S.Tooltip(ui.statesDefault, "Default", "The Recommended order")
-    for _, key in ipairs(S2:Order()) do
-        local row = MakeRow(card, -38, cw, "light", key)
-        row.icon:Hide()
-        local function Move(d)
-            if S2:Move(key, d) then Refresh() end
-        end
-        row.up = S.NewButton(row, "▲", 4, -1, 26, function() Move(-1) end, nil, 9, 18)
-        row.down = S.NewButton(row, "▼", 4, -21, 26, function() Move(1) end, nil, 9, 18)
-        S.Tooltip(row.up, "Up")
-        S.Tooltip(row.down, "Down")
-        ui.stateRows[key] = row
-    end
+    S.Tooltip(ui.statesDefault, "Default", "The Recommended reactions, order and timing")
+    for i = 1, STATE_ROWS do sts.pool[i] = StateRow(card, cw, i) end
+    card:EnableMouseWheel(true)
+    card:SetScript("OnMouseWheel", function(_, d)
+        sts.offset = math.max(0, sts.offset - d)
+        Refresh()
+    end)
     -- Otherwise: the base colour and its light (Setup › Light)
-    local o = HUI.MomentRow(card, -38, cw, nil, "Otherwise", function()
+    local o = HUI.MomentRow(card, -38 - STATE_ROWS * STATE_STEP, cw, nil, "Otherwise", function()
         Shell.Open("setup")
     end, function() LT.ApplyBase() end, "Setup › Light")
     o.icon:Hide()
+    o.teal = o:CreateTexture(nil, "BACKGROUND", nil, 2)
+    o.teal:SetAllPoints()
+    o.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
     ui.otherwise = o
+    -- Timing (FrameGambit's: fade in, fade out, wait before fade-out)
+    local y = -38 - (STATE_ROWS + 1) * STATE_STEP - 4
+    local function T(label, x, field, maxv)
+        HUI.Stepper(pg, card, label, x, y, { labelWidth = 70, width = 200, step = 0.05, min = 0, max = maxv,
+            format = function(v) return string.format("%.2fs", v or 0) end,
+            get = function() return LT.stack:Timing()[field] end, set = function(v) LT.stack:SetTiming(field, v) end })
+    end
+    T("Fade in", 12, "fadeIn", 2)
+    T("Fade out", 222, "fadeOut", 2)
+    T("Wait", 432, "wait", 5)
 end
 
 function ui.RefreshStates(kind)
@@ -521,34 +650,45 @@ function ui.RefreshStates(kind)
     local btn = ui.browser.buttons.states
     if btn then btn:SetShown(light) end
     if not light and ui.browser.current == "states" then ui.browser.Select(GROUPS[1].key) end
-    local S2 = LT.stack
-    local order = S2:Order()
-    local now = S2:Now()
+    local St, stack = ns.Stack, LT.stack
+    local rows = stack:Rows()
+    sts.offset = math.max(0, math.min(sts.offset, #rows - STATE_ROWS))
+    local driving = stack:Driving()
     local on = 0
-    for i, key in ipairs(order) do
-        local row = ui.stateRows[key]
+    for _, row in ipairs(rows) do if row.on ~= false then on = on + 1 end end
+    for i, r in ipairs(sts.pool) do
+        local n = i + sts.offset
+        local row = rows[n]
+        r:SetShown(row ~= nil)
         if row then
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 10, -38 - (i - 1) * STATE_STEP)
-            row.up:SetEnabled(i > 1)
-            row.down:SetEnabled(i < #order)
-            -- (true now, and what it sets now)
-            local sets = {}
-            for _, ch in ipairs({ "bar", "mic", "dots" }) do if now[ch].layer == key then sets[#sets + 1] = ch == "bar" and "Bar" or ch == "mic" and "Mic" or "Dots" end end
-            local _, _, sub = ITEM.light.show(key)
-            local tail = #sets > 0 and ("Now: " .. table.concat(sets, ", ")) or (S2:Active(key) and "True now" or nil)
-            row.sub:SetText(sub and tail and (sub .. " · " .. tail) or sub or tail or "")
-            if LT.Settings(key).on then on = on + 1 end
+            r.key = row.id
+            local name, icon, sub, off, rgb = ITEM.light.show(row.id)
+            r:SetChoice(name, icon, nil, row.on == false, rgb, LT.IsDefault(row.id))
+            r.label:SetText(St.Words(row))
+            local tags = {}
+            local chs = driving[row.id]
+            if chs then
+                for _, ch in ipairs(chs) do tags[#tags + 1] = ch == "bar" and "Bar" or ch == "mic" and "Mic" or "Dots" end
+            end
+            local tail = #tags > 0 and ("Now: " .. table.concat(tags, ", ")) or (St.Matches(row) and "True now" or nil)
+            r.sub:SetText(sub and tail and (sub .. " · " .. tail) or sub or tail or "")
+            r.teal:SetShown(chs ~= nil)
+            r.on:SetChecked(row.on ~= false)
+            r.up:SetEnabled(n > 1)
+            r.down:SetEnabled(n < #rows)
+            r.req.label:SetText(row.requirements and ("+" .. #row.requirements) or "+")
+            r.default:SetShown(stack:Recommended(row.id) ~= nil)
         end
     end
     local o = ui.otherwise
-    o:ClearAllPoints()
-    o:SetPoint("TOPLEFT", 10, -38 - #order * STATE_STEP)
     local b = LT.Base()
     local base = LT.LightByKey(b.light)
-    o:SetChoice(base and base.name or "?", nil, now.bar.layer == "base" and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
-    ui.statesDefault:SetEnabled(not S2:IsDefaultOrder())
-    if btn then btn.count:SetText(on .. "/" .. #order) end
+    local now = stack:Now()
+    local otherwise = now.bar.row == nil and now.mic.row == nil and now.dots.row == nil
+    o:SetChoice(base and base.name or "?", nil, now.bar.row == nil and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
+    o.teal:SetShown(otherwise)
+    ui.statesDefault:SetEnabled(not stack:IsDefault())
+    if btn then btn.count:SetText(on .. "/" .. #rows) end
 end
 
 ---------------------------------------------------------------------------
@@ -579,6 +719,12 @@ end
 Jump = function(key, kind)
     kind = kind or "feel"
     ui.SetKind(kind)
+    -- (a reaction of the stack: the States list)
+    if kind == "light" and LT.stack and LT.stack:Row(key) then
+        ui.browser.Select("states")
+        Say(ns.Stack.Words(LT.stack:Row(key)))
+        return
+    end
     for _, row in ipairs(ui.rows) do
         if row.key == key and KIND_OF[row.kind] == kind then
             for _, g in ipairs(GROUPS) do
@@ -586,7 +732,6 @@ Jump = function(key, kind)
                     if item[2] == key then ui.browser.Select(g.key) end
                 end
             end
-            if kind == "light" and ui.stateRows and ui.stateRows[key] then ui.browser.Select("states") end
             S.SetSelected(row.pick, true)
             if C_Timer and C_Timer.After then C_Timer.After(1.5, function() S.SetSelected(row.pick, false) end) end
             Say(row.label:GetText() or key)

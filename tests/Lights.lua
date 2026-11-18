@@ -249,66 +249,99 @@ for _ = 1, 10 do K.Step(1 / 30) end
 LT.EndState("lowHp")
 K.Step(1 / 60)
 ok(drawn.hold == LT.LightByKey("breathe").id, "back to resting")
--- The stack -----------------------------------------------------------------------------
+-- The stack (reactions, FrameGambit's model) --------------------------------------------------
 local St, S = ns.Stack, LT.stack
-local function Now() local r = S:Now(); return r.bar.layer, r.mic.layer, r.dots.layer end
--- the mic card's "In combat" became the In combat state's mic (silently; its bar passing)
-GamepadCompanionHapticsDB.lightBase.stackV = nil
-GamepadCompanionHapticsDB.lightBase.mic = "combat"
-GamepadCompanionHapticsDB.lightEvents.combat = nil
+local function id(res) return res.row and res.row.id or "otherwise" end
+local function Now() local r = S:Now(); return id(r.bar), id(r.mic), id(r.dots) end
+-- 0.48's states and the mic card's "In combat" become reactions (silently; its bar passing)
+local db = GamepadCompanionHapticsDB
+db.lightBase.stackV = nil
+db.lightBase.mic = "combat"
+db.lightEvents.combat = nil
+db.lightStack = { order = { "dead", "afk", "lowHp", "cast", "halo", "taxi", "stealth", "combat", "swimming", "mounted", "moving", "rested" } }
+db.lightEvents.rested = { on = true, light = LT.LightByKey("ember").id, color = "gold", strength = 2, dots = "off", mic = "off" }
 LT.Migrate()
+ok(type(db.lightStack.rows) == "table" and db.lightStack.order == nil, "migrated: reactions")
 local cs = LT.Settings("combat")
-ok(cs.on and cs.light == 0 and cs.mic == "on" and LT.Base().mic == "off", "migrated: In combat sets only the mic")
+ok(cs.on and cs.light == 0 and cs.mic == "on" and LT.Base().mic == "off", "In combat sets only the mic")
+local rs = LT.Settings("rested")
+ok(rs.on and rs.light == LT.LightByKey("ember").id and rs.dots == "pass" and rs.mic == "pass", "a 0.48 state's light kept, its off dots / mic now Pass")
 ok(LT.Settings("lowHp").dots == "pair", "a state's own dots kept")
+ok(LT.Def("rested").label == "Resting" and LT.Def("rested").state, "a reaction is a light moment that lasts")
+db.lightEvents.rested = nil
+S:Row("rested").on = false
 UnitAffectingCombat = function() return true end
 St.ReadAll(); LT.ApplyBase()
 local bar, mic = Now()
-ok(bar == "base" and mic == "combat", "in combat: the mic from In combat, the bar from Otherwise")
+ok(bar == "otherwise" and mic == "combat", "in combat: the mic from In combat, the bar from Otherwise")
 ok(K.state.mic == K.MIC.on, "mic on in combat")
 ok(K.DecodeV2(K.EncodeV2(K.state)).mic == K.MIC.on, "the strip carries it (v2 bits 78-79)")
 K.Step(1 / 60)
 ok(drawn.hold == LT.LightByKey("breathe").id and drawn.resting and drawn.holdMic == LT.MIC.on.code, "the row: Otherwise's bar, In combat's mic")
 -- moving too: Movement sets the bar (it's on now), In combat still the mic (Movement passes it)
-LT.Settings("moving").on = true
+S:SetOn("moving", true)
 GetUnitSpeed = function() return 7 end
 St.ReadAll(); St.Refresh()
 bar, mic = Now()
 ok(bar == "moving" and mic == "combat", "pass-through: bar from Movement, mic from In combat")
 K.Step(1 / 60)
 ok(drawn.hold == LT.LightByKey("steady").id and not drawn.resting and drawn.holdMic == LT.MIC.on.code, "the row has both")
+local drv = S:Driving()
+ok(drv.moving[1] == "bar" and drv.combat[1] == "mic", "the teal rows: Movement (bar), In combat (mic)")
 -- the order decides: Movement above In combat, Movement's mic Off: the mic goes off
-local order = S:Order()
-ok(order[1] == "dead" and S:IsDefaultOrder(), "Recommended order")
-local function pos(key) for i, k2 in ipairs(S:Order()) do if k2 == key then return i end end end
-while pos("moving") > pos("combat") do S:Move("moving", -1) end
-ok(not S:IsDefaultOrder() and GamepadCompanionHapticsDB.lightStack.order ~= nil, "moved: saved in the Feel profile's table")
+local function pos(key) for i, r in ipairs(S:Rows()) do if r.id == key then return i end end end
+ok(S:Rows()[1].id == "dead", "Recommended order")
+S:MoveTo("moving", pos("combat"))
+ok(pos("moving") < pos("combat") and db.lightStack.rows ~= nil, "dragged above In combat: saved in the Feel profile's table")
 LT.Settings("moving").mic = "off"
 LT.SendHold()
 bar, mic = Now()
 ok(bar == "moving" and mic == "moving", "Movement above: its mic Off wins")
-S:DefaultOrder()
+S:MoveTo("moving", pos("combat") + 1)
 bar, mic = Now()
-ok(S:IsDefaultOrder() and bar == "moving" and mic == "combat", "Default order: In combat's mic again")
+ok(bar == "moving" and mic == "combat", "back below: In combat's mic again")
+-- requirements: Movement only while mounted
+S:AddRequirement("moving", "mounted")
+IsMounted = function() return false end
+St.ReadAll(); St.Refresh()
+ok(Now() == "otherwise", "Movement + Mounted: not mounted, no match")
+IsMounted = function() return true end
+St.ReadAll(); St.Refresh()
+ok(Now() == "mounted" or Now() == "moving", "mounted: a match")
+S:RemoveRequirement("moving", "mounted")
+IsMounted = function() return false end
+St.ReadAll(); St.Refresh()
+-- a reaction added by the player: Health percentage < 50, on top, red
+local hr = S:Add("player_health")
+hr.threshold, hr.color, hr.mic = 50, "red", "pulse"
+UnitHealth, UnitHealthMax = function() return 40 end, function() return 100 end
+St.ReadAll(); St.Refresh()
+bar, mic = Now()
+ok(bar == hr.id and mic == hr.id and LT.Def(hr.id).label == "Health percentage < 50%", "Health percentage < 50: on top")
+ok(LT.IsDefault(hr.id), "a reaction of yours: nothing to restore")
+S:Remove(hr.id)
 -- a state turned off passes everything
-LT.Settings("moving").on = false
-LT.SendHold()
+S:SetOn("moving", false)
 bar = Now()
-ok(bar == "base", "off: Otherwise shows")
--- a state not true: ignored, whatever its place
+ok(bar == "otherwise", "off: Otherwise shows")
+-- nothing true
 UnitAffectingCombat = function() return false end
 St.ReadAll(); St.Refresh()
 bar, mic = Now()
-ok(bar == "base" and mic == "base", "nothing true: Otherwise")
+ok(bar == "otherwise" and mic == "otherwise", "nothing true: Otherwise")
 ok(K.state.mic == K.MIC.off, "mic off out of combat")
 -- a moment plays over the stack and hands back (the hold untouched)
-LT.Settings("moving").on, LT.Settings("moving").mic = true, "pass"
+S:SetOn("moving", true)
+LT.Settings("moving").mic = "pass"
 St.ReadAll(); St.Refresh()
 LT.Fire("crit")
 for _ = 1, 2 do K.Step(1 / 60) end
 ok(drawn.cue == LT.LightByKey("crit").id and drawn.hold == LT.LightByKey("steady").id, "a crit over Movement")
 for _ = 1, 10 do K.Step(1 / 30) end
 ok(drawn.cue == 0 and drawn.hold == LT.LightByKey("steady").id, "back to Movement")
-LT.Settings("moving").on = false
+-- Default: the reactions as they ship
+S:Default()
+ok(S:IsDefault() and not LT.Settings("moving").on, "Default")
 GetUnitSpeed = function() return 0 end
 St.ReadAll(); St.Refresh()
 -- link off again: the row goes, the game draws

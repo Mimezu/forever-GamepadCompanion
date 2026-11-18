@@ -1,87 +1,244 @@
--- Stack: one state stack for every kind of output (lights now, triggers next).
+-- Stack: one state stack for every kind of output (lights now, triggers next), on FrameGambit's
+-- model and words (docs/STACK.md):
 --
---   Events (one-shots: crits, spells, whispers)   <- on top, brief, each kind's own
---   States, in the player's order (highest true wins, per channel):
---     Dead or ghost · Low health · Casting · Stealth · In combat · Swimming · Mounted · Moving · Resting …
---   Base                                           <- always true
+--   Moments (crits, spells, whispers)   on top, brief: each kind plays them, then hands back
+--   Reactions, in the player's order    checked top to bottom: the first match sets each channel it
+--                                       has (a channel it leaves empty: Pass, the next match's)
+--   Otherwise                           when nothing matches
 --
--- A kind (lights, triggers) registers its channels (lights: bar, mic, dots; triggers: L2, R2) and
--- its states. Each state is a moment: on or off, and for each channel a value or nothing (it
--- passes: what is below shows through). The order lives in the Feel profile, with a Recommended
--- order. Conditions are the game's ("In combat", "Moving"…), read on their events, never every
--- frame; a module can push its own ("Low health", "Casting") with Stack.Set.
+-- A reaction: a condition, its requirements (all must be true), On / Off, and a value per channel.
+-- Conditions come in families (Player, Target, Travel, Group & instances, System, Events); some
+-- take a percentage and an operator (Health percentage < 35); events hold for a duration that
+-- restarts. Read on their events, never every frame. A kind (lights: bar, mic, dots; triggers: L2,
+-- R2) registers its channels; its reactions live in its Feel-profile table, Recommended ships.
 local _, ns = ...
 local St = {}
 ns.Stack = St
 
-local floor = math.floor
-
----------------------------------------------------------------------------
--- Conditions: shared by every kind
----------------------------------------------------------------------------
-local conds, condList = {}, {}
-local flags = {}      -- condition key -> true while it holds
-local pushed = {}     -- key -> true/false for conditions a module sets
-local kinds = {}
+local floor, min, max = math.floor, math.min, math.max
 
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, a = pcall(fn, ...)
-    if ok then return a end
+    local ok, a, b = pcall(fn, ...)
+    if ok then return a, b end
 end
+local function Now() return GetTime and GetTime() or 0 end
 
--- A condition: key, label, test() -> bool (nil: pushed with Stack.Set), events that change it
+---------------------------------------------------------------------------
+-- Conditions (FrameGambit's families and words, the ones a pad uses)
+---------------------------------------------------------------------------
+St.CATEGORIES = {
+    { id = "player", label = "Player" },
+    { id = "target", label = "Target" },
+    { id = "travel", label = "Travel" },
+    { id = "social", label = "Group & instances" },
+    { id = "system", label = "System" },
+    { id = "moment", label = "Events" },
+}
+St.OPERATORS = {
+    { id = "<", label = "Less than" }, { id = "<=", label = "At most" },
+    { id = "=", label = "Equal to" }, { id = "~=", label = "Not equal to" },
+    { id = ">=", label = "At least" }, { id = ">", label = "More than" },
+}
+local COMPARE = {
+    ["<"] = function(a, b) return a < b end, ["<="] = function(a, b) return a <= b end,
+    ["="] = function(a, b) return a == b end, ["~="] = function(a, b) return a ~= b end,
+    [">="] = function(a, b) return a >= b end, [">"] = function(a, b) return a > b end,
+}
+
+local conds, condList = {}, {}
+local flags = {}       -- state key -> true while it holds
+local values = {}      -- percentage key -> 0-100 now
+local moments = {}     -- moment key -> when it last happened
+local kinds = {}
+
+-- A condition: key, { label, category, kind = "state" | "moment", test = fn -> bool, value = fn ->
+-- 0-100 (a percentage), events = { ... }, duration = s (a moment) }. No test or value: pushed
+-- (Stack.Set / Stack.Fire / Stack.SetValue).
 function St.Condition(key, def)
     def.key = key
+    def.kind = def.kind or "state"
     if not conds[key] then condList[#condList + 1] = def end
     conds[key] = def
     return def
 end
-
 function St.Conditions() return condList end
+function St.Info(key) return conds[key] end
 function St.Label(key) return conds[key] and conds[key].label or key end
+function St.IsPercentage(key) return conds[key] and conds[key].value ~= nil or false end
 
--- A module's own condition (Low health, Casting): set it, every kind re-resolves
+local function Pct(cur, top)
+    cur, top = tonumber(cur), tonumber(top)
+    if not (cur and top and top > 0) then return nil end
+    return cur / top * 100
+end
+
+-- Player
+St.Condition("combat", { label = "In combat", category = "player", test = function() return call(UnitAffectingCombat, "player") == true end,
+    events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" } })
+St.Condition("out_of_combat", { label = "Out of combat", category = "player", test = function() return call(UnitAffectingCombat, "player") ~= true end,
+    events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" } })
+St.Condition("moving", { label = "Movement", category = "player", test = function() return (tonumber(call(GetUnitSpeed, "player")) or 0) > 0 end,
+    events = { "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING" } })
+St.Condition("cast", { label = "Casting", category = "player" })
+St.Condition("dead", { label = "Dead or ghost", category = "player", test = function() return call(UnitIsDeadOrGhost, "player") == true end,
+    events = { "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST" } })
+St.Condition("stealth", { label = "Stealthed / invisible", category = "player", test = function() return call(IsStealthed) == true end,
+    events = { "UPDATE_STEALTH" } })
+St.Condition("lowHp", { label = "Low health", category = "player" })   -- (Rumble's heartbeat threshold)
+St.Condition("player_health", { label = "Health percentage", category = "player",
+    value = function() return Pct(call(UnitHealth, "player"), call(UnitHealthMax, "player")) end,
+    events = { "UNIT_HEALTH", "UNIT_MAXHEALTH" } })
+St.Condition("player_power", { label = "Power percentage", category = "player",
+    value = function() return Pct(call(UnitPower, "player"), call(UnitPowerMax, "player")) end,
+    events = { "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER" } })
+St.Condition("halo", { label = "Halo ring open", category = "player" })
+-- Target
+St.Condition("target_any", { label = "Has any target", category = "target", test = function() return call(UnitExists, "target") == true end,
+    events = { "PLAYER_TARGET_CHANGED" } })
+St.Condition("target_hostile", { label = "Has hostile target", category = "target",
+    test = function() return call(UnitExists, "target") == true and call(UnitCanAttack, "player", "target") == true end,
+    events = { "PLAYER_TARGET_CHANGED", "UNIT_FACTION" } })
+St.Condition("target_friendly", { label = "Has friendly target", category = "target",
+    test = function() return call(UnitExists, "target") == true and call(UnitIsFriend, "player", "target") == true end,
+    events = { "PLAYER_TARGET_CHANGED", "UNIT_FACTION" } })
+St.Condition("no_target", { label = "No target", category = "target", test = function() return call(UnitExists, "target") ~= true end,
+    events = { "PLAYER_TARGET_CHANGED" } })
+St.Condition("target_health", { label = "Target health percentage", category = "target",
+    value = function() if call(UnitExists, "target") then return Pct(call(UnitHealth, "target"), call(UnitHealthMax, "target")) end end,
+    events = { "PLAYER_TARGET_CHANGED", "UNIT_HEALTH" } })
+-- Travel
+St.Condition("mounted", { label = "Mounted", category = "travel", test = function() return call(IsMounted) == true end,
+    events = { "PLAYER_MOUNT_DISPLAY_CHANGED", "UNIT_AURA", "PLAYER_STARTED_MOVING" } })
+St.Condition("swimming", { label = "Swimming", category = "travel", test = function() return call(IsSwimming) == true end,
+    events = { "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING", "MIRROR_TIMER_START", "MIRROR_TIMER_STOP" } })
+St.Condition("underwater", { label = "Underwater", category = "travel", test = function() return call(IsSubmerged) == true end,
+    events = { "MIRROR_TIMER_START", "MIRROR_TIMER_STOP", "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING" } })
+St.Condition("taxi", { label = "On flight path", category = "travel", test = function() return call(UnitOnTaxi, "player") == true end,
+    events = { "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED" } })
+-- Group & instances
+St.Condition("rested", { label = "Resting", category = "social", test = function() return call(IsResting) == true end,
+    events = { "PLAYER_UPDATE_RESTING" } })
+St.Condition("group", { label = "In party", category = "social", test = function() return call(IsInGroup) == true and call(IsInRaid) ~= true end,
+    events = { "GROUP_ROSTER_UPDATE" } })
+St.Condition("raid", { label = "In raid", category = "social", test = function() return call(IsInRaid) == true end, events = { "GROUP_ROSTER_UPDATE" } })
+St.Condition("solo", { label = "Solo", category = "social", test = function() return call(IsInGroup) ~= true end, events = { "GROUP_ROSTER_UPDATE" } })
+St.Condition("instance", { label = "In an instance", category = "social", test = function() return call(IsInInstance) == true end,
+    events = { "ZONE_CHANGED_NEW_AREA" } })
+St.Condition("indoors", { label = "Indoors", category = "social", test = function() return call(IsIndoors) == true end,
+    events = { "ZONE_CHANGED_INDOORS", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA" } })
+St.Condition("outdoors", { label = "Outdoors", category = "social", test = function() return call(IsOutdoors) == true end,
+    events = { "ZONE_CHANGED_INDOORS", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA" } })
+-- System
+St.Condition("afk", { label = "Away", category = "system", test = function() return call(UnitIsAFK, "player") == true end,
+    events = { "PLAYER_FLAGS_CHANGED" } })
+-- Events: true for a while after they happen (again: the while restarts)
+St.Condition("whispered", { label = "New private message", category = "moment", kind = "moment", duration = 10,
+    events = { "CHAT_MSG_WHISPER", "CHAT_MSG_BN_WHISPER" } })
+St.Condition("xp_gained", { label = "XP gained", category = "moment", kind = "moment", duration = 5, events = { "PLAYER_XP_UPDATE" } })
+St.Condition("loot", { label = "Looted an item", category = "moment", kind = "moment", duration = 4, events = { "CHAT_MSG_LOOT" } })
+St.Condition("quest_turned_in", { label = "Quest turned in", category = "moment", kind = "moment", duration = 3, events = { "QUEST_TURNED_IN" } })
+St.Condition("level_up", { label = "Level up", category = "moment", kind = "moment", duration = 5, events = { "PLAYER_LEVEL_UP" } })
+
+-- Requirements that can't hold together (FrameGambit's, the pad's ones)
+local EXCLUSIVE = {
+    { "combat", "out_of_combat" }, { "target_hostile", "target_friendly" }, { "group", "raid", "solo" },
+    { "indoors", "outdoors" }, { "no_target", "target_any" }, { "no_target", "target_hostile" },
+    { "no_target", "target_friendly" }, { "no_target", "target_health" }, { "taxi", "swimming" },
+    { "taxi", "underwater" }, { "taxi", "mounted" }, { "dead", "mounted" }, { "dead", "cast" },
+}
+local CONFLICTS = {}
+for _, g in ipairs(EXCLUSIVE) do
+    for i = 1, #g - 1 do
+        for j = i + 1, #g do
+            CONFLICTS[g[i]] = CONFLICTS[g[i]] or {}
+            CONFLICTS[g[j]] = CONFLICTS[g[j]] or {}
+            CONFLICTS[g[i]][g[j]], CONFLICTS[g[j]][g[i]] = true, true
+        end
+    end
+end
+
+-- The condition of `row` (or one of its requirements) `candidate` can't hold with; nil: fine
+function St.Conflict(row, candidate)
+    local function bad(c) return c ~= candidate and CONFLICTS[candidate] and CONFLICTS[candidate][c] end
+    if bad(row.condition) then return row.condition end
+    for _, c in ipairs(row.requirements or {}) do if bad(c) then return c end end
+    return nil
+end
+
+---------------------------------------------------------------------------
+-- Pushed by modules: states, events, values
+---------------------------------------------------------------------------
 function St.Set(key, on)
     on = on and true or false
-    if pushed[key] == on then return end
-    pushed[key] = on
+    if flags[key] == on then return end
     flags[key] = on
     St.Refresh()
 end
 
-function St.Is(key) return flags[key] == true end
-
-local function Moving()
-    local speed = call(GetUnitSpeed, "player")
-    return (tonumber(speed) or 0) > 0
+local timers = {}
+-- An event happened: its condition holds for its duration (restarting)
+function St.Fire(key)
+    local c = conds[key]
+    if not c then return end
+    moments[key] = Now()
+    St.Refresh()
+    local d = c.duration or 3
+    if C_Timer and C_Timer.After then
+        local mark = moments[key]
+        C_Timer.After(d + 0.01, function() if moments[key] == mark then St.Refresh() end end)
+    end
 end
-local function Mounted() return call(IsMounted) == true end
 
-St.Condition("dead", { label = "Dead or ghost", test = function() return call(UnitIsDeadOrGhost, "player") == true end,
-    events = { "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST" } })
-St.Condition("afk", { label = "Away", test = function() return call(UnitIsAFK, "player") == true end,
-    events = { "PLAYER_FLAGS_CHANGED" } })
-St.Condition("stealth", { label = "Stealth", test = function() return call(IsStealthed) == true end,
-    events = { "UPDATE_STEALTH" } })
-St.Condition("combat", { label = "In combat", test = function() return call(UnitAffectingCombat, "player") == true end,
-    events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" } })
-St.Condition("swimming", { label = "Swimming", test = function() return call(IsSwimming) == true end,
-    events = { "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING", "MIRROR_TIMER_START", "MIRROR_TIMER_STOP" } })
-St.Condition("mounted", { label = "Mounted", test = Mounted,
-    events = { "PLAYER_MOUNT_DISPLAY_CHANGED", "UNIT_AURA", "PLAYER_STARTED_MOVING" } })
-St.Condition("moving", { label = "Moving", test = Moving, events = { "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING" } })
-St.Condition("rested", { label = "Resting", test = function() return call(IsResting) == true end,
-    events = { "PLAYER_UPDATE_RESTING" } })
--- (pushed by their modules)
-St.Condition("lowHp", { label = "Low health" })
-St.Condition("cast", { label = "Casting" })
-St.Condition("halo", { label = "Halo ring open" })
+-- A value source (0-1 or a count) for live channels (a cast's progress, the swing, combo points)
+local sources = {}
+function St.SetValue(key, v)
+    if sources[key] == v then return end
+    sources[key] = v
+    for _, k in pairs(kinds) do if k.spec.live then k:Refresh() end end
+end
+function St.Value(key) return sources[key] end
 
--- Read every condition with a test (on the events, and at login)
+local function Holds(key)
+    local c = conds[key]
+    if not c then return false end
+    if c.kind == "moment" then
+        local at = moments[key]
+        return at ~= nil and Now() - at <= (c.duration or 3)
+    end
+    return flags[key] == true
+end
+St.Is = Holds
+
+local function Percent(row)
+    local v = values[row.condition]
+    if v == nil then return false end   -- (unknown never counts)
+    local cmp = COMPARE[row.operator or "<"] or COMPARE["<"]
+    return cmp(v, tonumber(row.threshold) or 50)
+end
+
+-- A reaction matches: its condition (with its percentage) and all its requirements
+function St.Matches(row)
+    if conds[row.condition] and conds[row.condition].value then
+        if not Percent(row) then return false end
+    elseif not Holds(row.condition) then
+        return false
+    end
+    for _, r in ipairs(row.requirements or {}) do
+        if conds[r] and conds[r].value then
+            if not Percent({ condition = r, operator = row.reqOperator, threshold = row.reqThreshold }) then return false end
+        elseif not Holds(r) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Read every condition with a test or a value (on its events, at login)
 local function ReadAll()
     for _, c in ipairs(condList) do
         if c.test then flags[c.key] = c.test() and true or false end
+        if c.value then values[c.key] = c.value() end
     end
 end
 St.ReadAll = ReadAll
@@ -94,169 +251,283 @@ Kind.__index = Kind
 
 -- spec = {
 --   channels = { "bar", "mic", "dots" },
---   layers = { { key = "combat", when = "combat" }, ... },   -- every state this kind has
---   recommended = { "dead", "lowHp", ... },                    -- the order, top first
---   store = fn() -> table                                       -- where the order is saved (Feel profile)
---   enabled = fn(key) -> bool                                   -- the state is on
---   value = fn(key, channel) -> value or nil                    -- nil: passes
---   base = fn(channel) -> value
---   apply = fn(result)        -- result[channel] = { value =, layer = key or "base" }; on a change
---   same = fn(a, b) -> bool   -- (optional) two values are the same
+--   recommended = { { id =, condition =, requirements =, on =, ...channel values... }, ... },  -- top first
+--   store = fn() -> table          -- the kind's Feel-profile table: .rows, .nextID, .timing
+--   value = fn(row, channel) -> v  -- nil: passes to the next match
+--   base = fn(channel) -> v        -- Otherwise
+--   apply = fn(result)             -- result[ch] = { value =, row = row | nil (Otherwise) }, result.timing
+--   same = fn(a, b) -> bool        -- (optional) two values are the same
+--   live = true                    -- (optional) re-resolve when a value source moves (gauges)
+--   timing = { fadeIn =, fadeOut =, wait = }   -- (optional) Recommended timing
+--   prepare = fn()                 -- (optional) before the first rows: migrate an older saved form
 -- }
 function St.Kind(name, spec)
-    local k = setmetatable({ name = name, spec = spec, last = nil }, Kind)
-    k.byKey = {}
-    for _, l in ipairs(spec.layers) do k.byKey[l.key] = l end
+    local k = setmetatable({ name = name, spec = spec, last = nil, held = {} }, Kind)
     kinds[name] = k
     return k
 end
-
 function St.Get(name) return kinds[name] end
 
--- The order, top first: the saved one (states it doesn't know dropped), then any new state at its
--- Recommended place
-function Kind:Order()
+local function Copy(v)
+    if type(v) ~= "table" then return v end
+    local t = {}
+    for a, b in pairs(v) do t[a] = Copy(b) end
+    return t
+end
+St.Copy = Copy
+
+-- The reactions, top first (the Recommended ones until the player changes them)
+function Kind:Rows()
     local store = self.spec.store()
-    local saved = type(store.order) == "table" and store.order or nil
-    if not saved then
-        local list = {}
-        for _, key in ipairs(self.spec.recommended) do if self.byKey[key] then list[#list + 1] = key end end
-        return list
+    -- (a kind's older saved form first: prepare migrates it into rows)
+    if type(store.rows) ~= "table" and self.spec.prepare then self.spec.prepare() end
+    if type(store.rows) ~= "table" then
+        store.rows = Copy(self.spec.recommended)
     end
-    local list, seen = {}, {}
-    for _, key in ipairs(saved) do
-        if self.byKey[key] and not seen[key] then list[#list + 1] = key; seen[key] = true end
-    end
-    -- (a state added later: after the Recommended neighbour above it)
-    for i, key in ipairs(self.spec.recommended) do
-        if self.byKey[key] and not seen[key] then
-            local at = 1
-            for j = i - 1, 1, -1 do
-                local above = self.spec.recommended[j]
-                for p, have in ipairs(list) do if have == above then at = p + 1 end end
-                if at > 1 then break end
-            end
-            table.insert(list, at, key)
-            seen[key] = true
-        end
-    end
-    return list
+    return store.rows
 end
 
-function Kind:IsDefaultOrder()
-    local cur, rec = self:Order(), {}
-    for _, key in ipairs(self.spec.recommended) do if self.byKey[key] then rec[#rec + 1] = key end end
-    if #cur ~= #rec then return false end
-    for i = 1, #cur do if cur[i] ~= rec[i] then return false end end
-    return true
+function Kind:Row(id)
+    for i, r in ipairs(self:Rows()) do if r.id == id then return r, i end end
 end
 
-function Kind:SetOrder(list)
-    self.spec.store().order = list
+function Kind:Recommended(id)
+    for _, r in ipairs(self.spec.recommended) do if r.id == id then return r end end
+end
+
+function Kind:Timing()
+    local store = self.spec.store()
+    local rec = self.spec.timing or {}
+    store.timing = type(store.timing) == "table" and store.timing or {}
+    local t = store.timing
+    return { fadeIn = tonumber(t.fadeIn) or rec.fadeIn or 0.2, fadeOut = tonumber(t.fadeOut) or rec.fadeOut or 0.2,
+        wait = tonumber(t.wait) or rec.wait or 0 }
+end
+
+function Kind:SetTiming(field, v)
+    self:Timing()
+    self.spec.store().timing[field] = v
     self:Refresh(true)
 end
 
--- Up (-1) or down (+1) one place
-function Kind:Move(key, delta)
-    local list = self:Order()
-    for i, have in ipairs(list) do
-        if have == key then
-            local j = i + delta
-            if j < 1 or j > #list then return false end
-            list[i], list[j] = list[j], list[i]
-            self:SetOrder(list)
+local function Changed(k) k:Refresh(true) end
+
+-- + Add: a new reaction for a condition, at the top (it matters most when you just added it)
+function Kind:Add(condition, at)
+    local store, rows = self.spec.store(), self:Rows()
+    store.nextID = (tonumber(store.nextID) or 1)
+    local row = { id = "r" .. store.nextID, condition = condition, on = true }
+    store.nextID = store.nextID + 1
+    if St.IsPercentage(condition) then row.operator, row.threshold = "<", 35 end
+    table.insert(rows, at or 1, row)
+    Changed(self)
+    return row
+end
+
+function Kind:Remove(id)
+    local _, i = self:Row(id)
+    if i then table.remove(self:Rows(), i); Changed(self) end
+end
+
+function Kind:Move(id, delta)
+    local rows = self:Rows()
+    local _, i = self:Row(id)
+    local j = i and i + delta
+    if not i or j < 1 or j > #rows then return false end
+    rows[i], rows[j] = rows[j], rows[i]
+    Changed(self)
+    return true
+end
+
+-- Drag: to place n
+function Kind:MoveTo(id, n)
+    local rows = self:Rows()
+    local row, i = self:Row(id)
+    if not i then return false end
+    n = max(1, min(#rows, n))
+    if n == i then return false end
+    table.remove(rows, i)
+    table.insert(rows, n, row)
+    Changed(self)
+    return true
+end
+
+function Kind:SetOn(id, on)
+    local row = self:Row(id)
+    if row then row.on = on and true or false; Changed(self) end
+end
+
+-- A requirement (all must be true): nil, or the condition it can't hold with
+function Kind:AddRequirement(id, condition)
+    local row = self:Row(id)
+    if not row or condition == row.condition then return false end
+    local bad = St.Conflict(row, condition)
+    if bad then return false, bad end
+    row.requirements = row.requirements or {}
+    for _, r in ipairs(row.requirements) do if r == condition then return false end end
+    row.requirements[#row.requirements + 1] = condition
+    Changed(self)
+    return true
+end
+
+function Kind:RemoveRequirement(id, condition)
+    local row = self:Row(id)
+    for i, r in ipairs(row and row.requirements or {}) do
+        if r == condition then
+            table.remove(row.requirements, i)
+            if #row.requirements == 0 then row.requirements = nil end
+            Changed(self)
             return true
         end
     end
     return false
 end
 
-function Kind:DefaultOrder()
-    self.spec.store().order = nil
-    self:Refresh(true)
+-- A reaction's words: "Movement + In combat", "Health percentage < 35%"
+function St.Words(row)
+    local function one(c, op, th)
+        if St.IsPercentage(c) then return St.Label(c) .. " " .. (op or "<") .. " " .. floor(tonumber(th) or 50) .. "%" end
+        return St.Label(c)
+    end
+    local parts = { one(row.condition, row.operator, row.threshold) }
+    for _, r in ipairs(row.requirements or {}) do parts[#parts + 1] = one(r, row.reqOperator, row.reqThreshold) end
+    return table.concat(parts, " + ")
 end
 
--- The state's condition holds now
-function Kind:Active(key)
-    local l = self.byKey[key]
-    return l ~= nil and flags[l.when or key] == true
+-- Everything back as shipped (or one Recommended reaction)
+function Kind:Default(id)
+    if id then
+        local rec, row = self:Recommended(id), self:Row(id)
+        if rec and row then
+            for k2 in pairs(row) do row[k2] = nil end
+            for k2, v in pairs(Copy(rec)) do row[k2] = v end
+        end
+    else
+        local store = self.spec.store()
+        store.rows, store.timing = nil, nil
+    end
+    Changed(self)
 end
 
--- For each channel: the highest state that is on, true and sets it; else the base
+local function Equal(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then return a == b end
+    for k2, v in pairs(a) do if not Equal(v, b[k2]) then return false end end
+    for k2 in pairs(b) do if a[k2] == nil then return false end end
+    return true
+end
+St.Equal = Equal
+
+function Kind:IsDefault(id)
+    if id then
+        local rec, row = self:Recommended(id), self:Row(id)
+        return rec ~= nil and row ~= nil and Equal(rec, row)
+    end
+    return Equal(self:Rows(), self.spec.recommended) and next(self.spec.store().timing or {}) == nil
+end
+
+-- For each channel: the first matching reaction that sets it; else Otherwise. A reaction that
+-- stops matching keeps its channels for Wait before fade-out (then re-resolved by a timer).
 function Kind:Resolve()
     local spec, result = self.spec, {}
-    local order = self:Order()
+    local rows, timing, now = self:Rows(), self:Timing(), Now()
+    local matched = {}
+    for _, r in ipairs(rows) do
+        if r.on ~= false and St.Matches(r) then self.held[r.id], matched[r.id] = now, true end
+    end
     for _, ch in ipairs(spec.channels) do
-        for _, key in ipairs(order) do
-            if spec.enabled(key) and self:Active(key) then
-                local v = spec.value(key, ch)
+        for _, r in ipairs(rows) do
+            local seen = self.held[r.id]
+            local live = r.on ~= false and (matched[r.id] or (seen and timing.wait > 0 and now - seen < timing.wait))
+            if live then
+                local v = spec.value(r, ch)
                 if v ~= nil then
-                    result[ch] = { value = v, layer = key }
+                    result[ch] = { value = v, row = r }
                     break
                 end
             end
         end
-        if not result[ch] then result[ch] = { value = spec.base(ch), layer = "base" } end
+        if not result[ch] then result[ch] = { value = spec.base(ch), row = nil } end
     end
+    result.timing = timing
     return result
+end
+
+-- The reaction now driving a channel (FrameGambit's teal row): a set of row ids
+function Kind:Driving()
+    local r, set = self:Now(), {}
+    for _, ch in ipairs(self.spec.channels) do
+        if r[ch].row then set[r[ch].row.id] = set[r[ch].row.id] or {}; table.insert(set[r[ch].row.id], ch) end
+    end
+    return set
 end
 
 local function Same(spec, a, b)
     if not (a and b) then return a == b end
     for _, ch in ipairs(spec.channels) do
         local x, y = a[ch], b[ch]
-        if x.layer ~= y.layer then return false end
+        if x.row ~= y.row then return false end
         if spec.same then
             if not spec.same(x.value, y.value) then return false end
-        elseif x.value ~= y.value then
+        elseif not Equal(x.value, y.value) then
             return false
         end
     end
     return true
 end
 
--- Re-resolve; apply when something changed (force: always, a setting changed)
 function Kind:Refresh(force)
     local r = self:Resolve()
-    if force or not Same(self.spec, r, self.last) then
-        self.last = r
-        if self.spec.apply then self.spec.apply(r) end
+    local changed = force or not Same(self.spec, r, self.last)
+    self.last = r
+    if changed and self.spec.apply then self.spec.apply(r) end
+    -- a reaction held by Wait: look again when it runs out
+    local wait = r.timing.wait
+    if wait > 0 and C_Timer and C_Timer.After and not self.waiting then
+        self.waiting = true
+        C_Timer.After(wait + 0.02, function() self.waiting = false; self:Refresh() end)
     end
     return r
 end
 
--- What wins each channel now (for the page: "Now: Moving")
-function Kind:Now()
-    return self.last or self:Resolve()
-end
+function Kind:Now() return self.last or self:Resolve() end
 
 function St.Refresh(force)
     for _, k in pairs(kinds) do k:Refresh(force) end
 end
 
 ---------------------------------------------------------------------------
--- The events: read the conditions, re-resolve every kind
+-- The events: read the conditions, then every kind again (never every frame)
 ---------------------------------------------------------------------------
 local frame = CreateFrame and CreateFrame("Frame")
 if frame then
-    local seen = {}
+    local momentOf, seen = {}, {}
+    local function Listen(ev)
+        if seen[ev] then return end
+        seen[ev] = true
+        if C_EventUtils and C_EventUtils.IsEventValid and not call(C_EventUtils.IsEventValid, ev) then return end
+        pcall(frame.RegisterEvent, frame, ev)
+    end
     for _, c in ipairs(condList) do
         for _, ev in ipairs(c.events or {}) do
-            if not seen[ev] then
-                seen[ev] = true
-                if ev == "UNIT_AURA" then
-                    if not pcall(frame.RegisterUnitEvent, frame, ev, "player") then pcall(frame.RegisterEvent, frame, ev) end
-                else
-                    pcall(frame.RegisterEvent, frame, ev)
-                end
-            end
+            Listen(ev)
+            if c.kind == "moment" then momentOf[ev] = momentOf[ev] or {}; table.insert(momentOf[ev], c.key) end
         end
     end
-    pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")
+    Listen("PLAYER_ENTERING_WORLD")
     frame:SetScript("OnEvent", function(_, event, unit)
-        if event == "UNIT_AURA" and unit and unit ~= "player" then return end
+        if (event == "UNIT_AURA" or event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_POWER_UPDATE"
+            or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_FACTION")
+            and unit and unit ~= "player" and unit ~= "target" then return end
+        for _, key in ipairs(momentOf[event] or {}) do moments[key] = Now() end
         ReadAll()
         St.Refresh()
+        if momentOf[event] and C_Timer and C_Timer.After then
+            for _, key in ipairs(momentOf[event]) do
+                local mark = moments[key]
+                C_Timer.After((conds[key].duration or 3) + 0.01, function() if moments[key] == mark then St.Refresh() end end)
+            end
+        end
     end)
 end
 St.frame = frame
