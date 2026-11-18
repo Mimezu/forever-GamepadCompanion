@@ -413,11 +413,18 @@ function ui.ToHelper()
     return data and K and K.Enabled() and K.V2() and type(C.EditHD) == "function" and true or false
 end
 
--- A moment's volume, as it ships (Default sets both its choice and its volume)
+-- A moment's volume and its When, as they ship (Default sets its choice, its volume, its When)
 local function VolumeDefault(kind, key, check)
-    local Vol = ns.Volume
-    if not Vol then return true end
+    local Vol, Wh = ns.Volume, ns.When
     local k = KIND_OF[kind]
+    if k == "feel" and Wh and Wh.Has(key) then
+        if check then
+            if not Wh.IsDefault(key) then return false end
+        else
+            Wh.Default(key)
+        end
+    end
+    if not Vol then return true end
     if k == "feel" and ITEM[kind].level then
         if check then return math.abs(Vol.Feel(key) - Vol.FeelDefault(key)) < 1e-6 end
         Vol.SetFeel(key, Vol.FeelDefault(key))
@@ -459,11 +466,36 @@ local function Snapshot(kind, key)
     local Vol, k = ns.Volume, KIND_OF[kind]
     local feelVol = Vol and k == "feel" and Vol.Feel(key)
     local soundVol = Vol and k == "sound" and Vol.Sound(key)
+    local when = k == "feel" and ns.When and ns.When.Has(key) and ns.When.Snapshot(key)
     return function()
         if back then back() end
+        if when then when() end
         if feelVol then Vol.SetFeel(key, feelVol) end
         if soundVol then Vol.SetSound(key, soundVol) end
     end
+end
+
+-- A moment's When: its knob's stepper (with Default), or which knob first when it has two
+local function WhenLevel(moment, p)
+    local Wh = ns.When
+    return { step = p.step, min = p.min, max = p.max, format = p.format,
+        get = function() return Wh.Get(moment, p.key) end,
+        set = function(v) Wh.Set(moment, p.key, v); Refresh() end,
+        default = function() Wh.Set(moment, p.key, nil); Refresh() end }
+end
+function ui.PickWhen(anchor, moment, label)
+    local Wh = ns.When
+    local params = Wh and Wh.PARAMS[moment]
+    if not params then return end
+    if #params == 1 then
+        local p = params[1]
+        return HUI.LevelPopover(anchor, WhenLevel(moment, p), label .. " · " .. p.label, pg)
+    end
+    local entries = {}
+    for _, p in ipairs(params) do entries[#entries + 1] = { key = p.key, label = p.label .. " " .. p.format(Wh.Get(moment, p.key)) } end
+    HUI.Popup(anchor, label .. " · When", entries, nil, function(k)
+        HUI.LevelPopover(anchor, WhenLevel(moment, Wh.Param(moment, k)), label .. " · " .. Wh.Param(moment, k).label, pg)
+    end, 1, 180)
 end
 
 -- A proposal accepted: WoW Helper's pick written as the player's own
@@ -567,6 +599,12 @@ local function MakeRow(parent, y, width, kind, key)
         marks = 3,
     })
     row.kind, row.key = kind, key
+    -- its When (a threshold it waits for): a chip under its name, a click opens a stepper
+    if ns.When and ns.When.Has(key) and (KIND_OF[kind] == "feel" or KIND_OF[kind] == "sound") then
+        row.when = S.NewButton(row, "", 44, -21, 150, function(self) ui.PickWhen(self, key, label) end, nil, 10, 17)
+        row.when.label:SetTextColor(GREY[1], GREY[2], GREY[3])
+        S.Tooltip(row.when, "When", "When it plays · a click to change it")
+    end
     ui.rows[#ui.rows + 1] = row
     return row
 end
@@ -1890,6 +1928,12 @@ Refresh = function()
             S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or lab and "In Lab" or "Needs WoW Helper")
         end
         row:SetMarks(Marks(row))
+        if row.when then
+            row.when.label:SetText("When: " .. ns.When.Words(row.key))
+            local w = (row.sub:GetText() or "") ~= "" and row.sub:GetStringWidth() or nil
+            row.when:ClearAllPoints()
+            row.when:SetPoint("TOPLEFT", 44 + (type(w) == "number" and (w + 8) or 0), -21)
+        end
         local rk = KIND_OF[row.kind]
         local p = C and C.Proposal and C.Proposal(rk, row.key)
         row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,

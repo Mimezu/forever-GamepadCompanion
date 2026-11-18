@@ -3235,8 +3235,19 @@ end
 -- that warning off in the game's options, health is read directly when it
 -- isn't hidden.
 ---------------------------------------------------------------------------
-local LOW_HP = 0.35
+local LOW_HP = 0.35   -- (as it ships: When.lua's; the game's warning is at 35 % too)
 local low = false
+
+-- The level it starts below (the row's When chip), and health as a fraction when it can be read
+local function LowBelow()
+    local W = ns.When
+    return W and W.Get("lowHp", "below") or LOW_HP
+end
+local function HealthNow()
+    local hp, max = UnitHealth("player"), UnitHealthMax("player")
+    if Secret(hp) or Secret(max) or not max or max <= 0 then return nil end
+    return hp / max
+end
 
 local function Secret(v)
     return issecretvalue ~= nil and issecretvalue(v) or false
@@ -3259,26 +3270,31 @@ end
 
 local warning = _G.LowHealthFrame
 if warning then
+    -- (health readable: its own level decides; hidden: the warning)
     warning:HookScript("OnShow", function()
-        if IF.db and not FullscreenPanel() and not UnitIsDeadOrGhost("player") then SetLow(true) end
+        if IF.db and not FullscreenPanel() and not UnitIsDeadOrGhost("player") then
+            local f = HealthNow()
+            if f then SetLow(f <= LowBelow()) else SetLow(true) end
+        end
     end)
-    warning:HookScript("OnHide", function() SetLow(false) end)
+    warning:HookScript("OnHide", function()
+        local f = HealthNow()
+        if f and not UnitIsDeadOrGhost("player") then SetLow(f <= LowBelow()) else SetLow(false) end
+    end)
 end
 
 local health = CreateFrame("Frame")
 health:RegisterUnitEvent("UNIT_HEALTH", "player")
 health:RegisterUnitEvent("UNIT_MAXHEALTH", "player")
 health:RegisterEvent("PLAYER_DEAD")
-health:SetScript("OnEvent", function(_, event)
+-- Health readable: below its level (When). Hidden: the game's warning does it, when it is on
+function V.CheckLowHealth(event)
     if not IF.db then return end
     if event == "PLAYER_DEAD" or UnitIsDeadOrGhost("player") then return SetLow(false) end
-    -- The game's warning does it, when it is on
-    local get = C_CVar and C_CVar.GetCVar or GetCVar
-    if warning and get and get("doNotFlashLowHealthWarning") ~= "1" then return end
-    local hp, max = UnitHealth("player"), UnitHealthMax("player")
-    if Secret(hp) or Secret(max) or not max or max <= 0 then return end
-    SetLow(hp / max <= LOW_HP)
-end)
+    local f = HealthNow()
+    if f then return SetLow(f <= LowBelow()) end
+end
+health:SetScript("OnEvent", function(_, event) V.CheckLowHealth(event) end)
 
 ---------------------------------------------------------------------------
 -- Eating and drinking: a loop while the food's or the drink's buff is on

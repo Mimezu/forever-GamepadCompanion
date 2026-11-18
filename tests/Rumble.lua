@@ -128,7 +128,7 @@ GamepadCompanionCharDB = nil
 local haloListeners = {}
 Halo = { On = function(kind, fn) haloListeners[kind] = haloListeners[kind] or {}; table.insert(haloListeners[kind], fn) end }
 local function HaloFire(kind, ...) for _, fn in ipairs(haloListeners[kind] or {}) do fn(...) end end
-for _, file in ipairs({ "Model.lua", "Shared.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "When.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
     "HapticsLab.lua", "HelperLink.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "HapticsUI.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "SetupPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -633,4 +633,71 @@ do
     IsControlKeyDown = ctrl
     page.SetKind("feel")
     io.write("PASS: N2: search over moments, kinds, spells, states; open, Enter, Escape, Ctrl+F\n")
+end
+-- N11: When chips: Low health, Heartbeat, Out of mana, Landing wait for levels kept as data
+-- (When.lua), shown on the row, changed in a stepper with Default; Landing's range left Setup
+do
+    local Wh, L = ns.When, ns.HapticsLab
+    assert(Wh.Get("lowHp", "below") == 0.35 and Wh.Get("heartbeat", "below") == 0.5 and Wh.Get("oom", "below") == 0.15
+        and Wh.Get("landing", "soft") == L.LAND_MIN and Wh.Get("landing", "full") == L.LAND_MAX, "as they ship, from the data")
+    page.SetKind("feel")
+    page.browser.Select("Defense")
+    local function row(key) for _, r in ipairs(page.rows) do if r.key == key and r:IsVisible() then return r end end end
+    local low = row("lowHp")
+    page.Refresh()
+    assert(low.when and low.when.label.text == "When: below 35 %", "the chip: " .. tostring(low.when and low.when.label.text))
+    -- the stepper: one step down, Default back
+    low.when.scripts.OnClick(low.when)
+    local pop = ns.HapticsUI.LevelPop()
+    assert(pop:IsShown() and pop.title.text == "Low health · Below", "its stepper: " .. tostring(pop.title.text))
+    pop.lv.set(0.25)
+    assert(Wh.Get("lowHp", "below") == 0.25 and low.when.label.text == "When: below 25 %", "set: the chip says so")
+    assert(low.changed and low.changed:IsShown() and low.default.enabled ~= false, "a changed When: the dot, Default lit")
+    assert(ns.Haptics.DB().when.lowHp.below == 0.25, "saved in the Feel profile's when")
+    -- the row's Default puts it back too (and Undo returns it)
+    low.default.scripts.OnClick(low.default)
+    assert(Wh.Get("lowHp", "below") == 0.35 and ns.Haptics.DB().when.lowHp == nil, "Default: as it ships, nothing saved")
+    ns.ShellWindow().offer.scripts.OnClick(ns.ShellWindow().offer)
+    assert(Wh.Get("lowHp", "below") == 0.25, "Undo: 25 % again")
+    pop.default.scripts.OnClick(pop.default)
+    assert(Wh.Get("lowHp", "below") == 0.35, "the stepper's Default")
+    pop:Hide()
+    -- low health plays below the level set, when health can be read
+    local fired, ended = 0, 0
+    local fire, endLoop = V.Fire, V.EndLoop
+    V.Fire = function(k, ...) if k == "lowHp" then fired = fired + 1 end return fire(k, ...) end
+    V.EndLoop = function(k, ...) if k == "lowHp" then ended = ended + 1 end return endLoop(k, ...) end
+    local uh, um, ud = UnitHealth, UnitHealthMax, UnitIsDeadOrGhost
+    local hp = 100
+    UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = function() return hp end, function() return 100 end, function() return false end
+    Wh.Set("lowHp", "below", 0.25)
+    hp = 30; V.CheckLowHealth("UNIT_HEALTH")
+    assert(fired == 0, "30 % with 25 % set: not yet")
+    hp = 24; V.CheckLowHealth("UNIT_HEALTH")
+    assert(fired == 1, "24 %: low health")
+    local e0 = ended
+    hp = 60; V.CheckLowHealth("UNIT_HEALTH")
+    assert(ended == e0 + 1, "60 %: over")
+    Wh.Set("lowHp", "below", nil)
+    UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = uh, um, ud
+    -- Landing: two knobs, which first, then its stepper; Soft stays under Full
+    page.browser.Select("Moving")
+    local land = row("landing")
+    page.Refresh()
+    assert(land.when.label.text == "When: soft 0.50 s · full 1.20 s", "two knobs: " .. land.when.label.text)
+    Wh.Set("landing", "soft", 1.3)
+    assert(ns.Haptics.DB().landMin == 1.3 and Wh.Get("landing", "full") >= 1.35 - 1e-9, "Soft over Full: Full moves up")
+    Wh.Default("landing")
+    assert(ns.Haptics.DB().landMin == nil and ns.Haptics.DB().landMax == nil, "Default: the old keys cleared")
+    V.Fire, V.EndLoop = fire, endLoop
+    -- the sound row of the same moment shows it too; a moment without a When has no chip
+    page.SetKind("sound")
+    page.browser.Select("Abilities")
+    local oom = row("oom")
+    page.Refresh()
+    assert(oom and oom.when and oom.when.label.text == "When: below 15 %", "Out of mana's sound: its When")
+    page.SetKind("feel")
+    page.browser.Select("Attacks")
+    assert(not row("hit").when, "Hit: no When")
+    io.write("PASS: N11: When chips (low health, heartbeat, out of mana, landing), stepper, Default, Undo, profile\n")
 end

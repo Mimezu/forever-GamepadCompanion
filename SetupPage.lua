@@ -223,7 +223,7 @@ local function BuildRange(frame)
 end
 
 ---------------------------------------------------------------------------
--- Timing: footsteps and mining in step with the game, the landing's range
+-- Timing: footsteps and mining in step with the game
 ---------------------------------------------------------------------------
 local function BuildTiming(frame)
     local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210, "Interface\\Icons\\INV_Misc_PocketWatch_01")
@@ -252,17 +252,9 @@ local function BuildTiming(frame)
     local steps = Row(-128, "Footsteps")
     local wading = Row(-172, "Wading")
     wading.text:SetText("Not yet")
-    -- Landing: when a fall is a real jump (not learned: yours)
-    S.Text(card, "Landing", 12, -216, 80, 12, GOLD)
-    local function secs(v) return string.format("%.2f s", v) end
-    Stepper(card, "Soft at", 12, -236, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.2, max = 3, format = secs,
-        get = function() return H.DB().landMin or L.LAND_MIN end,
-        set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
-    Stepper(card, "Full at", 12, -264, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.25, max = 4, format = secs,
-        get = function() return H.DB().landMax or L.LAND_MAX end,
-        set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
-    local status = S.Note(card, 12, -302, COL - 24, 2, 11, GOLD)
-    S.NewButton(card, "WoW Helper ›", 12, -330, 120, function()
+    -- (Landing's Soft at / Full at: on the Landing row's When chip, Moments › Moving)
+    local status = S.Note(card, 12, -216, COL - 24, 2, 11, GOLD)
+    S.NewButton(card, "WoW Helper ›", 12, -244, 120, function()
         if Shell.SetStatus then Shell.SetStatus("WoW Helper › Pad › Timing", true) end
     end, nil, 11, 24)
     V.onHitSync = function(text) status:SetText(text); Refresh() end

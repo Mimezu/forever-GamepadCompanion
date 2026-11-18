@@ -943,10 +943,16 @@ local function Beat(v, now, interval)
     return now - v.beatAt, v.beats
 end
 
+-- The level a moment waits for (When.lua: the row's When chip), else as it ships
+local function WhenOf(moment, key, ships)
+    local W = ns.When
+    return W and W.Get(moment, key) or ships
+end
+
 -- Lub-dub, faster and stronger as health drops
 local function Heartbeat(now, v)
     if not live.heart then return nil end
-    local danger = live.hp and max(0, min(1, 1 - live.hp / 0.5)) or 0.6
+    local danger = live.hp and max(0, min(1, 1 - live.hp / WhenOf("heartbeat", "below", 0.5))) or 0.6
     local period = 60 / (70 + 110 * danger)
     local d = Beat(v, now, period)
     -- (a longer lub, a faint dub: contrast)
@@ -1377,7 +1383,7 @@ handlers.UNIT_POWER_UPDATE = function(_, kind)
     local cur, mx = call(UnitPower, "player", kindIndex), call(UnitPowerMax, "player", kindIndex)
     if cur == nil or mx == nil or secret(cur) or secret(mx) or mx <= 0 then return end
     if kind == "MANA" then
-        local low = cur / mx < 0.15
+        local low = cur / mx < WhenOf("oom", "below", 0.15)
         if low and not oomLow then L.Fire("oom") end
         oomLow = low
     elseif kind == "RAGE" or kind == "ENERGY" then
@@ -1708,7 +1714,7 @@ local function Poll()
     if hp then live.hp = hp end
     local warning = _G.LowHealthFrame
     local warned = warning and warning.IsShown and warning:IsShown()
-    live.heart = (hp and hp < 0.5) or (not hp and warned) or false
+    live.heart = (hp and hp < WhenOf("heartbeat", "below", 0.5)) or (not hp and warned) or false
     if call(UnitIsDeadOrGhost, "player") then live.heart = false end
     if live.heart then StartLive("heartbeat", Heartbeat) else H.Stop("live_heartbeat") end
     -- Water: bubbles while the breath runs
@@ -1744,6 +1750,11 @@ end
 
 -- (air times: soft at landMin or less, full at landMax or more; settings)
 L.LAND_MIN, L.LAND_MAX = 0.5, 1.2
+-- (as it ships: When.lua's landing knobs, the data, when loaded)
+if ns.When and ns.When.Param then
+    L.LAND_MIN = ns.When.Param("landing", "soft").default
+    L.LAND_MAX = ns.When.Param("landing", "full").default
+end
 function L.LandingWeight(t)
     local db = H.DB()
     local lo, hi = db.landMin or L.LAND_MIN, db.landMax or L.LAND_MAX

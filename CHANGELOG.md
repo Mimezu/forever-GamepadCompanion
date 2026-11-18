@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.53.0 — 2026-11-18
+
+- **When chips:** moments that wait for a level show it under their name: Low health "When: below 35 %", Heartbeat "below 50 %", Out of mana "below 15 %", Landing "soft 0.50 s · full 1.20 s". A click opens a stepper with Default (Landing asks which first). It's part of the moment: a changed level shows the gold dot, the row's Default and Reset group put it back, and it's saved in the Feel profile
+- **Low health at your level:** when your health can be read, Low health starts below the level you set (the game's red warning, fixed at 35 %, still decides while health is hidden in a fight)
+- **Landing's Soft at / Full at left Setup › Timing:** they're on the Landing row's When chip now (Moments › Moving), with the same saved values
+- The levels are data (When.lua), not numbers in the code
+
 ## 0.52.10 — 2026-11-18
 
 - **Search** above Moments' groups (**Ctrl+F**): every moment in Feel, Light and Sound, your spells, the States and Triggers lists. Results show as rows, each with its group, kind and choice in grey; a click (or Enter for the first) opens it where it lives; Escape clears. Picking a group steps the results aside
