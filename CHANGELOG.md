@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.45.8 — 2026-11-18
+## 0.45.9 — 2026-11-18
 
 - **Gestures, redrawn**: a grid of cards that fills the page, and a WoW Helper column
   - A card: the motion (its path drawn when WoW Helper sends one, else a quiet dot), the name in title case, what it is (WoW Helper's words; nothing when they only repeat the name), the action on its plate with its icon (a lone /sit reads Sit), a quiet × on hover

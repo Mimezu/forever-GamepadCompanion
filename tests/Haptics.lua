@@ -935,12 +935,15 @@ do
     ns.Shell.Open()
     assert(ns.Shell.Current() ~= "lab", "reopened: not on a hidden Lab")
     WowHelperData = nil
+    ns.Timing.Store().link = "usb"
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Sync run") and visible("USB feels"), "range, timing, USB feels on Setup")
+    assert(visible("Find left") and visible("Sync run") and not visible("USB feels"), "range, timing on Setup; no USB feels")
+    assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
+    ns.Timing.Store().link = nil
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 
--- Helper cues: casts tighten R2, low health shakes L2, loot and releases queue clips and sounds
+-- Helper cues: casts tighten R2, low health shakes L2, loot queues its sound
 do
     local K, C = ns.HelperLink, ns.HelperCues
     H.DB().engine = true
@@ -955,9 +958,6 @@ do
     assert(K.state.right.mode == K.MODES.resist, "a cast: R2 resists")
     cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player")
     assert(K.state.right.mode == K.MODES.off, "released: R2 free")
-    local queued = {}
-    for _, q in ipairs(K.queue) do queued[#queued + 1] = q.touch end
-    assert(queued[#queued] == K.CLIPS.release_hit, "the release's clip")
     UnitCastingInfo = nil
     cf.scripts.OnEvent(cf, "START_AUTOREPEAT_SPELL")
     assert(K.state.right.mode == K.MODES.weapon, "shooting: R2 clicks")
@@ -1024,7 +1024,7 @@ do
     Vol.SetSound("loot", 1)
     M.SetKind("feel")
     K.SetEnabled(false)
-    io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, clips and sounds queued, off by group" .. string.char(10))
+    io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, sounds queued, off by group" .. string.char(10))
     io.write("PASS: volumes: full by default, per moment and for every sound, as the cue's gain; on the rows" .. string.char(10))
     -- Break the UI: a 200-sound library pages, opening on the chosen one's page; a long name stays one line
     local HUI = ns.HapticsUI
@@ -1844,11 +1844,11 @@ do
         prev = f
     end
     assert(L.LandingFade(0.45) < F + (1 - F) * 0.5, "eased: the short ones fade fastest")
-    -- every output of a landing: the rumble, WoW Helper's cue and clip
+    -- every output of a landing: the rumble, WoW Helper's cue
     local C, K = ns.HelperCues, ns.HelperLink
     local enabled, cue, play = K.Enabled, K.Cue, K.Play
     K.Enabled = function() return true end
-    C.Settings().hdFeels, C.Settings().clips = true, true
+    C.Settings().hdFeels = true
     local cues, clips, plays = {}, {}, {}
     K.Cue = function(item) cues[#cues + 1] = item; return true end
     K.Play = function(id, gain) clips[#clips + 1] = gain; return true end
@@ -1866,15 +1866,15 @@ do
         return plays[#plays], cues[#cues], clips[#clips]
     end
     L.EventSettings("landing").feel = "flick"
-    local rStair, cStair, kStair = drop(0.12)
+    local rStair, cStair = drop(0.12)
     local rRock, cRock = drop(0.5)
     local rJump, cJump, kJump = drop(0.9)
+    assert(kJump == nil, "no old USB clip")
     assert(rStair and rStair > 0, "a step down a stair: a landing, faint, not silent")
     assert(rStair < rRock and rRock < rJump, "quieter the shorter: " .. rStair .. " < " .. rRock .. " < " .. rJump)
     assert(cStair and cJump and cStair.gain <= cJump.gain and cStair.intensity < cJump.intensity,
         "WoW Helper's cue fades too: " .. cStair.intensity .. " < " .. cJump.intensity)
     assert(cRock.intensity < cJump.intensity and cStair.intensity <= cRock.intensity, "its intensity with the drop")
-    assert(kStair and kJump and kStair <= kJump, "the clip as well")
     assert(drop(0.05) == nil, "a frame's flicker: no landing")
     L.EventDefault("landing")
     local rDefault = drop(0.12)
@@ -1883,7 +1883,7 @@ do
     K.Enabled, K.Cue, K.Play = enabled, cue, play
     IsFalling = nil
     H.DB().landMin, H.DB().landMax = nil, nil
-    io.write("PASS: landings fade under a real jump: rumble, HD cue, clip; continuous, never silent" .. string.char(10))
+    io.write("PASS: landings fade under a real jump: rumble, HD cue; continuous, never silent" .. string.char(10))
 end
 
 -- Your abilities as they land: paired with their own result, at the blow, matched; never others' damage
@@ -2140,6 +2140,20 @@ do
     assert(math.abs(pending[1] - 0.295) < 1e-9, "a two-hander's impact sent that much early")
     C_Timer.After = after
     T.SetLinkLatency(nil)
+    -- the pad's link from WoW Helper: its pad delay leads until it has measured
+    WowHelperData = { link = "usb", padDelay = 0.019 }
+    T.LoadHelper()
+    assert(T.Link() == "usb" and math.abs(T.Lead() - 0.019) < 1e-9, "USB: its pad delay, 19 ms")
+    K.Enabled = function() return false end
+    assert(math.abs(T.Lead() - 0.018) < 1e-9, "the game's vibration over USB: no Bluetooth part")
+    K.Enabled = function() return true end
+    WowHelperData = { link = "bt", padDelay = 0.03 }
+    T.LoadHelper()
+    assert(T.Link() == "bt" and math.abs(T.Lead() - 0.03) < 1e-9, "Bluetooth: 30 ms")
+    WowHelperData = {}
+    T.LoadHelper()
+    assert(T.Link() == nil and T.Store().padDelay == nil, "not published: unknown")
+    WowHelperData = nil
     K.Enabled = enabled
     T.MOTOR_LEAD, T.LINK_DEFAULT = 0, 0
     io.write("PASS: leads: the game's vibration and WoW Helper's link, taken off scheduled feels" .. string.char(10))

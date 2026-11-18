@@ -2,7 +2,7 @@
 -- HelperLink.lua's corner pixels) for what the game can't drive itself:
 -- the adaptive triggers, true haptics (USB audio channels 3-4) and the pad's
 -- speaker (channels 1-2). Only while the link is on; each group can be
--- switched off. Rhythm and contrast as everywhere: clips faint by default.
+-- switched off. Every moment's touch is its HD feel (the old USB clips are gone).
 local _, ns = ...
 local K, H, L = ns.HelperLink, ns.Haptics, ns.HapticsLab
 local C = {}
@@ -15,7 +15,6 @@ local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or fal
 -- (the triggers: TriggerRules.lua, the player's own rules; the old switches
 -- castTrigger / shotTrigger / lowTrigger seed them once)
 C.GROUPS = {
-    { key = "clips", label = "True haptics", tip = "USB only: crits, landings, swings, releases" },
     { key = "sounds", label = "Speaker sounds", tip = "Each moment's sound" },
 }
 
@@ -57,6 +56,8 @@ function C.Settings()
     if type(db.link) ~= "table" then db.link = {} end
     local s = db.link
     if type(s.cues) ~= "table" then s.cues = {} end
+    -- (the old USB clips' switch: gone, the HD feels cover those moments)
+    s.cues.clips = nil
     for _, g in ipairs(C.GROUPS) do
         if s.cues[g.key] == nil then s.cues[g.key] = not g.off end
     end
@@ -140,13 +141,9 @@ end)
 ---------------------------------------------------------------------------
 -- Clips and sounds, cued by Rumble's and the Beta events (wrapped)
 ---------------------------------------------------------------------------
-local CLIP = { crit = { "thump", 3 }, critRanged = { "thump", 3 }, critted = { "thump", 5 }, levelUp = { "rumble_rise", 6 },
-    interrupted = { "thump", 4 } }
-local LAB_CLIP = { kill = { "release_hit", 4 }, hitTaken = { "micro_tap", 2 } }
 -- each moment's sound unless chosen (built-in names)
 C.DEFAULT_SOUND = { loot = "coin", questDone = "chime", uiError = "error", whisper = "click", readyCheck = "chime" }
 
-function C.Clip(name, gain) if On("clips") then K.Play(name, gain) end end
 
 ---------------------------------------------------------------------------
 -- WoW Helper's data addon (WowHelperData: written by the helper, read at
@@ -586,13 +583,6 @@ local function Wrap()
             C.Moment(Spelled(key), pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
             -- (a looping moment: its HD cue again each cycle while it lasts)
             if V.looping and V.looping.key == key then C.LoopBegan(V.looping) end
-            local c = CLIP[key]
-            if c then C.Clip(c[1], c[2]) end
-            if key == "autoAttack" then
-                local pattern = V.EventPattern and V.EventPattern("autoAttack")
-                local heavy = pattern == "swSword2" or pattern == "swAxe2" or pattern == "swMace2" or pattern == "swPolearm"
-                C.Clip(heavy and "swing_heavy" or "swing_light", heavy and 3 or 1)
-            end
             if key == "lowHp" then low = true; UpdateL2() end
         end
         V.EndLoop = function(key, ...)
@@ -610,20 +600,13 @@ local function Wrap()
             local V = ns.Rumble
             if V and V.cueTimed then return end
             local e = L.EVENT and L.EVENT[key]
-            -- (a landing under a real jump: its HD cue, sound and clip fade
+            -- (a landing under a real jump: its HD cue and sound fade
             -- with it, as the rumble does)
             local land = (key == "landing" or key == "splash") and L.landCue or nil
             if e then
                 local s = L.EventSettings(key)
                 local opts = land and land.fade < 1 and { gain = land.fade, intensity = 1 + 3 * land.fade } or nil
                 C.Moment(key, H.Engine() and s.on and s.feel or nil, opts)
-            end
-            local c = LAB_CLIP[key]
-            if c then C.Clip(c[1], c[2]) end
-            if key == "landing" and L.lastLanding then
-                local k = L.lastLanding.k or 0
-                local fade = land and land.fade or 1
-                C.Clip(k > 0.5 and "landing_hard" or "landing_soft", floor((1 + k * 6) * fade + 0.5))
             end
         end
     end
@@ -692,7 +675,6 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         if cast.start and not cast.channel then
             cast.start = nil
             UpdateR2()
-            C.Clip("release_hit", 4)
             -- (Spell released: its sound, the spell's own first)
             C.Moment(Spelled("release", cast.spell), nil)
         end
