@@ -742,3 +742,33 @@ do
     GamepadCompanionPalette:Hide()
     io.write("PASS: U2-2/U2-3: hover preview once, gated, stopped on leave and hide\n")
 end
+-- Night review 2, U2-4: an Undo belongs to its own change: a newer pick takes it away, and an old
+-- snapshot never goes back over it
+do
+    local L = ns.HapticsLab
+    page.SetKind("feel")
+    page.browser.Select("Progress")
+    local loot
+    for _, r in ipairs(page.rows) do if r.key == "loot" and r:IsVisible() then loot = r end end
+    L.EventSettings("loot").on, L.EventSettings("loot").feel = true, "chime"
+    page.Refresh()
+    loot.default.scripts.OnClick(loot.default)
+    local offer = ns.ShellWindow().offer
+    assert(offer:IsShown(), "Default: Undo offered")
+    -- a new pick on the same row, within the 5 s
+    loot.pick.scripts.OnClick(loot.pick)
+    local pulse = PaletteTile("Pulse")
+    pulse.scripts.OnClick(pulse, "LeftButton")
+    local picked = L.EventSettings("loot").feel
+    assert(picked ~= "chime", "the new pick: " .. tostring(picked))
+    if offer:IsShown() then offer.scripts.OnClick(offer) end
+    assert(L.EventSettings("loot").feel == picked, "U2-4: the old Undo didn't put chime back over the new pick")
+    assert(not offer:IsShown(), "U2-4: that Undo is gone")
+    -- a newer message takes it away too
+    loot.default.scripts.OnClick(loot.default)
+    assert(offer:IsShown(), "Undo again")
+    ns.Shell.SetStatus("Something else", true)
+    assert(not offer:IsShown(), "U2-4: a newer message, no Undo beside it")
+    L.EventDefault("loot")
+    io.write("PASS: U2-4: Undo goes with its own change and its message\n")
+end

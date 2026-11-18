@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.4 — 2026-11-18
+
+- **Undo belongs to its own change** (night review 2, U2-4): a pick on the same row, or a newer message, takes the Undo away, and a stale Undo can no longer put an old choice back over a newer one ("changed since · not undone")
+
 ## 0.53.3 — 2026-11-18
 
 - **The palette's hover preview stops** (night review 2, U2-2): hovering a looping feel (Footsteps, Purr, Bandage, Rain…) no longer leaves the pad humming until /reload. The preview plays once, and stops when the pointer leaves, the palette closes or a fight starts

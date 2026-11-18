@@ -523,21 +523,38 @@ end
 ui.IsRecommended = IsRecommended
 
 -- A group back to Recommended in one kind: every changed row, and Undo for 5 s
+-- A row as it is now, in a few words: an Undo stays only while its change is the latest (U2-4)
+local function Sig(kind, key)
+    local name, _, sub, off, rgb = ITEM[kind].show(key)
+    local Vol, k = ns.Volume, KIND_OF[kind]
+    local v = Vol and (k == "feel" and Vol.Feel(key) or k == "sound" and Vol.Sound(key)) or 0
+    local w = ns.When and ns.When.Has(key) and ns.When.Words(key) or ""
+    local c = type(rgb) == "table" and table.concat(rgb, ",") or ""
+    return table.concat({ tostring(name), tostring(sub), tostring(off), tostring(v), w, c }, "|")
+end
+ui.Sig = Sig
+
 local function ResetGroup(group, kind)
-    local undo, n = {}, 0
+    local undo, n, done = {}, 0, {}
     for _, item in ipairs(Items(kind, group)) do
         if not IsRecommended(item[1], item[2]) then
             undo[#undo + 1] = Snapshot(item[1], item[2])
             ITEM[item[1]].default(item[2])
             VolumeDefault(item[1], item[2])
+            done[#done + 1] = item
             n = n + 1
         end
     end
     Refresh()
     if n == 0 then return end
+    local after = {}
+    for i, item in ipairs(done) do after[i] = Sig(item[1], item[2]) end
     Shell.Offer(group .. ": Recommended (" .. n .. ")", "Undo", function()
         for _, back in ipairs(undo) do back() end
         Refresh()
+    end, nil, function()
+        for i, item in ipairs(done) do if Sig(item[1], item[2]) ~= after[i] then return false end end
+        return true
     end)
 end
 ui.ResetGroup = ResetGroup
@@ -587,8 +604,10 @@ local function MakeRow(parent, y, width, kind, key)
             I.default(key)
             VolumeDefault(kind, key)
             Refresh()
-            -- (as it ships, and Undo for 5 s)
-            Shell.Offer(label .. ": Recommended", "Undo", function() undo(); Refresh() end)
+            -- (as it ships, and Undo for 5 s: while this is still the row's latest change)
+            local after = Sig(kind, key)
+            Shell.Offer(label .. ": Recommended", "Undo", function() undo(); Refresh() end, nil,
+                function() return Sig(kind, key) == after end)
         end,
         edit = I.feel and Edit or nil,
         editLabel = "Shape",
@@ -1976,6 +1995,8 @@ Refresh = function()
         btn.changed = changed
     end
     for _, fn in ipairs(pg.refresh) do fn() end
+    -- (a newer change: an Undo for an older one goes)
+    if Shell.CheckOffer then Shell.CheckOffer() end
     if kind == "feel" then
         Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Feel off"))
     else

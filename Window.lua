@@ -32,12 +32,16 @@ end
 local function Listed(def) return def.shown == nil or def.shown() == true end
 
 -- Status line, bottom left. A message from the player's last action stays a few seconds.
+-- (an Undo beside a message goes with it: a newer message, a newer change; U2-4)
+local offering = false
 function Shell.SetStatus(text, sticky)
     if not window then return end
     local now = GetTime and GetTime() or 0
     if sticky then statusUntil = now + 5
     elseif statusUntil and now < statusUntil then return end
     text = text or ""
+    local offer = rawget(window, "offer")
+    if type(offer) == "table" and not offering and offer:IsShown() and text ~= (window.status:GetText() or "") then offer:Hide() end
     window.status:SetText(text)
     -- a dot: orange for a warning, green for what just happened
     local dot = window.statusDot
@@ -51,10 +55,13 @@ function Shell.SetStatus(text, sticky)
     if sticky and text ~= "" then S.FadeIn(window.status, 0.15) end
 end
 
--- A status with an action beside it for a while ("…: as it ships · Undo", 5 s)
-function Shell.Offer(text, action, fn, seconds)
+-- A status with an action beside it for a while ("…: Recommended · Undo", 5 s). still (optional):
+-- true while the change it undoes is still the latest; a newer change takes the Undo away (U2-4)
+function Shell.Offer(text, action, fn, seconds, still)
     if not window then return end
+    offering = true
     Shell.SetStatus(text, true)
+    offering = false
     local b = window.offer
     if not b then
         b = S.NewButton(window, "", 0, 0, 60, nil, nil, 11, 22)
@@ -64,7 +71,13 @@ function Shell.Offer(text, action, fn, seconds)
     b:ClearAllPoints()
     local w = window.status:GetStringWidth()
     b:SetPoint("LEFT", window.status, "LEFT", (type(w) == "number" and w or 120) + 10, 0)
-    b:SetScript("OnClick", function() b:Hide(); fn(); Shell.SetStatus(text:gsub(":.*$", "") .. ": back", true) end)
+    b.still = still
+    b:SetScript("OnClick", function()
+        b:Hide()
+        if still and not still() then return Shell.SetStatus(text:gsub(":.*$", "") .. ": changed since · not undone", true) end
+        fn()
+        Shell.SetStatus(text:gsub(":.*$", "") .. ": back", true)
+    end)
     b:Show()
     b.until_ = (GetTime and GetTime() or 0) + (seconds or 5)
     if C_Timer and C_Timer.After then
@@ -72,6 +85,12 @@ function Shell.Offer(text, action, fn, seconds)
             if (GetTime and GetTime() or 0) >= (b.until_ or 0) - 0.05 then b:Hide() end
         end)
     end
+end
+
+-- After any change: an Undo whose change was replaced goes
+function Shell.CheckOffer()
+    local b = window and rawget(window, "offer")
+    if type(b) == "table" and b:IsShown() and b.still and not b.still() then b:Hide() end
 end
 
 -- The WoW Helper chip, once a little brighter: where to look
