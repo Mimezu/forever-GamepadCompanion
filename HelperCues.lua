@@ -12,10 +12,9 @@ local min, max, floor = math.min, math.max, math.floor
 local function Now() return GetTime and GetTime() or 0 end
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
 
+-- (the triggers: TriggerRules.lua, the player's own rules; the old switches
+-- castTrigger / shotTrigger / lowTrigger seed them once)
 C.GROUPS = {
-    { key = "castTrigger", label = "Cast: R2 tightens", tip = "Resistance rising with the cast, free on release" },
-    { key = "shotTrigger", label = "Auto shot: R2 clicks", tip = "A weapon click while shooting" },
-    { key = "lowTrigger", label = "Low health: L2 shakes", tip = "A vibration in L2 while low" },
     { key = "clips", label = "True haptics", tip = "USB only: crits, landings, swings, releases" },
     { key = "sounds", label = "Speaker sounds", tip = "Each moment's sound" },
 }
@@ -71,29 +70,63 @@ local function On(group)
 end
 
 ---------------------------------------------------------------------------
--- Triggers
+-- Triggers: the player's rules (TriggerRules.lua), checked 10 times a second
 ---------------------------------------------------------------------------
+local T = ns.TriggerRules
 local cast = {}
-local low, shooting = false, false
+local low, shooting, attacking = false, false, false
+local trying            -- { rule, untilTime }: a rule felt now (Try)
 
--- R2's state from what is going on (a cast over a shot)
-local function UpdateR2()
-    if not K then return end
-    if cast.start and On("castTrigger") then
+-- The saved rules (the Feel profile's table, seeded in place)
+function C.TriggerRules()
+    local db = H.DB()
+    if type(db.link) ~= "table" then db.link = {} end
+    if type(db.link.trigRules) ~= "table" then db.link.trigRules = {} end
+    return T.Ensure(db.link.trigRules, C.Settings())
+end
+function C.ResetTriggerRules()
+    C.TriggerRules()
+    T.Reset(H.DB().link.trigRules)
+end
+
+local function call(fn, ...)
+    if type(fn) ~= "function" then return false end
+    local ok, v = pcall(fn, ...)
+    if not ok or secret(v) then return false end
+    return v and true or false
+end
+
+local function State()
+    local p
+    if cast.start then
         local span = cast.finish - cast.start
-        local p = span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
-        -- resistance from a quarter of the way down, firmer as the cast fills
-        return K.SetTrigger("R2", "resist", 3, 0, 2 + floor(p * 11))
+        p = span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
     end
-    if shooting and On("shotTrigger") then return K.SetTrigger("R2", "weapon", 4, 8, 7) end
-    K.SetTrigger("R2", "off", 0, 0, 0)
+    return {
+        cast = cast.start ~= nil, progress = p, autoShot = shooting, autoAttack = attacking, lowHp = low,
+        combat = call(UnitAffectingCombat, "player"), mounted = call(IsMounted), swimming = call(IsSwimming),
+        stealth = call(IsStealthed),
+    }
 end
 
-local function UpdateL2()
-    if not K then return end
-    if low and On("lowTrigger") then return K.SetTrigger("L2", "vibrate", 0, 5, 3) end
-    K.SetTrigger("L2", "off", 0, 0, 0)
+local function UpdateTriggers()
+    if not (K and T) then return end
+    if trying and Now() > trying[2] then trying = nil end
+    local out = K.Enabled() and T.Evaluate(C.TriggerRules(), State(), trying and trying[1]) or {}
+    for _, side in ipairs({ "R2", "L2" }) do
+        local t = out[side]
+        if t then K.SetTrigger(side, t[1], t[2], t[3], t[4]) else K.SetTrigger(side, "off", 0, 0, 0) end
+    end
 end
+C.UpdateTriggers = UpdateTriggers
+local UpdateR2, UpdateL2 = UpdateTriggers, UpdateTriggers
+
+-- Try: a rule felt for a few seconds, whatever its state
+function C.TryTrigger(rule, seconds)
+    trying = rule and { rule, Now() + (seconds or 4) } or nil
+    UpdateTriggers()
+end
+function C.TryingTrigger() return trying and trying[1] or nil end
 
 local ticker = CreateFrame("Frame")
 local acc = 0
@@ -101,7 +134,7 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
     acc = acc + (elapsed or 0)
     if acc < 0.1 then return end
     acc = 0
-    if cast.start then UpdateR2() end
+    UpdateTriggers()
 end)
 
 ---------------------------------------------------------------------------
@@ -571,7 +604,8 @@ for _, ev in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "U
     "UNIT_SPELLCAST_DELAYED" }) do
     if not pcall(frame.RegisterUnitEvent, frame, ev, "player") then pcall(frame.RegisterEvent, frame, ev) end
 end
-for _, ev in ipairs({ "START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "ADDON_LOADED", "PLAYER_DEAD" }) do
+for _, ev in ipairs({ "START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PLAYER_ENTER_COMBAT", "PLAYER_LEAVE_COMBAT",
+    "ADDON_LOADED", "PLAYER_DEAD" }) do
     pcall(frame.RegisterEvent, frame, ev)
 end
 
@@ -595,8 +629,12 @@ frame:SetScript("OnEvent", function(_, event, unit)
         shooting = event == "START_AUTOREPEAT_SPELL"
         return UpdateR2()
     end
+    if event == "PLAYER_ENTER_COMBAT" or event == "PLAYER_LEAVE_COMBAT" then
+        attacking = event == "PLAYER_ENTER_COMBAT"
+        return UpdateTriggers()
+    end
     if event == "PLAYER_DEAD" then
-        cast.start, low, shooting = nil, false, false
+        cast.start, low, shooting, attacking = nil, false, false, false
         UpdateR2(); UpdateL2()
         return
     end
@@ -628,6 +666,5 @@ end)
 
 -- After a setting changes: the triggers as they should be now
 function C.Refresh()
-    UpdateR2()
-    UpdateL2()
+    UpdateTriggers()
 end
