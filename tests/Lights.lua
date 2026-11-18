@@ -56,7 +56,7 @@ local function Led()
     return r, g, b
 end
 
-for _, file in ipairs({ "HelperLink.lua", "Stack.lua", "LightPresets.lua", "Lights.lua" }) do
+for _, file in ipairs({ "HelperLink.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local K, LT = ns.HelperLink, ns.Lights
@@ -344,6 +344,34 @@ S:Default()
 ok(S:IsDefault() and not LT.Settings("moving").on, "Default")
 GetUnitSpeed = function() return 0 end
 St.ReadAll(); St.Refresh()
+-- Hush: feels at 30 %, lights at rest, no sounds, no moment lights
+local Hu = ns.Hush
+S:SetOn("moving", true)
+GetUnitSpeed = function() return 7 end
+St.ReadAll(); St.Refresh()
+ok(Now() == "moving" and ns.FeelScale() == 1, "Movement, full feels")
+Hu.Set(true)
+K.Step(1 / 60)
+ok(ns.FeelScale() == 0.3, "hushed: feels at 30 %")
+ok(S:Now().hushed and drawn.resting and drawn.hold == LT.LightByKey("breathe").id, "hushed: the light at rest")
+LT.Fire("crit")
+for _ = 1, 3 do K.Step(1 / 60) end
+ok(drawn.cue == 0, "hushed: no moment light")
+ok(K.Play("coin", 5) == false, "hushed: no sound")
+Hu.Set(false)
+K.Step(1 / 60)
+ok(ns.FeelScale() == 1 and drawn.hold == LT.LightByKey("steady").id, "unhushed: Movement again")
+-- when resting too
+IsResting = function() return true end
+Hu.SetAuto(true)
+ok(Hu.On() and ns.FeelScale() == 0.3, "Hush when resting")
+Hu.SetAuto(false)
+ok(not Hu.On(), "off")
+IsResting = nil
+S:SetOn("moving", false)
+GetUnitSpeed = function() return 0 end
+St.ReadAll(); St.Refresh()
+
 -- link off again: the row goes, the game draws
 K.SetEnabled(false)
 K.Step(1 / 60)

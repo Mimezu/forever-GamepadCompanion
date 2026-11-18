@@ -732,9 +732,10 @@ function LT.SendHold()
     if stack then stack:Refresh(true) end
 end
 
--- Start a moment's light: over the stack, then back to it
+-- Start a moment's light: over the stack, then back to it (not while hushed: lights at rest)
 local function Play(key, ctx, force)
     if not (LT.On() or force) then return end
+    if not force and St and St.Is("hush") then return end
     local s = LT.Settings(key)
     if not (s.on or force) then return end
     local l = LT.Light(s.light)

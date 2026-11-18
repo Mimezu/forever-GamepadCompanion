@@ -413,6 +413,11 @@ end
 
 local function Queue(item)
     if not K.Enabled() or #K.queue >= K.QUEUE_MAX then return false end
+    -- Hush (Hush.lua): no sounds, no moment lights; a touch still goes (the Feel channel scales it)
+    if ns.Stack and ns.Stack.Is("hush") then
+        item.sound, item.light = 0, nil
+        if (item.touch or 0) == 0 and not item.open then return false end
+    end
     K.queue[#K.queue + 1] = item
     return true
 end

@@ -488,6 +488,7 @@ end
 -- one driving the light now. Timing: Fade in, Fade out, Wait.
 ---------------------------------------------------------------------------
 local STATE_STEP, STATE_ROWS = 40, 11
+local ListArrows
 local TEAL = { 0.58, 0.76, 0.77 }
 local sts = { offset = 0, pool = {} }
 
@@ -521,21 +522,64 @@ local function PickPercent(anchor, row)
         for v = 10, 90, 5 do th[#th + 1] = { key = v, label = v .. "%" } end
         HUI.Popup(anchor, St.Label(row.condition), th, row.threshold, function(v)
             row.threshold = v
-            LT.stack:Refresh(true)
+            St.Refresh(true)
             Refresh()
         end, 6, 64)
     end, 3, 120)
 end
 
-local function StateRow(card, cw, i)
+-- (▲▼ hit areas: 28 px, the whole half of the row each)
+ListArrows = function(r)
+    r.up:SetHitRectInsets(0, 0, -2, -1)
+    r.down:SetHitRectInsets(0, 0, -1, -2)
+end
+
+-- A reactions list's chrome (lights and triggers alike): Otherwise pinned under the rows shown,
+-- "1-11 of 14" and a thumb when there are more than fit, `below` (a note) under Otherwise
+function ui.PlaceList(card, rows, offset, shown, otherwise, below)
+    local n = math.min(shown, #rows - offset)
+    otherwise:ClearAllPoints()
+    otherwise:SetPoint("TOPLEFT", 10, -38 - n * STATE_STEP)
+    if below then
+        below:ClearAllPoints()
+        below:SetPoint("TOPLEFT", 12, -38 - (n + 1) * STATE_STEP - 8)
+    end
+    if not card.range then
+        card.range = S.Text(card, "", 0, 0, 90, 11, DIM)
+        card.range:ClearAllPoints()
+        card.range:SetPoint("TOPRIGHT", -232, -14)
+        card.range:SetJustifyH("RIGHT")
+        card.track = card:CreateTexture(nil, "ARTWORK")
+        card.track:SetColorTexture(1, 0.85, 0.55, 0.08)
+        card.thumb = card:CreateTexture(nil, "OVERLAY")
+        card.thumb:SetColorTexture(1, 0.78, 0.25, 0.6)
+    end
+    local more = #rows > shown
+    card.range:SetText(more and ((offset + 1) .. "–" .. (offset + n) .. " of " .. #rows) or "")
+    card.track:SetShown(more)
+    card.thumb:SetShown(more)
+    if more then
+        local h = shown * STATE_STEP
+        card.track:ClearAllPoints()
+        card.track:SetPoint("TOPRIGHT", -4, -38)
+        card.track:SetSize(3, h)
+        local th = math.max(18, h * shown / #rows)
+        card.thumb:ClearAllPoints()
+        card.thumb:SetPoint("TOPRIGHT", -4, -38 - (h - th) * offset / math.max(1, #rows - shown))
+        card.thumb:SetSize(3, th)
+    end
+end
+
+-- one reaction row; o = { kind = fn -> the stack kind, pick = fn(anchor, id), try = fn(id) | nil, default = fn(id) }
+local function StateRow(card, cw, i, o)
     local r
     local function key() return r.key end
     r = HUI.MomentRow(card, -38 - (i - 1) * STATE_STEP, cw, nil, "", function(anchor)
-        ns.LightPicker.Open(anchor, key(), Refresh)
-    end, function() LT.Try(key()) end, nil, {
-        default = function() LT.Default(key()); Refresh() end,
+        o.pick(anchor, key())
+    end, o.try and function() o.try(key()) end or nil, nil, {
+        default = function() o.default(key()); Refresh() end,
         clear = function()
-            LT.stack:Remove(key())
+            o.kind():Remove(key())
             Say("Removed")
             Refresh()
         end,
@@ -551,13 +595,14 @@ local function StateRow(card, cw, i)
     r.teal:Hide()
     -- On / Off
     r.on = S.NewCheck(r, "", 2, -6, function(self)
-        LT.stack:SetOn(key(), self:GetChecked() == true)
+        o.kind():SetOn(key(), self:GetChecked() == true)
         Refresh()
     end, 0)
     S.Tooltip(r.on, "On")
     -- Up / Down (the pad), drag (the mouse)
-    r.up = S.NewButton(r, "▲", 30, -1, 22, function() LT.stack:Move(key(), -1); Refresh() end, nil, 9, 17)
-    r.down = S.NewButton(r, "▼", 30, -19, 22, function() LT.stack:Move(key(), 1); Refresh() end, nil, 9, 17)
+    r.up = S.NewButton(r, "▲", 28, -1, 28, function() o.kind():Move(key(), -1); Refresh() end, nil, 10, 18)
+    r.down = S.NewButton(r, "▼", 28, -20, 28, function() o.kind():Move(key(), 1); Refresh() end, nil, 10, 18)
+    ListArrows(r)
     S.Tooltip(r.up, "Up")
     S.Tooltip(r.down, "Down")
     r:RegisterForDrag("LeftButton")
@@ -569,7 +614,7 @@ local function StateRow(card, cw, i)
         local scale = card:GetEffectiveScale() or 1
         local top = card:GetTop() or 0
         local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + sts.offset
-        if LT.stack:MoveTo(key(), n) then Refresh() end
+        if o.kind():MoveTo(key(), n) then Refresh() end
     end)
     S.Tooltip(r, "Reorder reaction", "First match wins")
     -- the condition's words; a click: a percentage's operator and threshold
@@ -581,16 +626,16 @@ local function StateRow(card, cw, i)
     r.words:SetPoint("TOPLEFT", 56, -2)
     r.words:SetSize(220, 18)
     r.words:SetScript("OnClick", function(self)
-        local row = LT.stack:Row(key())
+        local row = o.kind():Row(key())
         if row and ns.Stack.IsPercentage(row.condition) then PickPercent(self, row) end
     end)
     -- + requirements (all must be true)
     r.req = S.NewButton(r, "+", 280, -8, 34, function(self)
-        local row = LT.stack:Row(key())
+        local row = o.kind():Row(key())
         if not row then return end
         HUI.Popup(self, "Add requirements · All must be true", ConditionEntries(row.condition, row), nil, function(c)
-            if not LT.stack:RemoveRequirement(row.id, c) then
-                local ok, bad = LT.stack:AddRequirement(row.id, c)
+            if not o.kind():RemoveRequirement(row.id, c) then
+                local ok, bad = o.kind():AddRequirement(row.id, c)
                 if not ok and bad then Say("Can't hold with " .. ns.Stack.Label(bad), true) end
             end
             Refresh()
@@ -618,7 +663,10 @@ function ui.BuildStates(panel, cw)
         Refresh()
     end, nil, 11, 24)
     S.Tooltip(ui.statesDefault, "Default", "The Recommended reactions, order and timing")
-    for i = 1, STATE_ROWS do sts.pool[i] = StateRow(card, cw, i) end
+    local LIGHT = { kind = function() return LT.stack end, pick = function(anchor, id) ns.LightPicker.Open(anchor, id, Refresh) end,
+        try = function(id) LT.Try(id) end, default = function(id) LT.Default(id) end }
+    for i = 1, STATE_ROWS do sts.pool[i] = StateRow(card, cw, i, LIGHT) end
+    if ns.Hush then ui.BuildFeelStates(panel, cw) end
     card:EnableMouseWheel(true)
     card:SetScript("OnMouseWheel", function(_, d)
         sts.offset = math.max(0, sts.offset - d)
@@ -645,11 +693,101 @@ function ui.BuildStates(panel, cw)
     T("Wait", 432, "wait", 5)
 end
 
+-- Feel (Hush.lua): the same list, each reaction a strength (× every feel), Otherwise full
+local fsts = { offset = 0, pool = {} }
+local function FK() return ns.Hush.kind end
+local function PickStrength(anchor, id)
+    local row = FK():Row(id)
+    if not row then return end
+    local list = {}
+    for v = 0, 100, 10 do list[#list + 1] = { key = v / 100, label = v .. "%" } end
+    HUI.Popup(anchor, ns.Stack.Words(row), list, row.feel, function(v)
+        row.feel = v
+        FK():Refresh(true)
+        Refresh()
+    end, 4, 70)
+end
+
+function ui.BuildFeelStates(panel, cw)
+    local card = S.Card(panel, "States", 0, 0, cw, PH)
+    ui.feelStates = card
+    S.Text(card, "First match wins · how strong every feel is", 120, -12, 320, 11, DIM)
+    S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
+        HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
+            local row = FK():Add(c)
+            row.feel = 0.5
+            fsts.offset = 0
+            Say(ns.Stack.Label(c) .. ": added on top")
+            Refresh()
+        end, 3, 200)
+    end, nil, 11, 24)
+    ui.feelDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
+        FK():Default()
+        Say("States: as they ship")
+        Refresh()
+    end, nil, 11, 24)
+    local FEEL = { kind = FK, pick = PickStrength, default = function(id) FK():Default(id) end }
+    for i = 1, STATE_ROWS do fsts.pool[i] = StateRow(card, cw, i, FEEL) end
+    card:EnableMouseWheel(true)
+    card:SetScript("OnMouseWheel", function(_, d)
+        fsts.offset = math.max(0, fsts.offset - d)
+        Refresh()
+    end)
+    local o = HUI.MomentRow(card, -38 - STATE_ROWS * STATE_STEP, cw, nil, "Otherwise", function() end, nil, "Full")
+    o.icon:Hide()
+    o.pick:SetEnabled(false)
+    o.teal = o:CreateTexture(nil, "BACKGROUND", nil, 2)
+    o.teal:SetAllPoints()
+    o.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
+    ui.feelOtherwise = o
+end
+
+function ui.RefreshFeelStates()
+    local St, stack = ns.Stack, FK()
+    local rows = stack:Rows()
+    fsts.offset = math.max(0, math.min(fsts.offset, #rows - STATE_ROWS))
+    local driving = stack:Driving()
+    for i, r in ipairs(fsts.pool) do
+        local row = rows[i + fsts.offset]
+        r:SetShown(row ~= nil)
+        if row then
+            r.key = row.id
+            local pct = math.floor((tonumber(row.feel) or 1) * 100 + 0.5) .. "%"
+            r:SetChoice(pct, nil, nil, row.on == false, nil, stack:IsDefault(row.id) or stack:Recommended(row.id) == nil)
+            r.label:SetText(St.Words(row))
+            r.sub:SetText(driving[row.id] and "Now" or (St.Matches(row) and "Matches" or ""))
+            r.teal:SetShown(driving[row.id] ~= nil)
+            r.on:SetChecked(row.on ~= false)
+            r.up:SetEnabled(i + fsts.offset > 1)
+            r.down:SetEnabled(i + fsts.offset < #rows)
+            r.req.label:SetText(row.requirements and ("+" .. #row.requirements) or "+")
+            r.default:SetShown(stack:Recommended(row.id) ~= nil)
+        end
+    end
+    ui.PlaceList(ui.feelStates, rows, fsts.offset, STATE_ROWS, ui.feelOtherwise)
+    local full = stack:Now().feel.row == nil
+    ui.feelOtherwise:SetChoice("Full", nil, full and "Now" or nil, false, nil, true)
+    ui.feelOtherwise.teal:SetShown(full)
+    ui.feelDefault:SetEnabled(not stack:IsDefault())
+end
+
 function ui.RefreshStates(kind)
     local light = kind == "light"
+    local feel = kind == "feel" and ui.feelStates ~= nil
     local btn = ui.browser.buttons.states
-    if btn then btn:SetShown(light) end
-    if not light and ui.browser.current == "states" then ui.browser.Select(GROUPS[1].key) end
+    if btn then btn:SetShown(light or feel) end
+    if not (light or feel) and ui.browser.current == "states" then ui.browser.Select(GROUPS[1].key) end
+    ui.states:SetShown(light)
+    if ui.feelStates then ui.feelStates:SetShown(feel) end
+    if feel then
+        ui.RefreshFeelStates()
+        if btn then
+            local on = 0
+            for _, row in ipairs(FK():Rows()) do if row.on ~= false then on = on + 1 end end
+            btn.count:SetText(on .. "/" .. #FK():Rows())
+        end
+        return
+    end
     local St, stack = ns.Stack, LT.stack
     local rows = stack:Rows()
     sts.offset = math.max(0, math.min(sts.offset, #rows - STATE_ROWS))
@@ -670,7 +808,7 @@ function ui.RefreshStates(kind)
             if chs then
                 for _, ch in ipairs(chs) do tags[#tags + 1] = ch == "bar" and "Bar" or ch == "mic" and "Mic" or "Dots" end
             end
-            local tail = #tags > 0 and ("Now: " .. table.concat(tags, ", ")) or (St.Matches(row) and "True now" or nil)
+            local tail = #tags > 0 and ("Now: " .. table.concat(tags, ", ")) or (St.Matches(row) and "Matches" or nil)
             r.sub:SetText(sub and tail and (sub .. " · " .. tail) or sub or tail or "")
             r.teal:SetShown(chs ~= nil)
             r.on:SetChecked(row.on ~= false)
@@ -681,6 +819,7 @@ function ui.RefreshStates(kind)
         end
     end
     local o = ui.otherwise
+    ui.PlaceList(ui.states, rows, sts.offset, STATE_ROWS, o)
     local b = LT.Base()
     local base = LT.LightByKey(b.light)
     local now = stack:Now()
@@ -779,8 +918,9 @@ local function TriggerRow(card, cw, i)
     r.teal:Hide()
     r.on = S.NewCheck(r, "", 2, -6, function(self) TK():SetOn(key(), self:GetChecked() == true); Refresh() end, 0)
     S.Tooltip(r.on, "On")
-    r.up = S.NewButton(r, "▲", 30, -1, 22, function() TK():Move(key(), -1); Refresh() end, nil, 9, 17)
-    r.down = S.NewButton(r, "▼", 30, -19, 22, function() TK():Move(key(), 1); Refresh() end, nil, 9, 17)
+    r.up = S.NewButton(r, "▲", 28, -1, 28, function() TK():Move(key(), -1); Refresh() end, nil, 10, 18)
+    r.down = S.NewButton(r, "▼", 28, -20, 28, function() TK():Move(key(), 1); Refresh() end, nil, 10, 18)
+    ListArrows(r)
     S.Tooltip(r.up, "Up")
     S.Tooltip(r.down, "Down")
     r:RegisterForDrag("LeftButton")
@@ -852,7 +992,7 @@ function ui.BuildTriggerStack(panel, cw)
     o.teal:SetAllPoints()
     o.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
     ui.trigOtherwise = o
-    S.Text(card, "Shapes: WoW Helper › Triggers", 12, -38 - (TG_ROWS + 1) * STATE_STEP - 8, cw - 24, 11, DIM)
+    ui.trigShapes = S.Text(card, "Shapes: WoW Helper › Triggers", 12, -38 - (TG_ROWS + 1) * STATE_STEP - 8, cw - 24, 11, DIM)
     -- the teal rows follow the game while the list is open
     local acc = 0
     card:SetScript("OnUpdate", function(_, e)
@@ -890,7 +1030,7 @@ function ui.RefreshTriggerStack(kind)
             r.pick2.label:SetText("L2 · " .. TS.Words(row.L2))
             r.label:SetText(St.Words(row))
             local chs = driving[row.id]
-            local tail = chs and ("Now: " .. table.concat(chs, ", ")) or (St.Matches(row) and "True now" or "")
+            local tail = chs and ("Now: " .. table.concat(chs, ", ")) or (St.Matches(row) and "Matches" or "")
             if TS.Trying() == row.id then tail = "Trying" end
             r.sub:SetText(tail)
             r.teal:SetShown(chs ~= nil)
@@ -901,6 +1041,7 @@ function ui.RefreshTriggerStack(kind)
             r.default:SetShown(stack:Recommended(row.id) ~= nil)
         end
     end
+    ui.PlaceList(ui.trigStack, rows, tgs.offset, TG_ROWS, ui.trigOtherwise, ui.trigShapes)
     local now = stack:Now()
     local free = {}
     for _, ch in ipairs(TS.CHANNELS) do if not now[ch].row then free[#free + 1] = ch end end

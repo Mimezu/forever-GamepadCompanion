@@ -88,6 +88,26 @@ shape id, value = 0-1 | nil, count = n | nil }`.
 - Moments › Triggers: the States list's pieces; each row has two plates (R2, L2; Pass), Try
   sweeps a followed value 0 -> 1 over 3 s.
 
+## Feel and Hush (Hush.lua)
+
+- **Feel** is a kind with one channel, a strength (× on every feel: the mixer's output, the
+  plain motors, WoW Helper's HD touch; `ns.FeelScale()`). Its reactions are rows like any other:
+  Recommended **Hush → 30 %** (on), **Resting → 30 %**, **In an instance → 50 %**, **In raid →
+  full** (off); Otherwise full. Moments › Feel › States, the same list.
+- **Hush** is a condition (`hush`, System) set by the footer's **Hush** chip (click: on / off;
+  right-click: also while resting). While it holds, every kind resolves to **Otherwise** (lights
+  at rest, triggers free) unless its spec says `hush = "rows"` (Feel: its Hush row says how
+  quiet); no sounds and no moment lights go out (HelperLink's queue, Lights' Play).
+- Generic: `spec.hush = "base"` (default) or `"rows"`; `result.hushed` while it holds.
+- **Rows shipped later** reach a saved list at their Recommended place; a Recommended row the
+  player removed stays removed (`store.removed`), until Default.
+
+## The list (lights, triggers, feel)
+
+One builder (`StateRow`, `ui.PlaceList`): Otherwise pinned under the rows shown, "1–11 of 14"
+and a thumb when more, ▲▼ 28 px (the pad and the mouse), "Matches" on a row that matches but
+sets nothing it wins, "Now: Bar, Mic" on the teal rows.
+
 ## The strip
 
 The light row is one row inward of the v2 strip (yellow marker, 17 or 23 cells); the triggers'

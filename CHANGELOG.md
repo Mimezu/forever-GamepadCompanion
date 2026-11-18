@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.51.0 — 2026-11-18
+
+- **Hush**: a chip in the footer. Feels at 30 %, the light at rest, triggers free, no sounds. Right-click: also while resting
+- **Feel › States**: how strong every feel is, by reaction, like the light's list: Hush 30 %, Resting 30 %, In an instance 50 %, In raid full (the last three off until you turn them on); Otherwise full
+- The States lists: "Matches" (was True now); Otherwise right under the rows; "1–11 of 14" and a thumb when there are more; ▲▼ easier to hit
+- A reaction shipped later joins your list at its place; one you removed stays removed
+
 ## 0.50.1 — 2026-11-18
 
 - **The footer says what it knows**: **WoW Helper · read 18:02** (green: its data file read at login), **not read** (orange), **off** (grey); never "Linked". Setup's WoW Helper card says the same. **No pad** (grey) beside it while the game sees no pad; Try says "No pad"

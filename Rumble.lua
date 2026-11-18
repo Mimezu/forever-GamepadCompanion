@@ -724,6 +724,9 @@ local function motors(low, high)
     if not (C_GamePad and C_GamePad.SetVibration) then return end
     local H = Mixer()
     if H then return H.Set("rumble", low, high) end
+    -- (the Feel channel: Hush, Resting 30 %… Hush.lua; the mixer applies it itself)
+    local scale = ns.FeelScale and ns.FeelScale() or 1
+    low, high = low * scale, high * scale
     if high > 0 then high = HIGH_FLOOR + (1 - HIGH_FLOOR) * high end
     C_GamePad.SetVibration("Low", low)
     C_GamePad.SetVibration("High", high)

@@ -156,4 +156,26 @@ k:Default("combat")
 ok(k:Row("combat").on == true and k:IsDefault("combat"), "one reaction back")
 k:Default()
 ok(k:IsDefault() and k:Timing().wait == 0 and k:Row("moving").source == nil, "all back")
+-- a Recommended reaction shipped later reaches a saved list, at its place; a removed one stays out
+store.rows = { St.Copy(recommended[2]), St.Copy(recommended[3]) }   -- (saved before lowHp existed)
+ok(k:Rows()[1].id == "lowHp" and #k:Rows() == 3, "a new Recommended reaction joins a saved list")
+k:Remove("lowHp")
+ok(#k:Rows() == 2 and not k:Row("lowHp"), "removed: it stays removed")
+k:Default()
+ok(k:Row("lowHp") ~= nil, "Default brings it back")
+
+-- Hush: every kind shows Otherwise (triggers free), except one that mixes it with its rows
+world.combat = true
+event("PLAYER_REGEN_DISABLED")
+ok(result.L2.row and result.L2.row.id == "combat", "in combat")
+St.Set("hush", true)
+ok(result.L2.row == nil and result.R2.row == nil and result.hushed, "hushed: Otherwise everywhere")
+local mixed
+local feel = St.Kind("feel", { channels = { "feel" }, store = function() return {} end, hush = "rows",
+    recommended = { { id = "hush", condition = "hush", on = true, feel = 0.3 } },
+    value = function(row) return row.feel end, base = function() return 1 end, apply = function(r) mixed = r.feel.value end })
+feel:Refresh(true)
+ok(mixed == 0.3, "a mixing kind: its Hush row (30 %)")
+St.Set("hush", false)
+ok(result.L2.row.id == "combat" and mixed == 1, "unhushed: as before")
 print("Stack: ok (" .. checks .. " checks)")

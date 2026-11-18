@@ -486,7 +486,8 @@ driver:SetScript("OnUpdate", function()
     local l, r, lt, rt, raw, any = H.Mix(now)
     -- Calibration (not for a probe's raw levels), the battery
     if not raw then
-        local battery = H.BatteryFactor()
+        -- (and the Feel channel: Hush, Resting 30 %… Hush.lua)
+        local battery = H.BatteryFactor() * (ns.FeelScale and ns.FeelScale() or 1)
         l, r = H.Calibrated(1, l * battery), H.Calibrated(2, r * battery)
         lt, rt = clamp(lt * battery), clamp(rt * battery)
         -- Shortest pulse: a side that rose from rest stays up at least db.minPulse

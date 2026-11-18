@@ -22,7 +22,7 @@ P.Copy = Copy
 -- What a Feel profile holds (GamepadCompanionHapticsDB), and what the
 -- Controls profile's bars leave account-wide
 ---------------------------------------------------------------------------
-P.FEEL_TABLES = { "events", "lightEvents", "lightBase", "lightStack", "triggerStack", "spells" }
+P.FEEL_TABLES = { "events", "lightEvents", "lightBase", "lightStack", "triggerStack", "feelStack", "spells" }
 P.FEEL_VALUES = { "light", "lightGameOnly", "landMin", "landMax", "landLong", "stepNudge", "triggers", "kick", "minPulse" }
 P.FEEL_NESTED = { { "link", "cues", "cues" }, { "link", "sounds", "sounds" }, { "link", "trigRules", "triggerRules" }, { "volume", "feel", "volumeFeel" },
     { "volume", "sound", "volumeSound" } }

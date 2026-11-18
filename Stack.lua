@@ -130,6 +130,7 @@ St.Condition("indoors", { label = "Indoors", category = "social", test = functio
 St.Condition("outdoors", { label = "Outdoors", category = "social", test = function() return call(IsOutdoors) == true end,
     events = { "ZONE_CHANGED_INDOORS", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA" } })
 -- System
+St.Condition("hush", { label = "Hush", category = "system" })   -- (Hush.lua: the footer's chip, or when resting)
 St.Condition("afk", { label = "Away", category = "system", test = function() return call(UnitIsAFK, "player") == true end,
     events = { "PLAYER_FLAGS_CHANGED" } })
 -- Events: true for a while after they happen (again: the while restarts)
@@ -260,6 +261,8 @@ Kind.__index = Kind
 --   live = true                    -- (optional) re-resolve when a value source moves (gauges)
 --   timing = { fadeIn =, fadeOut =, wait = }   -- (optional) Recommended timing
 --   prepare = fn()                 -- (optional) before the first rows: migrate an older saved form
+--   hush = "base" | "rows"         -- (optional) while Hush holds: every channel Otherwise (default),
+--                                     or the rows as usual (a kind that is itself the mixer: Feel)
 -- }
 function St.Kind(name, spec)
     local k = setmetatable({ name = name, spec = spec, last = nil, held = {} }, Kind)
@@ -283,6 +286,22 @@ function Kind:Rows()
     if type(store.rows) ~= "table" and self.spec.prepare then self.spec.prepare() end
     if type(store.rows) ~= "table" then
         store.rows = Copy(self.spec.recommended)
+    end
+    -- (a Recommended reaction shipped later: at its place, unless the player removed it)
+    local have = {}
+    for _, r in ipairs(store.rows) do have[r.id] = true end
+    local removed = type(store.removed) == "table" and store.removed or {}
+    for i, rec in ipairs(self.spec.recommended) do
+        if not have[rec.id] and not removed[rec.id] then
+            local at = 1
+            for j = i - 1, 1, -1 do
+                local above = self.spec.recommended[j].id
+                for p, r in ipairs(store.rows) do if r.id == above then at = p + 1 end end
+                if at > 1 then break end
+            end
+            table.insert(store.rows, at, Copy(rec))
+            have[rec.id] = true
+        end
     end
     return store.rows
 end
@@ -326,7 +345,15 @@ end
 
 function Kind:Remove(id)
     local _, i = self:Row(id)
-    if i then table.remove(self:Rows(), i); Changed(self) end
+    if not i then return end
+    table.remove(self:Rows(), i)
+    -- (a Recommended one stays removed: not brought back as new)
+    if self:Recommended(id) then
+        local store = self.spec.store()
+        store.removed = type(store.removed) == "table" and store.removed or {}
+        store.removed[id] = true
+    end
+    Changed(self)
 end
 
 function Kind:Move(id, delta)
@@ -404,7 +431,7 @@ function Kind:Default(id)
         end
     else
         local store = self.spec.store()
-        store.rows, store.timing = nil, nil
+        store.rows, store.timing, store.removed = nil, nil, nil
     end
     Changed(self)
 end
@@ -431,6 +458,12 @@ end
 function Kind:Resolve()
     local spec, result = self.spec, {}
     local rows, timing, now = self:Rows(), self:Timing(), Now()
+    -- Hush: every channel Otherwise (lights at rest, triggers free), unless the kind mixes it
+    if spec.hush ~= "rows" and Holds("hush") then
+        for _, ch in ipairs(spec.channels) do result[ch] = { value = spec.base(ch), row = nil } end
+        result.timing, result.hushed = timing, true
+        return result
+    end
     local matched = {}
     for _, r in ipairs(rows) do
         if r.on ~= false and St.Matches(r) then self.held[r.id], matched[r.id] = now, true end
@@ -466,7 +499,7 @@ local function Same(spec, a, b)
     if not (a and b) then return a == b end
     for _, ch in ipairs(spec.channels) do
         local x, y = a[ch], b[ch]
-        if x.row ~= y.row then return false end
+        if x.row ~= y.row or a.hushed ~= b.hushed then return false end
         if spec.same then
             if not spec.same(x.value, y.value) then return false end
         elseif not Equal(x.value, y.value) then
