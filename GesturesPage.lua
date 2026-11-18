@@ -8,7 +8,7 @@ local S, Shell, HUI = ns.OptionsSkin, ns.Shell, ns.HapticsUI
 local W, PH = Shell.W, Shell.H
 
 local ui = { rows = {} }
-local ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true }
+local ACCEPTS = ns.TouchModel.ACCEPTS
 local CARD_W = 700
 local MOTION_ICON = "Interface\\Icons\\Ability_Rogue_Sprint"
 

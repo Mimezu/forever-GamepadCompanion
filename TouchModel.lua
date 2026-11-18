@@ -673,6 +673,111 @@ for _, w in ipairs(T.WINDOWS) do T.WINDOW_BY_KEY[w.key] = w end
 -- (World Map, removed: Forever's map is Quests & Map)
 T.WINDOW_BY_KEY.map = T.WINDOW_BY_KEY.questlog
 
+-- Quick use: the best item of a kind in the bags, or a fixed use. Quick.lua
+-- picks the items out of combat and gives each its macro; in combat the last
+-- pick stays. Used by every binder (zones, gestures, pad buttons).
+T.QUICK = {
+    { key = "food", label = "Food", icon = I .. "INV_Misc_Food_15", none = "No food" },
+    { key = "drink", label = "Drink", icon = I .. "INV_Drink_07", none = "No drink" },
+    { key = "health", label = "Health potion", icon = I .. "INV_Potion_54", none = "No potion" },
+    { key = "mana", label = "Mana potion", icon = I .. "INV_Potion_76", none = "No potion" },
+    { key = "trinket1", label = "Trinket 1", icon = I .. "INV_Jewelry_Talisman_01", slot = 13, none = "Empty slot" },
+    { key = "trinket2", label = "Trinket 2", icon = I .. "INV_Jewelry_Talisman_02", slot = 14, none = "Empty slot" },
+    { key = "mount", label = "Random mount", icon = I .. "Ability_Mount_RidingHorse", run = "C_MountJournal.SummonByID(0)" },
+    { key = "pet", label = "Random pet", icon = I .. "INV_Box_PetCarrier_01", run = "C_PetJournal.SummonRandomPet(false)" },
+}
+T.QUICK_BY_KEY = {}
+for _, q in ipairs(T.QUICK) do T.QUICK_BY_KEY[q.key] = q end
+
+-- A mage's food and water
+T.CONJURED = {}
+for _, id in ipairs({ 5349, 1113, 1114, 1487, 8075, 8076, 22895, 5350, 2288, 2136, 3772, 8077, 8078, 8079 }) do
+    T.CONJURED[id] = true
+end
+-- A warlock's healthstones (Minor to Major, with the Improved ones)
+T.HEALTHSTONES = {}
+for _, id in ipairs({ 5512, 19004, 19005, 5511, 19006, 19007, 5509, 19008, 19009,
+    5510, 19010, 19011, 9421, 19012, 19013 }) do
+    T.HEALTHSTONES[id] = true
+end
+
+--[[ What a bag item is for: { food = true, drink = true, health = true, mana = true }
+or nil. item: { id, name, spell (its use spell's name), classID, subclass }.
+Food and drink by the use spell ("Food", "Drink", "Refreshment"); potions by
+name ("Healing", "Mana", "Rejuvenation"). ]]
+function T.QuickKinds(item)
+    if T.HEALTHSTONES[item.id] then return { health = true } end
+    if item.classID ~= 0 then return nil end
+    local spell = (item.spell or ""):lower()
+    if item.subclass == 5 then
+        local drink, food = spell:find("drink") ~= nil, spell:find("food") ~= nil
+        if spell:find("refreshment") or (drink and food) then return { food = true, drink = true } end
+        if drink then return { drink = true } end
+        if food then return { food = true } end
+        return nil
+    end
+    if item.subclass == 1 then
+        local text = ((item.name or "") .. " " .. spell):lower()
+        local both = text:find("rejuvenation") ~= nil
+        local health = both or text:find("heal") ~= nil
+        local mana = both or text:find("mana") ~= nil
+        if health or mana then return { health = health or nil, mana = mana or nil } end
+    end
+    return nil
+end
+
+--[[ The items for a Quick use key, best first: { id, ... }. items: as above,
+plus reqLevel, ilvl, quality, buff (Well Fed food), usable (false: the game
+says no). Conjured first, then healthstones, then the highest level; buff
+food only when nothing else is left. ]]
+function T.QuickOrder(key, items, level)
+    local list = {}
+    for _, item in ipairs(items) do
+        local kinds = T.QuickKinds(item)
+        local fits = kinds and kinds[key] and item.usable ~= false
+            and not (item.reqLevel and level and item.reqLevel > level)
+        if fits then list[#list + 1] = item end
+    end
+    local function Rank(item)
+        return (T.CONJURED[item.id] or T.HEALTHSTONES[item.id]) and 0 or (item.buff and 2 or 1)
+    end
+    table.sort(list, function(a, b)
+        local ra, rb = Rank(a), Rank(b)
+        if ra ~= rb then return ra < rb end
+        if (a.reqLevel or 0) ~= (b.reqLevel or 0) then return (a.reqLevel or 0) > (b.reqLevel or 0) end
+        if (a.ilvl or 0) ~= (b.ilvl or 0) then return (a.ilvl or 0) > (b.ilvl or 0) end
+        if (a.quality or 0) ~= (b.quality or 0) then return (a.quality or 0) > (b.quality or 0) end
+        return a.id > b.id
+    end)
+    local ids = {}
+    for i, item in ipairs(list) do ids[i] = item.id end
+    return ids
+end
+
+--[[ The macro for a Quick use key, from its picked items (best first), or nil.
+Food and drink: the best one (they can't be used in combat, and the pick is
+redone as soon as the bags change). Potions: the best and up to two more, all
+sharing one cooldown, so a press uses the first one still in the bags.
+Healthstones and potions don't share it: a stone in the bags is the only pick. ]]
+function T.QuickMacro(key, ids)
+    local q = T.QUICK_BY_KEY[key]
+    if not q then return nil end
+    if q.slot then return "/use " .. q.slot end
+    if q.run then return "/run " .. q.run end
+    if not (ids and ids[1]) then return nil end
+    if key == "food" or key == "drink" then return "/use item:" .. ids[1] end
+    local stone = T.HEALTHSTONES[ids[1]] == true
+    local lines = {}
+    for _, id in ipairs(ids) do
+        if #lines >= 3 then break end
+        if (T.HEALTHSTONES[id] == true) == stone then lines[#lines + 1] = "/use item:" .. id end
+    end
+    return table.concat(lines, "\n")
+end
+
+-- The kinds of action every binder takes (bar slots take spell, item, macro)
+T.ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true, quick = true, pet = true }
+
 --[[ A zone's macro text, or nil. lookup has the game calls:
   button(name)   true when that global button exists
   spellName(id), macroBody(name) ]]
@@ -685,6 +790,11 @@ function T.MacroText(action, lookup)
             if lookup.button(name) then return "/click " .. name end
         end
         return w and w.run and ("/run " .. w.run) or nil
+    elseif kind == "quick" then
+        return lookup.quick and lookup.quick(value) or nil
+    elseif kind == "pet" then
+        -- (a battle pet GUID: letters, digits, dashes)
+        return value:match("^[%w%-]+$") and ('/run C_PetJournal.SummonPetByGUID("' .. value .. '")') or nil
     elseif kind == "spell" then
         local name = lookup.spellName(tonumber(value))
         return name and ("/cast " .. name) or nil

@@ -111,7 +111,7 @@ end
 -- What the card edits: a bar slot, a button, or a touchpad zone. Each gives,
 -- per layer, { name, icon, atlas, kind, own } and sets / clears an action.
 
-local ALL = { spell = true, item = true, macro = true, halo = true, window = true, text = true }
+local ALL = T.ACCEPTS
 local BAR = { spell = true, item = true, macro = true }
 
 local function PlaceOnSlot(storage, action)
@@ -148,7 +148,8 @@ local function FromAction(action, own, inherited)
     if not action then return nil end
     local name, icon, atlas = Look(action)
     local kind = action:match("^(%a+):")
-    local kinds = { spell = "Spell", item = "Item", macro = "Macro", window = "Window", halo = "Halo ring", text = "Typed macro" }
+    local kinds = { spell = "Spell", item = "Item", macro = "Macro", window = "Window", halo = "Halo ring", text = "Typed macro",
+        quick = "Quick use", pet = "Pet" }
     return { name = name, icon = icon, atlas = atlas, kind = (kinds[kind] or kind) .. (inherited and " · Base" or ""),
         own = own, inherited = inherited, action = action }
 end

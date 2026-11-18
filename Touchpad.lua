@@ -568,6 +568,13 @@ local function ActionLook(action)
         local ring = ns.Shared.HaloRing(value)
         if not ring then return "Halo ring" end
         return ring.name or "Halo ring", ns.Shared.HaloIcon(ring)
+    elseif kind == "quick" then
+        if ns.Quick then return ns.Quick.Look(value) end
+    elseif kind == "pet" then
+        local info = C_PetJournal and C_PetJournal.GetPetInfoByPetID
+        local ok, _, custom, _, _, _, _, _, name, icon = pcall(info, value)
+        if ok and name then return (custom and custom ~= "") and custom or name, icon end
+        return "Pet"
     end
     return action
 end

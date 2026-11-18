@@ -324,7 +324,7 @@ ui.buttons.l3.scripts.OnClick(ui.buttons.l3)
 ui.choose.scripts.OnClick(ui.choose)
 keys = {}
 for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
-eq(table.concat(keys, ","), "spells:Holy,items,macros,halo,windows,text", "button: every kind")
+eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,text", "button: every kind")
 pui.cats.halo.scripts.OnClick(pui.cats.halo)
 eq(pui.tiles[1].entry.name, "Utility", "Halo rings of this character")
 check(not pui.tiles[2]:IsShown(), "another character's ring left out")

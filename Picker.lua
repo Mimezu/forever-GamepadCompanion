@@ -3,7 +3,7 @@
 -- items, macros, Halo rings, windows, a typed macro), a search box and an
 -- icon grid. Picker.Open{ title, accepts, current, onPick }.
 -- Actions use the touchpad's format: spell:<id>, item:<id>, macro:<name>,
--- window:<key>, halo:<ring id>, text:<macro text>.
+-- window:<key>, halo:<ring id>, text:<macro text>, quick:<key>, pet:<guid>.
 local _, ns = ...
 local S, T, Sh = ns.OptionsSkin, ns.TouchModel, ns.Shared
 local Picker = {}
@@ -140,6 +140,37 @@ local function Windows()
     return list
 end
 
+local function QuickUse()
+    local list = {}
+    for _, q in ipairs(T.QUICK) do
+        local action = "quick:" .. q.key
+        local _, icon = ns.Touch.ActionLook(action)
+        list[#list + 1] = { action = action, name = q.label, icon = icon or q.icon }
+    end
+    return list
+end
+
+-- Collected mounts (cast by their spell) and owned pets, by name
+local function Mounts()
+    local list, journal = {}, C_MountJournal
+    for _, id in ipairs(journal and Call(journal.GetMountIDs) or {}) do
+        local name, spellID, icon, _, _, _, _, _, _, _, collected = Call(journal.GetMountInfoByID, id)
+        if name and spellID and collected then list[#list + 1] = { action = "spell:" .. spellID, name = name, icon = icon, spell = spellID } end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    return list
+end
+
+local function Pets()
+    local list, journal = {}, C_PetJournal
+    for _, guid in ipairs(journal and Call(journal.GetOwnedPetIDs) or {}) do
+        local _, custom, _, _, _, _, _, name, icon = Call(journal.GetPetInfoByPetID, guid)
+        if name then list[#list + 1] = { action = "pet:" .. guid, name = (custom and custom ~= "") and custom or name, icon = icon } end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    return list
+end
+
 local function Rings()
     local list = {}
     for _, ring in ipairs(Sh.HaloRings()) do
@@ -156,11 +187,20 @@ local function Categories()
             cats[#cats + 1] = { key = "spells:" .. line.name, label = line.name, icon = line.icon, list = line.list, group = "Spells" }
         end
     end
+    if accepts.quick then cats[#cats + 1] = { key = "quick", label = "Quick use", list = QuickUse(), group = "More" } end
     if accepts.item then cats[#cats + 1] = { key = "items", label = "Items", list = Items(), group = "More" } end
     if accepts.macro then cats[#cats + 1] = { key = "macros", label = "Macros", list = Macros(), group = "More" } end
     if accepts.halo then
         local rings = Rings()
         if #rings > 0 then cats[#cats + 1] = { key = "halo", label = "Halo rings", list = rings, group = "More" } end
+    end
+    if accepts.spell and accepts.pet then
+        local mounts = Mounts()
+        if #mounts > 0 then cats[#cats + 1] = { key = "mounts", label = "Mounts", list = mounts, group = "More" } end
+    end
+    if accepts.pet then
+        local pets = Pets()
+        if #pets > 0 then cats[#cats + 1] = { key = "pets", label = "Pets", list = pets, group = "More" } end
     end
     if accepts.window then cats[#cats + 1] = { key = "windows", label = "Windows", list = Windows(), group = "More" } end
     if accepts.text then cats[#cats + 1] = { key = "text", label = "Typed macro", text = true, group = "More" } end
