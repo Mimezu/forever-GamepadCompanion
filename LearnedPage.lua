@@ -10,8 +10,10 @@ if not (page and page.AddPanel and S and V and HUI and T) then return end
 local P = {}
 ns.LearnedPage = P
 local ROWS = 9
+P.ROWS = ROWS
 local HAND = { main = "main hand", off = "off hand", ranged = "ranged" }
--- (a weapon kind's own swing, for Try)
+-- (a gathering action's feel, and a weapon kind's own swing, for Try)
+local GATHER = { mining = "pickaxe", herbalism = "pluck", skinning = "skin" }
 local SWING = { dagger = "swDagger", oneHand = "swSword", twoHand = "swSword2", polearm = "swPolearm", staff = "swStaff",
     fist = "swFist", unarmed = "swFist", form = "swFist", ranged = "string" }
 
@@ -53,16 +55,46 @@ function P.Nodes()
     return list
 end
 
--- Try a node: its strikes as learned (the first at once, the next a period on)
-local function TryStrikes(period)
-    V.Play("pickaxe")
-    if C_Timer and C_Timer.After and period and period > 0.2 then C_Timer.After(period, function() V.Play("pickaxe") end) end
+local function After(t, fn)
+    if t and t > 0.01 and C_Timer and C_Timer.After then C_Timer.After(t, fn) else fn() end
 end
 
--- A card of up to ROWS read-only rows, filled from list() on each refresh
+-- Try a node or an action: its own feel at its strikes as learned (the first
+-- at its time, the next a period on) -> the feel played
+function P.TryStrikes(action, first, period)
+    local pattern = GATHER[action] or "pickaxe"
+    After(first, function()
+        V.Play(pattern)
+        if period and period > 0.2 then After(period, function() V.Play(pattern) end) end
+    end)
+    return pattern
+end
+
+-- Try a weapon: its swing as it lands (its learned delay on) -> the feel played
+function P.TryWeapon(kind, delay)
+    local pattern = SWING[kind] or "swSword"
+    After(delay, function() V.Play(pattern) end)
+    return pattern
+end
+
+-- The rows shown from `offset` (clamped) of `n`: the offset, and "1–9 of 24" (none when all fit)
+function P.Window(n, offset)
+    offset = math.max(0, math.min(offset or 0, n - ROWS))
+    return offset, n > ROWS and ((offset + 1) .. "–" .. math.min(n, offset + ROWS) .. " of " .. n) or ""
+end
+
+-- A card of ROWS read-only rows, filled from list() on each refresh; the wheel scrolls the rest
+-- ("1–9 of 24" and a thumb when more than fit)
 local function Card(panel, cw, pg, title, list, fill)
     local card = S.Card(panel, title, 0, 0, cw, 44 + ROWS * HUI.ROW_H)
-    local rows = {}
+    local rows, offset = {}, 0
+    local range = S.Text(card, "", 0, 0, 90, 11, S.DIM)
+    range:ClearAllPoints()
+    range:SetPoint("TOPRIGHT", -14, -14)
+    range:SetJustifyH("RIGHT")
+    local thumb = card:CreateTexture(nil, "OVERLAY")
+    thumb:SetColorTexture(1, 0.78, 0.25, 0.6)
+    card.range = range
     for i = 1, ROWS do
         local row
         row = HUI.MomentRow(card, -38 - (i - 1) * HUI.ROW_H, cw, nil, "", function() end,
@@ -72,16 +104,34 @@ local function Card(panel, cw, pg, title, list, fill)
         rows[i] = row
     end
     local empty = S.Text(card, "Nothing learned yet", 14, -44, cw - 28, 12, S.DIM)
-    pg.refresh[#pg.refresh + 1] = function()
+    function card.Fill()
         local items = list()
+        local text
+        offset, text = P.Window(#items, offset)
+        range:SetText(text)
         empty:SetShown(#items == 0)
+        thumb:SetShown(#items > ROWS)
+        if #items > ROWS then
+            local h = ROWS * HUI.ROW_H
+            local th = math.max(18, h * ROWS / #items)
+            thumb:ClearAllPoints()
+            thumb:SetPoint("TOPRIGHT", -4, -38 - (h - th) * offset / (#items - ROWS))
+            thumb:SetSize(3, th)
+        end
         for i, row in ipairs(rows) do
-            local item = items[i]
+            local item = items[offset + i]
             row.item = item
             row:SetShown(item ~= nil)
             if item then fill(row, item) end
         end
     end
+    function card.Scroll(delta)
+        offset = offset - delta
+        card.Fill()
+    end
+    card:EnableMouseWheel(true)
+    card:SetScript("OnMouseWheel", function(_, d) card.Scroll(d) end)
+    pg.refresh[#pg.refresh + 1] = card.Fill
     return card
 end
 
@@ -91,18 +141,18 @@ page.AddPanel({ after = "Attacks", key = "learnedWeapons", label = "Learned · w
         row.icon:SetTexture(p and p.icon)
         row.label:SetText(T.Label(w.kind) .. " · " .. (HAND[w.hand] or w.hand))
         row:SetChoice(string.format("%.2f s", w.delay or 0), nil, Status(w.ready, w.hits, "hits"), false, nil, true)
-        row.try_ = function(it) V.Play(SWING[it.kind] or "swSword") end
+        row.try_ = function(it) P.TryWeapon(it.kind, it.delay) end
     end)
 end })
 
 page.AddPanel({ after = "Abilities", key = "learnedNodes", label = "Learned · gathering", build = function(panel, cw, pg)
     P.nodes = Card(panel, cw, pg, "Learned · gathering", P.Nodes, function(row, n)
-        local p = V.Pattern(n.action == "herbalism" and "pluck" or n.action == "skinning" and "skin" or "pickaxe")
+        local p = V.Pattern(GATHER[n.action] or "pickaxe")
         row.icon:SetTexture(p and p.icon)
         row.label:SetText(n.node and ("  " .. n.name) or n.name)
         local when = n.first and string.format("%.2f s", n.first) or "?"
         if n.period and n.period > 0 then when = when .. string.format(" · every %.2f s", n.period) end
         row:SetChoice(when, nil, Status(n.ready, n.count, n.what), false, nil, true)
-        row.try_ = function(it) TryStrikes(it.period) end
+        row.try_ = function(it) P.TryStrikes(it.action, it.first, it.period) end
     end)
 end })

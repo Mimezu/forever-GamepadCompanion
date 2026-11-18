@@ -116,9 +116,26 @@ UnitRace = function() return "Human", "Human", 1 end
 UnitSex = function() return 2 end
 GetSpellInfo = function(id) return "Spell " .. tostring(id) end
 LowHealthFrame, FrameGambitAPI, SettingsPanel, SOUNDKIT, GAMEPAD_MOD_LEFT = false, false, false, false, "SHIFT"
--- (any other game function: a no-op)
+-- (any other game function the addon reads: a no-op. Only those listed in
+-- tests/fixtures/game-globals.txt: any other capitalised global is an error, never
+-- a silent no-op (night review 2 V-1: a local used before its declaration hid here))
+local GAME_GLOBALS = {}
+for line in io.lines(root .. "/tests/fixtures/game-globals.txt") do
+    local name = line:match("^([%w_]+)")
+    if name then GAME_GLOBALS[name] = true end
+end
+-- (the addon's SavedVariables: nil until the game loads them, as in the game)
+local SAVED_VARS = {}
+for line in io.lines(root .. "/GamepadCompanion.toc") do
+    local list = line:match("^## SavedVariables[%w]*:%s*(.+)")
+    if list then for name in list:gmatch("[%w_]+") do SAVED_VARS[name] = true end end
+end
 setmetatable(_G, { __index = function(_, key)
-    if type(key) == "string" and key:match("^%u") and not key:match("^C_") and not key:match("^[A-Z_]+$") then return function() end end
+    if type(key) == "string" and key:match("^%u") and not key:match("^C_") and not key:match("^[A-Z_]+$") then
+        if GAME_GLOBALS[key] then return function() end end
+        if SAVED_VARS[key] then return nil end
+        error("unknown global " .. key .. " (not the addon's, not in tests/fixtures/game-globals.txt)", 2)
+    end
 end })
 
 local settings = { optionsStyle = "A" }
@@ -3083,4 +3100,67 @@ do
     WowHelperData = nil
     T.LoadHelper()
     io.write("PASS: R9: learned per weapon and per node, the node marker, the panels" .. string.char(10))
+end
+
+-- Night review 2, haptics (H2-5, H2-7, H2-8, H2-9)
+do
+    local T, C, LP, page = ns.Timing, ns.HelperCues, ns.LearnedPage, ns.RumblePage
+    -- H2-5: footsteps and mining set in Lab before 0.52.3 go, once (no control is left to clear them)
+    local hdb = H.DB()
+    hdb.timing.guesses = 3
+    hdb.stepSync = { ["1-2-run"] = { rate = 3, offset = 0.2, speed = 7, taps = 12 } }
+    T.Store()
+    assert(hdb.stepSync == nil and hdb.timing.guesses == 4, "H2-5: Lab's footsteps cleared, once")
+    assert(L.StepSource("run") ~= "yours", "footsteps: no longer yours")
+    local s = V.Settings()
+    s.ownTimingCleared = true
+    s.strikes.mining = { period = 1.3, offset = 0.4, taps = 6 }
+    V.Settings()
+    assert(next(V.Settings().strikes) == nil and V.Settings().ownTimingCleared == 2, "H2-5: Lab's mining cleared, once")
+    assert(select(4, V.StrikeTiming("mining")) ~= "synced", "mining: no longer synced")
+    V.SetStrikeTiming("mining", 1.2, nil)
+    V.Settings()
+    assert(V.Settings().strikes.mining, "and only once")
+    V.Settings().strikes.mining = nil
+
+    -- H2-7: more nodes than rows: the wheel scrolls them, "1–9 of 13"
+    local nodes = {}
+    for n = 1, 12 do nodes["1-2|mining#" .. n] = { first = 1.5, period = 1.4, casts = 6, ready = true } end
+    WowHelperData = { strikeNodes = nodes }
+    T.LoadHelper()
+    assert(#LP.Nodes() == 13, "Mining and its twelve nodes: " .. #LP.Nodes())
+    local o, text = LP.Window(13, 0)
+    assert(o == 0 and text == "1–9 of 13", text)
+    o, text = LP.Window(13, 50)
+    assert(o == 4 and text == "5–13 of 13", "clamped: " .. text)
+    assert(select(2, LP.Window(5, 0)) == "", "all fit: no range")
+    ns.Shell.Open("moments")
+    ns.Shell.Refresh()
+    local card = LP.nodes
+    assert(card and card.Fill and card.Scroll, "the gathering card scrolls")
+    card.Fill()
+    assert(card.range:GetText() == "1–9 of 13", tostring(card.range:GetText()))
+    card.Scroll(-10)
+    assert(card.range:GetText() == "5–13 of 13", tostring(card.range:GetText()))
+
+    -- H2-8: Try plays the action's own feel at its learned times, a weapon's swing after its delay
+    local after, play = C_Timer.After, V.Play
+    local due, played = {}, {}
+    C_Timer.After = function(d, fn) due[#due + 1] = d; fn() end
+    V.Play = function(p) played[#played + 1] = p end
+    assert(LP.TryStrikes("herbalism", 1.2, 0.9) == "pluck", "a herb: the rustle")
+    assert(played[1] == "pluck" and played[2] == "pluck" and due[1] == 1.2 and due[2] == 0.9, "at its first strike, then a period on")
+    due, played = {}, {}
+    assert(LP.TryStrikes("skinning", 0.5, nil) == "skin" and #played == 1, "skinning: one cut, no rhythm")
+    due, played = {}, {}
+    assert(LP.TryWeapon("dagger", 0.17) == "swDagger" and due[1] == 0.17 and played[1] == "swDagger", "a dagger lands at its delay")
+    C_Timer.After, V.Play = after, play
+
+    -- H2-9: light-only moments go to WoW Helper flagged (no feel or sound offered there)
+    local ex = C.ExportMoments({}).moments
+    assert(ex.cast.lightOnly == true and ex.halo.lightOnly == true and ex.loot.lightOnly == nil, "H2-9: lightOnly")
+
+    WowHelperData = nil
+    T.LoadHelper()
+    io.write("PASS: night 2 haptics: Lab's old timing cleared once, Learned scrolls, Try as learned, lightOnly" .. string.char(10))
 end

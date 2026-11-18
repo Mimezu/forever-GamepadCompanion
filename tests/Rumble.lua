@@ -116,9 +116,26 @@ UnitRace = function() return "Human", "Human", 1 end
 UnitSex = function() return 2 end
 GetSpellInfo = function(id) return "Spell " .. tostring(id) end
 LowHealthFrame, FrameGambitAPI, SettingsPanel, SOUNDKIT, GAMEPAD_MOD_LEFT = false, false, false, false, "SHIFT"
--- (any other game function: a no-op)
+-- (any other game function the addon reads: a no-op. Only those listed in
+-- tests/fixtures/game-globals.txt: any other capitalised global is an error, never
+-- a silent no-op (night review 2 V-1: a local used before its declaration hid here))
+local GAME_GLOBALS = {}
+for line in io.lines(root .. "/tests/fixtures/game-globals.txt") do
+    local name = line:match("^([%w_]+)")
+    if name then GAME_GLOBALS[name] = true end
+end
+-- (the addon's SavedVariables: nil until the game loads them, as in the game)
+local SAVED_VARS = {}
+for line in io.lines(root .. "/GamepadCompanion.toc") do
+    local list = line:match("^## SavedVariables[%w]*:%s*(.+)")
+    if list then for name in list:gmatch("[%w_]+") do SAVED_VARS[name] = true end end
+end
 setmetatable(_G, { __index = function(_, key)
-    if type(key) == "string" and key:match("^%u") and not key:match("^C_") and not key:match("^[A-Z_]+$") then return function() end end
+    if type(key) == "string" and key:match("^%u") and not key:match("^C_") and not key:match("^[A-Z_]+$") then
+        if GAME_GLOBALS[key] then return function() end end
+        if SAVED_VARS[key] then return nil end
+        error("unknown global " .. key .. " (not the addon's, not in tests/fixtures/game-globals.txt)", 2)
+    end
 end })
 
 local settings = { optionsStyle = "A" }

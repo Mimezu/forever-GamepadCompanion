@@ -565,9 +565,11 @@ function V.Settings()
     s.intensity = s.intensity or 0.8
     s.strikes = s.strikes or {}
     -- (timing is WoW Helper's now: a mining timing once synced or set here goes, once)
-    if not s.ownTimingCleared then
+    -- (and once more (night review 2 H2-5): set in Lab after that and before 0.52.3,
+    -- when its controls went, nothing was left to clear it)
+    if s.ownTimingCleared ~= 2 then
         for k in pairs(s.strikes) do s.strikes[k] = nil end
-        s.ownTimingCleared = true
+        s.ownTimingCleared = 2
     end
     s.hitTiming = s.hitTiming or {}
     s.events = s.events or {}

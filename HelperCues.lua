@@ -485,7 +485,8 @@ local function ExportMoments(export)
         local key = m[1]
         local label = C.MomentLabel(key)
         if C.LIGHT_ONLY[key] then label = label .. " (light)" end
-        moments[key] = { n = n, group = m[2], label = label, feel = C.MomentFeel(key) or false,
+        -- (lightOnly: WoW Helper offers no feel or sound for it)
+        moments[key] = { n = n, group = m[2], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
             feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
     end

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.53.9 — 2026-11-18
+
+- **The second night review, haptics** (V-1, H2-5, H2-7…H2-9): the tests now catch a local used before its declaration (Low health's error in 0.53.0): tests/Globals.lua reads every global each file uses, and the test harnesses no longer turn an unknown global into a silent no-op (only game names listed in tests/fixtures/game-globals.txt). It found one more: Try on a Feel row now sends its HD feel too
+- Footsteps and mining timing set in Lab before 0.52.3 go, once (nothing was left to clear them): WoW Helper's learned timing applies
+- Learned: more nodes than fit scroll ("1–9 of 24"); Try plays the action's own feel (a herb rustles) at its learned first strike and rhythm, a weapon's swing at its learned delay
+- Light-only moments go to WoW Helper flagged: it offers no feel or sound for them
+
 ## 0.53.8 — 2026-11-18
 
 - **Hush, the second night review** (L2-1…L2-14): a pending Wait no longer spins a timer while hushed, and runs out then instead of starting again after (L2-1, L2-2). The footer chip sits left of WoW Helper with No pad beside it, in the window's colours, and the status line makes room (L2-3)

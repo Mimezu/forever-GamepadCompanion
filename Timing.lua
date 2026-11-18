@@ -68,6 +68,12 @@ function T.Store()
         db.stepSync = nil
         t.guesses = 3
     end
+    -- (and once more (night review 2 H2-5): footsteps set in Lab after that and
+    -- before 0.52.3, when its controls went, have nothing left to clear them)
+    if t.guesses < 4 then
+        db.stepSync = nil
+        t.guesses = 4
+    end
     return t
 end
 
@@ -127,8 +133,9 @@ function T.LearnedHits()
 end
 
 -- A timing default as WoW Helper publishes it (one table for both programs:
--- WowHelperData.timingDefaults: mining { first, period, crack }, run and walk
--- { rate, offset, speed }); nil without WoW Helper (the addon's own fallback)
+-- WowHelperData.timingDefaults: mining { first, period }, run and walk
+-- { rate, offset, speed }, hits { kind = seconds }); nil without WoW Helper
+-- (the addon's own fallback)
 function T.Default(name)
     local d = _G.WowHelperData
     local t = type(d) == "table" and type(d.timingDefaults) == "table" and d.timingDefaults[name]
@@ -171,8 +178,7 @@ end
 
 function T.Clear(kind, hand) T.Store().set[T.Key(kind, hand)] = nil end
 
--- WoW Helper's slot (it may hear the game's hit sounds one day): needs a
--- shared clock before it can be trusted
+-- A learned delay into the mirror (as T.LoadHelper does from hitOffsets)
 function T.Learn(key, seconds, hits)
     T.Store().learned[key] = { v = seconds, hits = hits, at = date and date("%Y-%m-%d %H:%M") or "" }
 end

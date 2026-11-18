@@ -155,7 +155,9 @@ ITEM.r = {
             V.SimulateCombo(key, function(n) Say(e.label .. (n > 1 and " x" .. n or "")) end)
         else
             V.Play(pattern, false, V.Scaled(nil, key))
-            if C and C.TryHD then C.TryHD(key, L.FeelFor(pattern)) end
+            -- (HelperCues by ns: the file's local C is declared further down)
+            local HC = ns.HelperCues
+            if HC and HC.TryHD then HC.TryHD(key, L.FeelFor(pattern)) end
             Say(e.label)
         end
     end,
@@ -222,7 +224,8 @@ ITEM.l = {
     try = function(key)
         L.Try(key)
         local s = L.EventSettings(key)
-        if s.on and C and C.TryHD then C.TryHD(key, s.feel) end
+        local HC = ns.HelperCues
+        if s.on and HC and HC.TryHD then HC.TryHD(key, s.feel) end
         Say(L.EVENT[key].label)
     end,
     level = Volume("feel"),
