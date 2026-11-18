@@ -198,6 +198,7 @@ EB.Place = Place
 Select = function(layer)
     if selected == layer then return end
     selected = layer
+    if not layer then return Place() end
     -- Blizzard's frames let go (its own secure delegate) and its dialog closes
     local manager = EditModeManagerFrame
     if layer and manager and manager.ClearSelectedSystem then pcall(manager.ClearSelectedSystem, manager) end
@@ -209,6 +210,23 @@ function EB.Selected() return selected end
 ---------------------------------------------------------------------------
 -- The dialog: Scale, the button prompt, Reset
 ---------------------------------------------------------------------------
+-- Where the dialog goes (its bottom-left, UIParent units) for a picked bar's
+-- box: above it when there is room, else below, else beside it, else the top
+-- right corner; never over the bar, always on the screen. Dragged by the user:
+-- that spot, for the session (as Blizzard's own dialog keeps its place).
+local GAP = 10
+function EB.DialogSpot(r, dw, dh, sw, sh)
+    local function Clamp(x, lo, hi) return max(lo, min(hi, x)) end
+    local cx = Clamp(r.left + r.width / 2 - dw / 2, 0, sw - dw)
+    local top = r.bottom + r.height
+    if top + GAP + dh <= sh then return cx, top + GAP end                     -- above
+    if r.bottom - GAP - dh >= 0 then return cx, r.bottom - GAP - dh end      -- below
+    local cy = Clamp(r.bottom + r.height / 2 - dh / 2, 0, sh - dh)
+    if r.left + r.width + GAP + dw <= sw then return r.left + r.width + GAP, cy end   -- right
+    if r.left - GAP - dw >= 0 then return r.left - GAP - dw, cy end         -- left
+    return sw - dw, sh - dh                                                  -- a corner
+end
+
 local dialog
 local function Dialog()
     if dialog then return dialog end
@@ -218,6 +236,25 @@ local function Dialog()
     d:SetFrameStrata("DIALOG")
     d:SetClampedToScreen(true)
     d:EnableMouse(true)
+    -- the user's own spot: dragged anywhere, kept for the session
+    d:SetMovable(true)
+    if d.RegisterForDrag then d:RegisterForDrag("LeftButton") end
+    d:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    d:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local l, b = self:GetLeft(), self:GetBottom()
+        if Readable(l) and Readable(b) then
+            EB.dialogSpot = { l, b }
+            self:ClearAllPoints()
+            self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", l, b)
+        end
+    end)
+    local okX, close = pcall(CreateFrame, "Button", nil, d, "UIPanelCloseButton")
+    if okX and type(close) == "table" then
+        close:SetPoint("TOPRIGHT", -2, -2)
+        close:SetScript("OnClick", function() Select(nil) end)
+        d.close = close
+    end
     d.title = d:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     d.title:SetPoint("TOP", 0, -16)
     local function Btn(text, w, x, y, onClick)
@@ -290,8 +327,17 @@ ShowDialog = function()
     d.prompt:SetShown(class)
     d.prompt.label:SetShown(class)
     d.prompt:SetChecked(API.GetSettings().classPrompts ~= false)
+    -- beside the bar, never over it (or where the user dragged it)
+    local x, y
+    if EB.dialogSpot then
+        x, y = EB.dialogSpot[1], EB.dialogSpot[2]
+    else
+        local r = EB.Rect(selected)
+            or { left = p:GetLeft() or 0, bottom = p:GetBottom() or 0, width = p:GetWidth() or 0, height = p:GetHeight() or 0 }
+        x, y = EB.DialogSpot(r, d:GetWidth(), d:GetHeight(), UIParent:GetWidth(), UIParent:GetHeight())
+    end
     d:ClearAllPoints()
-    d:SetPoint("TOP", p, "BOTTOM", 0, -8)
+    d:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x, y)
     d:Show()
     if not Combat() then
         pcall(d.EnableKeyboard, d, true)

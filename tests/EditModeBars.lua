@@ -160,6 +160,39 @@ EB.proxies.base:OnDragStart()
 assert(not rawget(EB.proxies.base, "moving"), "no drag in combat")
 combat = false
 
+-- The dialog never covers the bar: above, below, beside, a corner; dragged: kept
+local function overlaps(x, y, dw, dh, r)
+    return x < r.left + r.width and x + dw > r.left and y < r.bottom + r.height and y + dh > r.bottom
+end
+local sw, sh = 1600, 900
+for _, r in ipairs({ { left = 600, bottom = 20, width = 400, height = 60 },      -- low on screen: above
+    { left = 600, bottom = 800, width = 400, height = 60 },                         -- high: below
+    { left = 100, bottom = 50, width = 300, height = 820 },                         -- tall: beside, right
+    { left = 1250, bottom = 50, width = 300, height = 820 },                        -- tall, right edge: left
+    { left = 0, bottom = 0, width = 1600, height = 900 } }) do                      -- everything: a corner
+    local x, y = EB.DialogSpot(r, 250, 150, sw, sh)
+    assert(x >= 0 and y >= 0 and x + 250 <= sw and y + 150 <= sh, "on screen")
+    if r.width < sw then assert(not overlaps(x, y, 250, 150, r), "never over the bar: " .. r.left .. "," .. r.bottom) end
+end
+local ax, ay = EB.DialogSpot({ left = 600, bottom = 20, width = 400, height = 60 }, 250, 150, sw, sh)
+assert(ax == 675 and ay == 90, "above, centred: " .. ax .. "," .. ay)
+-- every bar of the layout: the dialog clear of it
+for _, layer in ipairs(EB.Layers("standard")) do
+    EB.Select(layer)
+    local pt = d.points[1]
+    local r = EB.Rect(layer)
+    assert(pt[2] == UIParent and not overlaps(pt[4], pt[5], d.width, d.height, r), "clear of " .. layer)
+end
+-- dragged by the user: that spot from now on; the close button lets go
+d.left, d.bottom = 40, 600
+d.scripts.OnDragStop(d)
+EB.Select("base")
+assert(d.points[1][4] == 40 and d.points[1][5] == 600, "the user's spot kept")
+d.left, d.bottom = nil, nil
+EB.dialogSpot = nil
+d.close.scripts.OnClick()
+assert(EB.Selected() == nil and not d.shown, "close lets go")
+
 -- A fight ends it
 EB.Select("base")
 EB.events.scripts.OnEvent(EB.events, "PLAYER_REGEN_DISABLED")

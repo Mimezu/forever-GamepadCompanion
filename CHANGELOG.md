@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.1 — 2026-11-18
+
+- Bars in Edit Mode: the dialog no longer sits on the bar you picked. It goes above the bar when there is room, else below, else beside it, else the top right corner, always on screen and never over the bar, so the bar stays easy to grab and drag with the dialog open
+- The dialog can be dragged anywhere and keeps that spot for the session (as Blizzard's own); a close button lets the bar go
+
 ## 0.48.0 — 2026-11-18
 
 - **Lights stack like FrameGambit's list**: Moments › Light › **States**, top first, the first true one wins: Dead or ghost, Away, Low health, Casting, Halo ring, On flight path, Stealthed, In combat, Swimming, Mounted, Movement, Resting, then **Otherwise** (the base colour). Up / Down, Default for the order
