@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.46.0 — 2026-11-18
+
+- **Dots and Mic are light channels**, next to the light bar (WoW Helper draws them): a moment's light picker has a **Dots** row (Off, All, Centre, Pair, Ends, Spark, Fill, Sweep, Ring, 1-5) and a **Mic · orange** row (Off, On, Pulse, Blink); a light of yours made in WoW Helper can keep its own (Light's)
+- What the lights did on their own is now each moment's **Recommended**, shown and changeable: Critical hit Spark, Low health Pair and the mic pulsing, Casting Fill, Level up Fill, Whisper and Invites the mic, Ready check All and the mic… Default brings it back
+- A moment's Light row says its dots and mic ("Spark", "Pair · Mic pulse")
+- Setup › Mic light: the resting mic (Off, In combat, On), the moments that use it, and Moments to set them
+- The light row on the strip is version 1 (dots and mic per light): update WoW Helper too
+
 ## 0.45.9 — 2026-11-18
 
 - **Gestures, redrawn**: a grid of cards that fills the page, and a WoW Helper column

@@ -235,15 +235,25 @@ end
 -- first, 48 bits: version, resting, hold (8), its tint (5) and strength (3),
 -- progress (4), cue (8), its tint and strength, a CRC-8 over bits 0-39.
 ---------------------------------------------------------------------------
-K.LIGHT_CELLS = 17
+K.LIGHT_CELLS = 17      -- version 0
+K.LIGHT_CELLS_V1 = 23   -- version 1: each light's dots and mic too
 K.LIGHT_MARKER = { 1, 1, 0 }   -- yellow
 
--- row = { version, resting, hold, holdTint, holdStrength, progress, cue, cueTint, cueStrength }
+-- CRC-8 over bits 0..n-1 (bytes padded with zero bits)
+local function CrcBits(bits, n)
+    local bytes = {}
+    for k = 0, math.ceil(n / 8) - 1 do bytes[k + 1] = Get(bits, k * 8, math.min(8, n - k * 8)) end
+    return K.Crc8(bytes)
+end
+
+-- row = { version, resting, hold, holdTint, holdStrength, progress, cue, cueTint, cueStrength,
+--   (version 1:) holdDots, holdMic, cueDots, cueMic }: 17 cells (version 0) or 23 (version 1)
 function K.EncodeLight(row)
     row = row or {}
+    local v1 = (tonumber(row.version) or 0) >= 1
     local bits = {}
-    for i = 0, 47 do bits[i] = 0 end
-    Put(bits, 0, Int(row.version, 3), 2)
+    for i = 0, 65 do bits[i] = 0 end
+    Put(bits, 0, v1 and 1 or 0, 2)
     Put(bits, 2, row.resting and 1 or 0, 1)
     Put(bits, 4, Int(row.hold, 255), 8)
     Put(bits, 12, Int(row.holdTint, 31), 5)
@@ -252,32 +262,47 @@ function K.EncodeLight(row)
     Put(bits, 24, Int(row.cue, 255), 8)
     Put(bits, 32, Int(row.cueTint, 31), 5)
     Put(bits, 37, Int(row.cueStrength, 7), 3)
-    local bytes = {}
-    for k = 0, 4 do bytes[k + 1] = Get(bits, k * 8, 8) end
-    Put(bits, 40, K.Crc8(bytes), 8)
+    local data = 16
+    if v1 then
+        Put(bits, 40, Int(row.holdDots, 15), 4)
+        Put(bits, 44, Int(row.holdMic, 7), 3)
+        Put(bits, 47, Int(row.cueDots, 15), 4)
+        Put(bits, 51, Int(row.cueMic, 7), 3)
+        Put(bits, 58, CrcBits(bits, 58), 8)
+        data = 22
+    else
+        Put(bits, 40, CrcBits(bits, 40), 8)
+    end
     local cells = { { 1, 1, 0 } }
-    for c = 0, 15 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    for c = 0, data - 1 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
     return cells
 end
 
 function K.DecodeLight(cells)
-    if type(cells) ~= "table" or #cells ~= K.LIGHT_CELLS then return nil, "length" end
+    if type(cells) ~= "table" or #cells < K.LIGHT_CELLS then return nil, "length" end
     local m = cells[1]
     if m[1] ~= 1 or m[2] ~= 1 or m[3] ~= 0 then return nil, "marker" end
+    local v1 = cells[2][1] == 1 and cells[2][2] == 0
+    local n = v1 and K.LIGHT_CELLS_V1 or K.LIGHT_CELLS
+    if #cells < n then return nil, "length" end
     local bits = {}
-    for c = 0, 15 do
+    for c = 0, n - 2 do
         for k = 1, 3 do
             local v = cells[c + 2][k]
             if v ~= 0 and v ~= 1 then return nil, "value" end
             bits[c * 3 + k - 1] = v
         end
     end
-    local bytes = {}
-    for k = 0, 4 do bytes[k + 1] = Get(bits, k * 8, 8) end
-    if K.Crc8(bytes) ~= Get(bits, 40, 8) then return nil, "crc" end
-    return { version = Get(bits, 0, 2), resting = Get(bits, 2, 1) == 1, hold = Get(bits, 4, 8),
+    local at = v1 and 58 or 40
+    if CrcBits(bits, at) ~= Get(bits, at, 8) then return nil, "crc" end
+    local row = { version = Get(bits, 0, 2), resting = Get(bits, 2, 1) == 1, hold = Get(bits, 4, 8),
         holdTint = Get(bits, 12, 5), holdStrength = Get(bits, 17, 3), progress = Get(bits, 20, 4),
         cue = Get(bits, 24, 8), cueTint = Get(bits, 32, 5), cueStrength = Get(bits, 37, 3) }
+    if v1 then
+        row.holdDots, row.holdMic = Get(bits, 40, 4), Get(bits, 44, 3)
+        row.cueDots, row.cueMic = Get(bits, 47, 4), Get(bits, 51, 3)
+    end
+    return row
 end
 
 ---------------------------------------------------------------------------
@@ -375,7 +400,8 @@ K.MARKER_FIRST, K.MARKER_LAST = 100, 126
 function K.Marker(item)
     if not (K.Enabled() and K.V2()) then return false end
     local m = Int(item.moment, 127)
-    if m < K.MARKER_FIRST or m > K.MARKER_LAST or (m > 108 and m < 110) then return false end
+    -- (96-98 footsteps, 100-108 gathering, 110-126 swings)
+    if not ((m >= 96 and m <= 98) or (m >= 100 and m <= 108) or (m >= 110 and m <= 126)) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     table.insert(K.queue, 1, { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),
@@ -413,19 +439,22 @@ function K.SetLight(row)
     cur = cur or {}
     local same = cur.hold == row.hold and cur.holdTint == row.holdTint and cur.holdStrength == row.holdStrength
         and cur.progress == row.progress and (cur.resting or false) == (row.resting or false)
+        and cur.holdDots == (row.holdDots or 0) and cur.holdMic == (row.holdMic or 0)
     if same and K.light then return end
-    K.light = { hold = row.hold or 0, holdTint = row.holdTint or 0, holdStrength = row.holdStrength or 0,
-        progress = row.progress or 0, resting = row.resting or false, cue = 0, cueTint = 0, cueStrength = 0 }
+    K.light = { version = 1, hold = row.hold or 0, holdTint = row.holdTint or 0, holdStrength = row.holdStrength or 0,
+        progress = row.progress or 0, resting = row.resting or false, holdDots = row.holdDots or 0, holdMic = row.holdMic or 0,
+        cue = 0, cueTint = 0, cueStrength = 0, cueDots = 0, cueMic = 0 }
     dirty = true
 end
 
--- A once light on the pad (v2 + the light row): its id 1-255, tint 0-31, strength 0-7
-function K.LightCue(id, tint, strength)
+-- A once light on the pad (v2 + the light row): its id 1-255, tint 0-31, strength 0-7, dots
+-- 0-14 and mic 0-4 (0: the light's own)
+function K.LightCue(id, tint, strength, dots, mic)
     if not K.V2() then return false end
     id = Int(id, 255)
     if id == 0 then return false end
     if not K.light then K.SetLight({ hold = 0 }) end
-    return Queue({ touch = 0, sound = 0, light = { id, Int(tint, 31), Int(strength, 7) } })
+    return Queue({ touch = 0, sound = 0, light = { id, Int(tint, 31), Int(strength, 7), Int(dots, 15), Int(mic, 7) } })
 end
 
 local function Start(item)
@@ -438,6 +467,7 @@ local function Start(item)
     if K.light then
         local c = item.light
         K.light.cue, K.light.cueTint, K.light.cueStrength = c and c[1] or 0, c and c[2] or 0, c and c[3] or 0
+        K.light.cueDots, K.light.cueMic = c and c[4] or 0, c and c[5] or 0
     end
     -- (v1: one event id, a clip or a sound up to 255)
     local v1 = s.sound ~= 0 and s.sound or s.touch
@@ -458,7 +488,7 @@ function K.Step(elapsed)
                 local s = K.state
                 s.event, s.gain, s.touch, s.sound = 0, 0, 0, 0   -- (seq kept: no new event)
                 s.moment, s.open = 0, false
-                if K.light then K.light.cue, K.light.cueTint, K.light.cueStrength = 0, 0, 0 end
+                if K.light then K.light.cue, K.light.cueTint, K.light.cueStrength, K.light.cueDots, K.light.cueMic = 0, 0, 0, 0, 0 end
                 dirty = true
             end
         end
@@ -553,7 +583,7 @@ local function Build()
         textures[i] = tex
     end
     K.lightTextures = {}
-    for i = 1, K.LIGHT_CELLS do
+    for i = 1, K.LIGHT_CELLS_V1 do
         local tex = frame:CreateTexture(nil, "OVERLAY")
         if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end

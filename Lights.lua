@@ -168,6 +168,34 @@ LT.BASE_MODES = { { "class", "Class" }, { "color", "Colour" }, { "off", "Off" } 
 LT.RESTING = { { "steady", "Steady" }, { "breathe", "Breathe" }, { "ember", "Ember" } }
 LT.MIC_MODES = { { "off", "Off" }, { "combat", "In combat" }, { "on", "On" } }
 
+-- The dots under the touchpad and the mic (orange) while a moment's light plays: the strip's
+-- codes (WoW Helper's lights::Dots / MicMode; 0 = the light's own, made in WoW Helper)
+LT.DOTS = {
+    { key = "light", label = "Light's", code = 0 },
+    { key = "off", label = "Off", code = 1 },
+    { key = "all", label = "All", code = 2 },
+    { key = "centre", label = "Centre", code = 3 },
+    { key = "pair", label = "Pair", code = 4 },
+    { key = "ends", label = "Ends", code = 5 },
+    { key = "spark", label = "Spark", code = 6 },
+    { key = "fill", label = "Fill", code = 7 },
+    { key = "sweep", label = "Sweep", code = 8 },
+    { key = "ring", label = "Ring", code = 9 },
+    { key = "1", label = "1", code = 10 }, { key = "2", label = "2", code = 11 }, { key = "3", label = "3", code = 12 },
+    { key = "4", label = "4", code = 13 }, { key = "5", label = "5", code = 14 },
+}
+LT.MICS = {
+    { key = "light", label = "Light's", code = 0 },
+    { key = "off", label = "Off", code = 1 },
+    { key = "on", label = "On", code = 2 },
+    { key = "pulse", label = "Pulse", code = 3 },
+    { key = "blink", label = "Blink", code = 4 },
+}
+local DOTS, MICS = {}, {}
+for _, d in ipairs(LT.DOTS) do DOTS[d.key] = d end
+for _, m in ipairs(LT.MICS) do MICS[m.key] = m end
+LT.DOT, LT.MIC = DOTS, MICS
+
 -- strength: 8 steps (what the strip carries), 0-7 -> 1/8 .. 1
 function LT.Strength(s) return (s + 1) / 8 end
 local function Steps(level) return max(0, min(7, floor((tonumber(level) or 1) * 8 + 0.5) - 1)) end
@@ -265,8 +293,20 @@ LT.EVENTS = {
     { key = "readyCheck", group = "Social", label = "Ready check", color = "gold", strength = 5, on = true },
     { key = "invite", group = "Social", label = "Invites, duels", color = "green", strength = 5, on = true },
 }
+-- Each moment's Recommended dots and mic (what its preset used to do on its own): data, so a
+-- row shows it, the picker changes it and Default brings it back
+local PATTERNS = {
+    crit = { "spark" }, critTaken = { "ends" }, kill = { "all" }, lowHp = { "pair", "pulse" },
+    cast = { "fill" }, release = { "all" }, halo = { "ring" }, haloUse = { "spark" }, levelUp = { "fill" },
+    questDone = { "centre" }, alive = { "spark" }, whisper = { "off", "pulse" }, readyCheck = { "all", "pulse" },
+    invite = { "off", "pulse" },
+}
 local EVENT = {}
-for _, e in ipairs(LT.EVENTS) do EVENT[e.key] = e end
+for _, e in ipairs(LT.EVENTS) do
+    local p = PATTERNS[e.key] or {}
+    e.dots, e.mic = p[1] or "off", p[2] or "off"
+    EVENT[e.key] = e
+end
 LT.EVENT = EVENT
 
 -- A moment's definition: its own, or a sub-moment's (a spell's,
@@ -318,7 +358,7 @@ local function SubSettings(key, own)
     local s = O.Field(name, "light")
     if type(s) ~= "table" then
         local p = LT.Settings(parent)
-        s = { on = p.on, light = p.light, color = p.color, strength = p.strength }
+        s = { on = p.on, light = p.light, color = p.color, strength = p.strength, dots = p.dots, mic = p.mic }
         if not own then return s end
         O.SetField(name, "light", s)
     end
@@ -326,6 +366,8 @@ local function SubSettings(key, own)
     if not LT.Light(s.light) then s.light = LT.Settings(parent).light end
     if not PALETTE[s.color] then s.color = p.color end
     s.strength = max(0, min(7, floor(tonumber(s.strength) or p.strength)))
+    if not DOTS[s.dots] then s.dots = LT.Settings(parent).dots end
+    if not MICS[s.mic] then s.mic = LT.Settings(parent).mic end
     s.on = s.on ~= false
     return s
 end
@@ -343,9 +385,11 @@ function LT.Settings(key)
     local e = EVENT[key]
     local s = db.lightEvents[key]
     if type(s) ~= "table" then
-        s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength }
+        s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
         db.lightEvents[key] = s
     end
+    if not DOTS[s.dots] then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
+    if not MICS[s.mic] then s.mic = e.mic end
     if s.effect then
         -- migrate once: the moment's own light, or the shape it had
         local own = s.effect == OLD_DEFAULT[key]
@@ -365,6 +409,32 @@ function LT.IsDefault(key)
     if O then return O.Field(name, "light") == nil end
     local e, s = EVENT[key], LT.Settings(key)
     return s.on == e.on and s.light == LT.DefaultLight(key) and s.color == e.color and s.strength == e.strength
+        and s.dots == e.dots and s.mic == e.mic
+end
+
+-- A moment's dots and mic as the strip's codes
+function LT.Patterns(key)
+    local s = LT.Settings(key)
+    return (DOTS[s.dots] or DOTS.off).code, (MICS[s.mic] or MICS.off).code
+end
+
+-- Its dots and mic in a few words, for its row ("Spark · Mic pulse"); nil when both are off
+function LT.PatternWords(key)
+    local s = LT.Settings(key)
+    local parts = {}
+    if s.dots ~= "off" then parts[#parts + 1] = (s.dots == "light" and "Dots: light's" or (#s.dots == 1 and (s.dots .. " dots") or DOTS[s.dots].label)) end
+    if s.mic ~= "off" then parts[#parts + 1] = "Mic " .. (s.mic == "light" and "light's" or MICS[s.mic].label:lower()) end
+    return #parts > 0 and table.concat(parts, " · ") or nil
+end
+
+-- The moments whose light uses the mic (Setup's Mic light: Used by)
+function LT.MicMoments()
+    local list = {}
+    for _, e in ipairs(LT.EVENTS) do
+        local s = LT.Settings(e.key)
+        if s.on and s.mic ~= "off" then list[#list + 1] = e.label end
+    end
+    return list
 end
 
 function LT.Default(key)
@@ -447,8 +517,10 @@ function LT.SendHold()
     local key, l, color, strength, progress = Holding()
     local p = progress and progress()
     lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
+    local dots, mic = 0, 0
+    if key then dots, mic = LT.Patterns(key) end
     k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
-        progress = lastStep, resting = key == nil })
+        progress = lastStep, resting = key == nil, holdDots = dots, holdMic = mic })
     if l then
         local r, g, b = LT.Sample(l, l.loop and l.loop[1] or 0, Ctx(color, strength))
         if r then return H.Light("lt_base", function() return r, g, b end, 0) end
@@ -468,7 +540,7 @@ local function Play(key, ctx, force)
         -- a cue on the strip; one ranking below what holds is dropped
         local hk = Holding()
         if hk and (PRIO[hk] or 5) > Prio(key) then return end
-        return K().LightCue(l.id, LT.Tint(s.color), s.strength)
+        return K().LightCue(l.id, LT.Tint(s.color), s.strength, LT.Patterns(key))
     end
     if not ctx then
         local start = Now()
@@ -518,8 +590,9 @@ function LT.Try(key, lightId)
     local l = LT.Light(lightId or s.light)
     if not l then return end
     if LT.HelperDrives() then
-        if l.kind == "once" then return K().LightCue(l.id, LT.Tint(s.color), s.strength) end
-        K().SetLight({ hold = l.id, holdTint = LT.Tint(s.color), holdStrength = s.strength, progress = 0 })
+        local dots, mic = LT.Patterns(key)
+        if l.kind == "once" then return K().LightCue(l.id, LT.Tint(s.color), s.strength, dots, mic) end
+        K().SetLight({ hold = l.id, holdTint = LT.Tint(s.color), holdStrength = s.strength, progress = 0, holdDots = dots, holdMic = mic })
         if C_Timer then C_Timer.After(3, LT.SendHold) end
         return
     end

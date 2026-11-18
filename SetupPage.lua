@@ -383,14 +383,21 @@ local function BuildBase(frame)
         LT.Base().mic = v
         LT.ApplyMic()
     end, floor((cw - 24 - 8) / 3))
-    local micNote = S.Text(card, "", 12, y - 116, cw - 24, 11, GREY)
+    -- the moments whose light uses it, and the way to them (each moment's Mic is in its light)
+    local micNote = S.Text(card, "", 12, y - 118, cw - 130, 11, GREY)
+    micNote:SetWordWrap(false)
+    local toMoments = S.NewButton(card, "Moments", cw - 108, y - 112, 96, function()
+        if GamepadCompanionAPI and GamepadCompanionAPI.OpenMoments then GamepadCompanionAPI.OpenMoments("light") end
+    end, nil, 11, 24)
+    S.Tooltip(toMoments, "Mic light", "Set it per moment: a light's Mic")
     -- who draws the lights now
     local who = S.Text(card, "", 12, y - 134, cw - 24, 11, GREY)
     pg.refresh[#pg.refresh + 1] = function()
         local helper = LT.HelperDrives()
         who:SetText("")
         mic:SetAlpha(helper and 1 or 0.45)
-        micNote:SetText(helper and "Whispers, invites, low health pulse it" or "Needs WoW Helper")
+        local used = LT.MicMoments and LT.MicMoments() or {}
+        micNote:SetText(not helper and "Needs WoW Helper" or #used > 0 and ("Used by " .. table.concat(used, ", ")) or "No moment uses it")
     end
     pg.refresh[#pg.refresh + 1] = function()
         local base = LT.Base()

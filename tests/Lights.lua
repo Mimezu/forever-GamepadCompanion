@@ -87,6 +87,25 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-lights-vectors.txt") do
 end
 ok(n == 61, "61 light vectors: " .. n)
 
+-- Version 1: each light's dots and mic (the helper's vectors) --------------------------------
+local n1 = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-lights-v1-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local head, digits = row:match("^(.-)%s*:%s*(%d+)%s*$")
+        local v = {}
+        for num in head:gmatch("%d+") do v[#v + 1] = tonumber(num) end
+        local r = { version = v[1], resting = v[2] == 1, hold = v[3], holdTint = v[4], holdStrength = v[5], progress = v[6],
+            cue = v[7], cueTint = v[8], cueStrength = v[9], holdDots = v[10], holdMic = v[11], cueDots = v[12], cueMic = v[13] }
+        local cells, out = K.EncodeLight(r), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        ok(#cells == 23 and table.concat(out) == digits, "v1 vector: " .. row .. " got " .. table.concat(out))
+        local d = assert(K.DecodeLight(cells))
+        for k, x in pairs(r) do ok(d[k] == x, "v1 round trip " .. k) end
+        n1 = n1 + 1
+    end
+end
+ok(n1 == 61, "61 v1 vectors: " .. n1)
+
 -- Presets: generated, sampled as the helper does -----------------------------------------
 ok(#ns.LIGHT_PRESETS >= 32, "presets")
 local function byte(c) return c / 255 end
@@ -127,6 +146,19 @@ s = LT.Settings("kill")
 ok(s.light == LT.LightByKey("glow").id and s.on == false and s.strength == 3, "kill: Glow, off kept")
 ok(LT.Base().light == "breathe" and LT.Base().breathe == nil, "base: Breathe")
 ok(LT.Base().mic == "combat", "the mic light: in combat by default")
+-- dots and mic: each moment's Recommended, as data (older settings get it)
+ok(LT.Settings("crit").dots == "spark" and LT.Settings("crit").mic == "off", "crit: Spark, no mic")
+ok(LT.Settings("whisper").mic == "pulse" and LT.Settings("lowHp").dots == "pair" and LT.Settings("lowHp").mic == "pulse", "whisper, low health")
+ok(LT.PatternWords("lowHp") == "Pair · Mic pulse", "words: " .. tostring(LT.PatternWords("lowHp")))
+ok(LT.PatternWords("kill") == "All" and LT.PatternWords("loot") == nil, "kill: All; loot: nothing")
+local d1, m1 = LT.Patterns("readyCheck")
+ok(d1 == LT.DOT.all.code and m1 == LT.MIC.pulse.code, "codes")
+LT.Settings("crit").dots = "3"
+ok(not LT.IsDefault("crit") and LT.PatternWords("crit") == "3 dots", "changed: not Default")
+LT.Default("crit")
+ok(LT.Settings("crit").dots == "spark" and LT.IsDefault("crit"), "Default: Spark again")
+local mics = table.concat(LT.MicMoments(), ",")
+ok(mics:find("Whisper") and mics:find("Low health"), "the mic's moments: " .. mics)
 GamepadCompanionHapticsDB.lightBase.mic = "off"
 ok(LT.Base().mic == "off", "a chosen Off stays")
 LT.Default("crit")
@@ -180,6 +212,7 @@ voices.lt_crit = nil
 LT.Fire("crit")
 for _ = 1, 2 do K.Step(1 / 60) end
 ok(drawn.cue == LT.LightByKey("crit").id and drawn.cueStrength == 7, "the crit's cue")
+ok(drawn.version == 1 and drawn.cueDots == LT.DOT.spark.code and drawn.cueMic == LT.MIC.off.code, "with its dots and mic")
 ok(voices.lt_crit == nil, "the game doesn't animate it")
 for _ = 1, 10 do K.Step(1 / 30) end
 ok(drawn.cue == 0, "the cue cleared after it was shown")
@@ -204,6 +237,7 @@ LT.Settings("loot").on = true
 LT.StartState("lowHp")
 for _ = 1, 20 do K.Step(1 / 30) end
 ok(drawn.hold == LT.LightByKey("lowHp").id, "low health holds")
+ok(drawn.holdDots == LT.DOT.pair.code and drawn.holdMic == LT.MIC.pulse.code, "low health: Pair, the mic pulsing")
 LT.Fire("loot")
 for _ = 1, 2 do K.Step(1 / 60) end
 ok(drawn.cue == LT.Settings("loot").light and drawn.hold == LT.LightByKey("lowHp").id, "a loot glint over low health")

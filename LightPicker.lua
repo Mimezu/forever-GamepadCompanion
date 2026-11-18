@@ -62,7 +62,7 @@ local function Build()
     pop:EnableMouse(true)
     S.Panel(pop)
     pop.title = S.Text(pop, "", 14, -12, 600, 13, YELLOW)
-    pop.heads, pop.tiles, pop.swatches, pop.dots = {}, {}, {}, {}
+    pop.heads, pop.tiles, pop.swatches, pop.dots, pop.pats = {}, {}, {}, {}, {}
     pop:Hide()
     S.Popup(pop, "GamepadCompanionLightPicker", { outside = true })
     pop.off = S.NewButton(pop, "Off", 0, 0, 70, nil, nil, 12, 26)
@@ -70,6 +70,8 @@ local function Build()
     pop.try = S.NewButton(pop, "Try", 0, 0, 70, nil, nil, 12, 26)
     pop.colourHead = S.Text(pop, "Colour", 14, 0, 80, 11, DIM)
     pop.strengthHead = S.Text(pop, "Strength", 14, 0, 80, 11, DIM)
+    pop.dotsHead = S.Text(pop, "Dots", 14, 0, 300, 11, DIM)
+    pop.micHead = S.Text(pop, "Mic · orange", 14, 0, 300, 11, DIM)
     pop:SetScript("OnUpdate", function()
         local LT = ns.Lights
         if not pop.key then return end
@@ -138,11 +140,14 @@ function LP.Open(anchor, key, onChange)
             t:ClearAllPoints()
             t:SetPoint("TOPLEFT", 12 + col * (TILE_W + 3), y - row * (TILE_H + 3))
             t.label:SetText(l.name)
-            S.Tooltip(t, l.name, l.mic and "Pulses the mic" or nil)
+            S.Tooltip(t, l.name)
             t.light = l
             t:SetScript("OnClick", function()
                 local s = LT.Own(key)
                 s.on, s.light = true, l.id
+                -- a light of yours with its own dots or mic plays them
+                if l.yours and l.leds then s.dots = "light" end
+                if l.yours and l.mic then s.mic = "light" end
                 LT.Try(key)
                 Changed()
             end)
@@ -212,10 +217,54 @@ function LP.Open(anchor, key, onChange)
         end)
         d:Show()
     end
+    -- the dots under the touchpad and the mic: a row of patterns each ("Light's": a light of
+    -- yours with its own)
+    local s0 = LT.Settings(key)
+    local lit = LT.Light(s0.light)
+    local function Row(head, list, field, y0)
+        head:ClearAllPoints()
+        head:SetPoint("TOPLEFT", 14, y0 - 2)
+        local x = 0
+        for _, p in ipairs(list) do
+            if p.key ~= "light" or (lit and lit.yours) or s0[field] == "light" then
+                local b = pop.pats[field .. p.key]
+                if not b then
+                    b = S.NewButton(pop, p.label, 0, 0, 40, nil, nil, 11, 22)
+                    pop.pats[field .. p.key] = b
+                end
+                local w = (p.key == "light" and 56) or (#p.label == 1 and 26) or 52
+                b:SetWidth(w)
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", 12 + x, y0 - 16)
+                b.field, b.value = field, p.key
+                b:SetScript("OnClick", function()
+                    LT.Own(key)[field] = p.key
+                    LT.Try(key)
+                    Changed()
+                end)
+                b:Show()
+                x = x + w + 3
+            elseif pop.pats[field .. p.key] then
+                pop.pats[field .. p.key]:Hide()
+            end
+        end
+    end
+    y = y - 30
+    Row(pop.dotsHead, LT.DOTS, "dots", y)
+    y = y - 44
+    Row(pop.micHead, LT.MICS, "mic", y)
+    y = y - 46
+    if not ns.HelperLink or not ns.Lights.HelperDrives() then
+        pop.dotsHead:SetText("Dots · WoW Helper")
+        pop.micHead:SetText("Mic · orange · WoW Helper")
+    else
+        pop.dotsHead:SetText("Dots")
+        pop.micHead:SetText("Mic · orange")
+    end
     -- Off, Try
     local width = 24 + COLS * (TILE_W + 3)
     pop.try:ClearAllPoints()
-    pop.try:SetPoint("TOPRIGHT", -12, y + 4)
+    pop.try:SetPoint("TOPRIGHT", -12, y + 124)   -- (on the strength row)
     pop.try:SetScript("OnClick", function() LT.Try(key) end)
     pop.off:ClearAllPoints()
     pop.off:SetPoint("RIGHT", pop.try, "LEFT", -6, 0)
@@ -224,7 +273,7 @@ function LP.Open(anchor, key, onChange)
         Changed()
         pop:Hide()
     end)
-    y = y - 32
+    y = y + 8
     pop:SetSize(width, -y + 8)
     pop.title:SetWidth(width - 56)
     pop:ClearAllPoints()
@@ -241,6 +290,7 @@ function LP.Refresh()
     local s = ns.Lights.Settings(pop.key)
     for _, t in ipairs(pop.tiles) do S.SetSelected(t, t:IsShown() and s.on and t.light and t.light.id == s.light) end
     for _, sw in ipairs(pop.swatches) do sw.sel:SetShown(sw.key == s.color) end
+    for _, b in pairs(pop.pats) do S.SetSelected(b, b:IsShown() and s[b.field] == b.value) end
     for i = 0, 7 do
         local d = pop.dots[i]
         if d then

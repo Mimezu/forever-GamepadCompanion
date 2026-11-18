@@ -283,7 +283,10 @@ ITEM.light = {
         if not s.on then return "Off", V.OFF_ICON, nil, true end
         local l = LT.Light(s.light)
         -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
+        -- its dots and mic shown where it has them ("Spark · Mic pulse")
+        local words = LT.PatternWords and LT.PatternWords(key)
         local sub = LT.Def(key).state and "While it lasts" or nil
+        if words then sub = sub and (sub .. " · " .. words) or words end
         return l and l.name or "?", nil, sub, false, LT.ColorRGB(s.color)
     end,
     pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
