@@ -890,9 +890,20 @@ do
     loot.default.scripts.OnClick(loot.default)
     assert(ns.HelperCues.MomentSound("loot") ~= nil, "back to its coin")
     -- The last moment: its row found
-    ns.HapticsDebug.Note("Defense · Hit taken: Thud", "hitTaken", "feel")
-    M.why.scripts.OnClick(M.why)
+    M.SetKind("feel")
+    ns.HapticsDebug.Note("Defense · Hit taken: Thud", "hitTaken", "feel", "Hit taken", "Thud")
+    ns.HapticsDebug.Note("Light · Hit taken", "hitTaken", "light", "Hit taken", "Flash")
+    M.recent.Update()
+    assert(M.recent.caption.text == "Just felt" and M.recent.name.text == "Hit taken" and M.recent.choice.text == "Thud",
+        "Just felt: the moment, then its feel")
+    M.recent.scripts.OnClick(M.recent)
+    local felt = tile("Hit taken  ·  Thud  ·  0 s")
+    assert(felt, "the last ones, with how long ago")
+    felt.scripts.OnClick(felt)
     assert(M.kind == "feel" and M.browser.current == "Defense", "jumped to Hit taken")
+    M.SetKind("light")
+    assert(M.recent.caption.text == "Just lit" and M.recent.choice.text == "Flash", "Light: what last lit")
+    M.SetKind("feel")
     -- Edit with WoW Helper's data but the link off: Lab's editor all the same; reopening skips a hidden Lab
     WowHelperData = { at = "18:02" }
     ns.HelperLink.SetEnabled(false)

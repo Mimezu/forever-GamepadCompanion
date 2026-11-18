@@ -65,6 +65,23 @@ function S.SkinTexture(parent, kind, layer, sub, tile, covers, skins, path)
     return tex
 end
 
+-- The skin inside a control (a button, a joined choice, a field, a tile): v2's
+-- surface, Gilded's leather, nothing in Blizzard; inset from its rim; shade
+-- darkens it (a field reads deeper than a button). Under the control's own
+-- washes, so its states still show.
+function S.SkinFill(frame, inset, shade, sub)
+    inset = inset or 3
+    local out = {}
+    for _, k in ipairs({ { "surface", { v2 = true } }, { "leather", { gilded = true } } }) do
+        local t = S.SkinTexture(frame, k[1], "BACKGROUND", sub or -4, true, nil, k[2])
+        t:SetPoint("TOPLEFT", inset, -inset)
+        t:SetPoint("BOTTOMRIGHT", -inset, inset)
+        if shade then t:SetVertexColor(shade, shade, shade, 1) end
+        out[#out + 1] = t
+    end
+    return out
+end
+
 -- A gradient on a plain texture (start = left or bottom); the end colour
 -- alone where the client has no gradients
 function S.Gradient(tex, orient, a, b)
@@ -173,14 +190,16 @@ end
 function S.Button(button)
     -- GPC buttons have no template artwork; preserve their action scripts.
     local art=Plate(button,"common-button-list-collapseExpand")
+    S.SkinFill(button, 4, 0.85, -1)
     local hover=button:CreateTexture(nil,"HIGHLIGHT")
     hover:SetPoint("TOPLEFT",4,-4); hover:SetPoint("BOTTOMRIGHT",-4,4)
     hover:SetColorTexture(1,.7,.2,.12)
     local pressed=false
     local function Update()
         local shade=not button:IsEnabled() and .45 or pressed and .7 or 1
-        art:Tint({shade,shade,shade,1})
+        if S.Skin()=="gilded" then art:Tint({shade,shade*.84,shade*.5,1}) else art:Tint({shade,shade,shade,1}) end
     end
+    S.OnSkin(function() Update() end)
     button:HookScript("OnSizeChanged",function() art:Update() end)
     button:HookScript("OnMouseDown",function() pressed=true; Update() end)
     button:HookScript("OnMouseUp",function() pressed=false; Update() end)
@@ -191,6 +210,7 @@ end
 
 function S.Edit(frame)
     frame:SetBackdrop(nil)
+    S.SkinFill(frame, 4, 0.55)
     return Plate(frame, 'common-searchbar-a')
 end
 
@@ -528,9 +548,11 @@ function S.Segments(parent, x, y, widths, height)
     well:SetSize(total + 2, (height or 26) + 2)
     local bg = well:CreateTexture(nil, "BACKGROUND", nil, -3)
     bg:SetAllPoints(); bg:SetColorTexture(0, 0, 0, 0.35)
+    S.SkinFill(well, 2, 0.6)
     local rim = Plate(well, "common-button-list-collapseExpand", true)
     S.OnSkin(function(skin)
         if skin == "gilded" then rim:Tint({ 1, 0.82, 0.45, 0.95 }); bg:SetColorTexture(0.1, 0.07, 0.05, 0.85)
+        elseif skin == "v2" then rim:Tint({ 0.85, 0.85, 0.85, 0.7 }); bg:SetColorTexture(0, 0, 0, 0.2)
         else rim:Tint({ 0.85, 0.85, 0.85, 0.7 }); bg:SetColorTexture(0, 0, 0, 0.35) end
     end)
     local at = 1

@@ -29,6 +29,24 @@ end
 
 -- Sources --------------------------------------------------------------------------
 
+-- One tile a spell: the spellbook lists every rank, lowest first; the last
+-- (the highest) stays, unless a lower one is the action already chosen
+local function OneRank(list)
+    local current = request and request.current
+    local out, at = {}, {}
+    for _, e in ipairs(list) do
+        local i = e.name and at[e.name]
+        if not i then
+            out[#out + 1] = e
+            at[e.name or e.action] = #out
+        elseif out[i].action ~= current then
+            out[i] = e
+        end
+    end
+    return out
+end
+Picker.OneRank = OneRank
+
 local function SpellLines()
     local lines = {}
     local book = C_SpellBook
@@ -46,7 +64,7 @@ local function SpellLines()
                         list[#list + 1] = { action = "spell:" .. id, name = item.name, icon = item.iconID, spell = id }
                     end
                 end
-                if #list > 0 then lines[#lines + 1] = { name = info.name, icon = info.iconID, list = list } end
+                if #list > 0 then lines[#lines + 1] = { name = info.name, icon = info.iconID, list = OneRank(list) } end
             end
         end
         return lines
@@ -63,7 +81,7 @@ local function SpellLines()
                     icon = Call(GetSpellBookItemTexture, slot, "spell"), spell = id }
             end
         end
-        if #list > 0 then lines[#lines + 1] = { name = name, icon = icon, list = list } end
+        if #list > 0 then lines[#lines + 1] = { name = name, icon = icon, list = OneRank(list) } end
     end
     return lines
 end
@@ -166,6 +184,7 @@ local function Tile(index)
     local t = CreateFrame("Button", nil, ui.grid)
     t:SetSize(TILE_W, TILE_H)
     t:SetPoint("TOPLEFT", col * (TILE_W + GAP), -row * (TILE_H + GAP))
+    S.SkinFill(t, 1, 0.8, -2)
     t.bg = t:CreateTexture(nil, "BACKGROUND")
     t.bg:SetAllPoints()
     t.bg:SetColorTexture(1, 0.85, 0.55, 0.05)

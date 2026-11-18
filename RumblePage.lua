@@ -750,29 +750,10 @@ local function Build(frame, header)
         ENABLE[ui.kind].set(self:GetChecked() == true)
         Refresh()
     end, 40)
-    ui.why = CreateFrame("Button", nil, header)
-    ui.why:SetPoint("TOPLEFT", 370, -6)
-    ui.why:SetSize(W - 370 - 90, 22)
-    ui.why.text = S.Text(ui.why, "", 0, -4, W - 370 - 90, 11, GREY)
-    ui.why.text:SetJustifyH("RIGHT")
-    ui.why.text:SetWordWrap(false)
-    ui.why:SetScript("OnClick", function()
-        local D = ns.HapticsDebug
-        if not D then return end
-        local _, _, key, kind = D.Latest()
-        if key then Jump(key, kind) end
-    end)
-    local whyTick = CreateFrame("Frame", nil, header)
-    local whyAcc = 0
-    whyTick:SetScript("OnUpdate", function(_, elapsed)
-        whyAcc = whyAcc + (elapsed or 0)
-        if whyAcc < 0.25 then return end
-        whyAcc = 0
-        local D = ns.HapticsDebug
-        local text, ago
-        if D then text, ago = D.Latest() end
-        ui.why.text:SetText(text and (text .. " ›") or "")
-    end)
+    ui.recent = HUI.JustFelt(header, W - 90, function() return ui.kind end, {
+        icon = function(key, kind) return kind == "light" and FEEL_OF[key] and IconOf(FEEL_OF[key]) or IconOf(key) end,
+        jump = function(key, kind) Jump(key, kind) end,
+    })
 
     -- Left: the kind's master, then the groups
     local left = S.Card(frame, "Feel", 0, 0, LEFT_W, PH)
@@ -876,6 +857,7 @@ Refresh = function()
     local s = V.Settings()
     local other = V.Other()
     for k, btn in pairs(ui.seg) do S.SetSelected(btn, k == kind) end
+    if ui.recent then ui.recent.Update() end
     for k, box in pairs(ui.box) do box:SetShown(k == kind) end
     if ui.left.title then ui.left.title:SetText(kind == "feel" and "Feel" or kind == "light" and "Light" or "Sound") end
     local enabled = ENABLE[kind].get()

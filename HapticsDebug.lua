@@ -15,11 +15,26 @@ local function Now() return GetTime and GetTime() or 0 end
 -- The log: what set something off, newest first
 ---------------------------------------------------------------------------
 D.log = {}
--- key, kind (feel, light): the moment, so a page can find its row
-function D.Note(text, key, kind)
-    table.insert(D.log, 1, { at = Now(), text = text, key = key, kind = kind })
+-- The last few of each kind (feel, light, sound), for Moments' Just felt
+D.RECENT = 10
+D.recent = { feel = {}, light = {}, sound = {} }
+local listeners = {}
+function D.Listen(fn) listeners[#listeners + 1] = fn end
+function D.Recent(kind) return D.recent[kind] or {} end
+
+-- key, kind (feel, light, sound): the moment, so a page can find its row;
+-- label, choice: its name and what played (the feel, light or sound)
+function D.Note(text, key, kind, label, choice)
+    local e = { at = Now(), text = text, key = key, kind = kind, label = label, choice = choice }
+    table.insert(D.log, 1, e)
     while #D.log > 30 do table.remove(D.log) end
+    local ring = D.recent[kind]
+    if ring and key then
+        table.insert(ring, 1, e)
+        while #ring > D.RECENT do table.remove(ring) end
+    end
     if D.onNote then D.onNote(text) end
+    for _, fn in ipairs(listeners) do fn(e) end
 end
 
 function D.Latest()
@@ -217,7 +232,7 @@ local function Wrap()
                 local e = RumbleEvent(key)
                 local label = e and e.label or (key == "cast" and "Casting") or key
                 D.lastRumble = Named(key, label, PatternLabel(pattern))
-                D.Note(D.lastRumble, key == "cast" and (V.castKind or "spell") or key, "feel")
+                D.Note(D.lastRumble, key == "cast" and (V.castKind or "spell") or key, "feel", label, PatternLabel(pattern))
                 local okS, s = pcall(V.Settings)
                 D.Fight(key, label, PatternLabel(pattern), okS and s and s.intensity or 1, V.why1, V.why2, V.why3)
             end
@@ -235,7 +250,7 @@ local function Wrap()
             if e and H.Engine() and L.EventSettings(key).on then
                 local label = FeelLabel(type(feel) == "string" and feel or L.EventSettings(key).feel)
                 if type(feel) == "table" then label = label .. ", shaped" end
-                D.Note(Named(key, e.label, label), key, "feel")
+                D.Note(Named(key, e.label, label), key, "feel", e.label, label)
                 D.Fight(key, e.label, label, gain or 1, L.why1, L.why2, L.why3)
             end
         end
@@ -243,13 +258,36 @@ local function Wrap()
     if LT and not LT.debugWrapped then
         LT.debugWrapped = true
         local fire, start = LT.Fire, LT.StartState
+        local function Lit(key, suffix)
+            if not (LT.On() and LT.EVENT[key] and LT.Settings(key).on) then return end
+            local l = LT.Light(LT.Settings(key).light)
+            D.Note("Light · " .. LT.EVENT[key].label .. suffix, key, "light", LT.EVENT[key].label, l and l.name)
+        end
         LT.Fire = function(key, ...)
             fire(key, ...)
-            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label, key, "light") end
+            Lit(key, "")
         end
         LT.StartState = function(key, ...)
             start(key, ...)
-            if LT.On() and LT.EVENT[key] and LT.Settings(key).on then D.Note("Light · " .. LT.EVENT[key].label .. " (while it lasts)", key, "light") end
+            Lit(key, " (while it lasts)")
+        end
+    end
+    -- sounds: a moment's cue that carried its sound (not a try, not built)
+    local C = ns.HelperCues
+    if C and C.Moment and not C.debugWrapped then
+        C.debugWrapped = true
+        local moment = C.Moment
+        C.Moment = function(key, feelKey, opts)
+            local sent = moment(key, feelKey, opts)
+            if sent and not (opts and (opts.build or opts.try or opts.open or opts.noSound))
+                and C.Settings().sounds == true and C.MomentSound(key) then
+                local e = L.EVENT[key] or RumbleEvent(key) or (LT and LT.Def and LT.Def(key))
+                local _, name = ns.SubMoment and ns.SubMoment(key)
+                local label = e and e.label or name or key
+                local id = C.MomentSound(key)
+                D.Note("Sound · " .. label, key, "sound", label, C.SoundName and C.SoundName(id) or tostring(id))
+            end
+            return sent
         end
     end
 end

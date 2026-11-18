@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.2 — 2026-11-18
+
+- **Just felt** replaces the grey line in Moments' header: a small chip with the last moment's icon and name, then its feel, quieter. Light and Sound show what last lit or played (Just lit, Just played). It goes quiet as it ages. A click lists the last 10 with how long ago; each one jumps to its row. Updates as moments play, no polling
+- **The skin reaches every control**: buttons, joined choices, search fields and tiles take v2's surface or Gilded's leather (a gold rim on buttons), on every page: Controller, Moments, Gestures, Setup, Bars, Tools, Help, Lab. Controller: the pad drawing sits on a card, the touchpad zones take the skin. The action picker's list, search, tiles and paging too
+- **Choose: one tile a spell**: the spellbook lists every rank; the picker shows the highest only (the rank already chosen stays)
+
 ## 0.45.1 — 2026-11-18
 
 - Choose › Windows: Forever's windows, from its own bindings and gamepad radial. New: Reputation, Currency, Honor, Legacy, Mounts, Pets, Toys, Who, Raid, Chat Channels, Calendar, Macros, Clock, Shop, Support

@@ -491,6 +491,104 @@ end
 
 function HUI.HideTextWindow() if textWin then textWin:Hide() end end
 
+---------------------------------------------------------------------------
+-- Just felt: a small chip with the last moment of a kind (its icon, its
+-- name, then what played, quieter), going quiet as it ages; a click lists
+-- the last few, each one jumping to its row. On HapticsDebug's notes, no
+-- polling. right: the chip's right edge in the header; kind() -> feel,
+-- light or sound; opts.icon(key, kind), opts.jump(key, kind)
+---------------------------------------------------------------------------
+local CAPTION = { feel = "Just felt", light = "Just lit", sound = "Just played" }
+HUI.JUST_FELT = CAPTION
+local function Ago(s)
+    s = math.max(0, s or 0)
+    if s < 60 then return floor(s) .. " s" end
+    if s < 3600 then return floor(s / 60) .. " min" end
+    return floor(s / 3600) .. " h"
+end
+HUI.Ago = Ago
+function HUI.JustFelt(header, right, kind, opts)
+    local D = ns.HapticsDebug
+    local CHIP_W = 300
+    local chip = CreateFrame("Button", nil, header)
+    chip:SetSize(CHIP_W, 26)
+    chip:SetPoint("TOPLEFT", right - CHIP_W, -3)
+    local back = chip:CreateTexture(nil, "BACKGROUND")
+    back:SetAllPoints()
+    back:SetColorTexture(1, 0.85, 0.55, 0.06)
+    local edge = chip:CreateTexture(nil, "BORDER")
+    edge:SetPoint("BOTTOMLEFT"); edge:SetPoint("BOTTOMRIGHT"); edge:SetHeight(1)
+    S.Gradient(edge, "HORIZONTAL", { 0.85, 0.66, 0.32, 0 }, { 0.85, 0.66, 0.32, 0.45 })
+    local hover = chip:CreateTexture(nil, "HIGHLIGHT")
+    hover:SetAllPoints()
+    hover:SetColorTexture(1, 0.8, 0.4, 0.08)
+    -- right to left: the feel, the name, the icon, the caption
+    chip.choice = S.Text(chip, "", 0, -7, 110, 11, GREY)
+    chip.choice:ClearAllPoints(); chip.choice:SetPoint("RIGHT", -8, 0)
+    chip.choice:SetJustifyH("RIGHT"); chip.choice:SetWordWrap(false)
+    chip.name = S.Text(chip, "", 0, -7, 120, 11, GOLD)
+    chip.name:ClearAllPoints(); chip.name:SetPoint("RIGHT", chip.choice, "LEFT", -6, 0)
+    chip.name:SetJustifyH("RIGHT"); chip.name:SetWordWrap(false)
+    chip.icon = chip:CreateTexture(nil, "ARTWORK")
+    chip.icon:SetSize(18, 18)
+    chip.icon:SetPoint("RIGHT", chip.name, "LEFT", -5, 0)
+    chip.caption = S.Text(chip, "", 8, -8, 70, 10, DIM)
+    -- (fresh, then quiet over half a minute)
+    local fade
+    if type(chip.CreateAnimationGroup) == "function" then
+        fade = chip:CreateAnimationGroup()
+        local a = type(fade) == "table" and type(fade.CreateAnimation) == "function" and fade:CreateAnimation("Alpha")
+        if type(a) == "table" and type(a.SetFromAlpha) == "function" then
+            a:SetFromAlpha(1); a:SetToAlpha(0.4); a:SetDuration(20)
+            if a.SetStartDelay then a:SetStartDelay(10) end
+            if fade.SetToFinalAlpha then fade:SetToFinalAlpha(true) end
+        else
+            fade = nil
+        end
+    end
+    local function Latest() return D and D.Recent(kind())[1] end
+    function chip.Update(fresh)
+        local e = Latest()
+        chip:SetShown(e ~= nil)
+        if not e then return end
+        local k = kind()
+        chip.caption:SetText(CAPTION[k] or "")
+        chip.icon:SetTexture(opts.icon(e.key, k))
+        chip.name:SetText(e.label or e.key)
+        chip.choice:SetText(e.choice or "")
+        local sw = chip.name:GetStringWidth()
+        chip.name:SetWidth(math.min(140, math.max(20, (type(sw) == "number" and sw or 120) + 2)))
+        local age = (GetTime and GetTime() or 0) - e.at
+        if fade then fade:Stop() end
+        if fresh or age < 10 then
+            chip:SetAlpha(1)
+            if fade then fade:Play() end
+        else
+            chip:SetAlpha(age < 30 and 0.7 or 0.4)
+        end
+    end
+    chip:SetScript("OnClick", function(self)
+        local k = kind()
+        local now = GetTime and GetTime() or 0
+        local entries = {}
+        for i, e in ipairs(D and D.Recent(k) or {}) do
+            entries[#entries + 1] = { key = i, icon = opts.icon(e.key, k),
+                label = (e.label or e.key) .. (e.choice and ("  ·  " .. e.choice) or "") .. "  ·  " .. Ago(now - e.at) }
+        end
+        HUI.Popup(self, CAPTION[k], entries, nil, function(i)
+            local e = D.Recent(k)[i]
+            if e then opts.jump(e.key, k) end
+        end, 1, 300)
+    end)
+    S.Tooltip(chip, CAPTION.feel, "Click: the last 10")
+    if D and D.Listen then
+        D.Listen(function(e) if e.kind == kind() and header:IsVisible() then chip.Update(true) end end)
+    end
+    chip:SetScript("OnShow", function() chip.Update() end)
+    chip.Update()
+    return chip
+end
+
 function HUI.HidePopup()
     if popup then popup:Hide() end
     if HUI.HidePalette then HUI.HidePalette() end

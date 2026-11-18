@@ -414,6 +414,7 @@ local function ZoneCell(zone)
     hover:SetAllPoints()
     hover:SetColorTexture(1, 0.78, 0.3, 0.14)
     c:SetFrameLevel((ui.art:GetFrameLevel() or 0) + 2)
+    S.SkinFill(c, 1, 0.8, -2)
     c.bg = c:CreateTexture(nil, "BACKGROUND")
     c.bg:SetAllPoints()
     c.bg:SetColorTexture(1, 0.85, 0.55, 0.06)
@@ -868,10 +869,12 @@ local function Build(frame, header)
         S.Tooltip(ui.pages[p], "Page " .. p, "Bar slots only")
     end
 
-    -- The controller
+    -- The controller, on a card of the skin's surface
+    ui.artCard = S.Card(body, nil, 0, -TOP, ART_W, ART_H)
     ui.art = CreateFrame("Frame", nil, body)
     ui.art:SetPoint("TOPLEFT", 0, -TOP)
     ui.art:SetSize(ART_W, ART_H)
+    ui.art:SetFrameLevel((ui.artCard:GetFrameLevel() or 0) + 1)
     local art = ui.art:CreateTexture(nil, "BACKGROUND", nil, 1)
     art:SetAllPoints()
     art:SetTexture(C.TEXTURE)
