@@ -124,7 +124,6 @@ local function BuildBars(frame, header)
     ui.editMode.label:SetFont("Fonts\\FRIZQT__.TTF", 16, "")
     ui.editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
     Tooltip(ui.editMode, "Edit Mode", "Drag a bar · click it: scale, prompt, reset")
-    Text(card, "Drag a bar  ·  click it: scale, prompt, reset", 400, -74, W - 420, 13, GREY)
     ui.layout = Text(card, "", 20, -132, W - 40, 13, GOLD)
     ui.copy = Button(card, "Copy from Standard", 20, -170, 200, function()
         Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
@@ -219,17 +218,15 @@ local function BuildTools(frame, header)
         if InCombatLockdown() or not spells.ready then Notice("Use Blizzard's spellbook button") end
     end)
     spellButtons[#spellButtons + 1] = spells
-    ToolNote(blizz, "Spellbook", 14, -90, bw)
     local macros = SlashButton(blizz, "Macros", 24 + bw, -44, bw, 40, "/macro")
     macros:SetScript("PreClick", function() local w = Window(); openingPanel = w and w:IsShown() end)
     macros:SetScript("PostClick", function()
         ReturnToEditor()
         if InCombatLockdown() then Notice("Not in combat") end
     end)
-    ToolNote(blizz, "Macro window", 26 + bw, -90, bw)
     local editMode = SlashButton(blizz, "Edit Mode", 12, -118, bw, 40, "/editmode")
     editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
-    ToolNote(blizz, "Frames and the controller bar", 14, -164, bw)
+    Tooltip(editMode, "Edit Mode", "Frames and the controller bar")
     local gamepad = Button(blizz, "Gamepad options", 24 + bw, -118, bw, function()
         local ok, reason = OpenGamepadSettings()
         if not ok then Result(nil, reason); return end
@@ -247,7 +244,6 @@ local function BuildTools(frame, header)
         end
     end, nil, 13, 40)
     Tooltip(gamepad, "Blizzard gamepad options", "Mouse and keyboard UI only")
-    ToolNote(blizz, "Mouse and keyboard UI", 26 + bw, -164, bw)
     RefreshSpellbookButtons()
 
     -- Spread view
