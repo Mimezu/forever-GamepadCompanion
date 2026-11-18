@@ -937,7 +937,8 @@ do
     WowHelperData = nil
     ns.Timing.Store().link = "usb"
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Sync run") and not visible("USB feels"), "range, timing on Setup; no USB feels")
+    assert(visible("Find left") and visible("Try") and not visible("Sync run") and not visible("Sync walk")
+        and not visible("USB feels"), "range, timing (a status each, no Sync) on Setup; no USB feels")
     assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
     ns.Timing.Store().link = nil
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
@@ -2735,4 +2736,56 @@ do
     IsSpellHelpful, UnitCanAttack = nil, nil
     ns.Timing.Store().set = {}
     io.write("PASS: spell coverage: no-hit at the cast, quiet debuffs, summons, one claim, casts at their impact, the kinds table" .. string.char(10))
+end
+
+-- Footsteps for WoW Helper: markers as a step cycle starts (run, walk) and stops; learned timing read back
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local K = ns.HelperLink
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    wipe(K.queue)
+    local speed, sex = 7, 3
+    local oldSpeed, oldSex = GetUnitSpeed, UnitSex
+    GetUnitSpeed = function() return speed end
+    UnitSex = function() return sex end
+    IsMounted, IsFalling, IsSwimming, IsFlying = function() return false end, function() return false end,
+        function() return false end, function() return false end
+    labFrame.scripts.OnEvent(labFrame, "PLAYER_STARTED_MOVING")
+    now = now + 0.08
+    L.Poll()
+    local m = K.queue[1]
+    assert(m and m.moment == 96 and m.side == 1 and m.seed == 128 + 8, "running: 96, race 1, female, 80 ms late: "
+        .. tostring(m and m.moment) .. " " .. tostring(m and m.seed))
+    wipe(K.queue)
+    now = now + 0.1
+    L.Poll()
+    assert(#K.queue == 0, "still running: no new marker")
+    speed = 2.5
+    now = now + 0.1
+    L.Poll()
+    assert(K.queue[1] and K.queue[1].moment == 97 and K.queue[1].seed == 128, "walking now: 97, its cycle from now")
+    wipe(K.queue)
+    speed = 0
+    now = now + 0.1
+    L.Poll()
+    assert(K.queue[1] and K.queue[1].moment == 98, "stopped: 98")
+    wipe(K.queue)
+    -- learned by listening, read back; yours wins; a guess otherwise
+    H.DB().stepSync = {}
+    assert(L.StepSource("run") == "guess", "a guess")
+    WowHelperData = { stepTiming = { ["1-3|run"] = { rate = 2.46, offset = 0.12, speed = 7, steps = 140 } } }
+    local source, n = L.StepSource("run")
+    assert(source == "learned" and n == 140, "learned · 140")
+    local rate, offset, synced = L.StepTiming(7)
+    assert(math.abs(rate - 2.46) < 1e-9 and math.abs(offset - 0.12) < 1e-9 and synced, "its timing used")
+    L.SetStepRate("run", 2.3)
+    assert(L.StepSource("run") == "yours", "set by hand: yours")
+    H.DB().stepSync = {}
+    WowHelperData = nil
+    K.Enabled = enabled
+    GetUnitSpeed, UnitSex, IsMounted, IsFalling, IsSwimming, IsFlying = oldSpeed, oldSex, nil, nil, nil, nil
+    io.write("PASS: footsteps: markers for WoW Helper (run, walk, stop), learned timing read back" .. string.char(10))
 end

@@ -968,10 +968,63 @@ L.Band = Band
 local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate = 2.4, speed = 7, offset = 0.1 } }
 
 -- A gait's sync for this character, or nil
+-- A gait's timing: yours (synced or set by hand), else WoW Helper's learned
+-- by listening (WowHelperData.stepTiming, read at load), else nil (a guess)
 function L.StepCal(band)
     local db = H.DB()
     db.stepSync = db.stepSync or {}
-    return db.stepSync[Model() .. "-" .. band]
+    local own = db.stepSync[Model() .. "-" .. band]
+    if own then return own end
+    local d = _G.WowHelperData
+    local l = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming[Model() .. "|" .. band]
+    if type(l) == "table" and tonumber(l.rate) and tonumber(l.speed) then
+        return { rate = tonumber(l.rate), offset = tonumber(l.offset) or 0, speed = tonumber(l.speed), taps = 0,
+            learned = tonumber(l.steps) or 0 }
+    end
+    return nil
+end
+
+-- Where a gait's timing comes from: "yours", "learned" (and its steps), "guess"
+function L.StepSource(band)
+    local cal = L.StepCal(band)
+    if not cal then return "guess" end
+    if cal.learned then return "learned", cal.learned end
+    return "yours"
+end
+
+---------------------------------------------------------------------------
+-- Footstep markers for WoW Helper (its src/steps.rs), with the HD link on:
+-- moment 96 a run's step cycle starts, 97 a walk's (a move, a change of
+-- gait, a landing), 98 the move stops; side = race id; seed = sex (bit 7)
+-- and how late the marker is after the cycle's start (10 ms steps: the
+-- poll sees the gait a moment after the move). It learns the steps' period
+-- and timing by listening.
+---------------------------------------------------------------------------
+local stepMark = {}
+local function SendStep(moment, late)
+    local K = ns.HelperLink
+    local race = select(3, UnitRace("player")) or 0
+    if secret(race) or type(race) ~= "number" then race = 0 end
+    local sex = UnitSex("player")
+    K.Marker({ moment = moment, side = min(15, race), level = 0,
+        seed = (sex == 3 and 128 or 0) + min(126, max(0, floor(late / 0.01 + 0.5))) })
+end
+
+function L.StepMarkers(now, onFoot, speed)
+    local K = ns.HelperLink
+    if not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then stepMark.start = nil; return end
+    if not onFoot then
+        if stepMark.start then stepMark.start, stepMark.band = nil, nil; SendStep(98, 0) end
+        return
+    end
+    local band = Band(max(0.5, speed))
+    -- (the other gait: its cycle starts now, as the footsteps' clock does)
+    if stepMark.start and band ~= stepMark.band then live.moveStart = now end
+    local start = live.moveStart or now
+    if start ~= stepMark.start or band ~= stepMark.band then
+        stepMark.start, stepMark.band = start, band
+        SendStep(band == "walk" and 97 or 96, now - start)
+    end
 end
 
 -- Steps per second at a speed, and the first step's time after the start
@@ -1632,6 +1685,7 @@ local function Poll()
     live.moving = speed > 0 and not falling and not swimming and not flying and not taxi
     L.water = L.WaterState()
     live.wading = L.water.wading
+    L.StepMarkers(now, live.moving and not mounted, speed)
     if live.moving and not mounted and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
     if live.moving and not mounted and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
     if live.moving and mounted then StartLive("riding", Gallop) else H.Stop("live_riding") end

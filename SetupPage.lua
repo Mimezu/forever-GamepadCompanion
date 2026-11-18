@@ -242,76 +242,71 @@ end
 ---------------------------------------------------------------------------
 local function BuildTiming(frame)
     local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210, "Interface\\Icons\\INV_Misc_PocketWatch_01")
-    local gaits, buttons, texts = { { "run", "Run" }, { "walk", "Walk" } }, {}, {}
-    local bw = (COL - 30) / 2
-    S.Text(card, "Footsteps", 12, -40, COL - 24, 12, GOLD)
-    for i, g in ipairs(gaits) do
-        buttons[g[1]] = S.NewButton(card, "Sync " .. g[2]:lower(), 12 + (i - 1) * (bw + 6), -58, bw, function()
-            if L.sync then L.StepSyncCancel() else L.StepSync(g[1]) end
-            Refresh()
-        end, nil, 12, 28)
-        S.Tooltip(buttons[g[1]], "Sync " .. g[2]:lower(), "Squeeze R2 on each footfall")
+    -- (WoW Helper learns these by listening: a status each, one Reset; any
+    -- nudge by hand is WoW Helper's one Pad delay)
+    local rows = {}
+    local function Row(y, title, reset, try)
+        local r = {}
+        S.Text(card, title, 12, y, 90, 12, GOLD)
+        r.text = S.Text(card, "", 12, y - 18, COL - 24, 11, GREY)
+        if try then
+            r.try = S.NewButton(card, "Try", COL - 138, y + 6, 60, try, nil, 11, 24)
+            S.Tooltip(r.try, "Try", "The next swings")
+        end
+        if reset then
+            r.reset = S.NewButton(card, "Reset", COL - 72, y + 6, 60, function() reset(); Refresh() end, nil, 11, 24)
+            S.Tooltip(r.reset, "Reset", "To what WoW Helper learns")
+        end
+        rows[#rows + 1] = r
+        return r
     end
-    texts.steps = S.Note(card, 12, -92, COL - 24, 2, 11, GREY)
-    S.Text(card, "Mining", 12, -128, 80, 12, GOLD)
-    local mine = S.NewButton(card, "Sync", 12, -146, bw, function()
-        if V.strikeSync then V.StrikeSyncCancel() else V.StrikeSync("mining") end
-        Refresh()
-    end, nil, 12, 28)
-    S.Tooltip(mine, "Sync", "Squeeze R2 on each strike")
-    texts.mine = S.Text(card, "", 18 + bw, -154, bw, 11, GREY)
-    local status = S.Note(card, 12, -180, COL - 24, 1, 11, GOLD)
-    L.onSync = function(text) status:SetText(text) end
-    V.onStrikeSync = function(text) status:SetText(text); Refresh() end
-    V.onHitSync = function(text) status:SetText(text); Refresh() end
-    S.Text(card, "Landing", 12, -206, 80, 12, GOLD)
+    local function word(source, n)
+        if source == "learned" then return "Learned ✓" .. (n and (" · " .. n) or "") end
+        if source == "yours" or source == "set" or source == "synced" then return "Yours" end
+        return "Learning…"
+    end
+    local hits = Row(-40, "Hits", function()
+        local kind = V.WeaponKind(16)
+        ns.Timing.Clear(kind, kind == "ranged" and "ranged" or "main")
+        ns.Timing.Clear(kind, "off")
+    end, function() V.HitTry(); Refresh() end)
+    local mine = Row(-84, "Mining", function()
+        V.Settings().strikes.mining = nil
+    end)
+    local steps = Row(-128, "Footsteps", function()
+        local db = H.DB()
+        db.stepSync = db.stepSync or {}
+        for k in pairs(db.stepSync) do db.stepSync[k] = nil end
+    end)
+    local wading = Row(-172, "Wading")
+    wading.text:SetText("Not yet: not told apart by sound")
+    -- Landing: when a fall is a real jump (not learned: yours)
+    S.Text(card, "Landing", 12, -216, 80, 12, GOLD)
     local function secs(v) return string.format("%.2f s", v) end
-    Stepper(card, "Soft at", 12, -226, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.2, max = 3, format = secs,
+    Stepper(card, "Soft at", 12, -236, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.2, max = 3, format = secs,
         get = function() return H.DB().landMin or L.LAND_MIN end,
         set = function(v) local db = H.DB(); db.landMin = v; if (db.landMax or L.LAND_MAX) <= v then db.landMax = v + 0.05 end end })
-    Stepper(card, "Full at", 12, -254, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.25, max = 4, format = secs,
+    Stepper(card, "Full at", 12, -264, { labelWidth = 110, width = COL - 24, step = 0.05, min = 0.25, max = 4, format = secs,
         get = function() return H.DB().landMax or L.LAND_MAX end,
         set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
-    -- Hits: each weapon's blow lands after the swing's news (the weapon in hand)
-    S.Text(card, "Hits", 12, -288, 80, 12, GOLD)
-    local hitKind = S.Text(card, "", 60, -288, COL - 72, 11, GREY)
-    local half = floor((bw - 6) / 2)
-    local hit = S.NewButton(card, "Sync", 12, -306, half, function()
-        if V.hitSync then V.HitSyncCancel() else V.HitSync() end
-        Refresh()
-    end, nil, 12, 28)
-    S.Tooltip(hit, "Sync", "Squeeze R2 on each impact")
-    local try = S.NewButton(card, "Try", 18 + half, -306, half, function()
-        V.HitTry()
-        Refresh()
-    end, nil, 12, 28)
-    S.Tooltip(try, "Try", "The next swings, felt at this time")
-    local function kindNow() return V.hitSync and V.hitSync.kind or V.WeaponKind(16) end
-    -- (earlier / later by 20 ms, no squeezing needed)
-    Stepper(card, "Delay", 18 + bw, -306, { labelWidth = 44, width = bw, step = 0.02, min = 0, max = 1, format = secs,
-        get = function() return (V.HitDelay(kindNow())) end, set = function(v) V.SetHitDelay(kindNow(), v) end })
+    local status = S.Note(card, 12, -302, COL - 24, 2, 11, GOLD)
+    V.onHitSync = function(text) status:SetText(text); Refresh() end
     pg.refresh[#pg.refresh + 1] = function()
+        local kind = V.WeaponKind(16)
+        local d, _, source, n = V.HitDelay(kind)
+        hits.text:SetText(V.HitKindLabel(kind) .. " · " .. word(source, source == "learned" and n or nil)
+            .. string.format(" · %.2f s", d))
+        S.SetSelected(hits.try, V.HitTrying() and true or false)
+        local _, first, _, mineSource, mineStrikes = V.StrikeTiming("mining")
+        mine.text:SetText(word(mineSource, mineSource == "learned" and mineStrikes or nil)
+            .. string.format(" · %.2f s, then the crack", first))
         local parts = {}
-        local footsteps = L.EventSettings("footsteps").on
-        for _, g in ipairs(gaits) do
-            local cal = L.StepCal(g[1])
-            parts[#parts + 1] = g[2] .. (cal and " synced" or ": not synced")
-            local busy = L.sync and L.sync.band == g[1]
-            buttons[g[1]].label:SetText(busy and "Cancel" or ("Sync " .. g[2]:lower()))
-            S.SetSelected(buttons[g[1]], busy and true or false)
-            buttons[g[1]]:SetEnabled(footsteps or busy and true or false)
+        for _, g in ipairs({ { "run", "Run" }, { "walk", "Walk" } }) do
+            local source, sn = L.StepSource(g[1])
+            parts[#parts + 1] = g[2] .. " " .. word(source, sn)
         end
-        texts.steps:SetText(footsteps and table.concat(parts, " · ") or "Footsteps off: Moments › Moving")
-        local period, _, synced, mineSource, mineStrikes = V.StrikeTiming("mining")
-        texts.mine:SetText((synced or mineSource == "set") and "Synced" or mineSource == "learned" and "Learned" or "Not synced")
-        mine.label:SetText(V.strikeSync and "Cancel" or "Sync")
-        S.SetSelected(mine, V.strikeSync and true or false)
-        local kind = kindNow()
-        local _, _, source, hits = V.HitDelay(kind)
-        hitKind:SetText(V.HitKindLabel(kind) .. (source == "learned" and " · learned" or source == "guess" and " · not synced" or ""))
-        hit.label:SetText(V.hitSync and "Cancel" or "Sync")
-        S.SetSelected(hit, V.hitSync and true or false)
-        S.SetSelected(try, V.HitTrying() and true or false)
+        local footsteps = L.EventSettings("footsteps").on
+        steps.text:SetText(table.concat(parts, " · ") .. (footsteps and "" or " · off in Moments"))
     end
 end
 

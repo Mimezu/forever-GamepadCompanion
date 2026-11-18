@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.1 — 2026-11-18
+
+- Setup › Timing is a status now: WoW Helper learns by listening, so no Sync buttons. Hits (the weapon in hand), Mining, Footsteps (run, walk): "Learning…", "Learned ✓" (and how many) or "Yours", each with one Reset (back to what WoW Helper learns); Hits keeps Try. The hit delay shows read-only; a nudge by hand is WoW Helper's one Pad delay. Landing's Soft at and Full at stay in the card (not learned: yours)
+- Footsteps learned by listening: with the HD link on, the addon tells WoW Helper when a step cycle starts (running, walking, after a landing) and stops; WoW Helper learns the steps' rhythm from their sound (louder on wood or stone) and the addon's footsteps use it from the next load, under a sync of yours
+- Wading isn't detected by sound yet: the card says so
+
 ## 0.46.0 — 2026-11-18
 
 - **Dots and Mic are light channels**, next to the light bar (WoW Helper draws them): a moment's light picker has a **Dots** row (Off, All, Centre, Pair, Ends, Spark, Fill, Sweep, Ring, 1-5) and a **Mic · orange** row (Off, On, Pulse, Blink); a light of yours made in WoW Helper can keep its own (Light's)
