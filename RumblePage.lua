@@ -1312,34 +1312,71 @@ Jump = function(key, kind)
 end
 ui.Jump = function(key, kind) return Jump(key, kind) end
 
--- The Feel tour: six moments in 25 s, each named in Just felt as it plays
+-- The Feel tour: six moments in 25 s, each named in Just felt as it plays. Stops on Stop (the
+-- same button), when the window closes (Esc, the pad's B) and when a fight starts (U2-8); plays
+-- only as Try would (Feel on, never in a fight); named only when it played
 ui.TOUR = { { 0, "footsteps" }, { 5, "autoAttack" }, { 10, "crit" }, { 14, "loot" }, { 18, "levelUp" }, { 22, "whisper" } }
 local tourRun = 0
+ui.touring = false
+local function Fighting() return InCombatLockdown and InCombatLockdown() and true or false end
+local function TourChanged() if ui.onTour then pcall(ui.onTour, ui.touring) end end
+function ui.StopTour(quiet)
+    local was = ui.touring
+    tourRun = tourRun + 1
+    ui.touring = false
+    if was then
+        V.StopSimulation()
+        if not quiet then Say("Tour stopped") end
+    end
+    TourChanged()
+end
 function ui.PlayTour()
+    if ui.touring then return ui.StopTour() end
+    if Fighting() then return Say("Not in a fight", true) end
+    if not On() then return end
+    -- (the window closed, Esc or the pad's B: the tour stops)
+    local win = not ui.tourHooked and Shell.Window and Shell.Window()
+    if win and win.HookScript then
+        win:HookScript("OnHide", function() if ui.touring then ui.StopTour(true) end end)
+        ui.tourHooked = true
+    end
     tourRun = tourRun + 1
     local run = tourRun
+    ui.touring = true
+    TourChanged()
     local D = ns.HapticsDebug
     for i, step in ipairs(ui.TOUR) do
         local function go()
             if run ~= tourRun then return end
+            if Fighting() then return ui.StopTour(true) end
             local key = step[2]
+            local kind
+            for _, g in ipairs(GROUPS) do for _, it in ipairs(g.items) do if it[2] == key then kind = it[1] end end end
+            local I = kind and ITEM[kind]
+            local _, _, _, off = I and I.show(key)
             ui.TryMoment(key)
-            -- (named in Just felt, unless its Try already did)
+            -- (named in Just felt, unless its Try already did; not when it played nothing)
+            local played = I and not off and V.Settings().enabled and not V.Other()
             local last = D and D.Recent and D.Recent("feel")[1]
-            if D and D.Note and not (last and last.key == key and (GetTime and GetTime() or 0) - last.at < 0.5) then
-                local kind
-                for _, g in ipairs(GROUPS) do for _, it in ipairs(g.items) do if it[2] == key then kind = it[1] end end end
-                local I = kind and ITEM[kind]
-                local label = I and I.label(key) or key
-                local feel = I and I.show(key)
-                D.Note(label, key, "feel", label, feel)
+            if played and D and D.Note and not (last and last.key == key and (GetTime and GetTime() or 0) - last.at < 0.5) then
+                local label = I.label(key)
+                D.Note(label, key, "feel", label, (I.show(key)))
             end
-            Say("Tour " .. i .. "/" .. #ui.TOUR)
+            if i == #ui.TOUR then
+                ui.touring = false
+                TourChanged()
+                Say("Tour done")
+            else
+                Say("Tour " .. i .. "/" .. #ui.TOUR .. " · Stop")
+            end
         end
         if step[1] == 0 or not (C_Timer and C_Timer.After) then go() else C_Timer.After(step[1], go) end
     end
 end
-function ui.StopTour() tourRun = tourRun + 1 end
+-- (a fight starts: the tour stops, quietly; the window closes: it stops)
+local tourStop = CreateFrame("Frame")
+pcall(tourStop.RegisterEvent, tourStop, "PLAYER_REGEN_DISABLED")
+tourStop:SetScript("OnEvent", function() if ui.touring then ui.StopTour(true) end end)
 
 -- Try a feel moment as its row's Try does (Help › Start here › Feel it)
 function ui.TryMoment(key)

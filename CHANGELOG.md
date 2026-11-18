@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.53.6 — 2026-11-18
+
+- **The Feel tour stops** (night review 2, U2-8): the same button reads Stop while it plays; closing the window (Esc, the pad's B) or a fight starting stops it. It doesn't start with Feel off, with Improved Forever's vibration on, or in a fight, and Just felt names only what played
+- Help › Start here's **Feel it** plays the tour (one control for one thing, U2-15)
+
 ## 0.53.5 — 2026-11-18
 
 - Night review 2, Safety:

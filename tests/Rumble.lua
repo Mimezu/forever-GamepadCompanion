@@ -772,3 +772,41 @@ do
     L.EventDefault("loot")
     io.write("PASS: U2-4: Undo goes with its own change and its message\n")
 end
+-- Night review 2, U2-8: the Feel tour stops: a fight, the window closing, the same button again;
+-- it doesn't start with Feel off
+do
+    local tries = 0
+    local try = page.TryMoment
+    page.TryMoment = function(...) tries = tries + 1 end
+    RunTimers()
+    -- a fight starts mid-tour: nothing more plays
+    page.PlayTour()
+    assert(tries == 1, "the first step at once")
+    local icl = InCombatLockdown
+    InCombatLockdown = function() return true end
+    RunTimers()
+    InCombatLockdown = icl
+    assert(tries == 1, "U2-8: a fight started: the other five didn't play (" .. tries .. ")")
+    -- the window closes mid-tour
+    tries = 0
+    page.PlayTour()
+    ns.ShellWindow():Hide()
+    RunTimers()
+    assert(tries == 1, "U2-8: the window closed: the tour stopped (" .. tries .. ")")
+    ns.ShellWindow():Show()
+    -- the same button again: Stop
+    tries = 0
+    page.PlayTour()
+    page.PlayTour()
+    RunTimers()
+    assert(tries == 1, "U2-8: played again = Stop (" .. tries .. ")")
+    -- Feel off: no tour
+    tries = 0
+    V.Settings().enabled = false
+    page.PlayTour()
+    RunTimers()
+    V.Settings().enabled = true
+    assert(tries == 0, "U2-8: Feel off, no tour")
+    page.TryMoment = try
+    io.write("PASS: U2-8: the tour stops on a fight, on close, on Stop; not with Feel off\n")
+end

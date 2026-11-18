@@ -248,17 +248,11 @@ local function HelperReady()
     return K and K.Enabled() and C and C.Data and C.Data() ~= nil or false
 end
 
--- Feel it: Critical hit, Loot, Level up, one after another
-local FEEL_IT = { "crit", "loot", "levelUp" }
+-- Feel it: the Feel tour (one control for one thing: U2-15); again: Stop
 FeelIt = function()
     local page = ns.RumblePage
-    if not (page and page.TryMoment) then return end
-    for i, key in ipairs(FEEL_IT) do
-        local function go() page.TryMoment(key) end
-        if i == 1 or not (C_Timer and C_Timer.After) then go() else C_Timer.After((i - 1) * 1.4, go) end
-    end
+    if page and page.PlayTour then page.PlayTour() end
 end
-help.FEEL_IT = FEEL_IT
 
 -- /gpc: Start here while the pad or WoW Helper isn't ready (a client that
 -- can't tell about the pad counts as ready); else the last page
@@ -519,11 +513,13 @@ local function Build(frame)
     help.table:Hide()
     help.go = S.NewButton(card, "Go there", CW - 160, -(H - 52), 140, nil, nil, 13, 36)
     -- the Feel tour: six moments in 25 s, each named in Just felt
-    help.tour = S.NewButton(card, "Play the tour", 0, 0, 140, function()
-        local page = ns.RumblePage
-        if page and page.PlayTour then page.PlayTour() end
-    end, nil, 13, 36)
+    help.tour = S.NewButton(card, "Play the tour", 0, 0, 140, function() FeelIt() end, nil, 13, 36)
     help.tour:Hide()
+    -- (while it plays the same button stops it)
+    local page = ns.RumblePage
+    if page then
+        page.onTour = function(on) help.tour.label:SetText(on and "Stop" or "Play the tour") end
+    end
     -- Fix it: a row a problem: its name, its checks, Go there
     help.fix = CreateFrame("Frame", nil, card)
     help.fix:SetPoint("TOPLEFT", 18, -46)
