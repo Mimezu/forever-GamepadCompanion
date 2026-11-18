@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.52.4 — 2026-11-18
+
+- **The Feel tour**: **Play the tour** on Help › Start here and Help › Moments: footsteps, a swing, a crit, loot, a level up, a whisper, in 25 s, each named in Just felt as it plays
+- **Help › Fix it**: Nothing is felt · WoW Helper not read · Sounds silent · Lights stay class colour; each with its checks, live (Pad, Feel on, Link on, Read at login, Sounds on, Light on), and Go there
+
 ## 0.52.3 — 2026-11-18
 
 - Night review, haptics (the addon's side): what WoW Helper learned is mirrored at each load (a Reset there goes here too, and is no longer sent back as the addon's own delay); its link latency clears when it no longer publishes one; the hit defaults come from its one table (the copy here only without it)

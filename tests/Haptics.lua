@@ -967,6 +967,16 @@ do
         end
         assert(groupOf.haloOpen == "Interface" and groupOf.uiError == "Interface" and groupOf.death == "Defense", "Interface; Death in Defense")
     end
+    -- the Feel tour: six moments in 25 s, each named in Just felt as it plays
+    do
+        local D = ns.HapticsDebug
+        local seen = {}
+        D.Listen(function(e) if e.kind == "feel" then seen[e.key] = true end end)
+        M.PlayTour()
+        RunTimers()
+        local got = {} for k in pairs(seen) do got[#got + 1] = k end
+        for _, step in ipairs(M.TOUR) do assert(seen[step[2]], "the tour named " .. step[2] .. ": " .. table.concat(got, ",")) end
+    end
     -- the link off: one card, not dim rows
     local wasOn = ns.HelperLink.Enabled()
     ns.HelperLink.SetEnabled(false)

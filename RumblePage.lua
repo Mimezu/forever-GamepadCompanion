@@ -118,16 +118,8 @@ ITEM.r = {
             if now then V.Play(now) end
         end
     end,
-    isDefault = function(key)
-        local e = REVENT[key]
-        local cfg = V.Settings().events[key]
-        return cfg.on == e.on and cfg.pattern == e.pattern
-    end,
-    default = function(key)
-        local e = REVENT[key]
-        local cfg = V.Settings().events[key]
-        cfg.on, cfg.pattern = e.on, e.pattern
-    end,
+    isDefault = function(key) return V.IsEventDefault(key) end,
+    default = function(key) V.EventDefault(key) end,
     -- the feel to copy: the one playing now (Match the...: the current match)
     feel = function(key)
         local p = V.Pattern(V.EventPattern(key))
@@ -1215,6 +1207,35 @@ Jump = function(key, kind)
     end
 end
 ui.Jump = function(key, kind) return Jump(key, kind) end
+
+-- The Feel tour: six moments in 25 s, each named in Just felt as it plays
+ui.TOUR = { { 0, "footsteps" }, { 5, "autoAttack" }, { 10, "crit" }, { 14, "loot" }, { 18, "levelUp" }, { 22, "whisper" } }
+local tourRun = 0
+function ui.PlayTour()
+    tourRun = tourRun + 1
+    local run = tourRun
+    local D = ns.HapticsDebug
+    for i, step in ipairs(ui.TOUR) do
+        local function go()
+            if run ~= tourRun then return end
+            local key = step[2]
+            ui.TryMoment(key)
+            -- (named in Just felt, unless its Try already did)
+            local last = D and D.Recent and D.Recent("feel")[1]
+            if D and D.Note and not (last and last.key == key and (GetTime and GetTime() or 0) - last.at < 0.5) then
+                local kind
+                for _, g in ipairs(GROUPS) do for _, it in ipairs(g.items) do if it[2] == key then kind = it[1] end end end
+                local I = kind and ITEM[kind]
+                local label = I and I.label(key) or key
+                local feel = I and I.show(key)
+                D.Note(label, key, "feel", label, feel)
+            end
+            Say("Tour " .. i .. "/" .. #ui.TOUR)
+        end
+        if step[1] == 0 or not (C_Timer and C_Timer.After) then go() else C_Timer.After(step[1], go) end
+    end
+end
+function ui.StopTour() tourRun = tourRun + 1 end
 
 -- Try a feel moment as its row's Try does (Help › Start here › Feel it)
 function ui.TryMoment(key)

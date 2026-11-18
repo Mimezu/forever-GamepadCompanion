@@ -274,14 +274,15 @@ function API.OpenStart()
 end
 
 local TOPICS = {
-    { key = "start", name = "Start here", glyph = "help", start = true },
+    { key = "start", name = "Start here", glyph = "help", start = true, tour = true },
+    { key = "fix", name = "Fix it", glyph = "topic-fix", fix = true },
     { key = "controller", name = "Controller", glyph = "controller", marks = 3, go = Go("controller"), points = {
         "Click any button: set it", "Hold L2 or R2: its layer", "D-pad and face: bar slots, pages 1-3",
         "Choose: spell, item, macro, window", "In combat: applies after" } },
     { key = "touchpad", name = "Touchpad", glyph = "topic-touchpad", picture = "touchpad", marks = 3,
         go = function() if API and API.ToggleTouchpad then API.ToggleTouchpad() end end, points = {
         "Zones: an action each", "Swipes: four more", "Touch + click: two a zone", "Taps: out of combat only" } },
-    { key = "moments", name = "Moments", glyph = "moments", marks = 4, go = Go("moments"), points = {
+    { key = "moments", name = "Moments", glyph = "moments", marks = 4, go = Go("moments"), tour = true, points = {
         "The feel: click to pick", "Try: feel it now", "Default: as it ships", "Feel, Light, Sound: a view each" } },
     { key = "gestures", name = "Gestures", glyph = "gestures", marks = 3, go = Go("gestures"), points = {
         "Record: WoW Helper › Gestures", "Recognised: WoW Helper presses its keys", "Runs: the action chosen here" } },
@@ -338,6 +339,52 @@ local function StartSteps()
     end
 end
 
+-- Fix it: what a player says, the checks that answer it (live), where to go
+local function Fighting() return InCombatLockdown and InCombatLockdown() end
+local function V() return ns.Rumble end
+local function LinkOn() local K = ns.HelperLink; return K and K.Enabled() or false end
+local function Read() local C = ns.HelperCues; return LinkOn() and C and C.HelperData and C.HelperData() ~= nil or false end
+help.FIXES = {
+    { "Nothing is felt", "moments", {
+        { "Pad", function() return Shell.PadPresent == nil or Shell.PadPresent() ~= false end },
+        { "Feel on", function() return V() and V().Settings().enabled == true end },
+        { "No other vibration addon", function() return not (V() and V().Other and V().Other()) end } } },
+    { "WoW Helper not read", "setup", {
+        { "Link on", LinkOn },
+        { "Read at login", Read } } },
+    { "Sounds silent", "sound", {
+        { "Link on", LinkOn },
+        { "Sounds on", function() local C = ns.HelperCues; return C and C.Settings and C.Settings().sounds == true end },
+        { "Read at login", Read } } },
+    { "Lights stay class colour", "light", {
+        { "Light on", function() local H = ns.Haptics; return H and H.DB().light == true end },
+        { "Link on", LinkOn } } },
+}
+local function FixGo(where)
+    if where == "sound" or where == "light" then
+        return function()
+            if API and API.OpenMoments then API.OpenMoments(where) else Go("moments")() end
+        end
+    end
+    return Go(where)
+end
+local function RefreshFix()
+    for i, f in ipairs(help.FIXES) do
+        local row = help.fixRows and help.fixRows[i]
+        if row then
+            local parts, ok = {}, true
+            for _, c in ipairs(f[3]) do
+                local good = c[2]() and true or false
+                ok = ok and good
+                parts[#parts + 1] = (good and "|cff5ad966✓|r " or "|cffff7a5c✗|r ") .. c[1]
+            end
+            row.checks:SetText(table.concat(parts, "    "))
+            row.state:SetText(ok and "|cff5ad966All good|r" or "")
+        end
+    end
+end
+help.RefreshFix = RefreshFix
+
 local function ShowTopic(index)
     local topic = TOPICS[index]
     help.index = index
@@ -360,6 +407,21 @@ local function ShowTopic(index)
                 help.visuals[key] = f
             end
             help.visuals[key]:Show()
+        end
+    end
+    -- Fix it: the four rows, checked now
+    if help.fix then
+        help.fix:SetShown(topic.fix == true)
+        if topic.fix then help.well:Hide(); RefreshFix() end
+    end
+    -- the tour: Start here and Moments
+    if help.tour then
+        help.tour:SetShown(topic.tour == true)
+        if topic.tour then
+            help.tour:ClearAllPoints()
+            local n = #(topic.points or {})
+            local y = -(46 + WELL_H + 18) - n * 32 - 10
+            help.tour:SetPoint("TOPLEFT", topic.go and 200 or 50, y)
         end
     end
     -- the commands table, or the points
@@ -440,7 +502,8 @@ local function Build(frame)
     help.table = CreateFrame("Frame", nil, card)
     help.table:SetPoint("TOPLEFT", 18, -52)
     help.table:SetSize(CW - 36, H - 70)
-    local cmds = TOPICS[9].commands
+    local cmds
+    for _, t in ipairs(TOPICS) do if t.commands then cmds = t.commands end end
     local per = math.ceil(#cmds / 2)
     for i, c in ipairs(cmds) do
         local col, row = math.floor((i - 1) / per), (i - 1) % per
@@ -455,6 +518,26 @@ local function Build(frame)
     end
     help.table:Hide()
     help.go = S.NewButton(card, "Go there", CW - 160, -(H - 52), 140, nil, nil, 13, 36)
+    -- the Feel tour: six moments in 25 s, each named in Just felt
+    help.tour = S.NewButton(card, "Play the tour", 0, 0, 140, function()
+        local page = ns.RumblePage
+        if page and page.PlayTour then page.PlayTour() end
+    end, nil, 13, 36)
+    help.tour:Hide()
+    -- Fix it: a row a problem: its name, its checks, Go there
+    help.fix = CreateFrame("Frame", nil, card)
+    help.fix:SetPoint("TOPLEFT", 18, -46)
+    help.fix:SetSize(CW - 36, H - 64)
+    help.fixRows = {}
+    for i, f in ipairs(help.FIXES) do
+        local row = S.Card(help.fix, nil, 0, -(i - 1) * 118, CW - 36, 106)
+        Label(row, f[1], 16, -14, CW - 260, 15, S.YELLOW)
+        row.checks = Label(row, "", 16, -44, CW - 260, 13, S.GOLD)
+        row.state = Label(row, "", 16, -70, CW - 260, 12, S.GREY)
+        row.go = S.NewButton(row, "Go there", CW - 36 - 156, -34, 140, FixGo(f[2]), nil, 13, 36)
+        help.fixRows[i] = row
+    end
+    help.fix:Hide()
     if API and API.GetCapabilities and API.GetCapabilities().suspended then
         help.title:SetText("Paused in this recovery build")
     else
@@ -464,5 +547,8 @@ end
 
 Shell.AddPage({
     key = "help", name = "Help", order = 7, icon = "Interface\\Icons\\INV_Misc_Book_09", build = Build,
-    refresh = function() if help.index == 1 and help.start then StartSteps() end end,
+    refresh = function()
+        if help.index == 1 and help.start then StartSteps() end
+        if help.fix and help.fix:IsShown() then RefreshFix() end
+    end,
 })
