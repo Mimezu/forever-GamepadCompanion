@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.52.10 — 2026-11-18
+
+- **Search** above Moments' groups (**Ctrl+F**): every moment in Feel, Light and Sound, your spells, the States and Triggers lists. Results show as rows, each with its group, kind and choice in grey; a click (or Enter for the first) opens it where it lives; Escape clears. Picking a group steps the results aside
+- Reset group sits inside the group card's title band
+
 ## 0.52.9 — 2026-11-18
 
 - **What you changed, at a glance:** a gold dot on a moment's name when it differs from Recommended (its choice or its volume), in every kind, Your spells and the States too; a small gold ring by a group's count when anything in it differs

@@ -1529,6 +1529,167 @@ local function BuildSpells(panel, cw)
     end
 end
 
+---------------------------------------------------------------------------
+-- Search (N2): one field above the group list (Ctrl+F). Every moment in
+-- every kind, your spells, the States and Triggers lists; results as rows,
+-- each with its group and kind in grey; a click opens it where it lives
+---------------------------------------------------------------------------
+local SEARCH_ROWS = 13
+local KIND_LABEL = { feel = "Feel", light = "Light", sound = "Sound", trigger = "Triggers" }
+
+-- Everything there is to find: { label, where, kind, open = fn }
+function ui.SearchIndex()
+    local out = {}
+    for _, k in ipairs({ "feel", "light", "sound" }) do
+        for _, g in ipairs(GROUPS) do
+            for _, item in ipairs(Items(k, g.key)) do
+                local I, key = ITEM[item[1]], item[2]
+                local choice = I.show(key)
+                out[#out + 1] = { label = I.label(key), where = g.key .. " · " .. KIND_LABEL[k] .. (choice and (" · " .. choice) or ""),
+                    kind = k, open = function() Jump(key, k) end }
+            end
+        end
+    end
+    if SpellsOn() then
+        ReadBook()
+        for i, line in ipairs(sp.lines) do
+            for j, e in ipairs(line.list) do
+                out[#out + 1] = { label = e.name, where = "Your spells · " .. (line.name or ""), kind = "spell", open = function()
+                    sp.tab, sp.page = i, math.ceil(j / SPELL_ROWS)
+                    if ui.kind == "trigger" then ui.SetKind("feel") end
+                    ui.browser.Select("spells")
+                    Refresh()
+                end }
+            end
+        end
+    end
+    local St = ns.Stack
+    local function Stack(stack, kind, group, label)
+        if not (St and stack and stack.Rows) then return end
+        for _, row in ipairs(stack:Rows()) do
+            out[#out + 1] = { label = St.Words(row), where = label, kind = kind, open = function()
+                ui.SetKind(kind)
+                ui.browser.Select(group)
+            end }
+        end
+    end
+    Stack(LT and LT.stack, "light", "states", "States · Light")
+    Stack(FK(), "feel", "states", "States · Feel")
+    Stack(TK(), "trigger", "triggers", "Triggers")
+    return out
+end
+
+-- The matches for a query (any word in the name or where it is, each word found)
+function ui.Search(query)
+    local words = {}
+    for w in (query or ""):lower():gmatch("%S+") do words[#words + 1] = w end
+    if #words == 0 then return {} end
+    local found = {}
+    for _, e in ipairs(ui.SearchIndex()) do
+        local text = (e.label .. " " .. e.where):lower()
+        local all = true
+        for _, w in ipairs(words) do if not text:find(w, 1, true) then all = false end end
+        -- (the name itself first)
+        if all then
+            e.rank = e.label:lower():find(words[1], 1, true) and 0 or 1
+            found[#found + 1] = e
+        end
+    end
+    table.sort(found, function(a, b)
+        if a.rank ~= b.rank then return a.rank < b.rank end
+        return a.label < b.label
+    end)
+    return found
+end
+
+local function BuildSearch(frame, left, cw)
+    local box = CreateFrame("EditBox", nil, left, "BackdropTemplate")
+    box:SetPoint("TOPLEFT", 10, -128)
+    box:SetSize(LEFT_W - 20, 24)
+    box:SetAutoFocus(false)
+    box:SetFont("Fonts\\FRIZQT__.TTF", 12, "")
+    box:SetTextColor(1, 1, 1)
+    box:SetTextInsets(8, 8, 0, 0)
+    S.Edit(box)
+    box.hint = S.Text(box, "Search  ·  Ctrl+F", 8, -6, LEFT_W - 40, 11, DIM)
+    ui.searchBox = box
+    -- the results, where a group's page goes
+    local card = S.Card(frame, "Search", LEFT_W + 10, 0, cw, PH)
+    if card.SetFrameLevel then card:SetFrameLevel((frame:GetFrameLevel() or 0) + 25) end
+    card:EnableMouse(true)
+    card:Hide()
+    ui.searchCard = card
+    card.none = S.Text(card, "Nothing found", 14, -44, cw - 28, 12, DIM)
+    card.more = S.Text(card, "", 14, -44 - SEARCH_ROWS * 34, cw - 28, 11, DIM)
+    card.rows = {}
+    for i = 1, SEARCH_ROWS do
+        local b = S.NewButton(card, "", 14, -40 - (i - 1) * 34, cw - 28, nil, nil, 12, 30)
+        b.label:ClearAllPoints()
+        b.label:SetPoint("LEFT", 10, 0)
+        b.label:SetJustifyH("LEFT")
+        b.where = S.Text(b, "", 0, 0, cw - 260, 11, GREY)
+        b.where:ClearAllPoints()
+        b.where:SetPoint("RIGHT", -10, 0)
+        b.where:SetJustifyH("RIGHT")
+        b.where:SetWordWrap(false)
+        card.rows[i] = b
+    end
+    local results = {}
+    local function Open(e)
+        if not e then return end
+        card:Hide()
+        box:ClearFocus()
+        e.open()
+    end
+    function ui.ShowSearch(query)
+        results = ui.Search(query)
+        local on = (query or ""):match("%S") ~= nil
+        card:SetShown(on)
+        if not on then return end
+        card.title:SetText("Search · " .. #results)
+        card.none:SetShown(#results == 0)
+        for i, b in ipairs(card.rows) do
+            local e = results[i]
+            b:SetShown(e ~= nil)
+            if e then
+                b.label:SetText(e.label)
+                b.where:SetText(e.where)
+                b:SetScript("OnClick", function() Open(e) end)
+            end
+        end
+        card.more:SetText(#results > SEARCH_ROWS and ((#results - SEARCH_ROWS) .. " more · type more") or "")
+    end
+    box:SetScript("OnTextChanged", function(self)
+        local text = self:GetText() or ""
+        box.hint:SetShown(text == "")
+        ui.ShowSearch(text)
+    end)
+    box:SetScript("OnEnterPressed", function() Open(results[1]) end)
+    box:SetScript("OnEscapePressed", function(self)
+        self:SetText("")
+        self:ClearFocus()
+    end)
+    -- (a group picked: the results step aside; the text stays to come back to)
+    local select = ui.browser.Select
+    ui.browser.Select = function(...)
+        card:Hide()
+        return select(...)
+    end
+    box:SetScript("OnEditFocusGained", function(self) ui.ShowSearch(self:GetText()) end)
+    -- Ctrl+F: to the field (the key still reaches the game: nothing taken)
+    function ui.SearchKey(key)
+        if key == "F" and IsControlKeyDown and IsControlKeyDown() then box:SetFocus(); return true end
+        return false
+    end
+    -- (only where every key can pass on to the game: never a page that eats the keyboard)
+    local fighting = InCombatLockdown and InCombatLockdown()
+    if frame.EnableKeyboard and frame.SetPropagateKeyboardInput and not fighting
+        and pcall(frame.SetPropagateKeyboardInput, frame, true) then
+        frame:EnableKeyboard(true)
+        frame:SetScript("OnKeyDown", function(_, key) ui.SearchKey(key) end)
+    end
+end
+
 local function Build(frame, header)
     -- Header: the kind, its switch, the last moment
     ui.seg = {}
@@ -1622,7 +1783,6 @@ local function Build(frame, header)
         if LT then LT.ApplyBase() end
         Say("Stopped")
     end, nil, 12, 28)
-    S.Heading(left, "Moments", 10, -136, LEFT_W - 20)
 
     local groups = {}
     for _, g in ipairs(GROUPS) do
@@ -1657,7 +1817,7 @@ local function Build(frame, header)
             -- (in its title band: every changed row back to Recommended, Undo for 5 s)
             if #items > 0 then
                 local kind = k[1]
-                card.reset = S.NewButton(card, "Reset group", cw - 118, -8, 108, function() ResetGroup(g.key, kind) end, nil, 11, 24)
+                card.reset = S.NewButton(card, "Reset group", cw - 118, -3, 108, function() ResetGroup(g.key, kind) end, nil, 11, 24)
                 S.Tooltip(card.reset, "Reset group", "Every changed moment here back to Recommended")
             end
             ui.cards[g.key][k[1]] = card
@@ -1677,6 +1837,7 @@ local function Build(frame, header)
     ui.soundOff.setup = S.NewButton(ui.soundOff, "Setup", 0, 0, 120, function() Shell.Open("setup") end, nil, 13, 32)
     ui.soundOff.setup:ClearAllPoints(); ui.soundOff.setup:SetPoint("TOP", t2, "BOTTOM", 0, -18)
     ui.soundOff:Hide()
+    BuildSearch(frame, left, cw)
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
     for _, p in ipairs(ui.panels) do
         if b.panels[p.key] then p.build(b.panels[p.key], cw, pg) end

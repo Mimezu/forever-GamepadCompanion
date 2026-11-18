@@ -582,3 +582,55 @@ do
     page.ResetGroup("Moving", "feel")
     io.write("PASS: N3: changed dot, the group's ring, Reset group with Undo\n")
 end
+-- N2: one Search above the groups: moments in every kind, spells, states; a result opens it
+do
+    local box, card = page.searchBox, page.searchCard
+    local function Type(text) box:SetText(text); box.scripts.OnTextChanged(box) end
+    local function Found(label, where)
+        for _, b in ipairs(card.rows) do
+            if b:IsShown() and b.label.text == label and (not where or b.where.text:find(where, 1, true)) then return b end
+        end
+    end
+    page.SetKind("feel")
+    Type("crit")
+    assert(card:IsShown(), "results where the group goes")
+    assert(Found("Critical hit: melee", "Attacks · Feel") and Found("Critical hit taken", "Defense · Feel"), "feel moments, their group in grey")
+    assert(Found("Critical hit", "Attacks · Light") and Found("Critical hit: ranged", "Sound"), "and the other kinds")
+    -- a click: its kind, its group, the results step aside
+    local land = (Type("landing") or true) and Found("Landing", "Moving · Sound")
+    assert(land, "Landing's sound")
+    land.scripts.OnClick(land)
+    assert(not card:IsShown() and page.kind == "sound" and page.browser.current == "Moving", "opened where it lives")
+    -- a spell of yours, a state
+    Type("fireball")
+    local fb = Found("Fireball")
+    assert(fb and fb.where.text:find("Your spells", 1, true), "your spells")
+    fb.scripts.OnClick(fb)
+    assert(page.browser.current == "spells", "Your spells, at its tab")
+    local shown = false
+    for _, r in ipairs(page.spells.rows) do if r:IsShown() and r.plan and r.plan.name == "Fireball" then shown = true end end
+    assert(shown, "Fireball's row on the page shown")
+    Type("zzzz no such")
+    assert(card.none:IsShown(), "Nothing found")
+    -- Enter opens the first; Escape clears
+    Type("whisper")
+    box.scripts.OnEnterPressed(box)
+    assert(not card:IsShown() and page.browser.current == "Social", "Enter: the first result")
+    box.scripts.OnEscapePressed(box)
+    box.scripts.OnTextChanged(box)
+    assert(box:GetText() == "" and not card:IsShown(), "Escape: cleared")
+    -- states are found too
+    local any = false
+    for _, e in ipairs(page.SearchIndex()) do if e.where:find("States", 1, true) then any = true end end
+    assert(any, "the States lists are searched")
+    -- Ctrl+F: the field
+    local ctrl = IsControlKeyDown
+    IsControlKeyDown = function() return true end
+    box:ClearFocus()
+    assert(page.SearchKey("F"), "Ctrl+F handled")
+    assert(box:HasFocus(), "Ctrl+F: in the search field")
+    box:ClearFocus()
+    IsControlKeyDown = ctrl
+    page.SetKind("feel")
+    io.write("PASS: N2: search over moments, kinds, spells, states; open, Enter, Escape, Ctrl+F\n")
+end
