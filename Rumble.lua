@@ -168,6 +168,9 @@ V.PATTERNS = {
         steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.5, 0.5, 0.12 }, { 0.25, 0.25, 0.12 }, { 0.1, 0.1, 0.12 } } },
     { key = "surge", label = "Surge", action = true, move = true,     -- a ground effect laid down (Consecration): a low push, a warm spread
         steps = { { 0.8, 0.8, 0.2 }, { 0.3, 0.3, 0.12 }, { 0.12, 0.12, 0.12 } } },
+    { key = "pillar", label = "Pillar", action = true, move = true, art = "radiance", -- a proc's pillar of fire: a sharp strike rising into a short rolling rumble
+        steps = { { 0.7, 0.7, 0.06 }, { 0.15, 0.15, 0.05 }, { 0.25, 0.3, 0.08 }, { 0.38, 0.32, 0.08 }, { 0.42, 0.46, 0.1 },
+            { 0.25, 0.22, 0.1 }, { 0.1, 0.1, 0.12 } } },
     { key = "blow", label = "Blow", action = true, move = true,       -- any other ability landing: a firm blow
         steps = { { 0.65, 0.6, 0.12 }, { 0, 0, 0.08 }, { 0.15, 0.15, 0.1 } } },
     { key = "judge", label = "Judgement", action = true, move = true, -- a seal let loose: a bright strike
@@ -319,6 +322,9 @@ local PULSES = {
     -- (a firm low push into the ground, then a warm spread out to both sides)
     surge = { Pu(0, 0.2, 0.75), Pu(0.28, 0.05, 0.2, -0.7), Pu(0.28, 0.05, 0.2, 0.7), Pu(0.42, 0.05, 0.1, -1),
         Pu(0.42, 0.05, 0.1, 1) },
+    -- (a sharp strike, then the fire rising and rolling side to side, fading)
+    pillar = { Pu(0, 0.05, 0.7), Pu(0.1, 0.06, 0.25, -0.4), Pu(0.17, 0.06, 0.34, 0.4), Pu(0.24, 0.07, 0.42, -0.3),
+        Pu(0.32, 0.08, 0.36, 0.3), Pu(0.42, 0.1, 0.2), Pu(0.54, 0.1, 0.1) },
     rend = { Pu(0, 0.05, 0.3, -0.6), Pu(0.08, 0.05, 0.3, 0.6), Pu(0.16, 0.05, 0.25, -0.6), Pu(0.24, 0.05, 0.15, 0.6) },
     slam = { Pu(0, 0.3, 1), Pu(0.4, 0.05, 0.2), Pu(0.52, 0.05, 0.1), Pu(0.64, 0.05, 0.05) },
     bash = { Pu(0, 0.2, 1, -0.3), Pu(0.3, 0.05, 0.12) },
@@ -1603,6 +1609,12 @@ local function UnitCombat(unit, action, flag, _, school)
         if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
         return V.SwingLanded(nil, false, result)
     end
+    -- (no one's claim: a proc of yours, by its mixed school)
+    if unit == "target" and action == "WOUND" then
+        local can = UnitCanAttack and UnitCanAttack("player", "target")
+        local id = (secret(can) or can) and V.ProcOf(school) or nil
+        if id then return V.ProcLanded(id, not secret(flag) and flag == "CRITICAL") end
+    end
     if secret(flag) or flag ~= "CRITICAL" then return end
     if unit == "player" then
         if action == "WOUND" then
@@ -2126,12 +2138,18 @@ end
 function V.SpellRule(spellID, castTime)
     if not spellID or secret(spellID) then return nil end
     Names()
-    local name = SpellName(spellID)
+    local proc = V.IsProc(spellID)
+    local name = spellID == V.OTHER_PROC and V.OTHER_PROC_NAME or SpellName(spellID)
     if not name or secret(name) then return nil end
     local r = { id = spellID, name = name, volume = 1 }
     local L = ns.HapticsLab
     local linked = false
-    if spellID == ATTACK then
+    if proc then
+        -- (never cast: felt as its wound lands, faint, fuller on a crit)
+        r.moment, r.move, r.when, r.proc = "instant", "pillar", "hit", true
+        r.why = "A proc: as it lands, stronger on a crit"
+        linked = true
+    elseif spellID == ATTACK then
         r.moment, r.when, r.why, linked = "autoAttack", "hit", "Auto attack: each swing as it lands", true
     elseif IsShot(spellID) then
         r.moment, r.when, r.why, linked = "shot", "cast", "A shot: as it leaves", true
@@ -2217,7 +2235,7 @@ function V.SpellRule(spellID, castTime)
     r.feel = r.move and L and L.FeelFor(r.move) or nil
     -- (your own choice, Your spells: off, another feel or set, a volume)
     local O = ns.SpellOverrides
-    local o = not linked and O and O.Get(name) or nil
+    local o = (not linked or proc) and O and O.Get(name) or nil
     if o then
         r.own = true
         if o.on == false then r.off = true end
@@ -2233,7 +2251,7 @@ function V.SpellRule(spellID, castTime)
     end
     if r.off then r.why = "Off: your choice" end
     -- (when it waits for the hit: where its timing comes from)
-    if r.when == "hit" then
+    if r.when == "hit" and not proc then
         local kind = r.how and r.how.ranged and "ranged" or V.WeaponKind and V.WeaponKind(16) or "oneHand"
         local _, _, source = V.HitDelay and V.HitDelay(kind)
         r.timing = TIMING_WORD[source] or "default"
@@ -2748,6 +2766,93 @@ function V.AbilityResult(action, flag, school)
         V.AbilityImpact(p.move, result, p.ranged or p.spell, p.gain)
         V.why1 = nil
     end)
+    return true
+end
+
+---------------------------------------------------------------------------
+-- Procs: a spell of yours you never cast, set off by an item or a talent
+-- (Wolfsbane's Blazewind Blast, a pillar of fire). WoW Forever gives addons
+-- no combat log, so a proc is only its wound on your target (UNIT_COMBAT:
+-- no spell, no source). Taken as a proc: a wound no cast, ability or swing
+-- of yours claimed, of a mixed school (two school bits or more: Holystorm is
+-- holy and nature) that none of your own spells deals. A known proc plays as
+-- itself (Your spells > Procs); another mixed school as Other procs. A proc
+-- of one school stays unfelt: it can't be told from a DoT's tick.
+---------------------------------------------------------------------------
+-- spellID = its school mask (the client's tables), and WowHelperData.procs too
+V.PROCS = { [1282503] = 10 } -- Blazewind Blast (Wolfsbane): Holystorm
+V.OTHER_PROC, V.OTHER_PROC_NAME = "proc", "Other procs"
+V.PROC_GAIN = 0.7            -- faint; a crit at full
+local function Mixed(mask)
+    if type(mask) ~= "number" or mask <= 0 then return false end
+    local bits = 0
+    for b = 0, 6 do if math.floor(mask / 2 ^ b) % 2 == 1 then bits = bits + 1 end end
+    return bits > 1
+end
+local function Procs()
+    local d = _G.WowHelperData
+    local extra = type(d) == "table" and type(d.procs) == "table" and d.procs or nil
+    if not extra then return V.PROCS end
+    local all = {}
+    for id, m in pairs(V.PROCS) do all[id] = m end
+    for id, m in pairs(extra) do if type(id) == "number" and type(m) == "number" then all[id] = m end end
+    return all
+end
+function V.IsProc(spellID)
+    if spellID == V.OTHER_PROC then return true end
+    return type(spellID) == "number" and not secret(spellID) and Procs()[spellID] ~= nil
+end
+-- The mixed schools your own spells deal (WoW Helper's spell kinds: Frostfire
+-- Bolt, Living Flame), read again at most every 30 s, out of combat
+local ownMasks, ownAt = {}, nil
+local function OwnMasks()
+    if ownAt and (GetTime() - ownAt < 30 or (InCombatLockdown and InCombatLockdown())) then return ownMasks end
+    ownAt = GetTime()
+    local P = ns.Picker
+    local ok, lines = pcall(function() return P and P.SpellLines and P.SpellLines() or {} end)
+    local masks = {}
+    for _, line in ipairs(ok and type(lines) == "table" and lines or {}) do
+        for _, e in ipairs(line.list or {}) do
+            local k = V.SpellKinds(e.spell)
+            if k and Mixed(k.school) then masks[k.school] = true end
+        end
+    end
+    ownMasks = masks
+    return masks
+end
+function V.ForgetOwnSchools() ownAt = nil end
+-- A wound's proc (its spellID, or V.OTHER_PROC), nil: not one
+function V.ProcOf(school)
+    if secret(school) or not Mixed(school) or OwnMasks()[school] then return nil end
+    for id, m in pairs(Procs()) do if m == school then return id end end
+    return V.OTHER_PROC
+end
+-- Your spells > Procs: the known ones, then Other procs
+function V.ProcList()
+    local list = {}
+    for id in pairs(Procs()) do
+        local name = SpellName(id)
+        if name and not secret(name) then
+            local icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)
+                or (GetSpellTexture and GetSpellTexture(id))
+            list[#list + 1] = { id = id, name = name, icon = icon }
+        end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    list[#list + 1] = { id = V.OTHER_PROC, name = V.OTHER_PROC_NAME }
+    return list
+end
+-- A proc's wound on your target: its feel now (true: taken)
+function V.ProcLanded(id, crit)
+    claimedAt = GetTime()
+    local r = V.SpellRule(id)
+    if not r or r.off or not r.pattern then return true end
+    local gain = r.volume * (crit and 1 or V.PROC_GAIN)
+    V.why1, V.why2 = crit and "proc crit" or "proc", r.name
+    V.instantMove = r.pattern
+    V.fireGain = gain < 1 and gain or nil
+    V.Fire("instant")
+    V.fireGain, V.why1 = nil, nil
     return true
 end
 

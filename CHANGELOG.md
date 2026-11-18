@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.44.0 — 2026-11-18
+
+- **Procs felt as they land:** Wolfsbane's pillar of fire (Blazewind Blast, Holystorm) now has its own feel, **Pillar**: a sharp strike rising into a short rolling rumble. It's faint by default and full on a crit (the proc's own feel, not the Crit feel). It used to play nothing, because you never cast it.
+  - WoW Forever gives addons no combat log, so a proc is known only by its wound on your target. A wound counts as a proc when no cast, ability or swing of yours claims it and its school is mixed (two schools or more, like Holystorm) and not one your own spells deal. Your own mixed schools come from WoW Helper's spell kinds.
+  - A proc of a single school (fire, holy...) still plays nothing: it can't be told apart from a DoT's tick.
+  - Known procs (`V.PROCS`, and `WowHelperData.procs` when WoW Helper writes it) play as themselves. Any other mixed-school proc plays as **Other procs**.
+- **Your spells › Procs**, a new last tab: Blazewind Blast and Other procs, each with its feel, Off, a volume, Try and Default. Light and sound follow the Abilities moment, as for any ability.
+
 ## 0.43.0 — 2026-11-18
 
 - **Skin: Gilded**, a third choice (Tools › Skin: v2 | Gilded | Blizzard), from Astra's sheet with flat gold glyphs (style-sheet-v2B): cards in dark leather with a thin gold rule, an angled plaque behind each page's name, gold glyph tiles on the side tabs and page names (Controller, Moments, Gestures, Setup, Bars, Help; Tools and Lab keep theirs), joined choices filled with gold, switches with a gold knob and rim. Blizzard's native frame and close button stay; the feel icons are unchanged

@@ -2301,6 +2301,69 @@ do
     io.write("PASS: ground effects: Consecration and totems felt at the cast, once" .. string.char(10))
 end
 
+-- Procs (Wolfsbane's Blazewind Blast, Holystorm): an unclaimed wound of a mixed school is your
+-- proc, felt as Pillar, faint, fuller on a crit; your own school's wounds are not; Your spells
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local O = ns.SpellOverrides
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    local fired = {}
+    local vfire, spellInfo = V.Fire, GetSpellInfo
+    V.Fire = function(k) fired[#fired + 1] = { k == "instant" and V.instantMove or k, V.fireGain } end
+    GetSpellInfo = function(id)
+        if id == 1282503 then return "Blazewind Blast", nil, nil, 0 end
+        return "Spell " .. tostring(id), nil, nil, 0
+    end
+    UnitCanAttack = function() return true end
+    assert(V.Pattern("pillar") and H.Feel("r_pillar"), "Pillar: a pattern and a feel")
+    local function wound(school, flag)
+        fired = {}
+        now = now + 3
+        rev("UNIT_COMBAT", "target", "WOUND", flag or "", 13, school)
+        RunTimers()
+        return fired[1]
+    end
+    local got = wound(10)
+    assert(got and got[1] == "pillar" and got[2] == V.PROC_GAIN, "Holystorm: Blazewind Blast, faint: " .. tostring(got and got[1]))
+    got = wound(10, "CRITICAL")
+    assert(got and got[1] == "pillar" and got[2] == nil, "a crit: at full")
+    assert(#fired == 1, "a crit plays the proc, not the Crit feel too")
+    assert(wound(2) == nil and wound(1) == nil, "one school (a holy spell, a swing): not a proc")
+    got = wound(4 + 64)
+    assert(got and got[1] == "pillar", "another mixed school: Other procs")
+    -- your own mixed school (WoW Helper's spell kinds): not a proc
+    local hadPicker = ns.Picker
+    ns.Picker = ns.Picker or {}
+    local lines = ns.Picker.SpellLines
+    WowHelperData = { spellKinds = { [401556] = { "h", 4 + 64 } } }
+    ns.Picker.SpellLines = function() return { { name = "Fire", list = { { spell = 401556, name = "Living Flame" } } } } end
+    V.ForgetOwnSchools()
+    assert(wound(4 + 64) == nil, "Living Flame's school is yours")
+    assert(wound(10)[1] == "pillar", "Holystorm still a proc")
+    -- Your spells: its rule, its row, your choice
+    local plan = V.SpellPlan(1282503)
+    assert(plan and plan.moment == "instant" and plan.when == "hit" and plan.pattern == "pillar" and plan.proc, "its plan")
+    local procs = V.ProcList()
+    assert(procs[1].name == "Blazewind Blast" and procs[#procs].id == V.OTHER_PROC, "the Procs tab: known, then Other procs")
+    assert(V.SpellPlan(V.OTHER_PROC).name == "Other procs", "Other procs: a row of its own")
+    O.SetOn("Blazewind Blast", false)
+    assert(wound(10) == nil, "off: nothing (and nothing else plays it)")
+    O.Clear("Blazewind Blast")
+    O.SetFeel("Blazewind Blast", "r_judge")
+    assert(wound(10)[1] == "judge", "its own feel")
+    O.Clear("Blazewind Blast")
+    ns.Picker.SpellLines = lines
+    if not hadPicker then ns.Picker = nil end
+    WowHelperData = nil
+    V.ForgetOwnSchools()
+    V.Fire, GetSpellInfo, UnitCanAttack = vfire, spellInfo, nil
+    io.write("PASS: procs: a mixed school's wound felt as Pillar (faint, full on a crit), yours and one school not; Your spells" .. string.char(10))
+end
+
 -- Your spells: the plan the page shows is what plays (one rule); a spell's own choice honoured
 do
     H.DB().engine = true

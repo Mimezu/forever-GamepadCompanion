@@ -531,6 +531,12 @@ local function ReadBook()
         end
         if #list > 0 then sp.lines[#sp.lines + 1] = { name = line.name, list = list } end
     end
+    -- (your procs: never cast, felt as they land; last, within the six tabs)
+    local procs = V.ProcList and V.ProcList() or {}
+    if #procs > 0 then
+        if #sp.lines >= 6 then sp.lines[6] = nil end
+        sp.lines[#sp.lines + 1] = { name = "Procs", list = procs }
+    end
     if sp.tab > #sp.lines then sp.tab, sp.page = 1, 1 end
 end
 
