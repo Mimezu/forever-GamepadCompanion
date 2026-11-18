@@ -52,8 +52,11 @@ for id, s in pairs(TS.PRESETS) do ID[s.key] = id end
 TS.ID = ID
 
 -- Every shape to pick: WoW Helper's list when it has published one, else the shipped ones
+local shapesOf, shapes = false, nil
 function TS.Shapes()
     local d = type(WowHelperData) == "table" and type(WowHelperData.triggerShapes) == "table" and WowHelperData.triggerShapes
+    -- (built once per published list: Send and the page ask several times a second)
+    if shapes and shapesOf == (d or false) then return shapes end
     local out = {}
     for id, s in pairs(TS.PRESETS) do out[id] = s end
     if d then
@@ -64,6 +67,7 @@ function TS.Shapes()
             end
         end
     end
+    shapes, shapesOf = out, d or false
     return out
 end
 function TS.Shape(id) return id and TS.Shapes()[id] or nil end
@@ -181,7 +185,9 @@ end
 local function Store()
     local db = H.DB()
     if type(db.triggerStack) ~= "table" then db.triggerStack = {} end
-    return db.triggerStack
+    local store = db.triggerStack
+    if not store.repaired and store.migrated and TS.Repair then TS.Repair(store) end
+    return store
 end
 TS.Store = Store
 
@@ -189,29 +195,104 @@ local OLD_WHEN = { cast = "cast", autoShot = "autoShot", autoAttack = "autoAttac
     mounted = "mounted", swimming = "swimming", stealth = "stealth", always = "always" }
 local OLD_SHAPE = { resist = "resist", wall = "wall", section = "resist", weapon = "click", vibrate = "pulse", slope = "rising" }
 
--- Old rules -> reactions on top of the class's Recommended ones; each keeps its old bytes
--- (`legacy`: the rule as it was, sent on the strip's own fields, the trigger row empty)
+-- Old rules -> reactions. Only the player's own edits move (on top, each keeping its old
+-- bytes: `legacy`, sent on the strip's own fields, the trigger row empty). A shipped rule left
+-- as it was is the Recommended reaction now; one turned off or removed turns its Recommended
+-- equivalent off. An emptied list keeps the triggers quiet: every Recommended reaction off.
+local RULE_FIELDS = { "when", "side", "effect", "from", "to", "strength", "speed", "grow" }
+-- (a shipped rule's Recommended equivalent)
+TS.EQUIV = { cast = "cast", autoShot = "shot", lowHp = "hurt" }
+
+local function Shipped(r, defaults)
+    for _, d in ipairs(defaults) do
+        local same = true
+        for _, f in ipairs(RULE_FIELDS) do if r[f] ~= d[f] then same = false; break end end
+        if same then return d end
+    end
+end
+
+-- An old rule as the reaction it becomes (its row id: "old" .. its place in the old list)
+local function OldRow(i, r)
+    local legacy = { effect = r.effect, from = r.from, to = r.to, strength = r.strength, speed = r.speed, grow = r.grow }
+    local v = { shape = ID[OLD_SHAPE[r.effect] or "resist"], legacy = legacy, follows = r.grow and "cast" or nil }
+    local row = { id = "old" .. i, condition = OLD_WHEN[r.when] or "cast", on = r.on ~= false }
+    if r.side == "L2" or r.side == "both" then row.L2 = St.Copy(v) end
+    if r.side == "R2" or r.side == "both" then row.R2 = St.Copy(v) end
+    return row
+end
+TS.OldRow = OldRow
+
+-- The old list read: which rules move (by place), which Recommended ids go off
+local function Plan(old)
+    local T = ns.TriggerRules
+    local db = H.DB()
+    local defaults = T.Defaults(type(db.link) == "table" and db.link.cues or nil)
+    local moves, off, kept = {}, {}, {}
+    for i, raw in ipairs(old.list) do
+        local r = T.Clean(St.Copy(raw))
+        local d = Shipped(r, defaults)
+        if d then
+            kept[d.when] = true
+            if not r.on then off[TS.EQUIV[d.when]] = true end
+        else
+            moves[i] = r
+        end
+    end
+    for _, d in ipairs(defaults) do if not kept[d.when] then off[TS.EQUIV[d.when]] = true end end
+    if #old.list == 0 then
+        for _, rec in ipairs(TS.Recommended()) do off[rec.id] = true end
+    end
+    return moves, off
+end
+
+local function OldList()
+    local db = H.DB()
+    local old = type(db.link) == "table" and type(db.link.trigRules) == "table" and db.link.trigRules
+    if old and old.v == 1 and type(old.list) == "table" and ns.TriggerRules then return old end
+end
+
 function TS.Migrate()
     local store = Store()
     if type(store.rows) == "table" or store.migrated then return end
-    store.migrated = true
-    local db = H.DB()
-    local old = type(db.link) == "table" and type(db.link.trigRules) == "table" and db.link.trigRules
-    if not (old and type(old.list) == "table" and #old.list > 0) then return end
-    local T = ns.TriggerRules
+    store.migrated, store.repaired = true, true
+    local old = OldList()
+    if not old then return end
+    local moves, off = Plan(old)
+    if not next(moves) and not next(off) then return end   -- (all as shipped: the Recommended ones)
     local rows = {}
-    for i, r in ipairs(old.list) do
-        r = T and T.Clean(r) or r
-        local cond = OLD_WHEN[r.when] or "cast"
-        local legacy = { effect = r.effect, from = r.from, to = r.to, strength = r.strength, speed = r.speed, grow = r.grow }
-        local v = { shape = ID[OLD_SHAPE[r.effect] or "resist"], legacy = legacy, follows = r.grow and "cast" or nil }
-        local row = { id = "old" .. i, condition = cond, on = r.on ~= false }
-        if r.side == "L2" or r.side == "both" then row.L2 = St.Copy(v) end
-        if r.side == "R2" or r.side == "both" then row.R2 = St.Copy(v) end
-        rows[#rows + 1] = row
+    for i = 1, #old.list do if moves[i] then rows[#rows + 1] = OldRow(i, moves[i]) end end
+    for _, r in ipairs(TS.Recommended()) do
+        local copy = St.Copy(r)
+        if off[r.id] then copy.on = false end
+        rows[#rows + 1] = copy
     end
-    for _, r in ipairs(TS.Recommended()) do rows[#rows + 1] = St.Copy(r) end
     store.rows, store.nextID = rows, 1
+    store.old = St.Copy(old.list)   -- (the rules as they were, kept)
+end
+
+-- Profiles moved by 0.50-0.53.1 (every old rule on top): the shipped ones untouched since go,
+-- their Recommended equivalents take over (off where the rule was off or gone). Once.
+function TS.Repair(store)
+    store = store or Store()
+    if store.repaired or not store.migrated or type(store.rows) ~= "table" then return end
+    store.repaired = true
+    local old = OldList()
+    if not old then return end
+    local moves, off = Plan(old)
+    store.old = store.old or St.Copy(old.list)
+    local T = ns.TriggerRules
+    for i = #store.rows, 1, -1 do
+        local row = store.rows[i]
+        local n = type(row) == "table" and type(row.id) == "string" and tonumber(row.id:match("^old(%d+)$"))
+        if n and old.list[n] and not moves[n] and St.Equal(row, OldRow(n, T.Clean(St.Copy(old.list[n])))) then
+            table.remove(store.rows, i)
+        end
+    end
+    local recs = {}
+    for _, rec in ipairs(TS.Recommended()) do recs[rec.id] = rec end
+    for _, row in ipairs(store.rows) do
+        if off[row.id] and recs[row.id] and St.Equal(row, recs[row.id]) then row.on = false end
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -230,7 +311,7 @@ local function Same(a, b)
     if a.effect ~= b.effect or a.count ~= b.count or a.legacy ~= b.legacy then return false end
     local x, y = a.value, b.value
     if (x == nil) ~= (y == nil) then return false end
-    return x == nil or math.abs(x - y) < 0.01
+    return x == nil or floor(x * 100 + 0.5) == floor(y * 100 + 0.5)
 end
 
 ---------------------------------------------------------------------------
@@ -245,7 +326,8 @@ local function OldFields(v)
     if v.legacy and T then
         local r = T.Clean(St.Copy(v.legacy))
         r.when, r.side = "cast", "R2"
-        return T.Params(r, v.legacy.grow and (v.value or 0) or nil)
+        -- (grow: by the cast's progress; outside a cast its full strength, as before)
+        return T.Params(r, v.legacy.grow and v.value or nil)
     end
     local s = TS.Shape(v.effect)
     local o = s and s.old
@@ -335,6 +417,27 @@ function TS.Try(id, seconds)
 end
 function TS.Trying() return trying and trying.id or nil end
 
+-- Default, with Undo (T2-4, on the Stack's Snapshot / Restore): a way back.
+-- id: one reaction, else the whole list. Returns undo(), still() (true while nothing changed
+-- since), or nil when nothing changed.
+function TS.Default(id)
+    if not kind then return nil end
+    kind:Rows()   -- (the list as it shows: Recommended ones shipped since included)
+    local snap = kind:Snapshot()
+    kind:Default(id)
+    kind:Rows()
+    local after = St.Sig(kind:Snapshot())
+    if after == St.Sig(snap) then return nil end
+    return function() kind:Restore(snap) end, function() return St.Sig(kind:Snapshot()) == after end
+end
+
+-- Stop (every kind's): a Try ends now, the stack's triggers back
+function TS.Stop()
+    if not trying then return end
+    trying = nil
+    if kind then kind:Refresh(true) end
+end
+
 ---------------------------------------------------------------------------
 -- Live values and states, pushed from the game (HelperCues calls Update ~10 times a second)
 ---------------------------------------------------------------------------
@@ -345,7 +448,11 @@ local function Cooldown(spell)
     local api = C_Spell and C_Spell.GetSpellCooldown
     if api then
         local info = call(api, spell)
-        if type(info) == "table" then return tonumber(info.startTime), tonumber(info.duration) end
+        if type(info) == "table" then
+            -- (hidden in combat: no cooldown known, nothing to compare)
+            if secret(info.startTime) or secret(info.duration) then return nil end
+            return tonumber(info.startTime), tonumber(info.duration)
+        end
     end
     local s, d = call(GetSpellCooldown, spell)
     return tonumber(s), tonumber(d)
@@ -403,13 +510,15 @@ function TS.Update(state)
     kind:Refresh()
 end
 
--- A channel's words: "Cast tension · follows Cast", "Detents · Combo points", "Pass"
-function TS.Words(v)
+-- A channel's words: "Cast tension · follows Cast", "Detents · Combo points", "Pass".
+-- short (a plate): "Cast tension · Cast". A moved Setup rule: "Resist · old" (its old bytes;
+-- "yours" is a shape made in WoW Helper).
+function TS.Words(v, short)
     if type(v) ~= "table" or not v.shape or v.shape == 0 then return "Pass" end
     local s = TS.Shape(v.shape)
     local name = s and s.label or ("Shape " .. v.shape)
-    if v.legacy then name = name .. " (yours)" end
-    if v.follows then name = name .. " · follows " .. (SOURCE_LABEL[v.follows] or v.follows) end
+    if v.legacy then name = name .. " · old" end
+    if v.follows then name = name .. (short and " · " or " · follows ") .. (SOURCE_LABEL[v.follows] or v.follows) end
     if v.count then name = name .. " · " .. (SOURCE_LABEL[v.count] or v.count) end
     return name
 end

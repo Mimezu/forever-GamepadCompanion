@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.53.10 — 2026-11-18
+
+- Night review 2, **Triggers**:
+  - **T2-2 / T2-3**: only the Setup trigger rules you changed move to Moments › Triggers (Alberich: Casting · Both). A rule left as shipped is its Recommended reaction now (Cast tension, Weight); one turned off or removed turns that reaction off; an emptied list keeps every trigger reaction off. Profiles moved by 0.50-0.53.9 are repaired once: the shipped copies go unless changed since
+  - **T2-4**: Default (a row's, and the list's) offers Undo for 5 s; the old rules are kept in the profile
+  - **T2-7**: hidden cooldowns in combat: no error, no GCD wall. **T2-9**: every 1/100 a gauge moves reaches the pad. **T2-10**: a moved "grow" rule outside a cast is at full strength, as before
+  - **T2-12**: a moved rule reads "Resist · old"; the plates read "Weight · Health lost". **T2-13**: Stop ends a trigger Try. **T2-8**: the shape list is built once per WoW Helper list
+  - **T2-14**: WoW Helper's 61 generated trigger-row vectors checked here too
+
 ## 0.53.9 — 2026-11-18
 
 - **The second night review, haptics** (V-1, H2-5, H2-7…H2-9): the tests now catch a local used before its declaration (Low health's error in 0.53.0): tests/Globals.lua reads every global each file uses, and the test harnesses no longer turn an unknown global into a silent no-op (only game names listed in tests/fixtures/game-globals.txt). It found one more: Try on a Feel row now sends its HD feel too

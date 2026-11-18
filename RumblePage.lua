@@ -1120,7 +1120,12 @@ local function TriggerRow(card, cw, i)
             if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
             if ns.TriggerStack.Try(key()) then Say("Squeeze the trigger") end
         end, nil, {
-        default = function() TK():Default(key()); Refresh() end,
+        default = function()
+            local label = (r.label:GetText() or "") .. ": Recommended"
+            local undo, still = ns.TriggerStack.Default(key())
+            Refresh()
+            if undo then Shell.Offer(label, "Undo", function() undo(); Refresh() end, nil, still) end
+        end,
         clear = function() TK():Remove(key()); Say("Removed"); Refresh() end,
         quiet = true,
         defaultTip = "Recommended",
@@ -1195,11 +1200,7 @@ function ui.BuildTriggerStack(panel, cw)
             Refresh()
         end, 3, 200)
     end, nil, 11, 24)
-    ui.trigDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
-        TK():Default()
-        Say("Triggers: as they ship")
-        Refresh()
-    end, nil, 11, 24)
+    ui.trigDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function() ui.ListDefault(TK(), "Triggers") end, nil, 11, 24)
     S.Tooltip(ui.trigDefault, "Default", "The Recommended reactions for your class")
     for i = 1, TG_ROWS do tgs.pool[i] = TriggerRow(card, cw, i) end
     card:EnableMouseWheel(true)
@@ -1249,8 +1250,8 @@ function ui.RefreshTriggerStack(kind)
         if row then
             r.key = row.id
             local off = row.on == false
-            r:SetChoice("R2 · " .. TS.Words(row.R2), nil, nil, off, nil, stack:IsDefault(row.id) or stack:Recommended(row.id) == nil)
-            r.pick2.label:SetText("L2 · " .. TS.Words(row.L2))
+            r:SetChoice("R2 · " .. TS.Words(row.R2, true), nil, nil, off, nil, stack:IsDefault(row.id) or stack:Recommended(row.id) == nil)
+            r.pick2.label:SetText("L2 · " .. TS.Words(row.L2, true))
             r.label:SetText(St.Words(row))
             local chs = driving[row.id]
             local tail = chs and ("Now: " .. table.concat(chs, ", ")) or (St.Matches(row) and "Matches" or "")
@@ -1928,6 +1929,7 @@ local function Build(frame, header)
     -- Stop, for every kind
     ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
         V.StopSimulation(); V.Stop(); if H then H.Stop(); H.LightStop() end
+        if ns.TriggerStack and ns.TriggerStack.Stop then ns.TriggerStack.Stop() end
         if LT then LT.ApplyBase() end
         Say("Stopped")
     end, nil, 12, 28)

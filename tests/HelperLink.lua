@@ -324,7 +324,27 @@ do
     K.SetTrigRow(nil)
     assert(K.trig == nil, "cleared")
 end
+-- the trigger row: WoW Helper's generated vectors (tests/fixtures, written by its protocol2.rs)
+local trigcount = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-trigger-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local head, digits = row:match("^(.-)%s*:%s*(%d+)%s*$")
+        local v = {}
+        for num in head:gmatch("%d+") do v[#v + 1] = tonumber(num) end
+        local function pick(shape, value, count) return { shape = shape, value = value <= 100 and value / 100 or nil, count = count } end
+        local r = { left = pick(v[1], v[2], v[3]), right = pick(v[4], v[5], v[6]) }
+        local cells, out = K.EncodeTrigRow(r), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        assert(#cells == 19 and table.concat(out) == digits, "trigger vector: " .. row .. " got " .. table.concat(out))
+        local d = assert(K.DecodeTrigRow(cells), "decoded: " .. row)
+        for _, side in ipairs({ "left", "right" }) do
+            assert(d[side].shape == r[side].shape and d[side].count == r[side].count and d[side].value == r[side].value, "round trip " .. side .. ": " .. row)
+        end
+        trigcount = trigcount + 1
+    end
+end
+assert(trigcount == 61, "61 trigger vectors: " .. trigcount)
 
 K.SetEnabled(false)
 
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors)")
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors)")
