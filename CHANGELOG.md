@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.13 — 2026-11-18
+
+- Help › Commands lists `/gpc bars nudge` (move a bar without Edit Mode)
+
 ## 0.53.12 — 2026-11-18
 
 - Night review 2, **Addon UI**, the rest:

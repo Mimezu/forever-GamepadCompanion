@@ -297,7 +297,7 @@ local TOPICS = {
         "Controls: buttons, touchpad, bars", "Feel: vibration, light, sound", "New character: Recommended" } },
     { key = "commands", name = "Commands", glyph = "tools", commands = {
         { "/gpc", "window" }, { "/gpc moments", "moments" }, { "/gpc pad", "controller" }, { "/gpc touch", "touchpad" },
-        { "/gpc bars", "bar layout" }, { "/gpc light", "moments: light" }, { "/gpc rumble", "same as moments" },
+        { "/gpc bars", "bar layout" }, { "/gpc bars nudge", "move a bar without Edit Mode" }, { "/gpc light", "moments: light" }, { "/gpc rumble", "same as moments" },
         { "/gpc rumble test", "each motor" },
         { "/gpc gestures", "gestures" }, { "/gpc setup", "setup" }, { "/gpc lab", "lab, on for good" },
         { "/gpc on | off", "my bar layout" }, { "/gpc reset", "both bar layouts" }, { "/gpc gamepad", "Blizzard options" },
