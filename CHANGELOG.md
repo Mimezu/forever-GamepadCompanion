@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.52.9 — 2026-11-18
+
+- **What you changed, at a glance:** a gold dot on a moment's name when it differs from Recommended (its choice or its volume), in every kind, Your spells and the States too; a small gold ring by a group's count when anything in it differs
+- **Reset group** in each group card's title band: every changed moment there back to Recommended, with Undo for 5 s (greyed when nothing differs)
+
 ## 0.52.8 — 2026-11-18
 
 - **Casts reach their own rows:** a cast's cue goes to WoW Helper as Spell casting, Gathering or Crafting (moments 22-24), not as the light-only "Casting" (72), so a sound picked on those rows now plays. A sound picked on the old Casting row moves to Spell casting, once

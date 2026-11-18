@@ -554,3 +554,31 @@ do
     page.SetKind("feel")
     io.write("PASS: casts as Spell casting / Gathering / Crafting; cancelled 76, pushback 77; no light-only sound rows\n")
 end
+-- N3: a gold dot on a changed row's name, a ring by its group's count, Reset group (Undo 5 s)
+do
+    local L = ns.HapticsLab
+    page.SetKind("feel")
+    page.browser.Select("Moving")
+    local btn = page.browser.buttons.Moving
+    local card = page.cards.Moving.feel
+    local function row(key) for _, r in ipairs(page.rows) do if r.key == key and r:IsVisible() then return r end end end
+    for _, item in ipairs(page.GROUPS[4].items) do if not page.IsRecommended(item[1], item[2]) then page.ResetGroup("Moving", "feel") break end end
+    page.Refresh()
+    local jump, land = row("jump"), row("landing")
+    assert(not (jump.changed and jump.changed:IsShown()) and not (btn.ring and btn.ring:IsShown()), "as Recommended: no dot, no ring")
+    assert(card.reset and card.reset.enabled == false, "Reset group greyed with nothing changed")
+    V.SetEventPattern("jump", "pulse")
+    L.EventSettings("landing").on = not L.DefaultOn("landing")
+    page.Refresh()
+    assert(jump.changed:IsShown() and land.changed:IsShown(), "changed: a gold dot on each")
+    assert(btn.ring:IsShown() and btn.changed == 2 and card.reset.enabled ~= false, "the group's ring, Reset group lit")
+    card.reset.scripts.OnClick(card.reset)
+    assert(V.IsEventDefault("jump") and L.IsEventDefault("landing"), "Reset group: both Recommended")
+    assert(not jump.changed:IsShown() and not btn.ring:IsShown(), "no dot, no ring")
+    local offer = ns.ShellWindow().offer
+    assert(offer.label.text == "Undo", "Undo for a while")
+    offer.scripts.OnClick(offer)
+    assert(V.EventChoice("jump") == "pulse" and not L.IsEventDefault("landing"), "Undo: both as they were")
+    page.ResetGroup("Moving", "feel")
+    io.write("PASS: N3: changed dot, the group's ring, Reset group with Undo\n")
+end

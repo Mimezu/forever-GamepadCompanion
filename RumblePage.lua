@@ -484,6 +484,32 @@ local function Accept(kind, key, p)
     Say(ITEM[kind].label(key) .. ": " .. p.name)
 end
 
+-- A moment as Recommended (its choice and its volume)
+local function IsRecommended(kind, key)
+    return ITEM[kind].isDefault(key) and VolumeDefault(kind, key, true)
+end
+ui.IsRecommended = IsRecommended
+
+-- A group back to Recommended in one kind: every changed row, and Undo for 5 s
+local function ResetGroup(group, kind)
+    local undo, n = {}, 0
+    for _, item in ipairs(Items(kind, group)) do
+        if not IsRecommended(item[1], item[2]) then
+            undo[#undo + 1] = Snapshot(item[1], item[2])
+            ITEM[item[1]].default(item[2])
+            VolumeDefault(item[1], item[2])
+            n = n + 1
+        end
+    end
+    Refresh()
+    if n == 0 then return end
+    Shell.Offer(group .. ": Recommended (" .. n .. ")", "Undo", function()
+        for _, back in ipairs(undo) do back() end
+        Refresh()
+    end)
+end
+ui.ResetGroup = ResetGroup
+
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
@@ -1628,6 +1654,12 @@ local function Build(frame, header)
             for i, item in ipairs(items) do
                 MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw, item[1], item[2])
             end
+            -- (in its title band: every changed row back to Recommended, Undo for 5 s)
+            if #items > 0 then
+                local kind = k[1]
+                card.reset = S.NewButton(card, "Reset group", cw - 118, -8, 108, function() ResetGroup(g.key, kind) end, nil, 11, 24)
+                S.Tooltip(card.reset, "Reset group", "Every changed moment here back to Recommended")
+            end
             ui.cards[g.key][k[1]] = card
           end
         end
@@ -1709,17 +1741,34 @@ Refresh = function()
     for _, g in ipairs(GROUPS) do
         for k, card in pairs(ui.cards[g.key]) do card:SetShown(k == kind) end
         local items = Items(kind, g.key)
-        local on = 0
+        local on, changed = 0, 0
         for _, item in ipairs(items) do
             local _, _, _, off = ITEM[item[1]].show(item[2])
             if not off then on = on + 1 end
+            if not IsRecommended(item[1], item[2]) then changed = changed + 1 end
         end
+        local card = ui.cards[g.key][kind]
+        if card and card.reset then card.reset:SetEnabled(changed > 0) end
         -- (a gold dot: WoW Helper proposes something in this group)
         local proposed = false
         for _, item in ipairs(items) do
             if C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
         end
-        ui.browser.buttons[g.key].count:SetText((proposed and "|cffffcc4d•|r " or "") .. (#items > 0 and (on .. "/" .. #items) or ""))
+        local btn = ui.browser.buttons[g.key]
+        btn.count:SetText((proposed and "|cffffcc4d•|r " or "") .. (#items > 0 and (on .. "/" .. #items) or ""))
+        -- (a ring by the count: something here differs from Recommended)
+        if changed > 0 and not btn.ring then
+            btn.ring = btn:CreateTexture(nil, "OVERLAY")
+            btn.ring:SetTexture("Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_changed_ring")
+            btn.ring:SetSize(10, 10)
+        end
+        if btn.ring then
+            btn.ring:SetShown(changed > 0)
+            local w = btn.count:GetStringWidth()
+            btn.ring:ClearAllPoints()
+            btn.ring:SetPoint("RIGHT", btn, "RIGHT", -8 - (type(w) == "number" and w or 30) - 5, 0)
+        end
+        btn.changed = changed
     end
     for _, fn in ipairs(pg.refresh) do fn() end
     if kind == "feel" then

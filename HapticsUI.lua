@@ -437,6 +437,12 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         r.icon:SetDesaturated(off == true)
         r.label:SetAlpha(off and 0.6 or 1)
         if r.default then r.default:SetEnabled(not isDefault) end
+        -- (changed from Recommended: a gold dot on its name)
+        local changed = r.default ~= nil and isDefault == false
+        if changed and not r.changed then
+            r.changed = S.Text(r, "•", 35, -2, 10, 14, YELLOW)
+        end
+        if r.changed then r.changed:SetShown(changed) end
         if r.clear then r.clear:SetEnabled(not off) end
         if r.level then r.level:SetAlpha(off and 0.45 or 1) end
     end
