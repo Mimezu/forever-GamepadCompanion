@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.2 — 2026-11-18
+
+- **Low health plays again** (night review 2, U2-1): 0.53.0 read health before the helper that guards hidden values was defined, so every health change raised an error and Low health never started. A test now fails if it comes back
+
 ## 0.53.0 — 2026-11-18
 
 - **When chips:** moments that wait for a level show it under their name: Low health "When: below 35 %", Heartbeat "below 50 %", Out of mana "below 15 %", Landing "soft 0.50 s · full 1.20 s". A click opens a stepper with Default (Landing asks which first). It's part of the moment: a changed level shows the gold dot, the row's Default and Reset group put it back, and it's saved in the Feel profile

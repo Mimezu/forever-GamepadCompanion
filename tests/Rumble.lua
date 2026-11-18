@@ -670,6 +670,9 @@ do
     local uh, um, ud = UnitHealth, UnitHealthMax, UnitIsDeadOrGhost
     local hp = 100
     UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = function() return hp end, function() return 100 end, function() return false end
+    -- (night 2 U2-1: Secret is Rumble's own local; a global "Secret" here is the catch-all's no-op, so
+    -- calling it means the local wasn't in scope: in the game, an error on every health tick)
+    rawset(_G, "Secret", function() error("U2-1: HealthNow called the global Secret") end)
     Wh.Set("lowHp", "below", 0.25)
     hp = 30; V.CheckLowHealth("UNIT_HEALTH")
     assert(fired == 0, "30 % with 25 % set: not yet")
@@ -680,6 +683,7 @@ do
     assert(ended == e0 + 1, "60 %: over")
     Wh.Set("lowHp", "below", nil)
     UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = uh, um, ud
+    rawset(_G, "Secret", nil)
     -- Landing: two knobs, which first, then its stepper; Soft stays under Full
     page.browser.Select("Moving")
     local land = row("landing")
