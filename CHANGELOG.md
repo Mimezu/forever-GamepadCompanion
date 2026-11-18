@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.44.2 — 2026-11-18
+
+- Mining: the first strike, then the crack on the cast's end (its end time from the game), a little ahead for the pad's delay: the ore cracking loose is felt with its sound. No second strike a period on (it landed before the crack; the game plays no steady second strike). When the cast succeeds, the crack already playing goes on, not again
+
 ## 0.44.1 — 2026-11-18
 
 - Mining in time with the pickaxe: WoW Helper heard its strikes at 1.49 s after the cast starts (1.42-1.55 over 20 casts) and again 1.4 s later; the guess was 0.5 s, then every 1 s, so only one strike in three landed near a real one. New guess: 1.49 s, then every 1.4 s

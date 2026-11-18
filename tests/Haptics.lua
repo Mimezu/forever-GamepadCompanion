@@ -1387,10 +1387,14 @@ do
     local hd, strikeHD = 0, V.StrikeHD
     V.StrikeHD = function() hd = hd + 1 end
     assert(shape(start + 0.3) == 0 and shape(start + 1.51) == K and shape(start + 1.62) == R
-        and shape(start + 1.8) == 0 and shape(start + 2.91) == K, "a strike on each swing")
-    assert(hd == 2, "its HD with each strike, once: " .. hd)
-    -- (a slow frame: a strike caught late still plays whole, from that frame)
-    assert(shape(start + 4.35) == K and shape(start + 4.37) == K, "a strike a slow frame caught late: whole")
+        and shape(start + 1.8) == 0, "the first strike at 1.49")
+    assert(shape(start + 2.91) == 0, "no second strike a period on (it landed before the crack)")
+    local cl = shape(start + 3.01)
+    assert(cl and cl > 0.8, "the crack on the cast's end (3.0 here): " .. tostring(cl))
+    assert(hd == 2, "its HD with the strike and the crack, once each: " .. hd)
+    assert(V.StrikeTimeOf(1, 1.49, 1.4, 3.15) == 3.15 and select(2, V.StrikeTimeOf(1, 1.49, 1.4, 3.15))
+        and V.StrikeTimeOf(2, 1.49, 1.4, 3.15) == nil, "mining: the strike, then the crack")
+    assert(V.StrikeTimeOf(2, 0.5, 1.0, 3.2) == 2.5 and V.StrikeTimeOf(3, 0.5, 1.0, 3.2) == 3.2, "a longer cast: strikes, then the crack")
     V.StrikeHD = strikeHD
     -- sync: squeeze R2 on the strikes, over two casts
     V.StrikeSync("mining")

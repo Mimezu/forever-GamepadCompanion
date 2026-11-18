@@ -1063,21 +1063,43 @@ function V.StrikeAt(t, period, offset)
     return V.StrikeEnv((t - offset) % period)
 end
 
+-- The k-th strike of a cast (seconds after its start) and whether it's the
+-- crack: strikes a period apart from the first while one more fits half a
+-- period clear of the cast's end, then the crack at the end itself (mining:
+-- the first strike at ~1.49 s, then the ore cracking loose as the cast ends;
+-- a second strike a period on landed before the crack, the user heard). nil:
+-- no more. (WoW Helper's gather::strike_time, the same rule.)
+function V.StrikeTimeOf(k, first, period, crack)
+    if not crack then return first + k * period, false end
+    local periodic = 0
+    if first < crack - 0.3 then periodic = 1 + math.max(0, math.floor((crack - 0.5 * period - first) / period)) end
+    if k < periodic then return first + k * period, false end
+    if k == periodic then return crack, true end
+    return nil
+end
+
 local function Strikes(now)
     local t = cast.timing
     local period, offset = V.StrikeTiming(t.strikes)
     -- (the clock the link lead ahead; each strike from the frame it begins,
     -- so a slow frame shortens or loses none)
     local at = now + (ns.Timing and ns.Timing.Lead() or 0) - t.start
-    if at >= offset then
-        local i = math.floor((at - offset) / period)
-        if i ~= t.strikeN then
-            t.strikeN, t.strikeAt = i, now
-            -- (its HD with it, one per strike: unless WoW Helper plays them)
-            if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes) end
-        end
+    local span = t.finish and t.finish > t.start and (t.finish - t.start) or nil
+    local k = (t.strikeN or -1) + 1
+    local tk, isCrack = V.StrikeTimeOf(k, offset, period, span)
+    if tk and at >= tk then
+        t.strikeN, t.strikeAt, t.crackNow = k, now, isCrack
+        if isCrack then t.cracked = now end
+        -- (its HD with it, one per strike: unless WoW Helper plays them)
+        if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes) end
     end
     if not t.strikeAt then return 0, 0 end
+    -- (the last: the ore cracking loose, on the cast's end)
+    if t.crackNow then
+        local l, r = V.CrackAt(now - t.strikeAt)
+        if l then return l, r end
+        return 0, 0
+    end
     local e = V.StrikeEnv(now - t.strikeAt)
     return e, e
 end
@@ -1106,9 +1128,10 @@ function V.CrackAt(d)
 end
 local function Crack(now) return V.CrackAt(now - crackedAt) end
 
-function V.Crack()
+-- (at: the crack began then, on the cast's end: it goes on, not again)
+function V.Crack(at)
     if not (C_GamePad and C_GamePad.SetVibration and V.Active()) then return end
-    crackedAt = GetTime()
+    crackedAt = at or GetTime()
     StartShape(Crack, true)
 end
 
@@ -1958,7 +1981,7 @@ local function CastReleased()
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
         and V.CastImpactWindow(V.castAction, cast.gain) then return end
     if cast.shaped and not cast.timing.fishing then
-        if cast.timing.strikes then V.Crack() else V.Release() end
+        if cast.timing.strikes then V.Crack(cast.timing.cracked) else V.Release() end
     end
 end
 
