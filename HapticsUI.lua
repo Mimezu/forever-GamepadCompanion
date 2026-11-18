@@ -293,7 +293,10 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     end
     if onTry then
         x = x - 34
-        r.try = S.NewButton(r, "Try", x, -5, 32, function() onTry() end, nil, 11, 30)
+        r.try = S.NewButton(r, "Try", x, -5, 32, function()
+            onTry()
+            if Shell.PadPresent and Shell.PadPresent() == false then Shell.SetStatus("|cffff7a5cNo pad|r", true) end
+        end, nil, 11, 30)
         S.Tooltip(r.try, "Try", label)
         x = x - 4
     end

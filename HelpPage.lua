@@ -15,6 +15,7 @@ local CW = W - CX
 local WELL_W, WELL_H = CW - 36, 220
 
 local help = { buttons = {}, visuals = {} }
+local FeelIt
 ns.HelpPage = help
 
 -- a side tab's glyph ("bars"), or one of Help's own ("topic-credits")
@@ -243,6 +244,31 @@ local function HelperReady()
     return K and K.Enabled() and C and C.Data and C.Data() ~= nil or false
 end
 
+-- Feel it: Critical hit, Loot, Level up, one after another
+local FEEL_IT = { "crit", "loot", "levelUp" }
+FeelIt = function()
+    local page = ns.RumblePage
+    if not (page and page.TryMoment) then return end
+    for i, key in ipairs(FEEL_IT) do
+        local function go() page.TryMoment(key) end
+        if i == 1 or not (C_Timer and C_Timer.After) then go() else C_Timer.After((i - 1) * 1.4, go) end
+    end
+end
+help.FEEL_IT = FEEL_IT
+
+-- /gpc: Start here while the pad or WoW Helper isn't ready (a client that
+-- can't tell about the pad counts as ready); else the last page
+function help.NeedsStart()
+    local padKnown = C_GamePad and C_GamePad.GetActiveDeviceID
+    return (padKnown and not PadReady()) or not HelperReady()
+end
+function API.OpenStart()
+    if not help.NeedsStart() then return false end
+    Shell.Open("help")
+    if help.ShowTopic then help.ShowTopic(1) end
+    return true
+end
+
 local TOPICS = {
     { key = "start", name = "Start here", glyph = "help", start = true },
     { key = "controller", name = "Controller", glyph = "controller", marks = 3, go = Go("controller"), points = {
@@ -264,8 +290,9 @@ local TOPICS = {
     { key = "profiles", name = "Profiles", glyph = "topic-profiles", marks = 2, points = {
         "Controls: buttons, touchpad, bars", "Feel: vibration, light, sound", "New character: Recommended" } },
     { key = "commands", name = "Commands", glyph = "tools", commands = {
-        { "/gpc", "window" }, { "/gpc pad", "controller" }, { "/gpc touch", "touchpad" }, { "/gpc bars", "bar layout" },
-        { "/gpc rumble", "moments" }, { "/gpc light", "moments: light" }, { "/gpc rumble test", "each motor" },
+        { "/gpc", "window" }, { "/gpc moments", "moments" }, { "/gpc pad", "controller" }, { "/gpc touch", "touchpad" },
+        { "/gpc bars", "bar layout" }, { "/gpc light", "moments: light" }, { "/gpc rumble", "same as moments" },
+        { "/gpc rumble test", "each motor" },
         { "/gpc gestures", "gestures" }, { "/gpc setup", "setup" }, { "/gpc lab", "lab, on for good" },
         { "/gpc on | off", "my bar layout" }, { "/gpc reset", "both bar layouts" }, { "/gpc gamepad", "Blizzard options" },
         { "/gpc edit", "Edit Mode layout" }, { "/gpc help", "commands in chat" } } },
@@ -301,7 +328,7 @@ local function StartSteps()
     local ready = { PadReady(), HelperReady(), PadReady() and HelperReady() }
     for i, tile in ipairs(s.tiles) do
         local on = ready[i]
-        tile.state:SetText(on and "Ready" or (i == 3 and "After 1 and 2" or "Not yet"))
+        tile.state:SetText(i == 4 and "Crit · Loot · Level up" or on and "Ready" or (i == 3 and "After 1 and 2" or "Not yet"))
         tile.state:SetTextColor(on and 0.35 or S.GREY[1], on and 0.85 or S.GREY[2], on and 0.4 or S.GREY[3])
         tile.tick:SetShown(on)
     end
@@ -373,13 +400,14 @@ local function Build(frame)
     help.start = CreateFrame("Frame", nil, help.well)
     help.start:SetAllPoints()
     help.start.tiles = {}
-    local tw, gap = 240, 26
-    local x0 = (WELL_W - (3 * tw + 2 * gap)) / 2
-    for i, step in ipairs({ { "controller", "Connect the pad" }, { "setup", "Start WoW Helper" }, { "moments", "Play" } }) do
+    local tw, gap = 186, 18
+    local x0 = (WELL_W - (4 * tw + 3 * gap)) / 2
+    for i, step in ipairs({ { "controller", "Connect the pad" }, { "setup", "Start WoW Helper" }, { "moments", "Play" },
+        { "gestures", "Feel it", FeelIt } }) do
         local tile = S.Card(help.start, nil, x0 + (i - 1) * (tw + gap), -24, tw, WELL_H - 48)
-        -- (a step opens its page: Controller, Setup, Moments)
+        -- (a step opens its page: Controller, Setup, Moments; Feel it plays three)
         tile:EnableMouse(true)
-        tile:SetScript("OnMouseUp", Go(step[1]))
+        tile:SetScript("OnMouseUp", step[3] or Go(step[1]))
         local hover = tile:CreateTexture(nil, "HIGHLIGHT")
         hover:SetAllPoints(); hover:SetColorTexture(1, 0.8, 0.4, 0.08)
         tile.page = step[1]

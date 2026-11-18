@@ -51,17 +51,36 @@ function Shell.SetStatus(text, sticky)
     if sticky and text ~= "" then S.FadeIn(window.status, 0.15) end
 end
 
--- The WoW Helper chip: linked and read (green), linked, nothing read yet (orange), off (grey)
+-- What the addon knows of WoW Helper: its data file read at login (when),
+-- not read, or the link off. Never "Linked": only the helper can say that.
+-- Returns the words after "WoW Helper · " and a state: read, unread, off.
+function Shell.LinkWords()
+    local K, C = ns.HelperLink, ns.HelperCues
+    if not (K and K.Enabled()) then return "off", "off" end
+    local data = C and type(C.HelperData) == "function" and C.HelperData()
+    if data then return "read " .. tostring(data.at or "?"), "read" end
+    return "not read", "unread"
+end
+
+-- Whether a pad is there (nil: the game can't say)
+function Shell.PadPresent()
+    if not (C_GamePad and C_GamePad.GetActiveDeviceID) then return nil end
+    local ok, id = pcall(C_GamePad.GetActiveDeviceID)
+    if not ok then return nil end
+    return type(id) == "number" and id >= 0
+end
+
+-- The WoW Helper chip: read (green), not read (orange), off (grey); No pad beside it
 function Shell.RefreshLink()
     local chip = window and window.link
     if not chip then return end
-    local K, C = ns.HelperLink, ns.HelperCues
-    local on = K and K.Enabled()
-    local data = on and C and type(C.HelperData) == "function" and C.HelperData()
-    if data then chip.dot:SetColorTexture(0.35, 0.85, 0.4, 1)
-    elseif on then chip.dot:SetColorTexture(1, 0.62, 0.25, 1)
+    local words, state = Shell.LinkWords()
+    if state == "read" then chip.dot:SetColorTexture(0.35, 0.85, 0.4, 1)
+    elseif state == "unread" then chip.dot:SetColorTexture(1, 0.62, 0.25, 1)
     else chip.dot:SetColorTexture(0.5, 0.5, 0.5, 1) end
-    S.Tooltip(chip, "WoW Helper", data and "Linked" or on and "Not read yet" or "Off")
+    chip.text:SetText("WoW Helper · " .. words)
+    S.Tooltip(chip, "WoW Helper", "Setup")
+    if window.noPad then window.noPad:SetShown(Shell.PadPresent() == false) end
 end
 
 function Shell.Window() return window end
@@ -291,16 +310,28 @@ local function Build()
     window.statusDot:Hide()
     local chipAnchor = ns.ProfileMenu and ns.ProfileMenu.chips and ns.ProfileMenu.chips[#ns.ProfileMenu.chips] or window.version
     local link = CreateFrame("Button", nil, window)
-    link:SetSize(96, 22)
+    link:SetSize(170, 22)
     link:SetPoint("RIGHT", chipAnchor, "LEFT", -10, 0)
     link.dot = link:CreateTexture(nil, "ARTWORK")
     link.dot:SetSize(7, 7); link.dot:SetPoint("LEFT", 4, 0)
-    link.text = S.Text(link, "WoW Helper", 0, 0, 80, 11, S.GREY)
+    link.text = S.Text(link, "WoW Helper", 0, 0, 156, 11, S.GREY)
+    link.text:SetJustifyH("LEFT")
     link.text:ClearAllPoints(); link.text:SetPoint("LEFT", link.dot, "RIGHT", 5, 0)
     link:SetScript("OnClick", function() Shell.Open("setup") end)
     link:SetScript("OnEnter", S.ShowTooltip)
     link:SetScript("OnLeave", S.HideTooltip)
     window.link = link
+    -- No pad: grey, beside the chip, while the game sees no pad
+    window.noPad = S.Text(window, "No pad", 0, 0, 60, 11, S.DIM)
+    window.noPad:ClearAllPoints()
+    window.noPad:SetPoint("RIGHT", link, "LEFT", -8, 0)
+    window.noPad:SetJustifyH("RIGHT")
+    window.noPad:Hide()
+    local padEvents = CreateFrame("Frame")
+    for _, e in ipairs({ "GAME_PAD_CONNECTED", "GAME_PAD_DISCONNECTED", "GAME_PAD_ACTIVE_CHANGED" }) do
+        pcall(padEvents.RegisterEvent, padEvents, e)
+    end
+    padEvents:SetScript("OnEvent", function() Shell.RefreshLink() end)
     window.close = S.NewButton(window, "Close", 0, 0, 100, function() window:Hide() end)
     window.close:ClearAllPoints()
     window.close:SetPoint("BOTTOMRIGHT", -inset.right, inset.bottom + 6)
@@ -349,3 +380,4 @@ ns.ShellWindow = function() return window, tabs, built end
 
 -- /gpc gestures, setup, lab: a page by its key
 function API.OpenPage(key) Shell.Open(key) end
+function API.IsOptionsShown() return Shell.IsShown() end

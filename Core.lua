@@ -814,6 +814,9 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     elseif command == "help" or command == "?" then
         for _, line in ipairs(commandHelp) do Say(line) end
     elseif command == "" or command == "options" or command == "config" then
+        -- (/gpc: Help › Start here while the pad or WoW Helper isn't ready)
+        local shown = API.IsOptionsShown and API.IsOptionsShown()
+        if command == "" and not shown and API.OpenStart and API.OpenStart() then return end
         if API.ToggleOptions then API.ToggleOptions() end
     else
         Say("Unknown command \"" .. command .. "\" · /gpc help")

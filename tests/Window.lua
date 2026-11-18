@@ -265,6 +265,18 @@ assert(HP.go:IsShown(), "Go there")
 HP.go.scripts.OnClick(HP.go)
 assert(ns.Shell.Current() == "bars", "Go there: the Bars page")
 ns.Shell.Open("help")
+-- the footer says what it knows: WoW Helper read, not read or off; No pad
+local sw = ns.Shell.Window()
+ns.Shell.RefreshLink()
+assert(sw.link.text.text == "WoW Helper · off" and not sw.noPad:IsShown(), "off; a client that can't tell: no No pad")
+C_GamePad = { GetActiveDeviceID = function() return -1 end }
+ns.Shell.RefreshLink()
+assert(sw.noPad:IsShown(), "No pad")
+assert(ns.HelpPage.NeedsStart(), "/gpc: Start here while the pad isn't there")
+C_GamePad = nil
+ns.Shell.RefreshLink()
+-- Start here's 4th tile: Feel it, three moments
+assert(#HP.start.tiles == 4 and HP.start.tiles[4].state.text == "Crit · Loot · Level up", "Feel it")
 api.ToggleHelp()
 assert(not window:IsShown() and not editing, "closing ends editing")
 -- Saved styles still normalize (the setting stays for older saves)

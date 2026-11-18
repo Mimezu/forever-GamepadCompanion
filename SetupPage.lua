@@ -41,7 +41,9 @@ local function BuildHelper(frame)
     local via = S.Note(card, COL - 112, -42, 100, 1, 11, GREY)
     via:SetJustifyH("RIGHT")
     pg.via = via
-    S.Note(card, 12, -72, COL - 24, 2, 11, GREY):SetText("Run WowHelper.exe" .. NL .. "Windowed or borderless")
+    -- (the exe to run; the limit: the game windowed)
+    S.Text(card, "Run WowHelper.exe", 12, -72, COL - 24, 12, GOLD)
+    S.Text(card, "Windowed or borderless", 12, -90, COL - 24, 11, DIM)
     -- HD: the setup flow's mode when there, else the cue switch
     local function HD()
         if type(C.HDMode) == "function" then return C.HDMode() end
@@ -52,19 +54,16 @@ local function BuildHelper(frame)
         C.Settings().hdFeels = v == "auto"
         C.Refresh()
     end
-    Choice(card, "Detail", 12, -108, { { "auto", "Auto" }, { "off", "Off" } }, HD, SetHD)
-    local data = S.Note(card, 12, -144, COL - 24, 1, 11, DIM)
+    Choice(card, "HD", 12, -112, { { "auto", "On" }, { "off", "Off" } }, HD, SetHD)
+    S.Text(card, "Bluetooth only", 124, -142, COL - 136, 11, DIM)
+    local data = S.Note(card, 12, -166, COL - 24, 1, 11, DIM)
     pg.refresh[#pg.refresh + 1] = function()
         link:SetChecked(K.Enabled())
         local l = ns.Timing and ns.Timing.Link and ns.Timing.Link()
         via:SetText(l == "usb" and "USB" or l == "bt" and "Bluetooth" or "")
-        local d = type(C.Data) == "function" and C.Data() or nil
-        if d and d.at then
-            local sounds = tonumber(d.sounds) or 0
-            data:SetText("Read " .. tostring(d.at))
-        else
-            data:SetText("Not read yet")
-        end
+        -- (the footer chip's words: what the addon knows, read at login)
+        local words = Shell.LinkWords and Shell.LinkWords() or ""
+        data:SetText("WoW Helper · " .. words)
     end
 end
 
@@ -90,7 +89,7 @@ local FLOOR_TOP = 0.4
 local min, max = math.min, math.max
 
 local function BuildRange(frame)
-    local card = S.Card(frame, "Range", X2, 0, COL, 200, "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration")
+    local card = S.Card(frame, "Faintest feel", X2, 0, COL, 200, "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration")
     local St = ns.Staircase
     local check -- { side, s }: a check under way
     local function SetFloor(side, v)
@@ -98,7 +97,6 @@ local function BuildRange(frame)
         db.floor[side] = max(0, min(FLOOR_TOP, floor(v * 100 + 0.5) / 100))
         if db.ceil[side] <= db.floor[side] then db.ceil[side] = 1 end
     end
-    S.Text(card, "Faint feels start here", 12, -38, COL - 24, 11, GREY)
     local rows, checks = {}, {}
     local cw = 64
     for side = 1, 2 do
@@ -246,7 +244,9 @@ local function BuildTiming(frame)
         get = function() return H.DB().landMax or L.LAND_MAX end,
         set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
     local status = S.Note(card, 12, -302, COL - 24, 2, 11, GOLD)
-    S.Note(card, 12, -330, COL - 24, 2, 11, DIM):SetText("Learned by WoW Helper · Reset and Pad delay there")
+    S.NewButton(card, "WoW Helper ›", 12, -330, 120, function()
+        if Shell.SetStatus then Shell.SetStatus("WoW Helper › Pad › Timing", true) end
+    end, nil, 11, 24)
     V.onHitSync = function(text) status:SetText(text); Refresh() end
     pg.refresh[#pg.refresh + 1] = function()
         local kind = V.WeaponKind(16)
@@ -273,7 +273,7 @@ end
 local function BuildBase(frame)
     local LT = ns.Lights
     local cw = W - X3
-    local card = S.Card(frame, "Base colour", X3, 0, cw, 320, "Interface\\Icons\\INV_Misc_Gem_Ruby_01")
+    local card = S.Card(frame, "Resting light", X3, 0, cw, 320, "Interface\\Icons\\INV_Misc_Gem_Ruby_01")
     if not LT then return end
     local swatch = card:CreateTexture(nil, "ARTWORK")
     swatch:SetPoint("TOPRIGHT", -14, -10)
@@ -327,8 +327,9 @@ local function BuildBase(frame)
     local y = -78 - math.ceil(n / 5) * 34 - 8
     Stepper(card, "Brightness", 12, y, { labelWidth = 110, width = cw - 24, step = 0.125, min = 0.125, max = 1, format = Pct,
         get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
-    Stepper(card, "Shape", 12, y - 28, { labelWidth = 110, width = cw - 24, list = LT.RESTING,
-        get = function() return LT.Base().light end, set = function(v) LT.Base().light = v; LT.ApplyBase() end })
+    -- (its motion between moments; "Shape" is the verb only)
+    Choice(card, "Resting", 12, y - 28, LT.RESTING, function() return LT.Base().light end,
+        function(v) LT.Base().light = v; LT.ApplyBase() end, math.floor((cw - 24 - 112) / 3))
     -- the mic light (WoW Helper only: the game can't reach it); moments' lights can pulse it
     S.Heading(card, "Mic light", 10, y - 64, cw - 20)
     local mic = Choice(card, "", -100, y - 84, LT.MIC_MODES, function() return LT.Base().mic end, function(v)

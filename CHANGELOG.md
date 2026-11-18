@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.50.1 — 2026-11-18
+
+- **The footer says what it knows**: **WoW Helper · read 18:02** (green: its data file read at login), **not read** (orange), **off** (grey); never "Linked". Setup's WoW Helper card says the same. **No pad** (grey) beside it while the game sees no pad; Try says "No pad"
+- **/gpc opens Help › Start here** while the pad or WoW Helper isn't ready; a 4th tile, **Feel it**, plays Critical hit, Loot and Level up one after another
+- Setup words: **HD: On / Off** (limit: Bluetooth only); **Faintest feel** (was Range; its sentence gone); **Resting light** (was Base colour) with **Resting: Steady | Breathe | Ember** (Shape is the verb only); WoW Helper card: **Run WowHelper.exe**, the limit "Windowed or borderless"; Timing: a **WoW Helper ›** button instead of its note
+- Moments › States: Otherwise reads **Resting light**
+- Help › Commands: **/gpc moments** first; /gpc rumble "same as moments"
+
 ## 0.49.0 — 2026-11-18
 
 - **States follow FrameGambit's gambits**: Moments › Light › States is a list of reactions, checked top to bottom, the first match wins; **Otherwise** when nothing matches. **+ Add reaction** from the families (Player, Target, Travel, Group & instances, System, Events), **×** removes, drag or ▲▼ to reorder, On / Off

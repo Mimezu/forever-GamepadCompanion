@@ -627,7 +627,7 @@ function ui.BuildStates(panel, cw)
     -- Otherwise: the base colour and its light (Setup › Light)
     local o = HUI.MomentRow(card, -38 - STATE_ROWS * STATE_STEP, cw, nil, "Otherwise", function()
         Shell.Open("setup")
-    end, function() LT.ApplyBase() end, "Setup › Light")
+    end, function() LT.ApplyBase() end, "Resting light")
     o.icon:Hide()
     o.teal = o:CreateTexture(nil, "BACKGROUND", nil, 2)
     o.teal:SetAllPoints()
@@ -685,7 +685,7 @@ function ui.RefreshStates(kind)
     local base = LT.LightByKey(b.light)
     local now = stack:Now()
     local otherwise = now.bar.row == nil and now.mic.row == nil and now.dots.row == nil
-    o:SetChoice(base and base.name or "?", nil, now.bar.row == nil and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
+    o:SetChoice("Resting light", nil, now.bar.row == nil and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
     o.teal:SetShown(otherwise)
     ui.statesDefault:SetEnabled(not stack:IsDefault())
     if btn then btn.count:SetText(on .. "/" .. #rows) end
@@ -970,6 +970,15 @@ Jump = function(key, kind)
     end
 end
 ui.Jump = function(key, kind) return Jump(key, kind) end
+
+-- Try a feel moment as its row's Try does (Help › Start here › Feel it)
+function ui.TryMoment(key)
+    for _, g in ipairs(GROUPS) do
+        for _, item in ipairs(g.items) do
+            if item[2] == key and ITEM[item[1]] and ITEM[item[1]].try then return ITEM[item[1]].try(key) end
+        end
+    end
+end
 
 ---------------------------------------------------------------------------
 -- Your spells (UX.md §9): the spellbook by tab, a row a spell name, what
@@ -1273,7 +1282,7 @@ local function Build(frame, header)
         local r, g, b, on = H.LedNow()
         if on then now:SetColorTexture(r, g, b, 1) else now:SetColorTexture(0.08, 0.08, 0.08, 1) end
     end)
-    S.Text(lb, "Base colour: Setup", 14, -80, LEFT_W - 28, 11, DIM)
+    S.Text(lb, "Resting light: Setup", 14, -80, LEFT_W - 28, 11, DIM)
     -- Sound: the link
     local sb = CreateFrame("Frame", nil, left)
     sb:SetPoint("TOPLEFT", 0, 0)
