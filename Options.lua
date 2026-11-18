@@ -2,7 +2,7 @@
 --   Bars   where Blizzard's controller bars and class buttons sit, and their size
 --   Tools  Blizzard's spellbook, macros, Edit Mode and gamepad options; spread
 --          view; Edit Mode layouts; the character's profile
---   Help   short topics and the commands
+--   Help   HelpPage.lua
 local ADDON, ns = ...
 local S, Shell = ns.OptionsSkin, ns.Shell
 local API = GamepadCompanionAPI
@@ -739,48 +739,6 @@ local function RefreshTools()
     RefreshSpellbookButtons()
 end
 
--- Help page ----------------------------------------------------------------------
-
-local topics = {
-    { "Controller", "Click a button on the drawing to edit it\nChoose: spells, items, macros, Halo rings, windows, typed macros\nOr drop a spell, item or macro on it\nHold L2 / R2: their layer\nBar slots: pages 1 to 3\nIn combat: applies after" },
-    { "Touchpad", "Click the touchpad on the drawing\nZones, grid, swipes, tap time\nTouch + click: two actions per zone\nTaps work out of combat only\nL1 + touchpad: Blizzard's focus" },
-    { "Bars", "Offsets from Blizzard's spot\nCompact or Standard: Edit Mode > controller bar\nBigger active bar: Expand in Edit Mode\nBase also moves page selector and shoulder icons\nFine steps: Shift-click or mouse wheel" },
-    { "Class buttons", "Druid, paladin, warrior, hunter, warlock\nL1 + L2 and R1 + R2 menus\nIn combat: Blizzard's spot" },
-    { "Edit Mode", "Frames: Blizzard Edit Mode\nOld Companion layout: converted once, kept as backup\n/gpc edit  status\n/gpc edit convert  make it again" },
-    { "Moments", "What the pad does when: Feel, Light, Sound\nEach moment: pick, Try, Default\nMarks after a name: its light, its sound\nThe line top right: the last moment, click to find it\nOff while Improved Forever: Vibration is on" },
-    { "Gestures", "Record them in WoW Helper › Gestures\nHere: what each one runs\nKeys Ctrl Shift Alt F1-F12" },
-    { "Setup", "WoW Helper: run it, Link on, game windowed\nRange: Find, stop when you feel it\nBase colour: the light bar between moments\nTriggers, timing: footsteps and mining in step" },
-    { "Credits", "Rumble patterns: Improved Forever: Vibration (markg)\nand Easy Controller (moust4ki), MIT\nSee licenses/" },
-    { "Profiles", "Controls: buttons, touchpad, bars\nFeel: vibration, light, sound\nNew character: Recommended\nSwitch: the footer's chips" },
-    { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab, on for good\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
-}
-
-local help = { buttons = {} }
-local function ShowTopic(index)
-    help.index = index
-    help.title:SetText(topics[index][1])
-    help.copy:SetText(topics[index][2])
-    for i, b in ipairs(help.buttons) do SetSelected(b, i == index) end
-end
-
-local function BuildHelp(frame)
-    local list = S.Card(frame, "Topics", 0, 0, 250, H)
-    for index, topic in ipairs(topics) do
-        help.buttons[index] = Button(list, topic[1], 12, -42 - (index - 1) * 40, 226, function() ShowTopic(index) end, nil, 13, 34)
-    end
-    local card = S.Card(frame, " ", 262, 0, W - 262, H)
-    help.title = card.title
-    help.copy = Text(card, "", 18, -50, W - 300, 14, GOLD)
-    help.copy:SetJustifyV("TOP")
-    help.copy:SetHeight(H - 70)
-    if help.copy.SetSpacing then help.copy:SetSpacing(8) end
-    if API.GetCapabilities().suspended then
-        help.copy:SetText("Paused in this recovery build\nSettings kept")
-    else
-        ShowTopic(1)
-    end
-end
-
 -- Pages ----------------------------------------------------------------------------
 
 local function StateChanged()
@@ -817,9 +775,6 @@ Shell.AddPage({
 Shell.AddPage({
     key = "tools", name = "Tools", order = 6,
     icon = "Interface\\Icons\\Ability_Repair", build = BuildTools, refresh = RefreshTools,
-})
-Shell.AddPage({
-    key = "help", name = "Help", order = 7, icon = "Interface\\Icons\\INV_Misc_Book_09", build = BuildHelp,
 })
 
 local events = CreateFrame("Frame")

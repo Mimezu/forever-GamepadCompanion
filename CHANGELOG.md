@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.46.3 — 2026-11-18
+
+- **Help, a codex**: topics down the left with their glyphs (three new: Touchpad, Profiles, Credits); a topic: a small picture drawn from the addon's own art and widgets, a few numbered points that match the picture's marks, and Go there
+  - Pictures: the pad with its parts marked, the touchpad's zones and a swipe, a real moment row (feel, Try, Default) under Feel | Light | Sound, the gesture loop (recorded, keys pressed, the action), the bar slots, Setup's three cards, the footer's chips
+  - **Start here** first: Connect the pad, Start WoW Helper, Play, each ticked from the live state and each opening its page
+  - **Commands**: a two-column table. Credits: short
+- Help moves out of Options.lua into HelpPage.lua
+
 ## 0.46.1 — 2026-11-18
 
 - Setup › Timing is a status now: WoW Helper learns by listening, so no Sync buttons. Hits (the weapon in hand), Mining, Footsteps (run, walk): "Learning…", "Learned ✓" (and how many) or "Yours", each with one Reset (back to what WoW Helper learns); Hits keeps Try. The hit delay shows read-only; a nudge by hand is WoW Helper's one Pad delay. Landing's Soft at and Full at stay in the card (not learned: yours)

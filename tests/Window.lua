@@ -123,6 +123,7 @@ local api = GamepadCompanionAPI
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/HelpPage.lua"))("GamepadCompanion", ns)
 
 local function find(label, kind)
     for _, f in ipairs(created) do
@@ -314,6 +315,16 @@ for _, f in ipairs(created) do
     if f.kind == "FontString" and f.text and f.text:find("/gpc pad", 1, true) and f:IsVisible() then copy = f end
 end
 assert(copy, "commands topic")
+-- every topic shows; Start here ticks from the live state; Go there opens the page
+local HP = ns.HelpPage
+for i = 1, #HP.TOPICS do HP.ShowTopic(i) end
+HP.ShowTopic(1)
+assert(HP.start:IsShown() and HP.start.tiles[1].state.text == "Not yet" and not HP.start.tiles[1].tick:IsShown(), "Start here: no pad yet")
+for i, t in ipairs(HP.TOPICS) do if t.key == "bars" then HP.ShowTopic(i) end end
+assert(HP.go:IsShown(), "Go there")
+HP.go.scripts.OnClick(HP.go)
+assert(ns.Shell.Current() == "bars", "Go there: the Bars page")
+ns.Shell.Open("help")
 api.ToggleHelp()
 assert(not window:IsShown() and not editing, "closing ends editing")
 -- Saved styles still normalize (the setting stays for older saves)
