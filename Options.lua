@@ -1,17 +1,17 @@
--- The Bars, Tools and Help pages of the Gamepad Companion window (Window.lua).
---   Bars   where Blizzard's controller bars and class buttons sit, and their size
---   Tools  Blizzard's spellbook, macros, Edit Mode and gamepad options; spread
---          view; Edit Mode layouts; the character's profile
---   Help   HelpPage.lua
-local ADDON, ns = ...
+-- The Bars and Tools pages of the Gamepad Companion window (Window.lua).
+--   Bars   My bar layout, Edit in Edit Mode (EditModeBars.lua places the bars),
+--          the layout in use, its Copy and Reset (each with Undo)
+--   Tools  Blizzard's spellbook, macros and gamepad options; spread view; the
+--          window's skin, size, key and minimap icon
+local _, ns = ...
 local S, Shell = ns.OptionsSkin, ns.Shell
 local API = GamepadCompanionAPI
-local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
-local Text, Note, Button, Tooltip, SetSelected = S.Text, S.Note, S.NewButton, S.Tooltip, S.SetSelected
-local W, H = Shell.W, Shell.H
+local GOLD, GREY, DIM = S.GOLD, S.GREY, S.DIM
+local Text, Button, Tooltip, SetSelected = S.Text, S.NewButton, S.Tooltip, S.SetSelected
+local W = Shell.W
 
-local mode, refreshing = nil, false
-local ui = { modeButtons = {} }
+local mode
+local ui = {}
 local spellButtons = {}
 local openingPanel, reopenAfterSettings
 local Refresh
@@ -124,11 +124,26 @@ local function BuildBars(frame, header)
     ui.editMode.label:SetFont("Fonts\\FRIZQT__.TTF", 16, "")
     ui.editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
     Tooltip(ui.editMode, "Edit Mode", "Drag a bar · click it: scale, prompt, reset")
+    ui.off = Text(card, "", 400, -74, W - 420, 13, GREY)
     ui.layout = Text(card, "", 20, -132, W - 40, 13, GOLD)
+    -- the whole layout at once: done, then Undo for a few seconds (as Default › Undo)
+    local function Undoable(what, fn)
+        local EB = ns.EditModeBars
+        local snap = EB and EB.Snapshot(mode)
+        local ok, reason = fn()
+        Result(ok, reason)
+        if ok and snap and Shell.Offer then
+            local at = mode
+            Shell.Offer(what, "Undo", function() EB.Restore(at, snap); Refresh() end)
+        end
+    end
     ui.copy = Button(card, "Copy from Standard", 20, -170, 200, function()
-        Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
+        local from = mode == "compact" and "standard" or "compact"
+        Undoable("Copied from " .. (from == "compact" and "Compact" or "Standard"), function() return API.CopyLayout(from, mode) end)
     end, nil, 12, 30)
-    ui.resetLayout = Button(card, "Reset layout", 230, -170, 150, function() Result(API.ResetMode(mode)) end, nil, 12, 30)
+    ui.resetLayout = Button(card, "Reset layout", 230, -170, 150, function()
+        Undoable("Layout reset", function() return API.ResetMode(mode) end)
+    end, nil, 12, 30)
     Tooltip(ui.resetLayout, "Reset layout", "Every bar of this layout")
 end
 
@@ -140,21 +155,21 @@ local function BarsStatus(settings, state, caps)
     if state.pendingLayout then return "Waiting for Blizzard's bars" end
     if not settings.enabled then return "Off · Blizzard's layout" end
     if not state.nativeEnabled then return "Ready · applies in gamepad UI" end
-    return "Bars shown while open"
+    return "Ready"
 end
 
 local function RefreshBars()
     if not ui.frame then return end
-    refreshing = true
     local settings, state, caps = API.GetSettings(), API.GetState(), API.GetCapabilities()
     mode = state.mode or "standard"
+    -- off: Edit Mode shows Blizzard's bars only, and says so here
+    ui.off:SetText(settings.enabled == true and "" or "My bar layout is off: Edit Mode shows Blizzard's bars only")
     ui.layout:SetText((mode == "compact" and "Compact" or "Standard") .. "  ·  set in Edit Mode")
     ui.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
     ui.editMode:SetEnabled(not InCombatLockdown())
     ui.enable:SetChecked(settings.enabled == true)
     ui.enable:SetEnabled(not caps.suspended)
     Shell.SetStatus(BarsStatus(settings, state, caps))
-    refreshing = false
 end
 
 -- Tools page ---------------------------------------------------------------------
@@ -224,10 +239,7 @@ local function BuildTools(frame, header)
         ReturnToEditor()
         if InCombatLockdown() then Notice("Not in combat") end
     end)
-    local editMode = SlashButton(blizz, "Edit Mode", 12, -118, bw, 40, "/editmode")
-    editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
-    Tooltip(editMode, "Edit Mode", "Frames and the controller bar")
-    local gamepad = Button(blizz, "Gamepad options", 24 + bw, -118, bw, function()
+    local gamepad = Button(blizz, "Gamepad options", 12, -118, bw, function()
         local ok, reason = OpenGamepadSettings()
         if not ok then Result(nil, reason); return end
         reopenAfterSettings = true

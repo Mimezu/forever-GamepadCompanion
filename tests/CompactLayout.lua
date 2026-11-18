@@ -391,7 +391,7 @@ assert(not GamepadCompanionOptions:IsShown())
 SettingsPanel.scripts.OnHide()
 assert(GamepadCompanionOptions:IsShown(), "window returns after Blizzard settings close")
 -- Edit Mode opens Blizzard's editor from the hardware click; no addon call.
-local editMode = assert(find("Edit Mode"), "Missing button: Edit Mode")
+local editMode = assert(find("Edit in Edit Mode"), "Missing button: Edit in Edit Mode")
 assert(editMode.attributes.type == "macro" and editMode.attributes.macrotext == "/editmode")
 assert(rawget(editMode.scripts, "OnClick") == nil)
 combat = true

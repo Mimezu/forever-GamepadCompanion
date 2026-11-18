@@ -741,7 +741,7 @@ local commandHelp = {
     "/gpc  window",
     "/gpc pad  controller",
     "/gpc touch  touchpad",
-    "/gpc bars  bar layout",
+    "/gpc bars  bar layout · nudge: without Edit Mode",
     "/gpc rumble  moments · test: each motor",
     "/gpc light  moments: light",
     "/gpc gestures | setup  their tab",
@@ -790,6 +790,12 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     if (command == "gestures" or command == "setup" or command == "lab") and API.OpenPage then
         if command == "lab" and API.SetLab then API.SetLab(true) end
         API.OpenPage(command)
+        return
+    end
+    -- bars nudge: place the bars without Edit Mode (EditModeBars' dialog), should it misbehave
+    if command == "bars" and rest:lower() == "nudge" and ns.EditModeBars then
+        local ok, why = ns.EditModeBars.Fallback()
+        if not ok then Say(why) end
         return
     end
     if command == "bars" and API.OpenBars then

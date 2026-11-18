@@ -116,12 +116,13 @@ GamepadCompanionAPI = {
     end,
     SetEnabled = function(v) settings.enabled = v; return true end,
     SetClassPrompts = function(v) settings.classPrompts = v; return true end,
-    ResetBar = function() return true end, ResetMode = function() return true end, CopyLayout = function() return true end,
+    ResetBar = function() return true end, ResetMode = function(m) local n = M.Normalize(); if m == "compact" then settings.compact = n.compact else settings.bars = n.bars end; return true end, CopyLayout = function() return true end,
     SetOptionsStyle = function(v) settings.optionsStyle = v; return true end,
 }
 local api = GamepadCompanionAPI
 assert(loadfile(root .. "/OptionsSkin.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Window.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/EditModeBars.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Options.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/HelpPage.lua"))("GamepadCompanion", ns)
 
@@ -243,6 +244,23 @@ assert(shownText("Standard  ·  set in Edit Mode") and find("Copy from Compact")
 state.mode, state.compact = "compact", true
 api.RefreshOptions()
 for _, gone in ipairs({ "Move up", "1", "50", "Reset Action bars" }) do assert(not find(gone), "gone: " .. gone) end
+-- Reset layout: done, then Undo puts every bar back (B2)
+settings.compact.bars.x, settings.compact.stance.y = 33, -12
+find("Reset layout").scripts.OnClick(find("Reset layout"))
+assert(settings.compact.bars.x == 0 and settings.compact.stance.y == 0, "reset")
+local undo
+for _, f in ipairs(created) do
+    if f.kind == "Button" and type(rawget(f, "label")) == "table" and f.label.text == "Undo" and f:IsVisible() then undo = f end
+end
+assert(undo, "Undo offered")
+undo.scripts.OnClick(undo)
+assert(settings.compact.bars.x == 33 and settings.compact.stance.y == -12, "Undo: every bar back")
+-- off: the page says what Edit Mode will show
+settings.enabled = false
+api.RefreshOptions()
+assert(shownText("My bar layout is off"), "off: said")
+settings.enabled = true
+api.RefreshOptions()
 assert(#visibleEdits() == 0, "no typed values: Edit Mode has them")
 print("PASS: Bars: Edit Mode from the click, the layout in use, Copy and Reset layout; no preview, arrows or values")
 

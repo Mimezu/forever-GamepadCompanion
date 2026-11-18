@@ -32,6 +32,10 @@ function methods:GetWidth() return rawget(self, "width") or 1600 end
 function methods:GetHeight() return rawget(self, "height") or 900 end
 function methods:GetEffectiveScale() return 1 end
 function methods:IsMouseOver() return rawget(self, "over") == true end
+function methods:SetFrameStrata(s) self.strata = s end
+function methods:SetDontSavePosition(v) self.dontSave = v end
+local timers = {}
+C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
 
 CreateFrame = function(kind, name, parent, template)
     if template == "EditModeSystemSelectionTemplate" then error("no Blizzard Edit Mode template") end
@@ -56,14 +60,17 @@ EditModeManagerFrame = { snapEnabled = false, Grid = { gridSpacing = 20 },
     IsSnapEnabled = function(self) return self.snapEnabled end,
     ClearSelectedSystem = function() cleared = cleared + 1 end,
     SelectSystem = function() end }
-hooksecurefunc = function() error("Edit Mode is listened to, never hooked") end
+local hooks = 0
+hooksecurefunc = function() hooks = hooks + 1 end
 
 -- Companion's API: settings per layout, bars as frames at known spots
 local ns = {}
 assert(loadfile(root .. "/Model.lua"))("GamepadCompanion", ns)
 local M = ns.Model
 local settings = M.Normalize({ enabled = true })
-local state = { mode = "standard", available = true }
+local state = { mode = "standard", available = true, nativeEnabled = true }
+local hidden = {}
+local page = { GetEffectiveScale = function() return 1.5 end }
 local editing, subscriber
 local bars = {
     base = { 600, 100, 400, 60 }, lt = { 200, 300, 300, 60 }, rt = { 1100, 300, 300, 60 },
@@ -82,9 +89,11 @@ GamepadCompanionAPI = {
     GetBarFrame = function(layer)
         local b = bars[layer]
         if not b then return nil end
-        return { GetLeft = function() return b[1] end, GetBottom = function() return b[2] end,
-            GetWidth = function() return b[3] end, GetHeight = function() return b[4] end,
-            GetEffectiveScale = function() return 1 end }
+        local scale = layer == "classLeft" and 1.5 or 1
+        return { GetLeft = function() return b[1] / scale end, GetBottom = function() return b[2] / scale end,
+            GetWidth = function() return b[3] / scale end, GetHeight = function() return b[4] / scale end,
+            GetEffectiveScale = function() return scale end, GetParent = function() return page end,
+            IsVisible = function() return not hidden[layer] end }
     end,
 }
 assert(loadfile(root .. "/EditModeBars.lua"))("GamepadCompanion", ns)
@@ -193,6 +202,74 @@ EB.dialogSpot = nil
 d.close.scripts.OnClick()
 assert(EB.Selected() == nil and not d.shown, "close lets go")
 
+-- B1: our boxes over Blizzard's block selection (MEDIUM, level 1000) where they overlap
+local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5 }
+local blizzard = { strata = "MEDIUM", level = 1000 }
+for layer, q in pairs(EB.proxies) do
+    assert(STRATA[q.strata] > STRATA[blizzard.strata], "over Blizzard's selection: " .. layer)
+end
+assert(STRATA[d.strata or "DIALOG"] >= STRATA.HIGH and d.dontSave == true, "dialog above, its spot not saved (B14)")
+
+-- B4: a class button (page scale 1.5) dragged 30 px on screen moves 20 page units
+EB.Select("classLeft")
+local cl = EB.proxies.classLeft
+local x0, y0 = settings.bars.classLeft.x, settings.bars.classLeft.y
+cl:OnDragStart()
+cl.left, cl.bottom = cl.points[1][4] + 30, cl.points[1][5]
+cl:OnDragStop()
+cl.left, cl.bottom = nil, nil
+assert(settings.bars.classLeft.x == x0 + 20 and settings.bars.classLeft.y == y0,
+    "class button in page units: " .. settings.bars.classLeft.x)
+
+-- Reset, then Undo (5 s); after the 5 s, Reset again
+EB.Select("rt")
+EB.MoveBy("rt", 40, 0)
+d.reset.scripts.OnClick()
+assert(settings.bars.rt.x == 0 and d.reset.text == "Undo", "reset, Undo offered")
+d.reset.scripts.OnClick()
+assert(settings.bars.rt.x == 40 and d.reset.text == "Reset", "undone")
+d.reset.scripts.OnClick()
+timers[#timers]()
+assert(d.reset.text == "Reset" and settings.bars.rt.x == 0, "Undo gone after its seconds")
+
+-- B17: the dialog stays under the pointer while dragged
+local before = d.points[1]
+d.scripts.OnDragStart(d)
+EB.Place()
+assert(d.points[1] == before, "no re-anchor mid-drag")
+d.left, d.bottom = 300, 400
+d.scripts.OnDragStop(d)
+d.left, d.bottom = nil, nil
+EB.dialogSpot = nil
+
+-- B16: a bar filling the middle: a corner clear of it; Escape lets the bar go first
+local fx, fy = EB.DialogSpot({ left = 260, bottom = 160, width = 1080, height = 580 }, 250, 150, 1600, 900)
+assert(not (fx < 1340 and fx + 250 > 260 and fy < 740 and fy + 150 > 160), "corner clear of the bar")
+d.scripts.OnKeyDown(d, "ESCAPE")
+assert(EB.Selected() == nil and not d.shown, "Escape: our pick first")
+
+-- B6: a fight mid-drag: Exit stops the drag, Enter starts clean
+EB.Select("lt")
+EB.proxies.lt:OnDragStart()
+EB.events.scripts.OnEvent(EB.events, "PLAYER_REGEN_DISABLED")
+assert(not EB.active and not EB.dragging and not rawget(EB.proxies.lt, "moving"), "drag ended by the fight")
+-- B5: the fight over, Edit Mode still open: back
+EditModeManagerFrame.IsEditModeActive = function() return true end
+EB.events.scripts.OnEvent(EB.events, "PLAYER_REGEN_ENABLED")
+assert(EB.active, "back after the fight")
+
+-- B7: a hidden bar has no box; the keyboard UI shows none
+hidden.stance = true
+EB.Place()
+assert(not EB.proxies.stance.shown, "hidden bar: no box")
+hidden.stance = nil
+callbacks["EditMode.Exit"]()
+state.nativeEnabled = false
+callbacks["EditMode.Enter"]()
+assert(not EB.active, "keyboard UI: nothing of ours")
+state.nativeEnabled = true
+callbacks["EditMode.Enter"]()
+
 -- A fight ends it
 EB.Select("base")
 EB.events.scripts.OnEvent(EB.events, "PLAYER_REGEN_DISABLED")
@@ -204,8 +281,21 @@ callbacks["EditMode.Exit"]()
 assert(not EB.active and not editing and not subscriber, "off")
 for _, q in pairs(EB.proxies) do assert(not q.shown, "boxes hidden") end
 
--- My bar layout off: Edit Mode shows nothing of ours
+-- B3: /gpc bars nudge, without Edit Mode: the dialog, a bar to pick, arrows; Close ends it
+assert(EB.Fallback())
+assert(d.shown and EB.Selected() == "base" and d.prev.shown and d.arrows[1].shown, "fallback dialog")
+d.next.scripts.OnClick()
+assert(EB.Selected() == "lt", "next bar")
+local lx = settings.bars.lt.x
+d.arrows[4].scripts.OnClick()
+assert(settings.bars.lt.x == lx + 10, "arrow nudges")
+d.close.scripts.OnClick()
+assert(not d.shown and not EB.fallback and not subscriber, "closed")
+
+-- My bar layout off: Edit Mode shows nothing of ours; nudge says why
 settings.enabled = false
 callbacks["EditMode.Enter"]()
 assert(not EB.active, "off while My bar layout is off")
+assert(select(2, EB.Fallback()) == "My bar layout is off")
+assert(hooks == 0, "Edit Mode listened to, never hooked")
 print("PASS: EditModeBars: listened to, never hooked; boxes over each bar, pick, drag (snap), dialog, arrows, a click elsewhere, a fight, exit")

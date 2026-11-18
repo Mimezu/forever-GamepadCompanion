@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.52.0 — 2026-11-18
+
+Bars in Edit Mode, after the night review (B1-B18):
+- **Reset layout and Copy from … say so and offer Undo** for 5 s, every bar back (B2); the Edit Mode dialog's Reset turns into Undo for 5 s
+- **A click on a bar takes the bar**: our boxes sit above Blizzard's controller-block selection where they overlap; its margin still takes the block (B1)
+- **`/gpc bars nudge`**: the bar dialog without Edit Mode (a bar to pick, arrows, Scale, Reset), should Edit Mode misbehave (B3)
+- Class buttons move by what you drag at any scale (offsets are in their page's units) (B4)
+- After a fight with Edit Mode open, the boxes come back (B5); a fight mid-drag ends the drag cleanly (B6)
+- No boxes over hidden bars, nor in the keyboard UI (B7); with My bar layout off the page says Edit Mode shows Blizzard's bars only (B8)
+- One Edit Mode button (the Bars page's; Tools' went) (B9, B10); the status says "Ready", not "Bars shown while open" (B11)
+- The dialog: "Prompts · both" (one setting for both class buttons) (B15), Escape lets the bar go before Edit Mode closes, a clear corner when the bar fills the middle (B16), stays put while dragged (B17), its spot not saved by the client (B14)
+- Headers, docs/EDIT-MODE.md and dead locals (B12, B13); tests: page-unit scales, Blizzard's selection level, the fight, Reset layout's Undo, a hook counter that can fail (B18)
+
 ## 0.51.3 — 2026-11-18
 
 - Leftover sentences gone: Bars' "Drag a bar · click it…" (its tooltip keeps it); Tools' notes under Spells, Macros, Edit Mode and Gamepad options (Edit Mode's moves to its tooltip; Gamepad options' limit stays in its tooltip). Spread view keeps its limit line

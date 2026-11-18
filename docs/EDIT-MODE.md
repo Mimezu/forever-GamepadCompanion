@@ -71,11 +71,16 @@ has its own settings there:
 - Highlight
 - Expand: enlarges the bar you are holding.
 
-Companion's Compact / Standard and Edit Mode buttons open Edit Mode.
+Compact / Standard is that block's setting: Companion only shows which one is in use.
 
 Companion's own Edit Mode placement (Save here / Load / Import / Copy and the Layouts
 panel) is gone. See the section above for how your saved layout became a
 Blizzard layout.
 
-Companion's bar offsets are added on top of the block's position in Edit Mode. To move
-everything together, use Edit Mode. To move one trigger bar, use Companion.
+Companion's bar offsets are added on top of the block's position. Both are set in Edit
+Mode: drag Blizzard's block to move everything together; Companion's own boxes there
+(Base, L2, R2, L2 + R2, the compact stack, Stance, the class buttons; `EditModeBars.lua`)
+move one bar, and a click opens its Scale, the class buttons' prompts and Reset (then
+Undo). Companion's boxes sit above Blizzard's block selection where they overlap. The
+Bars page keeps My bar layout, the layout in use and the whole layout's Copy and Reset
+(each with Undo). `/gpc bars nudge` places bars without Edit Mode, should it misbehave.
