@@ -71,6 +71,61 @@ function T.Store()
     return t
 end
 
+-- The nodes gathered, per action, numbered for WoW Helper (moment 109, seed =
+-- the number; its "race-sex|action#n" keys): append only, never reorder.
+-- By the target's name as the game gives it (English; another language: 0)
+T.NODES = {
+    mining = { "Copper Vein", "Tin Vein", "Silver Vein", "Iron Deposit", "Gold Vein", "Mithril Deposit",
+        "Truesilver Deposit", "Dark Iron Deposit", "Small Thorium Vein", "Rich Thorium Vein", "Incendicite Mineral Vein",
+        "Lesser Bloodstone Deposit", "Indurium Mineral Vein", "Ooze Covered Silver Vein", "Ooze Covered Gold Vein",
+        "Ooze Covered Mithril Deposit", "Ooze Covered Truesilver Deposit", "Ooze Covered Thorium Vein",
+        "Ooze Covered Rich Thorium Vein", "Hakkari Thorium Vein" },
+    herbalism = { "Peacebloom", "Silverleaf", "Earthroot", "Mageroyal", "Briarthorn", "Stranglekelp", "Bruiseweed",
+        "Wild Steelbloom", "Grave Moss", "Kingsblood", "Liferoot", "Fadeleaf", "Goldthorn", "Khadgar's Whisker",
+        "Wintersbite", "Firebloom", "Purple Lotus", "Arthas' Tears", "Sungrass", "Blindweed", "Ghost Mushroom",
+        "Gromsblood", "Golden Sansam", "Dreamfoil", "Mountain Silversage", "Plaguebloom", "Icecap", "Black Lotus" },
+}
+local nodeIndex = {}
+for action, list in pairs(T.NODES) do
+    nodeIndex[action] = {}
+    for i, name in ipairs(list) do nodeIndex[action][name] = i end
+end
+-- A node's number for an action (0: not in the list)
+function T.NodeIndex(action, name)
+    return type(name) == "string" and nodeIndex[action] and nodeIndex[action][name] or 0
+end
+
+-- What WoW Helper learned per node (strikeNodes), this race and sex:
+-- { { action, n, name, first, period, casts, ready } ... } in list order
+function T.LearnedNodes()
+    local out = {}
+    local base = T.Model():match("^(%d+%-%d+)") or ""
+    for key, v in pairs(T.Store().nodes or {}) do
+        local model, action, n = key:match("^([^|]+)|(%a+)#(%d+)$")
+        n = tonumber(n)
+        if model == base and n and T.NODES[action] and T.NODES[action][n] and type(v) == "table" then
+            out[#out + 1] = { action = action, n = n, name = T.NODES[action][n], first = tonumber(v.first),
+                period = tonumber(v.period), casts = tonumber(v.casts) or 0, ready = v.ready == true }
+        end
+    end
+    table.sort(out, function(a, b) if a.action ~= b.action then return a.action < b.action end return a.n < b.n end)
+    return out
+end
+
+-- What WoW Helper learned per weapon and hand, this race and sex:
+-- { { kind, hand, delay, hits } ... }
+function T.LearnedHits()
+    local out = {}
+    local base = T.Model():match("^(%d+%-%d+)") or ""
+    for key, l in pairs(T.Store().learned or {}) do
+        local model, kind, hand = key:match("^([^|]+)|(%a+)|(%a+)$")
+        if model == base and KIND[kind] and type(l) == "table" and type(l.v) == "number" then
+            out[#out + 1] = { kind = kind, hand = hand, delay = l.v, hits = l.hits }
+        end
+    end
+    return out
+end
+
 -- A timing default as WoW Helper publishes it (one table for both programs:
 -- WowHelperData.timingDefaults: mining { first, period, crack }, run and walk
 -- { rate, offset, speed }); nil without WoW Helper (the addon's own fallback)
@@ -129,7 +184,7 @@ end
 -- no longer sent back to it as the addon's delay)
 function T.LoadHelper()
     local store = T.Store()
-    store.learned, store.strikes = {}, {}
+    store.learned, store.strikes, store.nodes = {}, {}, {}
     local d = _G.WowHelperData
     if type(d) ~= "table" then
         store.linkLatency, store.link, store.padDelay = nil, nil, nil
@@ -142,6 +197,12 @@ function T.LoadHelper()
                 T.Learn(key, v.delay, tonumber(v.hits))
                 n = n + 1
             end
+        end
+    end
+    -- (per node, for showing: ready or not)
+    if type(d.strikeNodes) == "table" then
+        for key, v in pairs(d.strikeNodes) do
+            if type(key) == "string" and type(v) == "table" then store.nodes[key] = v end
         end
     end
     if type(d.strikeTiming) == "table" then

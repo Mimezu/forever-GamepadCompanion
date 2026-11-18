@@ -152,7 +152,7 @@ UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
 for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -3017,4 +3017,56 @@ do
     T.LoadHelper()
     assert(math.abs(T.Offset("twoHand", "main") - 0.165) < 1e-9, "without WoW Helper: the copy here")
     io.write("PASS: night review H10: hit defaults from one table" .. string.char(10))
+end
+
+-- R9: what WoW Helper learned, per weapon and per node: the node marker (109), strikeNodes mirrored, the panels
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    V.SetCastPreset("gather", "auto")
+    local T, K = ns.Timing, ns.HelperLink
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    wipe(K.queue)
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local start = now + 5
+    now = start
+    UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3.2) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SENT", "player", "Tin Vein", "g9", 2575)
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "g9", 2575)
+    assert(K.queue[1] and K.queue[1].moment == 100 and K.queue[2] and K.queue[2].moment == 109 and K.queue[2].seed == 2,
+        "the start, then its node (Tin Vein: 2)")
+    assert(T.NodeIndex("mining", "Copper Vein") == 1 and T.NodeIndex("mining", "Kupferader") == 0, "by name; unknown: 0")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "g9")
+    UnitCastingInfo = nil
+    wipe(K.queue)
+    K.Enabled = enabled
+    -- what WoW Helper learned per node and per weapon, mirrored
+    WowHelperData = { strikeNodes = { ["1-2|mining#1"] = { first = 1.48, period = 1.4, casts = 12, ready = true },
+        ["1-2|mining#2"] = { first = 1.5, casts = 2, ready = false }, ["9-3|mining#1"] = { first = 1.5, casts = 30, ready = true } },
+        hitOffsets = { ["1-2|twoHand|main"] = { delay = 0.17, hits = 40 } } }
+    T.LoadHelper()
+    local nodes = T.LearnedNodes()
+    assert(#nodes == 2 and nodes[1].name == "Copper Vein" and nodes[1].ready and nodes[2].name == "Tin Vein" and not nodes[2].ready,
+        "this race and sex's nodes, in list order")
+    local hits = T.LearnedHits()
+    assert(#hits == 1 and hits[1].kind == "twoHand" and hits[1].hand == "main" and hits[1].hits == 40, "the weapons learned")
+    -- the panels, under Attacks and Abilities, read only, each with Try
+    local LP = ns.LearnedPage
+    assert(LP and ns.RumblePage.panels[1], "the panels added")
+    local w = LP.Weapons()
+    local two
+    for _, x in ipairs(w) do if x.kind == "twoHand" then two = x end end
+    assert(two and two.ready and two.hits == 40 and math.abs(two.delay - 0.17) < 1e-9, "Two-hand · main hand: Learned ✓ · 40")
+    local list = LP.Nodes()
+    assert(list[1].name == "Mining" and list[2].name == "Copper Vein" and list[2].ready and list[3].name == "Tin Vein", "Mining, then its nodes")
+    ns.Shell.Open("moments")
+    ns.Shell.Refresh()
+    assert(ns.RumblePage.browser.panels.learnedWeapons and ns.RumblePage.browser.panels.learnedNodes, "in the group list")
+    WowHelperData = nil
+    T.LoadHelper()
+    io.write("PASS: R9: learned per weapon and per node, the node marker, the panels" .. string.char(10))
 end

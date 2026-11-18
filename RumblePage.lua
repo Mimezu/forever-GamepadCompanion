@@ -15,6 +15,10 @@ local RED = { 1, 0.48, 0.36 }
 local floor, max, min = math.floor, math.max, math.min
 
 local ui = { rows = {} }
+-- Panels other files add to the group list, after a group: { after = "Attacks",
+-- key, label, build = function(panel, width, pg) } (before the page is built)
+ui.panels = {}
+function ui.AddPanel(def) ui.panels[#ui.panels + 1] = def end
 local pg = { refresh = {} }
 local Refresh
 pg.Refresh = function() Refresh() end
@@ -1596,6 +1600,10 @@ local function Build(frame, header)
     for _, g in ipairs(GROUPS) do
         groups[#groups + 1] = { key = g.key, label = g.key }
         if g.key == "Abilities" and SpellsOn() then groups[#groups + 1] = { key = "spells", label = "Your spells" } end
+        -- (panels other files add after a group: ui.AddPanel)
+        for _, p in ipairs(ui.panels) do
+            if p.after == g.key then groups[#groups + 1] = { key = p.key, label = p.label } end
+        end
     end
     if LT and LT.stack then groups[#groups + 1] = { key = "states", label = "States" } end
     if ns.TriggerStack and ns.TriggerStack.kind then groups[#groups + 1] = { key = "triggers", label = "Triggers" } end
@@ -1636,6 +1644,9 @@ local function Build(frame, header)
     ui.soundOff.setup:ClearAllPoints(); ui.soundOff.setup:SetPoint("TOP", t2, "BOTTOM", 0, -18)
     ui.soundOff:Hide()
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
+    for _, p in ipairs(ui.panels) do
+        if b.panels[p.key] then p.build(b.panels[p.key], cw, pg) end
+    end
     if b.panels.states then ui.BuildStates(b.panels.states, cw) end
     if b.panels.triggers then
         ui.BuildTriggerStack(b.panels.triggers, cw)

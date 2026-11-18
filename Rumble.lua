@@ -1975,6 +1975,8 @@ local function CastStarted(event, _, guid, spellID)
     if V.castKind == "gather" and V.GATHER_MARKERS[V.castAction] then
         timed = V.GatherMarker(V.castAction, "start")
         gatherOpen = { action = V.castAction, guid = guid }
+        -- (its node, right after: WoW Helper learns per ore and herb too)
+        V.GatherNode(V.castAction, V.sentTarget)
     end
     -- (a striking cast, mining: its HD goes with each strike, from Strikes)
     local striking = V.castKind == "gather" and STRIKES[V.castAction] ~= nil
@@ -2413,7 +2415,20 @@ function V.TrySpell(spellID)
 end
 
 
+-- The node a gathering cast is aimed at (the cast's target, as sent):
+-- moment 109, seed = its number in Timing's list (0: unknown, not sent)
+function V.GatherNode(action, name)
+    local K = ns.HelperLink
+    local n = ns.Timing and ns.Timing.NodeIndex(action, name) or 0
+    if n == 0 or not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
+    return K.Marker({ moment = 109, seed = n, side = 0, level = 0 })
+end
+
 local CAST_HANDLERS = {
+    -- (the cast's target as sent: a node's name, for gathering)
+    UNIT_SPELLCAST_SENT = function(_, _, target)
+        V.sentTarget = (type(target) == "string" and not secret(target)) and target or nil
+    end,
     UNIT_SPELLCAST_START = CastStarted,
     UNIT_SPELLCAST_CHANNEL_START = CastStarted,
     UNIT_SPELLCAST_INTERRUPTED = function(_, _, _, _, by)

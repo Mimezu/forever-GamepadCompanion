@@ -464,8 +464,8 @@ K.MARKER_FIRST, K.MARKER_LAST = 100, 126
 function K.Marker(item)
     if not (K.Enabled() and K.V2()) then return false end
     local m = Int(item.moment, 127)
-    -- (96-98 footsteps, 100-108 gathering, 110-126 swings)
-    if not ((m >= 96 and m <= 98) or (m >= 100 and m <= 108) or (m >= 110 and m <= 126)) then return false end
+    -- (96-98 footsteps, 100-108 gathering, 109 its node, 110-126 swings)
+    if not ((m >= 96 and m <= 98) or (m >= 100 and m <= 109) or (m >= 110 and m <= 126)) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     -- (ahead of the cues, behind the markers already waiting: a stop and a

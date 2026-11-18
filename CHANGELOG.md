@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.52.5 — 2026-11-18
+
+- **Learned**, in Moments: under Attacks, **Learned · weapons**: the weapon in each hand and every one WoW Helper learned, its hit timing, "Learned ✓ · 40 hits" or "Learning…", Try. Under Abilities, **Learned · gathering**: Mining (and herbs, skinning once learned) with its first strike and rhythm, then each ore or herb it learned from (Copper Vein, Tin Vein…), Try. Read only: WoW Helper owns them (Reset there)
+- WoW Helper learns per ore and herb too: each gathering cast tells it the node (by its name; another language than English: per action only)
+
 ## 0.52.4 — 2026-11-18
 
 - **The Feel tour**: **Play the tour** on Help › Start here and Help › Moments: footsteps, a swing, a crit, loot, a level up, a whisper, in 25 s, each named in Just felt as it plays
