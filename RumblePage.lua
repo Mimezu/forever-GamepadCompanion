@@ -376,12 +376,27 @@ end
 ---------------------------------------------------------------------------
 -- A row
 ---------------------------------------------------------------------------
-local function CastSets()
-    local entries = {}
-    for _, p in ipairs(V.CAST_PRESETS) do
-        if not p.action then entries[#entries + 1] = { key = p.key, label = p.label, icon = p.icon } end
-    end
-    return entries
+-- A cast's feel (a cast set) in the Feel picker every moment opens: its
+-- sets on top as tiles (Off first), any feel below it (a feel's set: it plays
+-- while casting, the usual alerts when it ends badly). current: the tile
+-- or feel to show selected for a set key
+local function SetTile(key)
+    local p = V.Preset(key)
+    return p and { key = key, label = p.label, icon = p.icon } or nil
+end
+local function SetCurrent(setKey, specials)
+    for _, s in ipairs(specials) do if s.key == setKey then return setKey end end
+    local p = V.Preset(setKey)
+    if not p or p.key == "off" then return "off" end
+    if p.feel or (not p.auto and not p.action and p.cast) then return L.FeelFor(p.cast) end
+    return setKey
+end
+local function PickSet(anchor, title, specials, current, onSet)
+    HUI.PickFeel(anchor, current, function(choice)
+        for _, s in ipairs(specials) do if s.key == choice then return onSet(choice) end end
+        L.RegisterInRumble()
+        onSet(V.FeelSet(L.PatternFor(choice)))
+    end, specials, title)
 end
 
 -- WoW Helper can open a moment: its data read, the HD link on
@@ -426,11 +441,12 @@ local function MakeRow(parent, y, width, kind, key)
     end
     local row = HUI.MomentRow(parent, y, width, I.icon(key), label, function(anchor)
         if kind == "c" then
-            HUI.Popup(anchor, label, CastSets(), V.CastPreset(key), function(preset)
+            local specials = { OFF, SetTile("auto"), SetTile("alerts") }
+            PickSet(anchor, label, specials, SetCurrent(V.CastPreset(key), specials), function(preset)
                 V.SetCastPreset(key, preset)
                 Refresh()
                 if preset ~= "off" then I.try(key) end
-            end, 3, 150)
+            end)
             return
         end
         if kind == "light" or kind == "sound" then return I.pick(key, anchor) end
@@ -563,7 +579,7 @@ local function PlateOf(plan)
         return p and p.label or tostring(plan.set), p and p.icon, false
     elseif plan.moment == "instant" or plan.moment == "quiet" then
         local f = plan.feel and H.Feel(plan.feel)
-        if not f then return "None", V.OFF_ICON, true end
+        if not f then return "Off", V.OFF_ICON, true end
         return (f.label or plan.feel) .. (plan.hd and " · HD" or ""), f.icon, false
     end
     return (MOMENT_LABEL[plan.moment] or plan.moment) .. " ›", nil, false
@@ -609,19 +625,28 @@ local function PickSpell(row, anchor)
         return ITEM[ui.kind].pick(key, anchor)
     end
     if Linked(plan) then return Jump(plan.moment, "feel") end
+    local o = O.Get(plan.name)
+    local off = o and o.on == false
     if plan.moment == "spell" then
-        local entries = { OFF }
-        for _, e in ipairs(CastSets()) do if e.key ~= "off" then entries[#entries + 1] = e end end
-        local o = O.Get(plan.name)
-        HUI.Popup(anchor, plan.name, entries, (o and o.on == false) and "off" or plan.set, function(key)
-            if key == "off" then O.SetOn(plan.name, false) else O.SetSet(plan.name, key) end
+        -- (its set as it ships on top, beside Off; any feel below)
+        local specials = { OFF, SetTile(plan.ruleSet or plan.set) }
+        PickSet(anchor, plan.name, specials, off and "off" or SetCurrent(plan.set, specials), function(key)
+            if key == "off" then O.SetOn(plan.name, false)
+            elseif key == plan.ruleSet then O.SetSet(plan.name, nil)
+            else O.SetSet(plan.name, key) end
             Refresh()
-        end, 3, 150)
+        end)
         return
     end
-    local o = O.Get(plan.name)
-    HUI.PickFeel(anchor, (o and o.on == false) and "off" or plan.feel, function(feel)
-        if feel == "off" then O.SetOn(plan.name, false) else O.SetFeel(plan.name, feel) end
+    -- (a spell the rules leave quiet: Off, as the picker says it)
+    HUI.PickFeel(anchor, (off or not plan.feel) and "off" or plan.feel, function(feel)
+        if feel == "off" then
+            if plan.ruleFeel then O.SetOn(plan.name, false) else O.SetFeel(plan.name, nil) end
+        elseif feel == plan.ruleFeel then
+            O.SetFeel(plan.name, nil)
+        else
+            O.SetFeel(plan.name, feel)
+        end
         Refresh()
     end, { OFF }, plan.name)
 end
@@ -714,8 +739,9 @@ local function BuildSpells(panel, cw)
                     row.key, row.linked = key, linked
                     row:SetChoice(name, icon, sub, off, rgb, isDefault)
                     if row.level then
-                        row.level:SetShown(kind == "feel" and not Linked(plan) or kind == "sound" and key ~= nil and not linked)
+                        row.level:SetShown(not off and (kind == "feel" and not Linked(plan) or kind == "sound" and key ~= nil and not linked))
                     end
+                    if row.try then row.try:SetShown(not off) end
                     row:SetMarks({})
                     row:SetAlpha(live and 1 or 0.55)
                 end
@@ -871,6 +897,9 @@ Refresh = function()
         local I = ITEM[row.kind]
         local name, icon, sub, off, rgb = I.show(row.key)
         row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
+        -- (nothing plays: no volume, no Try)
+        if row.level then row.level:SetShown(not off) end
+        if row.try then row.try:SetShown(not off) end
         if row.edit then
             -- the word follows where it goes: Shape in WoW Helper, Edit in Lab (only with Lab on)
             row.edit:SetShown(toHelper or H.DB().lab == true)

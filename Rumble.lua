@@ -60,7 +60,7 @@ V.PATTERNS = {
     { key = "impact", label = "Impact", steps = { { 1, 1, 0.16 } } },
     -- A critical hit: a hard, sharp strike with a short bright ring, above any
     -- plain hit (HD scale tier 4); no lead-in
-    { key = "critHit", label = "Crit", steps = { { 1, 1, 0.1 }, { 0, 0, 0.06 }, { 0.35, 0.35, 0.1 } } },
+    { key = "critHit", label = "Crit", art = "impact", steps = { { 1, 1, 0.1 }, { 0, 0, 0.06 }, { 0.35, 0.35, 0.1 } } },
     { key = "triple", label = "Triple tick",
         steps = { { 0.7, 0.7, 0.11 }, { 0, 0, 0.1 }, { 0.7, 0.7, 0.11 }, { 0, 0, 0.1 }, { 0.7, 0.7, 0.11 } } },
     { key = "purr", label = "Purr",
@@ -503,6 +503,17 @@ for _, p in ipairs(V.CAST_PRESETS) do
     p.icon = p.icon or VIBE_ICONS .. (p.cast or p.interrupted)
     PRESET[p.key] = p
 end
+-- Any feel as a cast set ("feel:<pattern>", the Feel picker on a cast-time
+-- row): it plays while casting, with the usual alerts when it ends badly
+setmetatable(PRESET, { __index = function(t, key)
+    local pattern = type(key) == "string" and key:match("^feel:(.+)$")
+    if not pattern then return nil end
+    local p = { key = key, label = pattern, feel = true, cast = pattern, interrupted = "impact", cancelled = "micro",
+        pushback = "tick", icon = VIBE_ICONS .. "pulse" }
+    rawset(t, key, p)
+    return p
+end })
+function V.FeelSet(pattern) return "feel:" .. pattern end
 -- (which field of a set each moment uses)
 local PHASE = { cast = "cast", interrupted = "interrupted", cancelled = "cancelled", pushback = "pushback" }
 V.CAST_PHASES = { "cast", "interrupted", "cancelled", "pushback" }
@@ -604,7 +615,13 @@ function V.SetCastPreset(kind, presetKey)
 end
 
 function V.Preset(key)
-    return PRESET[key]
+    local p = PRESET[key]
+    -- (a feel's set: named and drawn as its feel, once that feel is known)
+    if p and p.feel then
+        local pat = V.Pattern and V.Pattern(p.cast)
+        if pat then p.label, p.icon = pat.label, pat.icon end
+    end
+    return p
 end
 
 -- The cast in progress' kind (Gathering, Crafting...; spell by default)
@@ -2150,6 +2167,29 @@ local NO_HIT_IDS = {
     quiet = { 772, 7386, 8647, 703, 1943, 1079, 5171,      -- Rend, Sunder and Expose Armor, Garrote, Rupture, Rip, Slice and Dice
         355, 6795, 921, 1725, 1966 },                      -- Taunt, Growl, Pick Pocket, Distract, Feint
 }
+-- Spells the rules would leave quiet (helpful, or no kind) felt at the cast
+-- all the same: big and rare (Lay on Hands), a cleanse (faint), breaking
+-- free, a silence around you, a racial of its own. By first rank's ID.
+local AT_CAST_IDS = {
+    rise = { 633 },                                        -- Lay on Hands: a full, warm swell
+    mend = { 1152, 4987 },                                 -- Purify, Cleanse: a faint, calm pulse
+    shock = { 7744, 20589 },                               -- Will of the Forsaken, Escape Artist: a jolt free
+    burst = { 28730 },                                     -- Arcane Torrent: a silence around you
+    chew = { 20577 },                                      -- Cannibalize
+}
+local atCastByName
+local function AtCastOf(name)
+    if not atCastByName then
+        atCastByName = {}
+        for fam, ids in pairs(AT_CAST_IDS) do
+            for _, id in ipairs(ids) do
+                local n = SpellName(id)
+                if n and not secret(n) then atCastByName[n] = fam end
+            end
+        end
+    end
+    return atCastByName[name]
+end
 -- Summons: on the ground (harmful: felt as laid down), a pet or a creature
 -- (a short ritual), a helpful totem (quiet). By name, lower case.
 local SUMMON_NAMES = { ["searing totem"] = "ground", ["magma totem"] = "ground", ["earthbind totem"] = "ground",
@@ -2245,6 +2285,8 @@ function V.SpellRule(spellID, castTime)
                 if summon == "ground" then r.move, r.when, r.why = "surge", "cast", "Laid on the ground: at the cast"
                 elseif summon == "pet" then r.move, r.when, r.why = "ritual", "cast", "A summon: at the cast"
                 else r.moment, r.when, r.why = "quiet", "none", "A helpful totem: nothing" end
+            elseif AtCastOf(name) then
+                r.move, r.when, r.why = AtCastOf(name), "cast", "Felt at the cast"
             elseif nohit ~= nil or (kinds and kinds.n and not kinds.h) then
                 local fam = nohit
                 if fam == nil then
@@ -2278,6 +2320,7 @@ function V.SpellRule(spellID, castTime)
     end
     r.pattern = r.move
     r.feel = r.move and L and L.FeelFor(r.move) or nil
+    r.ruleSet, r.ruleFeel = r.set, r.feel
     -- (your own choice, Your spells: off, another feel or set, a volume)
     local O = ns.SpellOverrides
     local o = (not linked or proc) and O and O.Get(name) or nil

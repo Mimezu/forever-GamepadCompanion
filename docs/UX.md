@@ -260,15 +260,17 @@ Its count on the left like every group's (on of all, in the kind). Not a new tab
 - **Second line: when only** — At the hit · At the cast · While channelling · Nothing; plus
   **Guess** when the rules don't know the spell (they guess from name and school).
 - **The plate follows the spell's moment:**
-  - a cast-time spell (moment `spell`): a **cast set** (the Spell casting row's picker: one
-    feel can't stand for build, release and pushback);
+  - a cast-time spell (moment `spell`): a **cast set**, picked in the same Feel picker as every
+    moment (0.45.5): its set as it ships on top beside Off, any feel below (a feel's set plays
+    while casting, with the usual alerts; `feel:<pattern>`);
   - an instant ability (moment `instant`) or a spell the rules leave quiet (a heal, a buff:
     Nothing): a **feel** (the shared palette, Off first);
   - a spell that belongs to another moment (Attack, Shoot, Mining, crafting, food): a link
     plate, **"<moment> ›"**, read-only, jumping to that row.
 - Volume beside the plate (it multiplies the moment's own volume, once); **Default** clears
   the spell's own choice (greyed when it has none). A spell the rules leave quiet reads
-  **None**; **Off** only when the player chose it (then Default lights). An Off spell dims its
+  **Off**, as its picker does (0.45.5; it was None), with Default greyed; the player's own Off
+  lights Default. A row that plays nothing hides its volume and Try. An Off spell dims its
   read-only Light row too. **Try** only once `V.TrySpell` exists (no stand-in). Crits keep
   the Crit feel (tooltip).
 - **Order of who wins:** the moment Off (the spell row dims: "Off: Your abilities") › the

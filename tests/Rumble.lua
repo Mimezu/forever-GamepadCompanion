@@ -148,6 +148,7 @@ V.SpellPlan = function(id)
     local o = ns.SpellOverrides.Get(name)
     local plan = {}
     for k, v in pairs(p) do plan[k] = v end
+    plan.ruleSet, plan.ruleFeel = p.set, p.feel
     -- (its light and sound: a moment of its own under Spell released or Instant ability)
     plan.base = p.moment == "spell" and "release" or (p.moment == "instant" or p.moment == "quiet") and "instant" or nil
     plan.key = plan.base and ns.SpellOverrides.Key(plan.base, name) or nil
@@ -247,15 +248,23 @@ for _, t in ipairs(pal.pal.tiles) do if t:IsShown() and t.key == "boom" then boo
 boom.scripts.OnClick(boom, "LeftButton")
 assert(V.EventChoice("levelUp") == "x_boom", "Boom on level up: " .. tostring(V.EventChoice("levelUp")))
 level.default.scripts.OnClick(level.default)
--- the cast sets: their own grid
+-- the cast sets: the Feel picker every moment opens, its sets on top, any feel below
+-- (a tile of the palette by its label, in whichever group it is: the special row first)
+function PaletteTile(label)
+    local p = GamepadCompanionPalette.pal
+    for _, t in ipairs(p.specialTiles) do if t:IsShown() and t.label.text == label then return t end end
+    for _, g in ipairs(p.groups) do
+        p:ShowGroup(g)
+        for _, t in ipairs(p.tiles) do if t:IsShown() and t.label.text == label then return t end end
+    end
+end
 page.browser.Select("Abilities")
 local gather = rowFor.gather
 gather.pick.scripts.OnClick(gather.pick)
-local grid = GamepadCompanionBetaFeels
-local pulse
-for _, t in ipairs(grid.tiles) do if t.label.text == "Pulse" and t:IsShown() then pulse = t end end
-pulse.scripts.OnClick(pulse)
-assert(V.CastPreset("gather") == "pulse" and gather.pick.label.text == "Pulse", "gathering: the Pulse set")
+assert(GamepadCompanionPalette:IsShown() and PaletteTile("Match the action") and PaletteTile("Alerts only"), "the palette, the sets on top")
+local pulse = PaletteTile("Pulse")
+pulse.scripts.OnClick(pulse, "LeftButton")
+assert(V.CastPreset("gather") == "feel:pulse" and gather.pick.label.text == "Pulse", "gathering: Pulse while casting: " .. tostring(V.CastPreset("gather")))
 assert(gather.sub.text:find("Pulse", 1, true), "its moments shown")
 -- Off, and the other addon
 local enable
@@ -282,18 +291,22 @@ do
     local fire, nova, renew = shown[1], shown[2], shown[3]
     assert(fire.label.text == "Fireball" and fire.pick.label.text == "Subtle" and fire.sub.text == "At the cast", "a cast set")
     assert(nova.sub.text == "At the cast", "when only: " .. tostring(nova.sub.text))
-    assert(renew.pick.label.text == "None" and renew.default.enabled == false, "quiet: None, nothing to undo")
-    -- a cast set of its own, then Off, then Default
+    assert(renew.pick.label.text == "Off" and renew.default.enabled == false, "quiet: Off, as the picker says, nothing to undo")
+    assert(not renew.level:IsShown() and not renew.try:IsShown(), "nothing plays: no volume, no Try")
+    renew.pick.scripts.OnClick(renew.pick)
+    assert(GamepadCompanionPalette.current == "off", "its picker opens on Off")
+    PaletteTile("Off").scripts.OnClick(PaletteTile("Off"), "LeftButton")
+    assert(O.Get("Renew") == nil and renew.default.enabled == false, "Off again: still as it ships")
+    -- a cast set of its own (any feel, in the same picker), then Off, then Default
     fire.pick.scripts.OnClick(fire.pick)
-    local pop = GamepadCompanionBetaFeels
-    local function tile(label) for _, t in ipairs(pop.tiles) do if t:IsShown() and t.label.text == label then return t end end end
-    tile("Pulse").scripts.OnClick(tile("Pulse"))
-    assert(O.Get("Fireball").set == "pulse" and fire.pick.label.text == "Pulse" and fire.default.enabled ~= false, "its own set")
-    fire.pick.scripts.OnClick(fire.pick)
-    tile("Off").scripts.OnClick(tile("Off"))
-    assert(O.Get("Fireball").on == false and fire.pick.label.text == "Off", "Off")
+    assert(GamepadCompanionPalette:IsShown() and GamepadCompanionPalette.current == "subtle", "the Feel picker, its set selected")
+    PaletteTile("Pulse").scripts.OnClick(PaletteTile("Pulse"), "LeftButton")
+    assert(O.Get("Fireball").set == "feel:pulse" and fire.pick.label.text == "Pulse" and fire.default.enabled ~= false, "its own feel while casting")
     fire.level.minus.scripts.OnClick(fire.level.minus)
     assert(math.abs(O.Volume("Fireball") - 0.9) < 1e-9, "its volume")
+    fire.pick.scripts.OnClick(fire.pick)
+    PaletteTile("Off").scripts.OnClick(PaletteTile("Off"), "LeftButton")
+    assert(O.Get("Fireball").on == false and fire.pick.label.text == "Off" and not fire.level:IsShown(), "Off: no volume")
     fire.default.scripts.OnClick(fire.default)
     assert(O.Get("Fireball") == nil and fire.pick.label.text == "Subtle" and fire.default.enabled == false, "Default: the rules")
     -- the General tab: Attack belongs to Auto attack, a link
@@ -347,12 +360,13 @@ do
     assert(nova.pick.label.text == novaFeel and nova.default.enabled == false, "Feel: its feel again; the light is not the feel's")
     -- Sound: a sound for the spell on the pad's speaker, its volume
     page.SetKind("sound")
-    assert(nova.pick.label.text == "None" and nova.level:IsShown() and count.text == "0/4", "Sound: none yet, a volume")
+    assert(nova.pick.label.text == "None" and not nova.level:IsShown() and not nova.try:IsShown() and count.text == "0/4",
+        "Sound: none yet; nothing plays: no volume, no Try")
     nova.pick.scripts.OnClick(nova.pick)
     local chime
     for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t:IsShown() and t.label.text == "Chime" then chime = t end end
     chime.scripts.OnClick(chime)
-    assert(O.Field("Frost Nova", "sound") == K.SOUNDS.chime and nova.pick.label.text == "Chime", "its own sound")
+    assert(O.Field("Frost Nova", "sound") == K.SOUNDS.chime and nova.pick.label.text == "Chime" and nova.level:IsShown(), "its own sound, its volume")
     assert(ns.HelperCues.MomentSound("instant") == nil, "Instant ability's sound untouched")
     nova.level.minus.scripts.OnClick(nova.level.minus)
     assert(math.abs(O.Field("Frost Nova", "soundVolume") - 0.9) < 1e-9 and O.Volume("Frost Nova") == 1, "its sound's volume, not the feel's")
@@ -372,4 +386,68 @@ do
     assert(page.kind == "sound" and page.browser.current == "Attacks", "jumped to Auto attack's sound")
     page.SetKind("feel")
     io.write("PASS: Your spells follow Feel / Light / Sound: own light and sound (same picker), in its overrides, Default per kind, the count\n")
+end
+-- Every row opens its kind's one picker: Feel the palette, Light the light picker, Sound the
+-- sound list; every moment's group and Your spells (every tab), cast sets and heals alike
+do
+    local FRAME = { feel = "GamepadCompanionPalette", light = "GamepadCompanionLightPicker", sound = "GamepadCompanionBetaFeels" }
+    local function hideAll() for _, n in pairs(FRAME) do if _G[n] then _G[n]:Hide() end end end
+    local opened = 0
+    for _, kind in ipairs({ "feel", "light", "sound" }) do
+        page.SetKind(kind)
+        for _, g in ipairs(page.GROUPS) do
+            page.browser.Select(g.key)
+            for _, r in ipairs(page.rows) do
+                if r:IsVisible() then
+                    hideAll()
+                    r.pick.scripts.OnClick(r.pick)
+                    for k, n in pairs(FRAME) do
+                        assert((_G[n] and _G[n]:IsShown() or false) == (k == kind), kind .. " " .. r.key .. ": the " .. kind .. " picker, only it")
+                    end
+                    opened = opened + 1
+                end
+            end
+        end
+        page.browser.Select("spells")
+        for i = 1, #page.spells.lines do
+            page.spells.tabs[i].scripts.OnClick(page.spells.tabs[i])
+            for _, r in ipairs(page.spells.rows) do
+                if r:IsShown() and r.plan and not r.linked and (r.plan.moment == "spell" or r.plan.moment == "instant" or r.plan.moment == "quiet") then
+                    hideAll()
+                    r.pick.scripts.OnClick(r.pick)
+                    for k, n in pairs(FRAME) do
+                        assert((_G[n] and _G[n]:IsShown() or false) == (k == kind), kind .. " " .. r.plan.name .. ": the " .. kind .. " picker, only it")
+                    end
+                    opened = opened + 1
+                end
+            end
+        end
+    end
+    hideAll()
+    page.SetKind("feel")
+    assert(opened > 60, "every row tried: " .. opened)
+    io.write("PASS: every row opens its kind's one picker (" .. opened .. " rows)\n")
+end
+-- Every feel the picker offers has an icon, and the addon's own icon files exist
+do
+    local missing = {}
+    for _, feel in ipairs(ns.Haptics.AllFeels()) do
+        local icon = feel.icon
+        if type(icon) ~= "string" or icon == "" then
+            missing[#missing + 1] = feel.key .. " (none)"
+        else
+            local rel = icon:match("^Interface\\AddOns\\GamepadCompanion\\(.+)$")
+            if rel then
+                rel = rel:gsub("\\", "/")
+                local found = false
+                for _, ext in ipairs({ "", ".tga", ".blp", ".png" }) do
+                    local fh = io.open(root .. "/" .. rel .. ext, "rb")
+                    if fh then fh:close(); found = true; break end
+                end
+                if not found then missing[#missing + 1] = feel.key .. " (" .. rel .. ")" end
+            end
+        end
+    end
+    assert(#missing == 0, "feels with no icon: " .. table.concat(missing, ", "))
+    io.write("PASS: every feel in the picker has its icon (" .. #ns.Haptics.AllFeels() .. " feels)\n")
 end

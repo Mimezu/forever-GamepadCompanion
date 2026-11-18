@@ -46,14 +46,15 @@ function O.SetOn(name, on)
     Tidy(name)
 end
 
--- An instant's or a quiet spell's feel (on again with it)
+-- An instant's or a quiet spell's feel (on again with it; nil: the rule's)
 function O.SetFeel(name, key)
     local o = Own(name)
     o.feel, o.on = key, nil
     Tidy(name)
 end
 
--- A cast-time spell's cast set (on again with it)
+-- A cast-time spell's cast set (on again with it; nil: the rule's; any feel
+-- as a set: "feel:<pattern>")
 function O.SetSet(name, key)
     local o = Own(name)
     o.set, o.on = key, nil

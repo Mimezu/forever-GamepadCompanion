@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.45.5 — 2026-11-18
+
+- **One picker a kind, every row:** cast-time spells (Healing, Holy, Fire...) and the Abilities cast rows (Spell casting, Gathering, Crafting) open the Feel picker every moment opens, not a short list of their own. Their sets sit on top as tiles with their icons (Off, the spell's own set as it ships; Match the action and Alerts only on the cast rows), and any feel below can be a cast's: it plays while casting, with the usual alerts if the cast ends badly. A test opens every row's picker in Feel, Light and Sound.
+- **Off, not None,** on a feel that plays nothing: a spell the rules leave quiet reads Off, as its picker does, and the picker opens on Off. It's still as it ships (Default stays greyed). Sound keeps None, as its list says.
+- **Nothing plays, nothing to set:** a row that's Off (or a sound row on None) hides its volume and Try, in every group and in Your spells.
+- **Surge and Blow have icons** (they were blank), drawn like the rest; so has Crit (Impact's). A test fails if any feel in the picker has no icon.
+- **Felt at the cast:** Lay on Hands (Crescendo, a full warm swell), Purify and Cleanse (Mend, faint), Will of the Forsaken and Escape Artist (Shock, breaking free), Arcane Torrent (Burst), Cannibalize (Munch). Sense Undead and the self-buff racials (Stoneform, Berserking, Blood Fury, Shadowmeld, Perception) stay quiet, as buffs do.
+
 ## 0.45.4 — 2026-11-18
 
 - **Size: 90% or 100%** (Tools header, 90% by default): the whole window at that scale, its popups with it, the action picker too. Saved account-wide (`uiScale`). A small screen still shrinks it further

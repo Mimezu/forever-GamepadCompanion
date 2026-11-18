@@ -2494,6 +2494,26 @@ do
     io.write("PASS: a spell's own light and sound play as it lands (at the hit, at the cast, quiet, off, a proc, released)" .. string.char(10))
 end
 
+-- Helpful spells felt at the cast all the same: Lay on Hands strong, Purify faint, a break
+-- free, a silence around you; a self-buff racial and Sense Undead stay quiet (Off)
+do
+    local spellInfo = GetSpellInfo
+    GetSpellInfo = function(id) return "Spell " .. tostring(id), nil, nil, 0 end
+    IsSpellHelpful = function() return true end
+    local want = { [633] = "rise", [1152] = "mend", [7744] = "shock", [20589] = "shock", [28730] = "burst", [20577] = "chew" }
+    for id, move in pairs(want) do
+        local plan = V.SpellPlan(id)
+        assert(plan.moment == "instant" and plan.when == "cast" and plan.pattern == move and plan.ruleFeel,
+            id .. ": " .. tostring(plan.pattern) .. ", at the cast")
+    end
+    for _, id in ipairs({ 5502, 20594, 20554, 20572, 20580, 20600 }) do
+        local plan = V.SpellPlan(id)
+        assert(plan.moment == "quiet" and plan.when == "none" and plan.ruleFeel == nil, id .. ": quiet")
+    end
+    GetSpellInfo, IsSpellHelpful = spellInfo, nil
+    io.write("PASS: Lay on Hands, Purify, Will of the Forsaken, Escape Artist, Arcane Torrent, Cannibalize felt at the cast; buffs quiet" .. string.char(10))
+end
+
 -- Your spells: the plan the page shows is what plays (one rule); a spell's own choice honoured
 do
     H.DB().engine = true
