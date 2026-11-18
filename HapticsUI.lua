@@ -158,7 +158,7 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw, up)
         popup.pageText = S.Text(popup, "", 0, 0, 44, 11, GREY)
         popup.pageText:SetJustifyH("CENTER")
         popup:Hide()
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionBetaFeels"
+        S.Popup(popup, "GamepadCompanionBetaFeels", { outside = true })
     end
     if popup:IsShown() and popup.anchor == anchor then return popup:Hide() end
     popup.anchor = anchor
@@ -226,11 +226,11 @@ DrawPopup = function()
     local w = 24 + cols * (tw + 3)
     popup:SetSize(w, 48 + rows * (th + 3))
     local paged = pages > 1
-    popup.title:SetWidth(cols * (tw + 3) - (paged and 110 or 0))
+    popup.title:SetWidth(cols * (tw + 3) - (paged and 140 or 30))
     for _, b in ipairs({ popup.prev, popup.next }) do b:SetShown(paged) end
     popup.pageText:SetShown(paged)
     if paged then
-        popup.next:ClearAllPoints(); popup.next:SetPoint("TOPRIGHT", -10, -6)
+        popup.next:ClearAllPoints(); popup.next:SetPoint("TOPRIGHT", -34, -6)
         popup.pageText:ClearAllPoints(); popup.pageText:SetPoint("RIGHT", popup.next, "LEFT", -2, 0)
         popup.prev:ClearAllPoints(); popup.prev:SetPoint("RIGHT", popup.pageText, "LEFT", -2, 0)
         popup.pageText:SetText(popup.page .. "/" .. pages)
@@ -453,7 +453,7 @@ function HUI.TextWindow(title, text, onAccept, acceptLabel)
         textWin:SetSize(560, 340)
         textWin:SetPoint("CENTER")
         S.Panel(textWin)
-        textWin.title = S.Text(textWin, "", 16, -14, 520, 13, YELLOW)
+        textWin.title = S.Text(textWin, "", 16, -12, 490, 13, YELLOW)
         local box = CreateFrame("EditBox", nil, textWin)
         box:SetMultiLine(true)
         box:SetAutoFocus(false)
@@ -475,8 +475,7 @@ function HUI.TextWindow(title, text, onAccept, acceptLabel)
             textWin.box:SetFocus()
             textWin.box:HighlightText()
         end)
-        S.NewButton(textWin, "Close", 424, -296, 120, function() textWin:Hide() end)
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionText"
+        S.Popup(textWin, "GamepadCompanionText")
     end
     textWin.title:SetText(title)
     textWin.box:SetText(text or "")
@@ -626,9 +625,8 @@ function HUI.PickFeel(anchor, current, onPick, specials, title)
                 if palWin.onPick then palWin.onPick(key) end
             end,
         })
-        palWin:SetScript("OnKeyDown", nil)
         palWin:Hide()
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionPalette"
+        S.Popup(palWin, "GamepadCompanionPalette", { outside = true })
     end
     if palWin:IsShown() and palWin.anchor == anchor then return palWin:Hide() end
     palWin.anchor, palWin.current, palWin.onPick = anchor, current, onPick

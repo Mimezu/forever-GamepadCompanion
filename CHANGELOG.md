@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.3 — 2026-11-18
+
+- Every popup closes: a × in its header, Escape, the pad's B (Circle), and for pickers a click anywhere else. The key closes the popup only, not the window under it. One shared behaviour (S.Popup) for the feel picker, the grid popups (sounds, cast sets, trigger rules, profile menus, confirms), the light picker, the action picker, the text window and the trigger test
+- Popups take the skin: v2's surface, header band and divider; Gilded's leather, gold rim and gold rule; Blizzard's flat look. They switch with Tools › Skin like the window. The action picker takes the window's background
+- The text window's Close, the action picker's Cancel and the trigger test's Close are gone: the × does it
+
 ## 0.44.2 — 2026-11-18
 
 - Mining: the first strike, then the crack on the cast's end (its end time from the game), a little ahead for the pad's delay: the ore cracking loose is felt with its sound. No second strike a period on (it landed before the crack; the game plays no steady second strike). When the cast succeeds, the crack already playing goes on, not again

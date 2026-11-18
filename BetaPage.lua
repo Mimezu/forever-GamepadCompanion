@@ -114,15 +114,15 @@ local function TriggerWindow()
         -- live depth of each trigger
         f.bars = {}
         for side = 1, 2 do
-            S.Text(f, side == 1 and "L2" or "R2", 380 + (side - 1) * 110, -14, 30, 12, GOLD)
+            S.Text(f, side == 1 and "L2" or "R2", 340 + (side - 1) * 110, -14, 30, 12, GOLD)
             local bg = f:CreateTexture(nil, "ARTWORK")
             bg:SetColorTexture(1, 1, 1, 0.12)
-            bg:SetPoint("TOPLEFT", 404 + (side - 1) * 110, -17)
+            bg:SetPoint("TOPLEFT", 364 + (side - 1) * 110, -17)
             bg:SetSize(70, 8)
             local bar = f:CreateTexture(nil, "OVERLAY")
             local c = side == 1 and LEFT_C or RIGHT_C
             bar:SetColorTexture(c[1], c[2], c[3], 0.95)
-            bar:SetPoint("TOPLEFT", 404 + (side - 1) * 110, -17)
+            bar:SetPoint("TOPLEFT", 364 + (side - 1) * 110, -17)
             bar:SetSize(1, 8)
             f.bars[side] = bar
         end
@@ -147,7 +147,6 @@ local function TriggerWindow()
             end
             f.rows[i] = row
         end
-        S.NewButton(f, "Close", 470, -(120 + #L.TRIGGER_TESTS * 34 - 44), 112, function() f:Hide() end, nil, 12, 30)
         function f.Update()
             local tt = L.trigger
             for i, row in ipairs(f.rows) do
@@ -170,7 +169,7 @@ local function TriggerWindow()
             f.status:SetText(string.format("%s:  %d. %s", side == 1 and "L2" or "R2", index, L.TRIGGER_TESTS[index].label))
             f.Update()
         end
-        UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionTriggerTest"
+        S.Popup(f, "GamepadCompanionTriggerTest")
         f:Hide()
     end
     trigWin:Show()

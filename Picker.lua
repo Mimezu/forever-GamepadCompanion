@@ -384,10 +384,10 @@ local function Build()
     ui.prev = S.NewButton(body, "<", GRID_X, -(BODY_H - 28), 30, function() Page(-1) end, nil, 13, 26)
     ui.pageText = S.Text(body, "", GRID_X + 36, -(BODY_H - 22), 160, 11, S.GREY)
     ui.next = S.NewButton(body, ">", GRID_X + 200, -(BODY_H - 28), 30, function() Page(1) end, nil, 13, 26)
-    S.NewButton(body, "Cancel", BODY_W - 100, -(BODY_H - 28), 100, function() window:Hide() end)
 
     window:SetScript("OnHide", function() request = nil end)
-    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionPicker"
+    window.chrome:SetKind("legacy")
+    S.Popup(window, "GamepadCompanionPicker", { window = true, outside = true, inset = window.chrome:Insets() })
     S.RegisterWindow(window)
     window:Hide()
 end

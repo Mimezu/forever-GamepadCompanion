@@ -165,6 +165,7 @@ function S.Panel(frame)
     local background=Leather(frame)
     local rim=Plate(frame,"common-button-list-collapseExpand",true)
     frame.legacyRim=rim
+    frame.gpcLeather=background
     frame:HookScript("OnSizeChanged",function() rim:Update() end)
     return background
 end
@@ -191,6 +192,109 @@ end
 function S.Edit(frame)
     frame:SetBackdrop(nil)
     return Plate(frame, 'common-searchbar-a')
+end
+
+-- Popups -------------------------------------------------------------------
+-- Every popup and picker, one way: the skin's surface inside the native rim
+-- (Gilded: leather, a gold rim), a header band and rule, the native close
+-- button, and the ways out: Escape, the pad's B (Circle) and, for pickers
+-- (opts.outside), a click anywhere else. name: its global name (Escape's
+-- fallback in combat). opts: window = true (a whole window: the window's
+-- background, no header, keeps its own close), inset = { left, top, right,
+-- bottom }, outside = true.
+local popups = {}
+local function Call(f, method, ...)
+    if f and type(f[method]) == "function" then return pcall(f[method], f, ...) end
+end
+local function Over(f)
+    if not (type(f) == "table" and type(f.IsShown) == "function" and type(f.IsMouseOver) == "function") then return false end
+    return f:IsShown() and f:IsMouseOver() and true or false
+end
+-- (keys pass on to the game unless one closes it; not changeable in combat)
+local function Propagate(frame, on)
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then return end
+    Call(frame, "SetPropagateKeyboardInput", on)
+end
+
+function S.Popup(frame, name, opts)
+    opts = opts or {}
+    popups[#popups + 1] = frame
+    local i = opts.inset or { left = 3, top = 3, right = 3, bottom = 3 }
+    local backs
+    if opts.window then
+        backs = { S.SkinTexture(frame, "background", "BACKGROUND", 7, true, nil, { v2 = true, gilded = true }) }
+    else
+        backs = { S.SkinTexture(frame, "surface", "BACKGROUND", -3, true),
+            S.SkinTexture(frame, "leather", "BACKGROUND", -3, true, nil, { gilded = true }) }
+    end
+    for _, t in ipairs(backs) do
+        t:SetPoint("TOPLEFT", i.left, -i.top)
+        t:SetPoint("BOTTOMRIGHT", -i.right, i.bottom)
+    end
+    local leather, rim = rawget(frame, "gpcLeather"), rawget(frame, "legacyRim")
+    local rule
+    if not opts.window then
+        -- the header: a band and a rule under the title
+        local strip = S.SkinTexture(frame, "header", "BACKGROUND", -2, false)
+        strip:SetPoint("TOPLEFT", i.left, -i.top); strip:SetPoint("TOPRIGHT", -i.right, -i.top); strip:SetHeight(30)
+        rule = frame:CreateTexture(nil, "BORDER")
+        rule:SetPoint("TOPLEFT", 10, -33); rule:SetPoint("TOPRIGHT", -10, -33); rule:SetHeight(1)
+        local divider = S.SkinTexture(frame, "divider", "BORDER", 1, false, rule)
+        divider:SetPoint("TOPLEFT", 10, -32); divider:SetPoint("TOPRIGHT", -10, -32); divider:SetHeight(3)
+        local ok, close = pcall(CreateFrame, "Button", nil, frame, "UIPanelCloseButtonNoScripts")
+        if not ok or type(close) ~= "table" then close = CreateFrame("Button", nil, frame) end
+        close:SetSize(24, 24)
+        close:SetPoint("TOPRIGHT", -5, -5)
+        close:SetScript("OnClick", function() frame:Hide() end)
+        frame.closeButton = close
+    end
+    S.OnSkin(function(skin)
+        local any = false
+        for _, t in ipairs(backs) do if t:IsShown() then any = true end end
+        if type(leather) == "table" then leather:SetShown(not any) end
+        if type(rim) == "table" and type(rim.Tint) == "function" then
+            rim:Tint(skin == "gilded" and { 1, 0.84, 0.5 } or { 1, 1, 1 })
+        end
+        if rule then
+            if skin == "gilded" then rule:SetColorTexture(0.85, 0.66, 0.32, 0.8)
+            else rule:SetColorTexture(0.68, 0.50, 0.26, 0.35) end
+        end
+    end)
+    -- the ways out
+    if name and type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = name end
+    Call(frame, "EnableKeyboard", true)
+    Call(frame, "EnableGamePadButton", true)
+    Propagate(frame, true)
+    local function Key(self, key)
+        if key == "ESCAPE" or key == "PAD2" then
+            -- (this key closes it only: not the window under it)
+            Propagate(self, false)
+            self:Hide()
+        end
+    end
+    frame:SetScript("OnKeyDown", Key)
+    frame:SetScript("OnGamePadButtonDown", Key)
+    frame:HookScript("OnShow", function(self)
+        Propagate(self, true)
+        if opts.outside then Call(self, "RegisterEvent", "GLOBAL_MOUSE_DOWN") end
+    end)
+    frame:HookScript("OnHide", function(self)
+        if opts.outside then Call(self, "UnregisterEvent", "GLOBAL_MOUSE_DOWN") end
+        -- (keys pass on again from the next frame: the closing key stays caught)
+        if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+            C_Timer.After(0, function() if not self:IsShown() then Propagate(self, true) end end)
+        end
+    end)
+    if opts.outside then
+        frame:HookScript("OnEvent", function(self, event)
+            if event ~= "GLOBAL_MOUSE_DOWN" or not self:IsShown() then return end
+            -- (its own control toggles it; another popup over it is its own)
+            if Over(self) or Over(rawget(self, "anchor")) then return end
+            for _, p in ipairs(popups) do if p ~= self and Over(p) then return end end
+            self:Hide()
+        end)
+    end
+    return frame
 end
 
 -- Widgets ------------------------------------------------------------------

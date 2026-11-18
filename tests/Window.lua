@@ -170,6 +170,21 @@ do
     S.SetSkin("v2")
     assert(S.Skin() == "v2" and GamepadCompanionHapticsDB.skin == nil, "back to v2")
     print("PASS: skin switch: v2 by default, Blizzard and back")
+    -- Popups: a ×, Escape, the pad's B, a click elsewhere; other keys pass on
+    local p = CreateFrame("Frame", "GamepadCompanionTestPopup", UIParent)
+    S.Popup(p, "GamepadCompanionTestPopup", { outside = true })
+    local over = false
+    p.IsMouseOver = function() return over end
+    local function closes(how, fn) p:Show(); fn(); assert(not p:IsShown(), how) end
+    p:Show(); p.scripts.OnKeyDown(p, "W"); assert(p:IsShown(), "other keys leave it open")
+    closes("Escape", function() p.scripts.OnKeyDown(p, "ESCAPE") end)
+    closes("pad B", function() p.scripts.OnGamePadButtonDown(p, "PAD2") end)
+    closes("the ×", function() p.closeButton.scripts.OnClick(p.closeButton) end)
+    closes("a click elsewhere", function() p.scripts.OnEvent(p, "GLOBAL_MOUSE_DOWN") end)
+    over = true
+    p:Show(); p.scripts.OnEvent(p, "GLOBAL_MOUSE_DOWN"); assert(p:IsShown(), "a click inside keeps it")
+    p:Hide()
+    print("PASS: popups close: ×, Escape, pad B, a click elsewhere")
 end
 tabs.bars.scripts.OnClick(tabs.bars)
 assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")

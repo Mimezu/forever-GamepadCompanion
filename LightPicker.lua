@@ -63,7 +63,7 @@ local function Build()
     pop.title = S.Text(pop, "", 14, -12, 600, 13, YELLOW)
     pop.heads, pop.tiles, pop.swatches, pop.dots = {}, {}, {}, {}
     pop:Hide()
-    UISpecialFrames[#UISpecialFrames + 1] = "GamepadCompanionLightPicker"
+    S.Popup(pop, "GamepadCompanionLightPicker", { outside = true })
     pop.off = S.NewButton(pop, "Off", 0, 0, 70, nil, nil, 12, 26)
     pop.off.label:SetTextColor(1, 0.48, 0.36)
     pop.try = S.NewButton(pop, "Try", 0, 0, 70, nil, nil, 12, 26)
@@ -225,7 +225,7 @@ function LP.Open(anchor, key, onChange)
     end)
     y = y - 32
     pop:SetSize(width, -y + 8)
-    pop.title:SetWidth(width - 28)
+    pop.title:SetWidth(width - 56)
     pop:ClearAllPoints()
     pop:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 8)
     pop:SetClampedToScreen(true)
