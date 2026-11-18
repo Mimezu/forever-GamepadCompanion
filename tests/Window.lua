@@ -213,7 +213,7 @@ do
     print("PASS: joined choices: the highlight inside its cell")
 end
 tabs.bars.scripts.OnClick(tabs.bars)
-assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")
+assert(find("Edit in Edit Mode") and not find("Action bars") and not find("Pet menu"), "Bars page: Edit Mode carries the bars")
 print("PASS: one window, side tabs, Cinematic registration, bars shown while open")
 
 -- My bar layout: the page's switch mirrors the setting
@@ -228,83 +228,23 @@ enable.scripts.OnClick(enable)
 assert(settings.enabled == true)
 print("PASS: My bar layout toggles and mirrors the setting")
 
--- Typed values: comma decimals, Enter applies, leaving without Enter reverts
-local edits = visibleEdits()
-assert(#edits == 3, "x, y and scale")
-local scaleEdit = edits[3]
-assert(scaleEdit.text == "0.90", tostring(scaleEdit.text))
-scaleEdit:SetFocus()
-scaleEdit.text = "0,85"
-scaleEdit.scripts.OnEnterPressed(scaleEdit)
-assert(math.abs(settings.compact.bars.scale - 0.85) < 1e-9, "comma decimal accepted")
-assert(scaleEdit.text == "0.85" and not scaleEdit.focus)
-scaleEdit:SetFocus()
-scaleEdit.text = "1.7"
-scaleEdit:ClearFocus()
-assert(scaleEdit.text == "0.85" and math.abs(settings.compact.bars.scale - 0.85) < 1e-9, "focus loss reverts, no save")
-scaleEdit:SetFocus()
-scaleEdit.text = "9"
-scaleEdit.scripts.OnEnterPressed(scaleEdit)
-assert(statusText():find("0.5 to 2 only", 1, true), "out-of-range value explains the range")
-api.RefreshOptions()
-assert(statusText():find("to 2 only", 1, true), "message survives a repaint")
-now = now + 6
-api.RefreshOptions()
-assert(not statusText():find("to 2 only", 1, true), "message expires")
-local yEdit = edits[2]
-yEdit:SetFocus()
-yEdit.text = "-40"
-yEdit.scripts.OnTabPressed(yEdit)
-assert(settings.compact.bars.y == -40 and scaleEdit.focus and not yEdit.focus, "Tab applies and moves on")
-scaleEdit:ClearFocus()
-print("PASS: comma decimals, Enter/Tab apply, focus loss reverts, range message stays briefly")
-
--- Class buttons: the prompt row names the button's own combination
-click("Pet spells")
-local label
-for _, f in ipairs(created) do
-    if f.kind == "FontString" and f.text and f.text:find("^Button prompt") and f:IsVisible() then label = f end
+-- Bars: Edit Mode from the click; the layout in use and its Copy follow Blizzard's setting
+local em = find("Edit in Edit Mode")
+assert(em.attributes.type == "macro" and em.attributes.macrotext == "/editmode", "Edit Mode from the click")
+local function shownText(fragment)
+    for _, f in ipairs(created) do
+        if f.kind == "FontString" and f.text and f.text:find(fragment, 1, true) and f:IsVisible() then return true end
+    end
 end
-assert(label and label.text == "Button prompt (R1 + R2)", tostring(label and label.text))
-click("Pet menu")
-assert(label.text == "Button prompt (L1 + L2)")
-assert(find("Reset Pet menu"), "reset names the bar")
-print("PASS: prompt row follows the selected class button")
-
--- The edited layout follows Blizzard's setting
+assert(shownText("Compact  ·  set in Edit Mode") and find("Copy from Standard"), "compact in use")
 state.mode, state.compact = "standard", false
 api.RefreshOptions()
-assert(find("Standard  ·  in use") and find("L2") and find("L2 + R2") and not find("Action bars"))
-local standardButton = find("Standard  ·  in use")
-assert(standardButton.attributes.macrotext == "/editmode" and standardButton.attributes.type == "")
-assert(find("Compact").attributes.type == "macro", "the mode not in use opens Edit Mode")
+assert(shownText("Standard  ·  set in Edit Mode") and find("Copy from Compact"), "standard in use")
 state.mode, state.compact = "compact", true
 api.RefreshOptions()
-print("PASS: Compact/Standard follow Blizzard's setting and carry /editmode")
-
--- Arrows move by the chosen step; scale follows typed or stepped
-click("Action bars")
-local arrows = {}
-for _, f in ipairs(created) do
-    if f.kind == "Button" and f:IsVisible() and f.tipTitle and f.tipTitle:find("^Move ") then arrows[f.tipTitle] = f end
-end
-assert(arrows["Move up"] and arrows["Move down"] and arrows["Move left"] and arrows["Move right"])
-local y = settings.compact.bars.y
-arrows["Move up"].scripts.OnClick(arrows["Move up"])
-assert(settings.compact.bars.y == y + 10, "default step is 10")
-click("1")
-arrows["Move left"].scripts.OnClick(arrows["Move left"])
-assert(settings.compact.bars.x == -1)
-click("50")
-arrows["Move right"].scripts.OnClick(arrows["Move right"])
-assert(settings.compact.bars.x == 49)
-state.available = false
-api.RefreshOptions()
-assert(not arrows["Move up"].enabled, "disabled when the bars are unavailable")
-state.available = true
-api.RefreshOptions()
-assert(arrows["Move up"].enabled)
-print("PASS: arrows nudge by the chosen step and disable when unavailable")
+for _, gone in ipairs({ "Move up", "1", "50", "Reset Action bars" }) do assert(not find(gone), "gone: " .. gone) end
+assert(#visibleEdits() == 0, "no typed values: Edit Mode has them")
+print("PASS: Bars: Edit Mode from the click, the layout in use, Copy and Reset layout; no preview, arrows or values")
 
 -- Help is a page; its topics name the commands
 api.ToggleHelp()

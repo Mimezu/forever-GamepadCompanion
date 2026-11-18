@@ -360,32 +360,17 @@ end
 -- Compact / Standard: the mode not in use runs Blizzard's /editmode from the
 -- click (the setting lives in Edit Mode since 70338); the mode in use runs
 -- nothing. The window then follows the setting the user changed there.
-local function switch(label, value)
-    local button = assert(find(label), "Missing button: " .. label)
-    local attributes = rawget(button, "attributes")
-    assert(attributes and attributes.type == "macro" and rawget(button.scripts, "OnClick") == nil)
-    assert(attributes.macrotext == "/editmode", attributes.macrotext)
-    compact = value == "1"
-    ns.Refresh()
-    button.scripts.PostClick(button)
-    assert(rawget(button, "attributes").type == "", "the mode in use runs no macro")
-end
-assert(find("Compact  ·  in use") and find("Standard"), "mode buttons mark the live layout")
-assert(visible("Action bars") and visible("Stance") and visible("Aura menu"))
-assert(not visible("L2"), "compact has no per-trigger tabs")
-switch("Standard", "0")
-assert(find("Standard  ·  in use") and find("Compact"), "the clicked layout is now in use")
-assert(visible("L2") and visible("L2 + R2") and not visible("Action bars") and visible("Aura menu"))
-click("Aura menu")
-assert(find("Reset Aura menu"))
-combat = true
+-- The layout in use follows Blizzard's setting (it lives in Edit Mode since 70338)
+assert(said("Compact  ·  set in Edit Mode") and find("Copy from Standard"), "compact in use")
+compact = false
+ns.Refresh()
 api.RefreshOptions()
-assert(find("Compact").enabled == false, "no layout switch during combat")
-combat = false
+assert(said("Standard  ·  set in Edit Mode") and find("Copy from Compact"), "standard in use")
+compact = true
+ns.Refresh()
 api.RefreshOptions()
-assert(find("Compact").enabled == true)
-switch("Compact", "1")
-assert(find("Compact  ·  in use") and visible("Action bars"))
+assert(not visible("Action bars") and not visible("L2") and not visible("Aura menu"), "the bars are placed in Edit Mode")
+assert(find("Edit in Edit Mode").attributes.macrotext == "/editmode")
 -- In the gamepad interface the Settings panel is not opened from addon code (it would
 -- taint the gamepad window manager); the window says where to find the options.
 local printed = {}
@@ -415,33 +400,5 @@ click("Gamepad options")
 assert(not opened and GamepadCompanionOptions:IsShown(), "no settings call in combat")
 combat = false
 UnitClass = function() return "Mage", "MAGE" end
-print("PASS: options show compact/standard tabs, class tabs, gamepad settings shortcut and Blizzard Edit Mode button")
+print("PASS: options show the layout in use, gamepad settings shortcut and Blizzard Edit Mode button")
 
--- Bars: the preview draws the picked bar and moves it by dragging; the arrows step it
-do
-    function methods:SetSize(w, h) self.width, self.height = w, h end
-    local fake = { GetLeft = function() return 100 end, GetBottom = function() return 50 end,
-        GetWidth = function() return 400 end, GetHeight = function() return 60 end,
-        GetEffectiveScale = function() return 1 end }
-    local realBarFrame, realWidth = api.GetBarFrame, UIParent.GetWidth
-    api.GetBarFrame = function() return fake end
-    UIParent.GetWidth = function() return 1120 end   -- the 560 px preview: half size
-    UIParent.GetEffectiveScale = function() return 1 end
-    local cursor = { 0, 0 }
-    GetCursorPosition = function() return cursor[1], cursor[2] end
-    click("Action bars")
-    local box
-    for _, b in ipairs(buttons) do
-        if rawget(b, "fill") and b.shown and b.name.text == "Action bars" then box = b end
-    end
-    assert(box and box.width == 200 and box.height == 30, "the picked bar drawn at half size")
-    local s0 = api.GetSettings().compact.bars
-    box.scripts.OnDragStart(box)
-    cursor[1], cursor[2] = 15, -10                   -- 15, -10 on the preview = 30, -20 on screen
-    box.scripts.OnUpdate(box)
-    box.scripts.OnDragStop(box)
-    local s1 = api.GetSettings().compact.bars
-    assert(s1.x == s0.x + 30 and s1.y == s0.y - 20, string.format("dragged: %s %s", s1.x, s1.y))
-    api.GetBarFrame, UIParent.GetWidth = realBarFrame, realWidth
-    print("PASS: Bars: the preview draws the picked bar and dragging it moves the bar")
-end

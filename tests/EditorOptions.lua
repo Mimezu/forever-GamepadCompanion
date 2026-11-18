@@ -98,7 +98,6 @@ local function click(label)
     end
     error("Missing button: " .. label)
 end
-click("Stance")
 click("Spread view: Off")
 assert(spread)
 click("Spells"); click("Macros")

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.2 — 2026-11-18
+
+- **Bars: one place, Blizzard's Edit Mode.** The Bars page keeps only what Edit Mode has no place for: My bar layout, a large **Edit in Edit Mode**, the layout in use (Compact or Standard, set in Edit Mode), and the whole layout's Copy from Standard / Compact and Reset layout
+- Gone from the page, all in Edit Mode now (0.47): the bar list, the preview, the arrows and steps, X / Y / Scale, the button prompt and each bar's Reset (click a bar in Edit Mode for its scale, prompt and Reset)
+
 ## 0.48.1 — 2026-11-18
 
 - Bars in Edit Mode: the dialog no longer sits on the bar you picked. It goes above the bar when there is room, else below, else beside it, else the top right corner, always on screen and never over the bar, so the bar stays easy to grab and drag with the dialog open
