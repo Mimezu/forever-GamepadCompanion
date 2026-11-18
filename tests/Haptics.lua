@@ -152,7 +152,7 @@ UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
 for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -969,28 +969,25 @@ do
         and not visible("USB feels"), "range, timing (a status each, no Sync) on Setup; no USB feels")
     assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
     ns.Timing.Store().link = nil
-    -- Triggers: six rows in view, the editor beside the card on a row's click
-    local C = ns.HelperCues
-    C.ResetTriggerRules()
-    local ed = ns.SetupPage.trigEditor
-    assert(not ed:IsShown(), "editor closed")
-    local row
-    for _, f in ipairs(created) do
-        if type(rawget(f, "label")) == "table" and f.label.text == "Auto shot · R2 · Click" and f:IsVisible() then row = f end
+    -- Setup › Triggers: only the way to Moments › Triggers now
+    assert(visible("Open"), "Setup: Triggers points to Moments")
+    -- Moments › Triggers: the stack's list (a Rogue: combo detents, the swing, energy, the body)
+    ns.Shell.Open("moments")
+    local M = ns.RumblePage
+    M.SetKind("trigger")
+    assert(M.browser.current == "triggers", "the Triggers list")
+    local TS = ns.TriggerStack
+    TS.kind:Default()
+    local rows = TS.kind:Rows()
+    assert(rows[1].R2.count == "combo" and rows[1].R2.shape == TS.ID.detents, "Rogue: combo detents first on R2")
+    local seen = false
+    for _, r in ipairs(M.trigRows) do
+        if r:IsShown() and r.pick.label.text == "R2 · Detents · Combo points" and r.pick2.label.text == "L2 · Pass" then seen = true end
     end
-    assert(row, "a rule's row")
-    row.scripts.OnClick(row)
-    assert(ed:IsShown() and visible("Remove"), "the editor beside it")
-    local l = C.TriggerRules()
-    for i = #l + 1, 6 do l[i] = ns.TriggerRules.Clean({ when = "mounted" }) end
-    ns.Shell.Refresh()
-    local shown = 0
-    for _, f in ipairs(created) do
-        if type(rawget(f, "label")) == "table" and f.label.text == "Mounted · R2 · Resist" and f:IsVisible() then shown = shown + 1 end
-    end
-    assert(shown == 3, "all six rules in view: " .. shown)
-    ed:Hide()
-    C.ResetTriggerRules()
+    assert(seen, "a row shows each trigger's shape")
+    assert(M.trigOtherwise.pick.label.text == "Free", "Otherwise: free")
+    M.SetKind("feel")
+    assert(M.browser.current ~= "triggers", "back to the moments")
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 
@@ -1004,19 +1001,35 @@ do
     local cf
     for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_DEAD then cf = f end end
     assert(cf, "cues listen")
+    -- (the casters' Recommended stack: cast tension, the bowstring, the GCD; the body on L2)
+    local TS, St = ns.TriggerStack, ns.Stack
+    TS.Store().rows = St.Copy(TS.RECOMMENDED.DEFAULT)
     UnitCastingInfo = function() return "Fireball", nil, nil, now * 1000, (now + 2) * 1000 end
     cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_START", "player")
     assert(K.state.right.mode == K.MODES.resist, "a cast: R2 resists")
+    assert(K.trig and K.trig.right.shape == TS.ID.tension and K.trig.right.value == 0, "on the row: Cast tension, following the cast at 0")
+    now = now + 1
+    C.UpdateTriggers()
+    assert(math.abs(K.trig.right.value - 0.5) < 0.011, "half way: 0.5, " .. tostring(K.trig.right.value))
     cf.scripts.OnEvent(cf, "UNIT_SPELLCAST_SUCCEEDED", "player")
     assert(K.state.right.mode == K.MODES.off, "released: R2 free")
     UnitCastingInfo = nil
     cf.scripts.OnEvent(cf, "START_AUTOREPEAT_SPELL")
     assert(K.state.right.mode == K.MODES.weapon, "shooting: R2 clicks")
     cf.scripts.OnEvent(cf, "STOP_AUTOREPEAT_SPELL")
-    V.Fire("lowHp")
-    assert(K.state.left.mode == K.MODES.vibrate, "low health: L2 shakes")
-    V.EndLoop("lowHp")
-    assert(K.state.left.mode == K.MODES.off, "and stops")
+    -- the body: Health percentage < 35 -> Weight on L2, heavier as health drops
+    local hp = UnitHealth
+    UnitHealth = function() return 200 end   -- (20 %)
+    St.ReadAll()
+    C.UpdateTriggers()
+    assert(K.trig and K.trig.left.shape == TS.ID.weight and math.abs(K.trig.left.value - 0.8) < 0.011, "20 % health: Weight at 0.8")
+    assert(K.state.left.mode == K.MODES.resist, "the strip's own fields: a near equivalent")
+    UnitHealth = function() return 900 end
+    St.ReadAll()
+    C.UpdateTriggers()
+    assert(K.state.left.mode == K.MODES.off and (K.trig == nil or K.trig.left.shape == 0), "healthy again: L2 free")
+    UnitHealth = hp
+    St.ReadAll()
     now = now + 1
     L.Fire("loot")
     local last = K.queue[#K.queue]
@@ -1075,7 +1088,7 @@ do
     Vol.SetSound("loot", 1)
     M.SetKind("feel")
     K.SetEnabled(false)
-    io.write("PASS: helper cues: casts tighten R2, shots click it, low health shakes L2, sounds queued, off by group" .. string.char(10))
+    io.write("PASS: helper cues: casts tighten R2 (on the trigger row, following the cast), shots click it, low health weighs on L2, sounds queued, off by group" .. string.char(10))
     io.write("PASS: volumes: full by default, per moment and for every sound, as the cue's gain; on the rows" .. string.char(10))
     -- Break the UI: a 200-sound library pages, opening on the chosen one's page; a long name stays one line
     local HUI = ns.HapticsUI

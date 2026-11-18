@@ -334,7 +334,7 @@ ITEM.sound = {
 ---------------------------------------------------------------------------
 -- The kinds, and each one's moments by group
 ---------------------------------------------------------------------------
-local KINDS = { { "feel", "Feel" }, { "light", "Light" }, { "sound", "Sound" } }
+local KINDS = { { "feel", "Feel" }, { "light", "Light" }, { "sound", "Sound" }, { "trigger", "Triggers" } }
 ui.kind = "feel"
 
 local function Items(kind, group)
@@ -692,6 +692,234 @@ function ui.RefreshStates(kind)
 end
 
 ---------------------------------------------------------------------------
+-- Triggers: the same list on the triggers' stack (TriggerStack.lua). A row:
+-- On, Up/Down and drag, the condition's words (a percentage's operator on a
+-- click), + requirements, then each trigger's shape (R2 the hand, L2 the
+-- body; Pass leaves it to the next match), Try, Default, x. The teal row
+-- holds a trigger now.
+---------------------------------------------------------------------------
+local tgs = { offset = 0, pool = {} }
+local TG_ROWS = 11
+
+local function TK() return ns.TriggerStack and ns.TriggerStack.kind end
+
+-- A trigger's shape: Pass, or a shape (then what it follows, if it can)
+local function PickShape(anchor, id, ch)
+    local TS = ns.TriggerStack
+    local row = TK():Row(id)
+    if not row then return end
+    local shapes = TS.Shapes()
+    local ids = {}
+    for sid in pairs(shapes) do ids[#ids + 1] = sid end
+    table.sort(ids)
+    local entries = { { key = 0, label = "Pass", icon = false } }
+    for _, sid in ipairs(ids) do
+        local sh = shapes[sid]
+        entries[#entries + 1] = { key = sid, label = sh.label .. (sh.own and " · yours" or ""), icon = false }
+    end
+    local cur = row[ch] and row[ch].shape or 0
+    HUI.Popup(anchor, ch == "R2" and "R2 · the hand" or "L2 · the body", entries, cur, function(sid)
+        local sh = shapes[sid]
+        if sh and sh.gauge then
+            local follows = {}
+            for _, src in ipairs(TS.SOURCES) do follows[#follows + 1] = { key = src.key, label = src.label, icon = false } end
+            HUI.Popup(anchor, "Follows", follows, TS.DefaultFollows(sid), function(src)
+                TS.SetChannel(id, ch, sid, src)
+                Refresh()
+            end, 2, 120)
+            return
+        end
+        TS.SetChannel(id, ch, sid)
+        Refresh()
+    end, 3, 130)
+end
+
+local function PickTriggerPercent(anchor, row)
+    local St = ns.Stack
+    local ops = {}
+    for _, o in ipairs(St.OPERATORS) do ops[#ops + 1] = { key = o.id, label = o.label } end
+    HUI.Popup(anchor, St.Label(row.condition), ops, row.operator, function(op)
+        row.operator = op
+        local th = {}
+        for v = 10, 90, 5 do th[#th + 1] = { key = v, label = v .. "%" } end
+        HUI.Popup(anchor, St.Label(row.condition), th, row.threshold, function(v)
+            row.threshold = v
+            TK():Refresh(true)
+            Refresh()
+        end, 6, 64)
+    end, 3, 120)
+end
+
+local function TriggerRow(card, cw, i)
+    local r
+    local function key() return r.key end
+    r = HUI.MomentRow(card, -38 - (i - 1) * STATE_STEP, cw, nil, "", function(anchor) PickShape(anchor, key(), "R2") end,
+        function()
+            if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
+            if ns.TriggerStack.Try(key()) then Say("Squeeze the trigger") end
+        end, nil, {
+        default = function() TK():Default(key()); Refresh() end,
+        clear = function() TK():Remove(key()); Say("Removed"); Refresh() end,
+        quiet = true,
+        defaultTip = "As it ships",
+    })
+    r.kind = "trigger"
+    r.icon:Hide()
+    -- the second plate: L2, left of R2's
+    local px = select(4, r.pick:GetPoint(1)) or (cw - 300)
+    r.pick2 = S.NewButton(r, "", px - 140, -5, 136, function(self) PickShape(self, key(), "L2") end, nil, 11, 30)
+    r.pick2.label:SetJustifyH("LEFT")
+    r.label:SetWidth(math.max(80, px - 140 - 120))
+    r.sub:SetWidth(math.max(80, px - 140 - 120))
+    S.Tooltip(r.pick, "R2", "The hand")
+    S.Tooltip(r.pick2, "L2", "The body")
+    r.teal = r:CreateTexture(nil, "BACKGROUND", nil, 2)
+    r.teal:SetAllPoints()
+    r.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
+    r.teal:Hide()
+    r.on = S.NewCheck(r, "", 2, -6, function(self) TK():SetOn(key(), self:GetChecked() == true); Refresh() end, 0)
+    S.Tooltip(r.on, "On")
+    r.up = S.NewButton(r, "▲", 30, -1, 22, function() TK():Move(key(), -1); Refresh() end, nil, 9, 17)
+    r.down = S.NewButton(r, "▼", 30, -19, 22, function() TK():Move(key(), 1); Refresh() end, nil, 9, 17)
+    S.Tooltip(r.up, "Up")
+    S.Tooltip(r.down, "Down")
+    r:RegisterForDrag("LeftButton")
+    r:SetScript("OnDragStart", function(self) self:SetAlpha(0.6) end)
+    r:SetScript("OnDragStop", function(self)
+        self:SetAlpha(1)
+        local _, y = GetCursorPosition()
+        local scale = card:GetEffectiveScale() or 1
+        local top = card:GetTop() or 0
+        local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + tgs.offset
+        if TK():MoveTo(key(), n) then Refresh() end
+    end)
+    S.Tooltip(r, "Reorder reaction", "First match wins")
+    r.label:ClearAllPoints()
+    r.label:SetPoint("TOPLEFT", 58, -4)
+    r.sub:ClearAllPoints()
+    r.sub:SetPoint("TOPLEFT", 58, -22)
+    r.words = CreateFrame("Button", nil, r)
+    r.words:SetPoint("TOPLEFT", 56, -2)
+    r.words:SetSize(180, 18)
+    r.words:SetScript("OnClick", function(self)
+        local row = TK():Row(key())
+        if row and ns.Stack.IsPercentage(row.condition) then PickTriggerPercent(self, row) end
+    end)
+    r.req = S.NewButton(r, "+", px - 140 - 40, -8, 34, function(self)
+        local row = TK():Row(key())
+        if not row then return end
+        HUI.Popup(self, "Add requirements · All must be true", ConditionEntries(row.condition, row), nil, function(c)
+            if not TK():RemoveRequirement(row.id, c) then
+                local ok, bad = TK():AddRequirement(row.id, c)
+                if not ok and bad then Say("Can't hold with " .. ns.Stack.Label(bad), true) end
+            end
+            Refresh()
+        end, 3, 200)
+    end, nil, 11, 24)
+    S.Tooltip(r.req, "Add requirements", "All must be true")
+    return r
+end
+
+function ui.BuildTriggerStack(panel, cw)
+    local card = S.Card(panel, "Triggers", 0, 0, cw, PH)
+    ui.trigStack, ui.trigRows = card, tgs.pool
+    S.Text(card, "First match wins · R2 the hand, L2 the body", 120, -12, 320, 11, DIM)
+    ui.trigAdd = S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
+        HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
+            TK():Add(c)
+            tgs.offset = 0
+            Say(ns.Stack.Label(c) .. ": added on top")
+            Refresh()
+        end, 3, 200)
+    end, nil, 11, 24)
+    ui.trigDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
+        TK():Default()
+        Say("Triggers: as they ship")
+        Refresh()
+    end, nil, 11, 24)
+    S.Tooltip(ui.trigDefault, "Default", "The Recommended reactions for your class")
+    for i = 1, TG_ROWS do tgs.pool[i] = TriggerRow(card, cw, i) end
+    card:EnableMouseWheel(true)
+    card:SetScript("OnMouseWheel", function(_, d)
+        tgs.offset = math.max(0, tgs.offset - d)
+        Refresh()
+    end)
+    -- Otherwise: free
+    local o = HUI.MomentRow(card, -38 - TG_ROWS * STATE_STEP, cw, nil, "Otherwise", function() end, nil, "Free")
+    o.icon:Hide()
+    o.pick:SetEnabled(false)
+    o.teal = o:CreateTexture(nil, "BACKGROUND", nil, 2)
+    o.teal:SetAllPoints()
+    o.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
+    ui.trigOtherwise = o
+    S.Text(card, "Shapes: WoW Helper › Triggers", 12, -38 - (TG_ROWS + 1) * STATE_STEP - 8, cw - 24, 11, DIM)
+    -- the teal rows follow the game while the list is open
+    local acc = 0
+    card:SetScript("OnUpdate", function(_, e)
+        acc = acc + (e or 0)
+        if acc < 0.25 then return end
+        acc = 0
+        if ui.kind == "trigger" then ui.RefreshTriggerStack("trigger") end
+    end)
+end
+
+function ui.RefreshTriggerStack(kind)
+    local on = kind == "trigger"
+    local b = ui.browser
+    local btn = b.buttons.triggers
+    if btn then btn:SetShown(on) end
+    for _, g in ipairs(GROUPS) do if b.buttons[g.key] then b.buttons[g.key]:SetShown(not on) end end
+    if b.buttons.spells then b.buttons.spells:SetShown(not on) end
+    if on and b.current ~= "triggers" then b.Select("triggers") end
+    if not on and b.current == "triggers" then b.Select(GROUPS[1].key) end
+    if not on then return end
+    local TS, St, stack = ns.TriggerStack, ns.Stack, TK()
+    local rows = stack:Rows()
+    tgs.offset = math.max(0, math.min(tgs.offset, #rows - TG_ROWS))
+    local driving = stack:Driving()
+    local count = 0
+    for _, row in ipairs(rows) do if row.on ~= false then count = count + 1 end end
+    for i, r in ipairs(tgs.pool) do
+        local n = i + tgs.offset
+        local row = rows[n]
+        r:SetShown(row ~= nil)
+        if row then
+            r.key = row.id
+            local off = row.on == false
+            r:SetChoice("R2 · " .. TS.Words(row.R2), nil, nil, off, nil, stack:IsDefault(row.id) or stack:Recommended(row.id) == nil)
+            r.pick2.label:SetText("L2 · " .. TS.Words(row.L2))
+            r.label:SetText(St.Words(row))
+            local chs = driving[row.id]
+            local tail = chs and ("Now: " .. table.concat(chs, ", ")) or (St.Matches(row) and "True now" or "")
+            if TS.Trying() == row.id then tail = "Trying" end
+            r.sub:SetText(tail)
+            r.teal:SetShown(chs ~= nil)
+            r.on:SetChecked(not off)
+            r.up:SetEnabled(n > 1)
+            r.down:SetEnabled(n < #rows)
+            r.req.label:SetText(row.requirements and ("+" .. #row.requirements) or "+")
+            r.default:SetShown(stack:Recommended(row.id) ~= nil)
+        end
+    end
+    local now = stack:Now()
+    local free = {}
+    for _, ch in ipairs(TS.CHANNELS) do if not now[ch].row then free[#free + 1] = ch end end
+    ui.trigOtherwise:SetChoice("Free", nil, #free > 0 and ("Now: " .. table.concat(free, ", ")) or nil, false, nil, true)
+    ui.trigOtherwise.teal:SetShown(#free > 0)
+    ui.trigDefault:SetEnabled(not stack:IsDefault())
+    if btn then btn.count:SetText(count .. "/" .. #rows) end
+    if ui.trigNow then
+        local function word(ch)
+            local v = now[ch].value
+            if type(v) ~= "table" or not v.effect or v.effect == 0 then return "Free" end
+            local sh = TS.Shape(v.effect)
+            return (sh and sh.label or "?") .. (v.value and (" " .. math.floor(v.value * 100 + 0.5) .. "%") or "") .. (v.count and (" x" .. v.count) or "")
+        end
+        ui.trigNow:SetText("R2  " .. word("R2") .. "\n" .. "L2  " .. word("L2"))
+    end
+end
+
+---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
 local LEFT_W = 300
@@ -706,6 +934,8 @@ local ENABLE = {
     light = { get = function() return H.DB().light == true end, set = function(on) LT.SetOn(on) end, tip = "Off: the game's own colour" },
     sound = { get = function() return C ~= nil and C.Settings().sounds == true end,
         set = function(on) if C then C.Settings().sounds = on; C.Refresh() end end, tip = "With WoW Helper" },
+    trigger = { get = function() return ns.TriggerStack ~= nil and ns.TriggerStack.On() end,
+        set = function(on) if ns.TriggerStack then ns.TriggerStack.SetOn(on) end end, tip = "With WoW Helper" },
 }
 
 function ui.SetKind(kind)
@@ -992,7 +1222,7 @@ local function Build(frame, header)
     -- Header: the kind, its switch, the last moment
     ui.seg = {}
     for i, k in ipairs(KINDS) do
-        if i == 1 then S.Segments(header, 149, -2, { 72, 72, 72 }, 28) end
+        if i == 1 then S.Segments(header, 149, -2, { 72, 72, 72, 72 }, 28) end
         ui.seg[k[1]] = S.Segment(header, k[2], 150 + (i - 1) * 72, -3, 72, function() ui.SetKind(k[1]) end, 12, 28)
     end
     ui.enable = S.NewCheck(header, "On", W - 70, -4, function(self)
@@ -1061,6 +1291,13 @@ local function Build(frame, header)
         K.PlaySound("chime", gain)
     end, nil, 12, 28)
     ui.soundNote = S.Note(sb, 14, -76, LEFT_W - 28, 1, 11, GREY)
+    -- Triggers: what each holds now
+    local tb = CreateFrame("Frame", nil, left)
+    tb:SetPoint("TOPLEFT", 0, 0)
+    tb:SetSize(LEFT_W, 136)
+    ui.box.trigger = tb
+    S.Text(tb, "Now", 14, -46, 100, 13, GOLD)
+    ui.trigNow = S.Note(tb, 70, -46, LEFT_W - 84, 2, 12, GREY)
     -- Stop, for every kind
     ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
         V.StopSimulation(); V.Stop(); if H then H.Stop(); H.LightStop() end
@@ -1075,6 +1312,7 @@ local function Build(frame, header)
         if g.key == "Abilities" and SpellsOn() then groups[#groups + 1] = { key = "spells", label = "Your spells" } end
     end
     if LT and LT.stack then groups[#groups + 1] = { key = "states", label = "States" } end
+    if ns.TriggerStack and ns.TriggerStack.kind then groups[#groups + 1] = { key = "triggers", label = "Triggers" } end
     local list = CreateFrame("Frame", nil, left)
     list:SetPoint("TOPLEFT", 0, -150)
     list:SetSize(LEFT_W, PH - 150)
@@ -1087,6 +1325,7 @@ local function Build(frame, header)
         local panel = b.panels[g.key]
         ui.cards[g.key] = {}
         for _, k in ipairs(KINDS) do
+          if k[1] ~= "trigger" then
             local items = Items(k[1], g.key)
             local card = S.Card(panel, g.key, 0, 0, cw, max(90, 44 + #items * HUI.ROW_H))
             if #items == 0 then S.Text(card, "None here", 14, -44, cw - 28, 12, DIM) end
@@ -1094,10 +1333,17 @@ local function Build(frame, header)
                 MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw, item[1], item[2])
             end
             ui.cards[g.key][k[1]] = card
+          end
         end
     end
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
     if b.panels.states then ui.BuildStates(b.panels.states, cw) end
+    if b.panels.triggers then
+        ui.BuildTriggerStack(b.panels.triggers, cw)
+        -- (only with Triggers: first in the list)
+        b.buttons.triggers:ClearAllPoints()
+        b.buttons.triggers:SetPoint("TOPLEFT", 10, -8)
+    end
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
 
 end
@@ -1110,7 +1356,7 @@ Refresh = function()
     for k, btn in pairs(ui.seg) do S.SetSelected(btn, k == kind) end
     if ui.recent then ui.recent.Update() end
     for k, box in pairs(ui.box) do box:SetShown(k == kind) end
-    if ui.left.title then ui.left.title:SetText(kind == "feel" and "Feel" or kind == "light" and "Light" or "Sound") end
+    if ui.left.title then ui.left.title:SetText(kind == "feel" and "Feel" or kind == "light" and "Light" or kind == "trigger" and "Triggers" or "Sound") end
     local enabled = ENABLE[kind].get()
     ui.enable:SetChecked(enabled)
     ui.enable:SetEnabled(not (kind == "feel" and other))
@@ -1138,6 +1384,7 @@ Refresh = function()
         row:SetAlpha(live and 1 or 0.55)
     end
     if ui.states then ui.RefreshStates(kind) end
+    if ui.trigStack then ui.RefreshTriggerStack(kind) end
     for _, g in ipairs(GROUPS) do
         for k, card in pairs(ui.cards[g.key]) do card:SetShown(k == kind) end
         local items = Items(kind, g.key)
@@ -1152,7 +1399,7 @@ Refresh = function()
     if kind == "feel" then
         Shell.SetStatus(other and "Improved Forever: Vibration rumbles" or (s.enabled and "" or "Feel off"))
     else
-        Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or "Sounds off"))
+        Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or kind == "trigger" and "Triggers off" or "Sounds off"))
     end
 end
 ui.Refresh = function() Refresh() end

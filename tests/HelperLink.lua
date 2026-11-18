@@ -296,6 +296,35 @@ assert(prev.moment == 0 and not prev.open, "moment cleared after")
 K.SetMic("pulse")
 local dm = renderV2()
 assert(dm.mic == K.MIC.pulse and dm.seq == prev.seq, "mic: a state, no cue")
+-- the trigger row (WoW Helper docs/TRIGGERS.md): the vector pinned in protocol2.rs too
+do
+    local cells = K.EncodeTrigRow({ left = { shape = 12, value = 0.35, count = 0 }, right = { shape = 1023, value = nil, count = 15 } })
+    local t = {}
+    for i, c in ipairs(cells) do t[i] = c[1] * 4 + c[2] * 2 + c[3] end
+    assert(table.concat(t, " ") == "4 0 3 0 0 6 1 0 1 7 7 7 7 7 7 7 7 6 0", "trigger row vector: " .. table.concat(t, " "))
+    local d = K.DecodeTrigRow(cells)
+    assert(d.left.shape == 12 and d.left.value == 0.35 and d.right.shape == 1023 and d.right.value == nil and d.right.count == 15, "decoded")
+    for k = 2, #cells do
+        for ch = 1, 3 do
+            local bad = {}
+            for i, c in ipairs(cells) do bad[i] = { c[1], c[2], c[3] } end
+            bad[k][ch] = 1 - bad[k][ch]
+            assert(K.DecodeTrigRow(bad) == nil, "a flipped bit is caught: cell " .. k)
+        end
+    end
+    -- drawn only while a trigger holds a shape; redrawn when a value moves by 1/100
+    K.SetTrigRow({ left = { shape = 0 }, right = { shape = 0 } })
+    assert(K.trig == nil, "no shape: no row")
+    K.SetTrigRow({ right = { shape = 6, value = 0.401 } })
+    local first = K.trig
+    K.SetTrigRow({ right = { shape = 6, value = 0.403 } })
+    assert(K.trig == first, "under 1/100: unchanged")
+    K.SetTrigRow({ right = { shape = 6, value = 0.42 } })
+    assert(K.trig ~= first and K.trig.right.value == 0.42, "moved: redrawn")
+    K.SetTrigRow(nil)
+    assert(K.trig == nil, "cleared")
+end
+
 K.SetEnabled(false)
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors)")

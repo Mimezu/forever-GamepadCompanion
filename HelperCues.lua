@@ -12,8 +12,7 @@ local min, max, floor = math.min, math.max, math.floor
 local function Now() return GetTime and GetTime() or 0 end
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
 
--- (the triggers: TriggerRules.lua, the player's own rules; the old switches
--- castTrigger / shotTrigger / lowTrigger seed them once)
+-- (the triggers: TriggerStack.lua, on the stack)
 C.GROUPS = {
     { key = "sounds", label = "Speaker sounds", tip = "Each moment's sound" },
 }
@@ -71,31 +70,12 @@ local function On(group)
 end
 
 ---------------------------------------------------------------------------
--- Triggers: the player's rules (TriggerRules.lua), checked 10 times a second
+-- Triggers: the stack's (TriggerStack.lua). Here the game's states and
+-- timings it follows, pushed about 10 times a second
 ---------------------------------------------------------------------------
-local T = ns.TriggerRules
 local cast = {}
 local low, shooting, attacking = false, false, false
-local trying            -- { rule, untilTime }: a rule felt now (Try)
-
--- The saved rules (the Feel profile's table, seeded in place)
-function C.TriggerRules()
-    local db = H.DB()
-    if type(db.link) ~= "table" then db.link = {} end
-    if type(db.link.trigRules) ~= "table" then db.link.trigRules = {} end
-    return T.Ensure(db.link.trigRules, C.Settings())
-end
-function C.ResetTriggerRules()
-    C.TriggerRules()
-    T.Reset(H.DB().link.trigRules)
-end
-
-local function call(fn, ...)
-    if type(fn) ~= "function" then return false end
-    local ok, v = pcall(fn, ...)
-    if not ok or secret(v) then return false end
-    return v and true or false
-end
+local swingAt, shotAt          -- the last swing and shot (the swing and shot timers)
 
 local function State()
     local p
@@ -103,31 +83,16 @@ local function State()
         local span = cast.finish - cast.start
         p = span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
     end
-    return {
-        cast = cast.start ~= nil, progress = p, autoShot = shooting, autoAttack = attacking, lowHp = low,
-        combat = call(UnitAffectingCombat, "player"), mounted = call(IsMounted), swimming = call(IsSwimming),
-        stealth = call(IsStealthed),
-    }
+    return { cast = cast.start ~= nil, progress = p, autoShot = shooting, autoAttack = attacking, lowHp = low,
+        swingAt = swingAt, shotAt = shotAt }
 end
 
 local function UpdateTriggers()
-    if not (K and T) then return end
-    if trying and Now() > trying[2] then trying = nil end
-    local out = K.Enabled() and T.Evaluate(C.TriggerRules(), State(), trying and trying[1]) or {}
-    for _, side in ipairs({ "R2", "L2" }) do
-        local t = out[side]
-        if t then K.SetTrigger(side, t[1], t[2], t[3], t[4]) else K.SetTrigger(side, "off", 0, 0, 0) end
-    end
+    local TS = ns.TriggerStack
+    if TS then TS.Update(State()) end
 end
 C.UpdateTriggers = UpdateTriggers
 local UpdateR2, UpdateL2 = UpdateTriggers, UpdateTriggers
-
--- Try: a rule felt for a few seconds, whatever its state
-function C.TryTrigger(rule, seconds)
-    trying = rule and { rule, Now() + (seconds or 4) } or nil
-    UpdateTriggers()
-end
-function C.TryingTrigger() return trying and trying[1] or nil end
 
 local ticker = CreateFrame("Frame")
 local acc = 0
@@ -596,6 +561,8 @@ local function Wrap()
         local fire, endLoop = V.Fire, V.EndLoop
         V.Fire = function(key, ...)
             fire(key, ...)
+            -- (the swing and shot timers start again)
+            if key == "autoAttack" then swingAt = Now() elseif key == "shot" then shotAt = Now() end
             -- (WoW Helper times this blow's cue itself: the marker carried it)
             if V.cueTimed then return end
             local okA, active = pcall(V.Active)

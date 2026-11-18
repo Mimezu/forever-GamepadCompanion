@@ -306,6 +306,65 @@ function K.DecodeLight(cells)
 end
 
 ---------------------------------------------------------------------------
+-- The trigger row (C:\games\WowHelper\docs\TRIGGERS.md): 19 cells two rows
+-- inward of the v2 strip, red first, 54 bits: version (2), then per trigger
+-- (L2 at bit 2, R2 at bit 23) a WoW Helper shape (10), its value (7: 0-100,
+-- 127 none) and a count (4); a CRC-8 over bits 0-43. Drawn only while a
+-- trigger holds a shape.
+---------------------------------------------------------------------------
+K.TRIG_CELLS = 19
+K.TRIG_MARKER = { 1, 0, 0 }   -- red
+K.VALUE_NONE = 127
+
+-- A pick's value 0-1 (or nil) as the row's 0-100 / 127
+local function Value7(v)
+    v = tonumber(v)
+    if not v then return K.VALUE_NONE end
+    return math.floor(math.max(0, math.min(1, v)) * 100 + 0.5)
+end
+K.Value7 = Value7
+
+-- row = { left = { shape, value (0-1 or nil), count }, right = ... }
+function K.EncodeTrigRow(row)
+    row = row or {}
+    local bits = {}
+    for i = 0, 53 do bits[i] = 0 end
+    local function pick(at, p)
+        p = p or {}
+        Put(bits, at, Int(p.shape, 1023), 10)
+        Put(bits, at + 10, Value7(p.value), 7)
+        Put(bits, at + 17, Int(p.count, 15), 4)
+    end
+    pick(2, row.left)
+    pick(23, row.right)
+    Put(bits, 44, CrcBits(bits, 44), 8)
+    local cells = { { 1, 0, 0 } }
+    for c = 0, K.TRIG_CELLS - 2 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    return cells
+end
+
+function K.DecodeTrigRow(cells)
+    if type(cells) ~= "table" or #cells < K.TRIG_CELLS then return nil, "length" end
+    local m = cells[1]
+    if m[1] ~= 1 or m[2] ~= 0 or m[3] ~= 0 then return nil, "marker" end
+    local bits = {}
+    for c = 0, K.TRIG_CELLS - 2 do
+        for k = 1, 3 do
+            local v = cells[c + 2][k]
+            if v ~= 0 and v ~= 1 then return nil, "value" end
+            bits[c * 3 + k - 1] = v
+        end
+    end
+    if Get(bits, 0, 2) ~= 0 or Get(bits, 52, 2) ~= 0 then return nil, "value" end
+    if CrcBits(bits, 44) ~= Get(bits, 44, 8) then return nil, "crc" end
+    local function pick(at)
+        local v = Get(bits, at + 10, 7)
+        return { shape = Get(bits, at, 10), value = v <= 100 and v / 100 or nil, count = Get(bits, at + 17, 4) }
+    end
+    return { left = pick(2), right = pick(23) }
+end
+
+---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
@@ -447,6 +506,24 @@ function K.SetLight(row)
     dirty = true
 end
 
+-- The trigger row's state (TriggerStack.lua): { left = { shape, value, count },
+-- right = ... }, or nil: no row (the strip's own trigger fields only). Redrawn
+-- when a shape or count changes, or a value moves by 1/100.
+K.trig = nil
+function K.SetTrigRow(row)
+    local function key(p) p = p or {}; return Int(p.shape, 1023) .. ":" .. Value7(p.value) .. ":" .. Int(p.count, 15) end
+    local function any(p) return p and Int(p.shape, 1023) > 0 end
+    if row and not (any(row.left) or any(row.right)) then row = nil end
+    if row == nil then
+        if K.trig then K.trig = nil; dirty = true end
+        return
+    end
+    local k = key(row.left) .. "|" .. key(row.right)
+    if K.trig and K.trig.key == k then return end
+    K.trig = { key = k, left = row.left or {}, right = row.right or {} }
+    dirty = true
+end
+
 -- A once light on the pad (v2 + the light row): its id 1-255, tint 0-31, strength 0-7, dots
 -- 0-14 and mic 0-4 (0: the light's own)
 function K.LightCue(id, tint, strength, dots, mic)
@@ -499,6 +576,7 @@ function K.Step(elapsed)
         dirty = false
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
         if K.DrawLight then K.DrawLight(K.V2() and K.light and K.EncodeLight(K.light) or nil) end
+        if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
         return true
     end
     return false
@@ -549,6 +627,21 @@ function K.Layout()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, unit)
         tex:SetSize(unit, unit)
     end
+    -- the trigger row: two rows up
+    for i, tex in ipairs(K.trigTextures or {}) do
+        tex:ClearAllPoints()
+        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 2 * unit)
+        tex:SetSize(unit, unit)
+    end
+end
+
+-- The trigger row's cells, or nil: hidden
+function K.DrawTrig(cells)
+    for i, tex in ipairs(K.trigTextures or {}) do
+        local c = cells and cells[i]
+        if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
+        tex:SetShown(c ~= nil)
+    end
 end
 
 -- The light row's cells, or nil: hidden (no row: the game's lights)
@@ -590,6 +683,14 @@ local function Build()
         tex:Hide()
         K.lightTextures[i] = tex
     end
+    K.trigTextures = {}
+    for i = 1, K.TRIG_CELLS do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.trigTextures[i] = tex
+    end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
     frame:SetScript("OnEvent", function(_, event, name)
@@ -627,6 +728,7 @@ function K.SetEnabled(on)
         active = false
         K.state.event, K.state.gain, K.state.touch, K.state.sound = 0, 0, 0, 0
         K.state.left, K.state.right = OffTrigger(), OffTrigger()
+        K.trig = nil
         dirty = true
     end
     K.Refresh()

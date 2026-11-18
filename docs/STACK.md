@@ -62,6 +62,32 @@ a percentage's operator on a click —, `+` requirements, the light picker with 
 Default, ×), `+ Add reaction`, Otherwise, Fade in / Fade out / Wait. Silent migration: 0.48's
 order and states' lights become reactions; the old mic "In combat" is In combat's mic.
 
+## Triggers
+
+`TriggerStack.lua`: the kind `triggers`, channels `R2` (the hand) and `L2` (the body). A
+reaction's channel is `{ shape = id, follows = source, count = source, legacy = old rule }`, saved
+in the Feel profile (`triggerStack` in `P.FEEL_TABLES`); its value on the stack is `{ effect =
+shape id, value = 0-1 | nil, count = n | nil }`.
+
+- **Shapes** are WoW Helper's (`WowHelperData.triggerShapes`; the shipped 17 known by id as a
+  fallback). The addon picks; the helper shapes (`C:\games\WowHelper\docs\TRIGGERS.md`).
+- **Live values** need no Stack change: the kind's `value` reads `Stack.Value(follows)`, and
+  `live = true` re-resolves when a source moves. Sources, pushed about 10 times a second
+  (`TriggerStack.Update`, from HelperCues): `cast` (progress), `swing`, `shot` (timers from the
+  last swing or shot), `gcd` (elapsed), `power`, `hurt` (health lost), and the count `combo`.
+- **Conditions added**: Auto shot, Auto attack, Global cooldown, Always, and ready clicks:
+  `ready:<spell>` moments (0.35 s) when a watched spell's cooldown (beyond the GCD) comes back.
+- **Recommended** per class (`TriggerStack.RECOMMENDED`): R2 the hand (ready clicks, Cast tension
+  follows the cast, the GCD wall, the swing or the bowstring, combo detents), L2 the body
+  (Weight follows health lost below 35 %, Gallop mounted, Drag swimming, Firmness follows rage or
+  energy).
+- **Sending**: each pick goes on the strip's trigger row; the strip's own trigger fields carry a
+  near equivalent (an older helper), or a moved rule's exact old bytes (`legacy`, the row empty).
+- **Moved silently**: Setup › Triggers' rules (0.43-0.49) become reactions on top, once, each
+  with its old bytes; the class's Recommended ones below. The Setup card points here.
+- Moments › Triggers: the States list's pieces; each row has two plates (R2, L2; Pass), Try
+  sweeps a followed value 0 -> 1 over 3 s.
+
 ## The strip
 
 The light row is one row inward of the v2 strip (yellow marker, 17 or 23 cells); the triggers'
