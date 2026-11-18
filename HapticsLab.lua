@@ -799,17 +799,25 @@ function L.EventSettings(key)
     return s
 end
 
--- An event back to the feel it ships with
+-- An event as Recommended for this class (Profiles.lua: the same the profile's Reset gives)
+function L.DefaultOn(key)
+    local P = ns.Profiles
+    local on = P and P.RecommendedOn and P.RecommendedOn("events", key)
+    if on == nil then on = EVENT[key].on end
+    return on
+end
+
+-- An event back to Recommended: its feel as it ships, on or off as Recommended has it
 function L.EventDefault(key)
     local e = EVENT[key]
     local s = L.EventSettings(key)
-    s.on, s.feel = e.on, e.feel
+    s.on, s.feel = L.DefaultOn(key), e.feel
 end
 
 function L.IsEventDefault(key)
     local e = EVENT[key]
     local s = L.EventSettings(key)
-    return s.on == e.on and s.feel == e.feel
+    return s.on == L.DefaultOn(key) and s.feel == e.feel
 end
 
 local function Strength()

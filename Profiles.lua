@@ -57,6 +57,21 @@ function P.Recommended(class)
     return feel
 end
 
+-- One meaning of Default: a row's Default and the profile's Reset both go to Recommended.
+-- A moment's Recommended on/off for this character's class, or nil where Recommended keeps
+-- the code's own. part: "events" (the engine's moments) or "vibration" (Rumble's)
+function P.RecommendedOn(part, key)
+    local function Of(r)
+        local t = r and r[part]
+        if type(t) ~= "table" then return nil end
+        return t[key]
+    end
+    local class = P.state and P.state.class
+    local v = Of(class and P.CLASS[class])
+    if v == nil then v = Of(P.RECOMMENDED) end
+    return v
+end
+
 ---------------------------------------------------------------------------
 -- Storage
 ---------------------------------------------------------------------------

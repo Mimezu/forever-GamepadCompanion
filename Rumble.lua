@@ -692,6 +692,27 @@ function V.EventPattern(eventKey)
     return choice
 end
 
+-- An event as Recommended for this class (Profiles.lua: the same the profile's Reset gives)
+function V.DefaultOn(eventKey)
+    local P = ns.Profiles
+    local on = P and P.RecommendedOn and P.RecommendedOn("vibration", eventKey)
+    if on == nil then
+        for _, e in ipairs(V.EVENTS) do if e.key == eventKey then on = e.on end end
+    end
+    return on
+end
+function V.IsEventDefault(eventKey)
+    local cfg = V.Settings().events[eventKey]
+    local e
+    for _, x in ipairs(V.EVENTS) do if x.key == eventKey then e = x end end
+    return cfg.on == V.DefaultOn(eventKey) and cfg.pattern == e.pattern
+end
+function V.EventDefault(eventKey)
+    local cfg = V.Settings().events[eventKey]
+    for _, e in ipairs(V.EVENTS) do if e.key == eventKey then cfg.pattern = e.pattern end end
+    cfg.on = V.DefaultOn(eventKey)
+end
+
 -- A pattern for an event ("off": none)
 function V.SetEventPattern(eventKey, patternKey)
     local cfg = V.Settings().events[eventKey]

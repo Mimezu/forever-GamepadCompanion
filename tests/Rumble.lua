@@ -459,3 +459,48 @@ do
     assert(#missing == 0, "feels with no icon: " .. table.concat(missing, ", "))
     io.write("PASS: every feel in the picker has its icon (" .. #ns.Haptics.AllFeels() .. " feels)\n")
 end
+-- One meaning of Default (design audit phase 1): a row's Default is Recommended for the class,
+-- the same as the profile's Reset (hit, miss, dodges, parries, hitTaken, combo, oom... agreed)
+do
+    assert(loadfile(root .. "/Profiles.lua"))("GamepadCompanion", ns)
+    local P, L = ns.Profiles, ns.HapticsLab
+    local n = 0
+    for _, class in ipairs({ "PALADIN", "ROGUE", "HUNTER" }) do
+        P.state.class = class
+        local rec = P.Recommended(class)
+        for key, r in pairs(rec.events) do
+            local s = L.EventSettings(key)
+            s.on = not r.on
+            assert(not L.IsEventDefault(key), class .. " " .. key .. ": not Recommended, Default lit")
+            L.EventDefault(key)
+            assert(L.EventSettings(key).on == r.on and L.IsEventDefault(key), class .. " " .. key .. ": Default = the profile's Reset")
+            n = n + 1
+        end
+        for key, r in pairs(rec.vibration.events) do
+            V.Settings().events[key].on = not r.on
+            assert(not V.IsEventDefault(key), class .. " " .. key .. ": not Recommended")
+            V.EventDefault(key)
+            assert(V.Settings().events[key].on == r.on and V.IsEventDefault(key), class .. " " .. key .. ": Default = Reset")
+            n = n + 1
+        end
+    end
+    -- the row says so: Hit after Default is off and its Default greyed
+    P.state.class = "PALADIN"
+    page.SetKind("feel")
+    page.browser.Select("Attacks")
+    local hit
+    for _, r in ipairs(page.rows) do if r.key == "hit" and r:IsVisible() then hit = r end end
+    L.EventSettings("hit").on = true
+    page.Refresh()
+    assert(hit.default.enabled ~= false, "Hit on: not Recommended")
+    hit.default.scripts.OnClick(hit.default)
+    assert(L.EventSettings("hit").on == false and hit.default.enabled == false and hit.pick.label.text == "Off", "Hit's Default: Off, as Recommended")
+    local offer = ns.ShellWindow().offer
+    assert(offer.label.text == "Undo", "Undo for a while")
+    offer.scripts.OnClick(offer)
+    assert(L.EventSettings("hit").on == true, "Undo: on again")
+    for key in pairs(P.RECOMMENDED.events) do L.EventDefault(key) end
+    P.state.class = nil
+    for key in pairs(P.RECOMMENDED.events) do L.EventDefault(key) end
+    io.write("PASS: one Default: a row's Default is Recommended, as the profile's Reset (" .. n .. " checks)\n")
+end

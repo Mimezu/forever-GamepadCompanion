@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.52.7 — 2026-11-18
+
+- **One meaning of Default:** a moment's Default now goes to Recommended for your class, the same as the Feel profile's Reset. They used to disagree on Hit, Miss, the dodges and parries, Hit taken, Combo points, Out of mana and the other moments Recommended turns off (Default turned them back on). Default's tip and its Undo line say "Recommended". A test checks both agree for every moment, per class.
+
 ## 0.52.6 — 2026-11-18
 
 - **The pad in the window** (a focus ring, out of combat): the d-pad moves to the nearest control that way; **A** picks, **B** closes the popup or the window, **X** Try, **Y** Default (the focused row's); **L1 / R1** the side tabs; **L2 / R2** Moments' groups. A legend of glyphs replaces the status line while the pad is in use; the mouse hides it. In a popup the ring stays in it

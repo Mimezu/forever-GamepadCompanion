@@ -528,12 +528,12 @@ local function MakeRow(parent, y, width, kind, key)
             VolumeDefault(kind, key)
             Refresh()
             -- (as it ships, and Undo for 5 s)
-            Shell.Offer(label .. ": as it ships", "Undo", function() undo(); Refresh() end)
+            Shell.Offer(label .. ": Recommended", "Undo", function() undo(); Refresh() end)
         end,
         edit = I.feel and Edit or nil,
         editLabel = "Shape",
         editTip = "In WoW Helper (else Lab)",
-        defaultTip = "As it ships",
+        defaultTip = "Recommended",
         level = I.level and I.level(key) or nil,
         pg = pg,
         marks = 3,
@@ -668,7 +668,7 @@ local function StateRow(card, cw, i, o)
             o.default(k)
             Refresh()
             if live then
-                Shell.Offer((r.label:GetText() or "") .. ": as it ships", "Undo", function()
+                Shell.Offer((r.label:GetText() or "") .. ": Recommended", "Undo", function()
                     for f in pairs(live) do live[f] = nil end
                     for f, v in pairs(Copy(was)) do live[f] = v end
                     Refresh()
@@ -681,7 +681,7 @@ local function StateRow(card, cw, i, o)
             Refresh()
         end,
         quiet = true,
-        defaultTip = "As it ships",
+        defaultTip = "Recommended",
     })
     r.kind = "light"
     r.icon:Hide()
@@ -1000,7 +1000,7 @@ local function TriggerRow(card, cw, i)
         default = function() TK():Default(key()); Refresh() end,
         clear = function() TK():Remove(key()); Say("Removed"); Refresh() end,
         quiet = true,
-        defaultTip = "As it ships",
+        defaultTip = "Recommended",
     })
     r.kind = "trigger"
     r.icon:Hide()
@@ -1424,10 +1424,10 @@ local function BuildSpells(panel, cw)
                         ITEM[ui.kind].default(row.key)
                         VolumeDefault(ui.kind, row.key)
                     end
-                    Say(row.plan.name .. ": as it ships")
+                    Say(row.plan.name .. ": Recommended")
                     Refresh()
                 end,
-                defaultTip = "As it ships",
+                defaultTip = "Recommended",
                 level = { step = 0.1, min = 0, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
                     get = function()
                         if Sound() then return Vol.Sound(row.key) end
