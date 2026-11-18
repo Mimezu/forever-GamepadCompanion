@@ -28,7 +28,7 @@ local function Pct(v) return floor((v or 0) * 100 + 0.5) .. "%" end
 ---------------------------------------------------------------------------
 local function BuildHelper(frame)
     local K, C = ns.HelperLink, ns.HelperCues
-    local card = S.Card(frame, "WoW Helper", 0, 0, COL, 200)
+    local card = S.Card(frame, "WoW Helper", 0, 0, COL, 200, "Interface\\Icons\\INV_Misc_Gear_01")
     if not (K and C) then return end
     local link = S.NewCheck(card, "Link", 12, -38, function(self)
         K.SetEnabled(self:GetChecked() == true)
@@ -75,7 +75,7 @@ end
 -- first rule that holds wins its trigger, so the list's order is the priority)
 local function BuildTriggers(frame)
     local C, T = ns.HelperCues, ns.TriggerRules
-    local card = S.Card(frame, "Triggers", 0, -210, COL, PH - 210)
+    local card = S.Card(frame, "Triggers", 0, -210, COL, PH - 210, "Interface\\Icons\\INV_Gauntlets_04")
     if not (C and T and C.TriggerRules) then return end
     local sel = 1
     local function Rules() return C.TriggerRules() end
@@ -208,7 +208,7 @@ end
 -- Range: the faintest each grip feels, low battery, the battery
 ---------------------------------------------------------------------------
 local function BuildRange(frame)
-    local card = S.Card(frame, "Range", X2, 0, COL, 200)
+    local card = S.Card(frame, "Range", X2, 0, COL, 200, "Interface\\Icons\\Spell_Nature_Lightning")
     local faint = S.Text(card, "", 12, -40, COL - 24, 13, YELLOW)
     local find = {}
     local bw = (COL - 30) / 2
@@ -241,7 +241,7 @@ end
 -- Timing: footsteps and mining in step with the game, the landing's range
 ---------------------------------------------------------------------------
 local function BuildTiming(frame)
-    local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210)
+    local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210, "Interface\\Icons\\INV_Misc_PocketWatch_01")
     local gaits, buttons, texts = { { "run", "Run" }, { "walk", "Walk" } }, {}, {}
     local bw = (COL - 30) / 2
     S.Text(card, "Footsteps", 12, -40, COL - 24, 12, GOLD)
@@ -321,7 +321,7 @@ end
 local function BuildBase(frame)
     local LT = ns.Lights
     local cw = W - X3
-    local card = S.Card(frame, "Base colour", X3, 0, cw, 320)
+    local card = S.Card(frame, "Base colour", X3, 0, cw, 320, "Interface\\Icons\\INV_Misc_Gem_Ruby_01")
     if not LT then return end
     local swatch = card:CreateTexture(nil, "ARTWORK")
     swatch:SetPoint("TOPRIGHT", -14, -10)
@@ -331,7 +331,11 @@ local function BuildBase(frame)
     rim:SetPoint("BOTTOMRIGHT", swatch, "BOTTOMRIGHT", 1, -1)
     rim:SetColorTexture(0.68, 0.5, 0.26, 0.8)
     local tick = CreateFrame("Frame", nil, card)
-    tick:SetScript("OnUpdate", function()
+    local tickAcc = 0
+    tick:SetScript("OnUpdate", function(_, elapsed)
+        tickAcc = tickAcc + (elapsed or 0)
+        if tickAcc < 0.05 then return end
+        tickAcc = 0
         local r, g, b, on = H.LedNow()
         if on then swatch:SetColorTexture(r, g, b, 1) else swatch:SetColorTexture(0.08, 0.08, 0.08, 1) end
     end)

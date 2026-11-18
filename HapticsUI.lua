@@ -14,7 +14,10 @@ local floor, min, max = math.floor, math.min, math.max
 local FONT = "Fonts\\FRIZQT__.TTF"
 HUI.RED = RED
 
--- A value with - and + (and the mouse wheel)
+-- A value with - and + (and the mouse wheel), its value over a track that
+-- shows where it sits in its range (a click on the track sets it); a list
+-- shows a pip for each choice instead.
+local TRACK_W = 68
 function HUI.Stepper(pg, parent, label, x, y, opts)
     local row = CreateFrame("Frame", nil, parent)
     row:SetPoint("TOPLEFT", x, y)
@@ -37,9 +40,41 @@ function HUI.Stepper(pg, parent, label, x, y, opts)
         pg.Refresh()
     end
     row.minus = S.NewButton(row, "-", lw, 0, 24, function() change(-1) end, nil, 13, 24)
-    row.value = S.Text(row, "", lw + 26, -5, 70, 12, YELLOW)
+    row.value = S.Text(row, "", lw + 26, -1, 70, 11, YELLOW)
     row.value:SetJustifyH("CENTER")
     row.plus = S.NewButton(row, "+", lw + 98, 0, 24, function() change(1) end, nil, 13, 24)
+    -- the track (a value) or the pips (a list)
+    row.track = row:CreateTexture(nil, "BORDER")
+    row.track:SetPoint("TOPLEFT", lw + 27, -16); row.track:SetSize(TRACK_W, 4)
+    row.track:SetColorTexture(0, 0, 0, 0.45)
+    row.fill = row:CreateTexture(nil, "ARTWORK")
+    row.fill:SetPoint("TOPLEFT", row.track, "TOPLEFT", 0, 0); row.fill:SetHeight(4)
+    S.Gradient(row.fill, "HORIZONTAL", { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 })
+    if opts.list then
+        row.track:Hide(); row.fill:Hide()
+        row.pips = {}
+        local n = #opts.list
+        local gap = n > 1 and (TRACK_W - 4) / (n - 1) or 0
+        for i = 1, n do
+            local p = row:CreateTexture(nil, "ARTWORK")
+            p:SetSize(4, 4)
+            p:SetPoint("TOPLEFT", lw + 27 + (n > 1 and (i - 1) * gap or (TRACK_W - 4) / 2), -16)
+            row.pips[i] = p
+        end
+    else
+        -- (a click on the track: that value)
+        local hit = CreateFrame("Button", nil, row)
+        hit:SetPoint("TOPLEFT", lw + 26, -12); hit:SetSize(TRACK_W + 2, 12)
+        hit:SetScript("OnMouseDown", function()
+            if row.enabled == false or not (GetCursorPosition and row.track.GetLeft and row.track:GetLeft()) then return end
+            local cx = GetCursorPosition() / (row.track:GetEffectiveScale() or 1)
+            local f = max(0, min(1, (cx - row.track:GetLeft()) / TRACK_W))
+            local v = opts.min + f * (opts.max - opts.min)
+            opts.set(max(opts.min, min(opts.max, floor(v / opts.step + 0.5) * opts.step)))
+            pg.Refresh()
+        end)
+        row.hit = hit
+    end
     row:EnableMouseWheel(true)
     row:SetScript("OnMouseWheel", function(_, delta) if row.enabled ~= false then change(delta) end end)
     function row:Update()
@@ -54,6 +89,16 @@ function HUI.Stepper(pg, parent, label, x, y, opts)
             text = string.format("%.2f", v or 0)
         end
         row.value:SetText(text)
+        if row.pips then
+            for i, p in ipairs(row.pips) do
+                local on = opts.list[i][1] == v
+                p:SetColorTexture(on and 1 or 0.5, on and 0.82 or 0.4, on and 0.25 or 0.25, on and 1 or 0.6)
+            end
+        elseif opts.max and opts.max > opts.min then
+            local f = max(0, min(1, ((v or opts.min) - opts.min) / (opts.max - opts.min)))
+            row.fill:SetWidth(max(0.01, f * TRACK_W))
+            row.fill:SetShown(f > 0)
+        end
     end
     function row:SetEnabled(on)
         row.enabled = on
@@ -73,12 +118,16 @@ function HUI.Choice(pg, parent, label, x, y, list, get, set, width)
     S.Text(row, label, 0, -6, 110, 12, GOLD)
     local buttons = {}
     width = width or 74
+    local widths = {}
+    for i = 1, #list do widths[i] = width end
+    S.Segments(row, 111, 1, widths, 26)
     for i, item in ipairs(list) do
-        buttons[i] = S.NewButton(row, item[2], 112 + (i - 1) * (width + 4), 0, width, function()
+        buttons[i] = S.Segment(row, item[2], 112 + (i - 1) * width, 0, width, function()
             set(item[1])
             pg.Refresh()
-        end, nil, 11, 26)
+        end, 11, 26)
     end
+    row.buttons = buttons
     pg.refresh[#pg.refresh + 1] = function()
         local v = get()
         for i, item in ipairs(list) do S.SetSelected(buttons[i], item[1] == v) end
@@ -202,7 +251,17 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r:SetSize(width - 20, ROW_H - 4)
     local wash = r:CreateTexture(nil, "BACKGROUND")
     wash:SetAllPoints()
-    wash:SetColorTexture(1, 0.85, 0.55, 0.04)
+    -- (every other row a little warmer: a long list reads as rows)
+    local odd = floor(-y / ROW_H + 0.5) % 2 == 1
+    wash:SetColorTexture(1, 0.85, 0.55, odd and 0.07 or 0.04)
+    r.hover = r:CreateTexture(nil, "BACKGROUND", nil, 1)
+    r.hover:SetAllPoints()
+    r.hover:SetColorTexture(1, 0.8, 0.4, 0.05)
+    r.hover:Hide()
+    -- (its state at a glance: gold on, dim off, a light's own colour)
+    r.accent = r:CreateTexture(nil, "ARTWORK")
+    r.accent:SetPoint("TOPLEFT", 0, -4); r.accent:SetPoint("BOTTOMLEFT", 0, 4); r.accent:SetWidth(2)
+    r.accent:SetColorTexture(1, 0.78, 0.25, 0.9)
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(30, 30)
     r.icon:SetPoint("LEFT", 2, 0)
@@ -274,13 +333,14 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r.sub:SetWordWrap(false)
     r:EnableMouse(true)
     r:SetScript("OnEnter", function(self)
+        r.hover:Show()
         local full = S.Cut(r.label)
         if not (full and GameTooltip) then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(full, 1, 0.82, 0)
         GameTooltip:Show()
     end)
-    r:SetScript("OnLeave", S.HideTooltip)
+    r:SetScript("OnLeave", function(self) r.hover:Hide(); S.HideTooltip(self) end)
     function r:SetMarks(list)
         for i, m in ipairs(r.marks) do
             local e = list and list[i]
@@ -295,6 +355,9 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     end
     -- off: dimmed, the plate's name in red; isDefault: Default greyed
     function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
+        if off then r.accent:SetColorTexture(0.62, 0.62, 0.62, 0.35)
+        elseif rgb then r.accent:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.95)
+        else r.accent:SetColorTexture(1, 0.78, 0.25, 0.9) end
         r.pick.label:SetText(name or "")
         if rgb then
             r.pick.icon:SetTexture(nil)

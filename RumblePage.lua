@@ -655,7 +655,8 @@ local function Build(frame, header)
     -- Header: the kind, its switch, the last moment
     ui.seg = {}
     for i, k in ipairs(KINDS) do
-        ui.seg[k[1]] = S.NewButton(header, k[2], 130 + (i - 1) * 74, -3, 72, function() ui.SetKind(k[1]) end, nil, 12, 28)
+        if i == 1 then S.Segments(header, 129, -2, { 72, 72, 72 }, 28) end
+        ui.seg[k[1]] = S.Segment(header, k[2], 130 + (i - 1) * 72, -3, 72, function() ui.SetKind(k[1]) end, 12, 28)
     end
     ui.enable = S.NewCheck(header, "On", W - 70, -4, function(self)
         ENABLE[ui.kind].set(self:GetChecked() == true)
@@ -716,7 +717,11 @@ local function Build(frame, header)
     now:SetPoint("TOPLEFT", 120, -40)
     now:SetSize(LEFT_W - 134, 24)
     local nowTick = CreateFrame("Frame", nil, lb)
-    nowTick:SetScript("OnUpdate", function()
+    local nowAcc = 0
+    nowTick:SetScript("OnUpdate", function(_, elapsed)
+        nowAcc = nowAcc + (elapsed or 0)
+        if nowAcc < 0.05 then return end
+        nowAcc = 0
         local r, g, b, on = H.LedNow()
         if on then now:SetColorTexture(r, g, b, 1) else now:SetColorTexture(0.08, 0.08, 0.08, 1) end
     end)

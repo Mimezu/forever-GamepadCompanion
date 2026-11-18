@@ -5,6 +5,33 @@ ns.OptionsSkin = S
 local FONT = "Fonts\\FRIZQT__.TTF"
 S.GOLD, S.YELLOW, S.GREY, S.DIM = { 0.94, 0.86, 0.69 }, { 1, 0.82, 0 }, { 0.78, 0.78, 0.78 }, { 0.62, 0.62, 0.62 }
 
+-- A gradient on a plain texture (start = left or bottom); the end colour
+-- alone where the client has no gradients
+function S.Gradient(tex, orient, a, b)
+    tex:SetColorTexture(1, 1, 1, 1)
+    if tex.SetGradient and type(CreateColor) == "function" then
+        local ok = pcall(tex.SetGradient, tex, orient, CreateColor(a[1], a[2], a[3], a[4] or 1), CreateColor(b[1], b[2], b[3], b[4] or 1))
+        if ok then return end
+    end
+    tex:SetColorTexture(b[1], b[2], b[3], b[4] or 1)
+end
+
+-- A short fade-in (a page, a popup, the status): one AnimationGroup, made once
+function S.FadeIn(region, duration)
+    if not (region and type(region.CreateAnimationGroup) == "function") then return end
+    local ag = rawget(region, "gpcFade")
+    if type(ag) ~= "table" then
+        ag = region:CreateAnimationGroup()
+        if type(ag) ~= "table" or type(ag.CreateAnimation) ~= "function" then return end
+        local a = ag:CreateAnimation("Alpha")
+        if type(a) ~= "table" or type(a.SetFromAlpha) ~= "function" then return end
+        a:SetFromAlpha(0); a:SetToAlpha(1); a:SetDuration(duration or 0.12)
+        if a.SetSmoothing then a:SetSmoothing("OUT") end
+        region.gpcFade = ag
+    end
+    ag:Stop(); ag:Play()
+end
+
 -- Same standalone Forever atlas artwork as ForeverNames and BindCards.
 local function Texture(frame, atlas, layer, sub)
     local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or 0)
@@ -196,33 +223,133 @@ end
 function S.SetSelected(button, value)
     button.selected = value == true
     if button.selection then button.selection:SetShown(button.selected) end
+    local underline = rawget(button, "underline")
+    if underline then underline:SetShown(button.selected) end
     LabelColor(button)
 end
 
 -- Native check box with a gold label; the label is part of the click area.
+-- On / off as a switch (a track, a knob), its label to the right; still a
+-- CheckButton, so clicks, keys and GetChecked work as before.
+local TRACK_OFF, RIM = { 0.18, 0.15, 0.11, 1 }, { 0.68, 0.5, 0.26, 0.6 }
 function S.NewCheck(parent, label, x, y, onClick, labelWidth)
     local check = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    check:SetSize(26, 26)
+    check:SetSize(34, 26)
     check:SetPoint("TOPLEFT", x, y)
+    -- (the template's box and tick hidden: the switch draws itself)
+    for _, get in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetCheckedTexture", "GetDisabledCheckedTexture" }) do
+        local t = check[get] and check[get](check)
+        if t and t.SetAlpha then t:SetAlpha(0) end
+    end
+    local rim = check:CreateTexture(nil, "BACKGROUND")
+    rim:SetSize(34, 16); rim:SetPoint("LEFT", 0, 0)
+    rim:SetColorTexture(RIM[1], RIM[2], RIM[3], RIM[4])
+    local track = check:CreateTexture(nil, "BORDER")
+    track:SetSize(32, 14); track:SetPoint("LEFT", 1, 0)
+    local knob = check:CreateTexture(nil, "ARTWORK")
+    knob:SetSize(12, 12)
+    knob:SetColorTexture(0.95, 0.9, 0.8, 1)
+    if check.CreateMaskTexture and knob.AddMaskTexture then
+        local mask = check:CreateMaskTexture()
+        if mask then
+            mask:SetAtlas("CircleMask")
+            mask:SetAllPoints(knob)
+            knob:AddMaskTexture(mask)
+        end
+    end
+    local function Update()
+        local on = check:GetChecked() and true or false
+        knob:ClearAllPoints()
+        knob:SetPoint("LEFT", track, "LEFT", on and 19 or 1, 0)
+        if on then S.Gradient(track, "VERTICAL", { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 })
+        else track:SetColorTexture(TRACK_OFF[1], TRACK_OFF[2], TRACK_OFF[3], TRACK_OFF[4]) end
+        check:SetAlpha(check:IsEnabled() and 1 or 0.45)
+    end
+    check.UpdateSwitch = Update
+    local set = check.SetChecked
+    check.SetChecked = function(self, v) set(self, v); Update() end
     local text = type(check.Text) == "table" and check.Text or check:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     text:ClearAllPoints()
-    text:SetPoint("LEFT", check, "RIGHT", 2, 0)
+    text:SetPoint("LEFT", check, "RIGHT", 6, 0)
     text:SetFont(FONT, 12, "")
     text:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
     text:SetText(label)
     check.label = text
     if check.SetHitRectInsets then check:SetHitRectInsets(0, -(labelWidth or 80), 0, 0) end
-    check:SetScript("OnClick", onClick)
+    check:SetScript("OnClick", function(self, ...)
+        if onClick then onClick(self, ...) end
+        Update()
+    end)
     check:SetScript("OnEnter", S.ShowTooltip)
     check:SetScript("OnLeave", S.HideTooltip)
+    if check.HookScript then
+        check:HookScript("OnEnable", Update)
+        check:HookScript("OnDisable", Update)
+    end
+    Update()
     return check
+end
+
+-- One segment of a joined control (S.Segments): no plate of its own, a
+-- warm fill and an underline when selected; works with S.SetSelected.
+function S.Segment(parent, label, x, y, width, action, size, height)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetPoint("TOPLEFT", x, y)
+    b:SetSize(width, height or 26)
+    b.selection = b:CreateTexture(nil, "BACKGROUND")
+    b.selection:SetAllPoints()
+    S.Gradient(b.selection, "VERTICAL", { 0.6, 0.4, 0.1, 0.2 }, { 1, 0.82, 0.3, 0.35 })
+    b.selection:Hide()
+    b.underline = b:CreateTexture(nil, "ARTWORK")
+    b.underline:SetPoint("BOTTOMLEFT", 3, 1); b.underline:SetPoint("BOTTOMRIGHT", -3, 1)
+    b.underline:SetHeight(2)
+    b.underline:SetColorTexture(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3], 0.9)
+    b.underline:Hide()
+    local hover = b:CreateTexture(nil, "HIGHLIGHT")
+    hover:SetAllPoints(); hover:SetColorTexture(1, 0.7, 0.2, 0.08)
+    b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    b.label:SetFont(FONT, size or 12, "")
+    b.label:SetPoint("LEFT", 4, 0); b.label:SetPoint("RIGHT", -4, 0)
+    b.label:SetJustifyH("CENTER")
+    b.label:SetWordWrap(false)
+    b.label:SetText(label)
+    b:SetScript("OnMouseDown", function() b.label:SetPoint("LEFT", 5, -1); b.label:SetPoint("RIGHT", -3, -1) end)
+    b:SetScript("OnMouseUp", function() b.label:SetPoint("LEFT", 4, 0); b.label:SetPoint("RIGHT", -4, 0) end)
+    b:SetScript("OnEnter", S.ShowTooltip)
+    b:SetScript("OnLeave", S.HideTooltip)
+    if b.HookScript then b:HookScript("OnEnable", LabelColor); b:HookScript("OnDisable", LabelColor) end
+    if action then b:SetScript("OnClick", action) end
+    b.segment = true
+    LabelColor(b)
+    return b
+end
+
+-- The well a row of segments sits in: one dark track, a rim, dividers
+function S.Segments(parent, x, y, widths, height)
+    local well = CreateFrame("Frame", nil, parent)
+    well:SetPoint("TOPLEFT", x, y)
+    local total = 0
+    for _, w in ipairs(widths) do total = total + w end
+    well:SetSize(total + 2, (height or 26) + 2)
+    local bg = well:CreateTexture(nil, "BACKGROUND", nil, -3)
+    bg:SetAllPoints(); bg:SetColorTexture(0, 0, 0, 0.35)
+    local rim = Plate(well, "common-button-list-collapseExpand", true)
+    rim:Tint({ 0.85, 0.85, 0.85, 0.7 })
+    local at = 1
+    for i = 1, #widths - 1 do
+        at = at + widths[i]
+        local d = well:CreateTexture(nil, "BORDER")
+        d:SetPoint("TOPLEFT", at, -4); d:SetSize(1, (height or 26) - 6)
+        d:SetColorTexture(0.68, 0.5, 0.26, 0.35)
+    end
+    return well
 end
 
 -- Section heading for the classic look: gold caps and a thin rule.
 function S.Heading(parent, value, x, y, width)
     local label = S.Text(parent, value, x + 4, y, width, 11, S.YELLOW)
     local rule = parent:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(1, 0.82, 0, 0.18)
+    S.Gradient(rule, "HORIZONTAL", { 1, 0.82, 0, 0.45 }, { 1, 0.82, 0, 0 })
     rule:SetHeight(1)
     rule:SetPoint("TOPLEFT", x, y - 16)
     rule:SetWidth(width)
@@ -231,13 +358,14 @@ end
 
 -- Card for the Legacy looks, matching Forever Names: a warm wash, hairline
 -- edges and a title band.
-function S.Card(parent, title, x, y, width, height)
+function S.Card(parent, title, x, y, width, height, icon)
     local card = CreateFrame("Frame", nil, parent)
     card:SetPoint("TOPLEFT", x, y)
     card:SetSize(width, height)
     local wash = card:CreateTexture(nil, "BACKGROUND", nil, -2)
     wash:SetAllPoints()
-    wash:SetColorTexture(0.25, 0.17, 0.085, 0.16)
+    -- (deeper toward the foot)
+    S.Gradient(wash, "VERTICAL", { 0.16, 0.11, 0.05, 0.22 }, { 0.25, 0.17, 0.085, 0.14 })
     local function Line(lx, ly, lw, lh, alpha)
         local line = card:CreateTexture(nil, "BORDER")
         line:SetPoint("TOPLEFT", lx, ly)
@@ -248,7 +376,22 @@ function S.Card(parent, title, x, y, width, height)
     Line(0, 0, width, 1, 0.55); Line(0, -height + 1, width, 1, 0.3)
     Line(0, 0, 1, height, 0.3); Line(width - 1, 0, 1, height, 0.3)
     if title then
-        card.title = S.Text(card, title, 12, -10, width - 24, 12, S.YELLOW)
+        -- a warm title band, a soft shadow under it, an icon before the title
+        local band = card:CreateTexture(nil, "BACKGROUND", nil, -1)
+        band:SetPoint("TOPLEFT", 1, -1); band:SetPoint("TOPRIGHT", -1, -1); band:SetHeight(29)
+        S.Gradient(band, "VERTICAL", { 0.35, 0.24, 0.1, 0 }, { 0.35, 0.24, 0.1, 0.35 })
+        local shade = card:CreateTexture(nil, "BACKGROUND", nil, -1)
+        shade:SetPoint("TOPLEFT", 1, -31); shade:SetPoint("TOPRIGHT", -1, -31); shade:SetHeight(6)
+        S.Gradient(shade, "VERTICAL", { 0, 0, 0, 0 }, { 0, 0, 0, 0.25 })
+        local tx = 12
+        if icon then
+            card.icon = card:CreateTexture(nil, "ARTWORK")
+            card.icon:SetSize(16, 16); card.icon:SetPoint("TOPLEFT", 10, -8)
+            card.icon:SetTexture(icon)
+            if card.icon.SetTexCoord then card.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+            tx = 32
+        end
+        card.title = S.Text(card, title, tx, -10, width - tx - 12, 12, S.YELLOW)
         Line(10, -30, width - 20, 1, 0.25)
     end
     return card

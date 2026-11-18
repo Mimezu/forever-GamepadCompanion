@@ -626,16 +626,18 @@ local function BuildTouchPanel(card)
     end, nil, 11, 24)
     S.Tooltip(tp.move, "Move preview")
     local x = 0
+    S.Segments(p, -1, -31, { 74, 90, 90 }, 24)
     for _, e in ipairs({ { "click", "Click", 74 }, { "tap", "Tap or click", 90 }, { "dual", "Touch + click", 90 } }) do
-        tp.inputs[e[1]] = S.NewButton(p, e[2], x, -32, e[3], function() Touch.SetInput(e[1]) end, nil, 11, 24)
-        x = x + e[3] + 4
+        tp.inputs[e[1]] = S.Segment(p, e[2], x, -32, e[3], function() Touch.SetInput(e[1]) end, 11, 24)
+        x = x + e[3]
     end
     S.Tooltip(tp.inputs.click, "Click")
     S.Tooltip(tp.inputs.tap, "Tap or click", "Taps out of combat only")
     S.Tooltip(tp.inputs.dual, "Touch + click", "Whole pad only")
-    local half = (W - 4) / 2
-    tp.modes.chord = S.NewButton(p, "Whole pad", 0, -62, half, function() Touch.SetMode("chord") end, nil, 11, 24)
-    tp.modes.split = S.NewButton(p, "Right half", half + 4, -62, half, function() Touch.SetMode("split") end, nil, 11, 24)
+    local half = W / 2
+    S.Segments(p, -1, -61, { half, half }, 24)
+    tp.modes.chord = S.Segment(p, "Whole pad", 0, -62, half, function() Touch.SetMode("chord") end, 11, 24)
+    tp.modes.split = S.Segment(p, "Right half", half, -62, half, function() Touch.SetMode("split") end, 11, 24)
     S.Tooltip(tp.modes.chord, "Whole pad", "L1 + pad: Blizzard's")
     S.Tooltip(tp.modes.split, "Right half", "Left half: Blizzard's")
 
@@ -838,25 +840,31 @@ local function Build(frame, header)
     window, body = frame, frame
 
     -- Layers and pages, in the page header
-    local x = 150
-    for _, layer in ipairs(C.LAYERS) do
+    -- (each a joined control: one well, its segments)
+    local x = 170
+    local widths = {}
+    for i, layer in ipairs(C.LAYERS) do widths[i] = layer == "both" and 84 or 64 end
+    S.Segments(header, x - 1, -2, widths, 28)
+    for i, layer in ipairs(C.LAYERS) do
         local glyphs = C.Combo(layer, nil, 14)
         local label = layer == "base" and "Base" or glyphs
-        local width = layer == "both" and 84 or 64
-        ui.layers[layer] = S.NewButton(header, label, x, -3, width, function()
+        ui.layers[layer] = S.Segment(header, label, x, -3, widths[i], function()
             selectedLayer = layer
             Refresh()
-        end, nil, 12, 28)
+        end, 12, 28)
         S.Tooltip(ui.layers[layer], C.LAYER_LABELS[layer])
-        x = x + width + 6
+        x = x + widths[i]
     end
-    local pageX = ART_W - C.PAGES * 40 - 50
+    local pageX = ART_W - C.PAGES * 36 - 50
     ui.pageLabel = S.Text(header, "Page", pageX, -11, 46, 12, S.GOLD)
+    local pw = {}
+    for p = 1, C.PAGES do pw[p] = 36 end
+    S.Segments(header, pageX + 45, -2, pw, 28)
     for p = 1, C.PAGES do
-        ui.pages[p] = S.NewButton(header, tostring(p), pageX + 46 + (p - 1) * 40, -3, 36, function()
+        ui.pages[p] = S.Segment(header, tostring(p), pageX + 46 + (p - 1) * 36, -3, 36, function()
             selectedPage = p
             Refresh()
-        end, nil, 12, 28)
+        end, 12, 28)
         S.Tooltip(ui.pages[p], "Page " .. p, "Bar slots only")
     end
 

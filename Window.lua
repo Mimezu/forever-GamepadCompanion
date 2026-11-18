@@ -37,7 +37,29 @@ function Shell.SetStatus(text, sticky)
     local now = GetTime and GetTime() or 0
     if sticky then statusUntil = now + 5
     elseif statusUntil and now < statusUntil then return end
-    window.status:SetText(text or "")
+    text = text or ""
+    window.status:SetText(text)
+    -- a dot: orange for a warning, green for what just happened
+    local dot = window.statusDot
+    if dot then
+        local warn = text:find("|cffff7a5c", 1, true) == 1
+        dot:SetShown(text ~= "")
+        if warn then dot:SetColorTexture(1, 0.48, 0.36, 1) else dot:SetColorTexture(0.35, 0.85, 0.4, sticky and 1 or 0.5) end
+    end
+    if sticky and text ~= "" then S.FadeIn(window.status, 0.15) end
+end
+
+-- The WoW Helper chip: linked and read (green), linked, nothing read yet (orange), off (grey)
+function Shell.RefreshLink()
+    local chip = window and window.link
+    if not chip then return end
+    local K, C = ns.HelperLink, ns.HelperCues
+    local on = K and K.Enabled()
+    local data = on and C and type(C.HelperData) == "function" and C.HelperData()
+    if data then chip.dot:SetColorTexture(0.35, 0.85, 0.4, 1)
+    elseif on then chip.dot:SetColorTexture(1, 0.62, 0.25, 1)
+    else chip.dot:SetColorTexture(0.5, 0.5, 0.5, 1) end
+    S.Tooltip(chip, "WoW Helper", data and "Linked" or on and "Not read yet" or "Off")
 end
 
 function Shell.Window() return window end
@@ -65,8 +87,16 @@ local function Page(key)
     page.header:SetPoint("TOPLEFT", 0, 0)
     page.header:SetSize(Shell.W, HEADER - 6)
     page.header:Hide()
+    local glyph = page.header:CreateTexture(nil, "ARTWORK")
+    glyph:SetSize(22, 22)
+    glyph:SetPoint("LEFT", 4, 0)
+    if def.atlas then glyph:SetAtlas(def.atlas) else
+        glyph:SetTexture(def.icon)
+        if glyph.SetTexCoord then glyph:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+    end
+    page.glyph = glyph
     local title = page.header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("LEFT", 4, 0)
+    title:SetPoint("LEFT", glyph, "RIGHT", 8, 0)
     title:SetText(def.name)
     page.title = title
     if def.sub then
@@ -94,6 +124,7 @@ function Shell.Select(key)
         p.header:SetShown(on)
     end
     for k, tab in pairs(tabs) do tab.selected:SetShown(k == key) end
+    if current ~= key then S.FadeIn(page.frame, 0.12); S.FadeIn(page.header, 0.12) end
     current = key
     statusUntil = nil
     Shell.SetStatus("")
@@ -198,12 +229,30 @@ local function Build()
     window.version:SetPoint("BOTTOMRIGHT", -(inset.right + 112), inset.bottom + 14)
     window.version:SetJustifyH("RIGHT")
     if ns.ProfileMenu and ns.Profiles then ns.ProfileMenu.Build(window, window.version) end
+    -- the status's dot, and the WoW Helper chip left of the profiles
+    window.statusDot = window:CreateTexture(nil, "ARTWORK")
+    window.statusDot:SetSize(7, 7)
+    window.statusDot:SetPoint("RIGHT", window.status, "LEFT", -5, 0)
+    window.statusDot:Hide()
+    local chipAnchor = ns.ProfileMenu and ns.ProfileMenu.chips and ns.ProfileMenu.chips[#ns.ProfileMenu.chips] or window.version
+    local link = CreateFrame("Button", nil, window)
+    link:SetSize(96, 22)
+    link:SetPoint("RIGHT", chipAnchor, "LEFT", -10, 0)
+    link.dot = link:CreateTexture(nil, "ARTWORK")
+    link.dot:SetSize(7, 7); link.dot:SetPoint("LEFT", 4, 0)
+    link.text = S.Text(link, "WoW Helper", 0, 0, 80, 11, S.GREY)
+    link.text:ClearAllPoints(); link.text:SetPoint("LEFT", link.dot, "RIGHT", 5, 0)
+    link:SetScript("OnClick", function() Shell.Open("setup") end)
+    link:SetScript("OnEnter", S.ShowTooltip)
+    link:SetScript("OnLeave", S.HideTooltip)
+    window.link = link
     window.close = S.NewButton(window, "Close", 0, 0, 100, function() window:Hide() end)
     window.close:ClearAllPoints()
     window.close:SetPoint("BOTTOMRIGHT", -inset.right, inset.bottom + 6)
 
     window:SetScript("OnShow", function()
         if ns.ProfileMenu then ns.ProfileMenu.Refresh() end
+        Shell.RefreshLink()
         -- (what happened to the profiles at login, once)
         local note = ns.Profiles and ns.Profiles.state.note
         if note then
