@@ -295,20 +295,32 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         x = x - 34
         r.try = S.NewButton(r, "Try", x, -5, 32, function()
             onTry()
+            r:Flash()
             if Shell.PadPresent and Shell.PadPresent() == false then Shell.SetStatus("|cffff7a5cNo pad|r", true) end
         end, nil, 11, 30)
         S.Tooltip(r.try, "Try", label)
         x = x - 4
     end
+    -- the volume: a chip ("80%") after the plate; a click opens its slider
+    local plateW = 136
     if opts.level then
-        x = x - 124
+        x = x - 54
         local lv = opts.level
-        lv.labelWidth, lv.width = 0, 122
-        r.level = HUI.Stepper(opts.pg, r, "", x, -8, lv)
+        r.level = S.NewButton(r, "", x, -5, 52, function(self) HUI.LevelPopover(self, lv, label, opts.pg) end, nil, 11, 30)
+        r.level.value = r.level.label
+        -- (a row not filled yet has no value to show)
+        local function Show()
+            local ok, v = pcall(lv.get)
+            if ok and v then r.level.label:SetText((lv.format or tostring)(v)) end
+        end
+        if opts.pg then opts.pg.refresh[#opts.pg.refresh + 1] = Show end
+        Show()
+        S.Tooltip(r.level, "Volume")
         x = x - 6
+        plateW = 200
     end
-    x = x - 136
-    r.pick = S.NewButton(r, "", x, -5, 136, nil, nil, 11, 30)
+    x = x - plateW
+    r.pick = S.NewButton(r, "", x, -5, plateW, nil, nil, 11, 30)
     r.pick.icon = r.pick:CreateTexture(nil, "OVERLAY")
     r.pick.icon:SetSize(20, 20)
     r.pick.icon:SetPoint("LEFT", 6, 0)
@@ -359,7 +371,33 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         end
     end
     -- off: dimmed, the plate's name in red; isDefault: Default greyed
+    -- (the plate flashes gold 0.4 s: Try, Default, a pick)
+    function r:Flash()
+        if not r.flash then
+            r.flash = r.pick:CreateTexture(nil, "OVERLAY", nil, 2)
+            r.flash:SetPoint("TOPLEFT", 3, -3); r.flash:SetPoint("BOTTOMRIGHT", -3, 3)
+            r.flash:SetColorTexture(1, 0.8, 0.3, 0.45)
+            if r.flash.SetBlendMode then r.flash:SetBlendMode("ADD") end
+            r.flash:SetAlpha(0)
+        end
+        local f = r.flash
+        if type(f.CreateAnimationGroup) ~= "function" then return end
+        local ag = rawget(f, "gpcFlash")
+        if type(ag) ~= "table" then
+            ag = f:CreateAnimationGroup()
+            if type(ag) ~= "table" or type(ag.CreateAnimation) ~= "function" then return end
+            local a = ag:CreateAnimation("Alpha")
+            if type(a) ~= "table" or type(a.SetFromAlpha) ~= "function" then return end
+            a:SetFromAlpha(1); a:SetToAlpha(0); a:SetDuration(0.4)
+            if ag.SetToFinalAlpha then ag:SetToFinalAlpha(true) end
+            f.gpcFlash = ag
+        end
+        ag:Stop(); ag:Play()
+    end
     function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
+        -- (a new choice, not the first draw: a pick or Default)
+        if r.shown ~= nil and r.shown ~= name then r:Flash() end
+        r.shown = name
         if off then r.accent:SetColorTexture(0.62, 0.62, 0.62, 0.35)
         elseif rgb then r.accent:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.95)
         else r.accent:SetColorTexture(1, 0.78, 0.25, 0.9) end
@@ -489,6 +527,47 @@ function HUI.Audition(side, seconds) TapsStart(side, nil, seconds or 2.5) end
 -- One tap at `level`, after `delay` s (not under the click that asked)
 function HUI.Tap(side, level, delay) TapsStart(side, level, (delay or 0) + 0.05, delay) end
 function HUI.StopTaps() if tapper:IsShown() then TapsOff() end end
+
+-- A row's volume: a small popover with its slider and Default (one, shared)
+local levelPop
+function HUI.LevelPopover(anchor, lv, title, pg)
+    if not levelPop then
+        levelPop = CreateFrame("Frame", "GamepadCompanionLevel", Shell.Window())
+        levelPop:SetFrameStrata("DIALOG")
+        levelPop:SetToplevel(true)
+        levelPop:EnableMouse(true)
+        levelPop:SetSize(300, 112)
+        S.Panel(levelPop)
+        levelPop.title = S.Text(levelPop, "", 14, -12, 240, 13, YELLOW)
+        levelPop.title:SetWordWrap(false)
+        levelPop.lv = {}
+        local proxy = { step = 0.1, min = 0, max = 1, labelWidth = 0, width = 270,
+            format = function(v) return (levelPop.lv.format or tostring)(v) end,
+            get = function() return levelPop.lv.get() end,
+            set = function(v) levelPop.lv.set(v) end }
+        levelPop.proxy = proxy
+        levelPop.stepper = HUI.Stepper(pg, levelPop, "", 14, -44, proxy)
+        levelPop.default = S.NewButton(levelPop, "Default", 14, -76, 80, function()
+            if levelPop.lv.default then levelPop.lv.default(); pg.Refresh() end
+        end, nil, 11, 24)
+        levelPop:Hide()
+        S.Popup(levelPop, "GamepadCompanionLevel", { outside = true })
+    end
+    if levelPop:IsShown() and levelPop.anchor == anchor then return levelPop:Hide() end
+    levelPop.anchor, levelPop.lv = anchor, lv
+    local p = levelPop.proxy
+    p.step, p.min, p.max = lv.step or 0.1, lv.min or 0, lv.max or 1
+    levelPop.title:SetText(title or "Volume")
+    levelPop.default:SetShown(lv.default ~= nil)
+    levelPop:ClearAllPoints()
+    levelPop:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -4)
+    levelPop:SetClampedToScreen(true)
+    levelPop:Show()
+    levelPop:Raise()
+    if levelPop.stepper.Update then levelPop.stepper:Update() end
+    S.FadeIn(levelPop, 0.1)
+end
+HUI.LevelPop = function() return levelPop end
 
 -- A text box in a small window (Lab's export, a profile's name, Share)
 local textWin
@@ -628,7 +707,18 @@ function HUI.JustFelt(header, right, kind, opts)
             if e then opts.jump(e.key, k) end
         end, 1, 300)
     end)
-    S.Tooltip(chip, CAPTION.feel, "Click: the last 10")
+    -- Again: a right-click plays the last moment once more
+    if chip.RegisterForClicks then chip:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+    local click = chip:GetScript("OnClick")
+    chip:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            local e = Latest()
+            if e and opts.again then opts.again(e.key, kind()) end
+            return
+        end
+        click(self, button)
+    end)
+    S.Tooltip(chip, CAPTION.feel, "Click: the last 10 · Right-click: again")
     if D and D.Listen then
         D.Listen(function(e) if e.kind == kind() and header:IsVisible() then chip.Update(true) end end)
     end
@@ -693,6 +783,16 @@ function HUI.Palette(parent, x, y, w, h, opts)
             if self.key and opts.onPick then opts.onPick(self.key, button) end
             pal:Update()
         end)
+        -- (hovered 300 ms: it plays faint, once; the pick plays it full)
+        t:SetScript("OnEnter", function(self)
+            pal.hovered = self
+            if not (C_Timer and C_Timer.After) then return end
+            C_Timer.After(0.3, function()
+                local f = pal.hovered == self and self.key and self.key ~= "off" and H.Feel(self.key)
+                if f then pcall(H.Play, f, { voice = "preview", gain = 0.5 }) end
+            end)
+        end)
+        t:SetScript("OnLeave", function(self) if pal.hovered == self then pal.hovered = nil end end)
         list[i] = t
         return t
     end

@@ -51,6 +51,34 @@ function Shell.SetStatus(text, sticky)
     if sticky and text ~= "" then S.FadeIn(window.status, 0.15) end
 end
 
+-- A status with an action beside it for a while ("…: as it ships · Undo", 5 s)
+function Shell.Offer(text, action, fn, seconds)
+    if not window then return end
+    Shell.SetStatus(text, true)
+    local b = window.offer
+    if not b then
+        b = S.NewButton(window, "", 0, 0, 60, nil, nil, 11, 22)
+        window.offer = b
+    end
+    b.label:SetText(action)
+    b:ClearAllPoints()
+    local w = window.status:GetStringWidth()
+    b:SetPoint("LEFT", window.status, "LEFT", (type(w) == "number" and w or 120) + 10, 0)
+    b:SetScript("OnClick", function() b:Hide(); fn(); Shell.SetStatus(text:gsub(":.*$", "") .. ": back", true) end)
+    b:Show()
+    b.until_ = (GetTime and GetTime() or 0) + (seconds or 5)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(seconds or 5, function()
+            if (GetTime and GetTime() or 0) >= (b.until_ or 0) - 0.05 then b:Hide() end
+        end)
+    end
+end
+
+-- The WoW Helper chip, once a little brighter: where to look
+function Shell.PulseLink()
+    if window and window.link then S.FadeIn(window.link, 0.5) end
+end
+
 -- What the addon knows of WoW Helper: its data file read at login (when),
 -- not read, or the link off. Never "Linked": only the helper can say that.
 -- Returns the words after "WoW Helper · " and a state: read, unread, off.

@@ -38,7 +38,8 @@ local GROUPS = {
     { key = "Attacks", items = { { "r", "autoAttack" }, { "l", "hit" }, { "r", "crit" }, { "r", "critRanged" }, { "r", "shot" }, { "r", "instant" },
         { "l", "miss" }, { "l", "targetDodge" }, { "l", "targetParry" }, { "l", "targetBlock" }, { "l", "kill" } } },
     { key = "Defense", items = { { "l", "hitTaken" }, { "r", "critted" }, { "l", "dodge" }, { "l", "parry" }, { "l", "block" },
-        { "l", "missedYou" }, { "r", "lowHp" }, { "l", "heartbeat" }, { "l", "control" }, { "l", "targetCast" }, { "l", "aggro" } } },
+        { "l", "missedYou" }, { "r", "lowHp" }, { "l", "heartbeat" }, { "l", "control" }, { "l", "targetCast" }, { "l", "aggro" },
+        { "l", "death" }, { "l", "alive" } } },
     { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" } } },
     { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
@@ -46,9 +47,10 @@ local GROUPS = {
     { key = "Care", items = { { "r", "eat" }, { "r", "drink" }, { "l", "bandage" }, { "l", "potion" }, { "l", "rested" } } },
     { key = "Weather", items = { { "l", "rain" }, { "l", "thunder" }, { "l", "snow" }, { "l", "sand" }, { "l", "embers" } } },
     { key = "Progress", items = { { "r", "levelUp" }, { "l", "loot" }, { "l", "money" }, { "l", "questAccepted" },
-        { "l", "questDone" }, { "l", "skillUp" }, { "l", "death" }, { "l", "alive" } } },
-    { key = "Social", items = { { "l", "whisper" }, { "l", "readyCheck" }, { "l", "invite" }, { "l", "summon" }, { "l", "uiError" },
-        { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" } } },
+        { "l", "questDone" }, { "l", "skillUp" } } },
+    { key = "Social", items = { { "l", "whisper" }, { "l", "readyCheck" }, { "l", "invite" }, { "l", "summon" } } },
+    -- (the game's own interface: the Halo ring, the error buzz)
+    { key = "Interface", items = { { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" }, { "l", "uiError" } } },
 }
 ui.GROUPS = GROUPS
 
@@ -66,7 +68,8 @@ local function Volume(kind)
         local get = kind == "feel" and Vol.Feel or Vol.Sound
         local set = kind == "feel" and Vol.SetFeel or Vol.SetSound
         return { step = Vol.STEP, min = 0, max = 1, format = Vol.Pct, get = function() return get(key) end,
-            set = function(v) set(key, v) end }
+            set = function(v) set(key, v) end,
+            default = function() set(key, kind == "feel" and Vol.FeelDefault(key) or 1) end }
     end
 end
 
@@ -240,10 +243,11 @@ local LIGHT_ICON = "Interface\\Icons\\Spell_Nature_Lightning"
 local LIGHT_GROUP = {
     crit = "Attacks", kill = "Attacks",
     critTaken = "Defense", hitTaken = "Defense", avoid = "Defense",
-    release = "Abilities", interrupted = "Abilities", instant = "Abilities",
-    levelUp = "Progress", questDone = "Progress", loot = "Progress", death = "Progress", alive = "Progress",
-    whisper = "Social", readyCheck = "Social", invite = "Social", haloUse = "Social",
+    release = "Abilities", interrupted = "Abilities", instant = "Attacks", death = "Defense", alive = "Defense",
+    levelUp = "Progress", questDone = "Progress", loot = "Progress",
+    whisper = "Social", readyCheck = "Social", invite = "Social", haloUse = "Interface", halo = "Interface",
 }
+ui.LIGHT_GROUP = LIGHT_GROUP
 -- (the states — Low health, Casting, In combat, Movement… — are the States list: the stack)
 -- a feel moment's light (several feels can share one light)
 local LIGHT_OF = {
@@ -252,6 +256,7 @@ local LIGHT_OF = {
     haloUse = "haloUse", levelUp = "levelUp", questDone = "questDone", loot = "loot", death = "death", alive = "alive",
     whisper = "whisper", readyCheck = "readyCheck", invite = "invite",
 }
+ui.LIGHT_OF = LIGHT_OF
 -- and back: a light's first feel moment
 local FEEL_OF = {}
 for _, g in ipairs(GROUPS) do
@@ -425,6 +430,44 @@ local function VolumeDefault(kind, key, check)
     return true
 end
 
+-- What Default changes, kept to put back (Undo): the moment's choice and its volume
+local function Copy(t)
+    if type(t) ~= "table" then return t end
+    local o = {}
+    for k, v in pairs(t) do o[k] = Copy(v) end
+    return o
+end
+local function Snapshot(kind, key)
+    local back
+    if kind == "r" then
+        local cfg = V.Settings().events[key]
+        local on, pattern = cfg.on, cfg.pattern
+        back = function() cfg.on, cfg.pattern = on, pattern end
+    elseif kind == "c" then
+        local preset = V.CastPreset(key)
+        back = function() V.SetCastPreset(key, preset) end
+    elseif kind == "l" then
+        local s = L.EventSettings(key)
+        local on, feel = s.on, s.feel
+        back = function() s.on, s.feel = on, feel end
+    elseif kind == "sound" then
+        local id = C.MomentSound(key)
+        back = function() C.SetMomentSound(key, id or false) end
+    elseif kind == "light" then
+        local db = H.DB().lightEvents
+        local own = db and Copy(db[key])
+        back = function() if db then db[key] = Copy(own) end end
+    end
+    local Vol, k = ns.Volume, KIND_OF[kind]
+    local feelVol = Vol and k == "feel" and Vol.Feel(key)
+    local soundVol = Vol and k == "sound" and Vol.Sound(key)
+    return function()
+        if back then back() end
+        if feelVol then Vol.SetFeel(key, feelVol) end
+        if soundVol then Vol.SetSound(key, soundVol) end
+    end
+end
+
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
@@ -433,6 +476,11 @@ local function MakeRow(parent, y, width, kind, key)
         if ui.ToHelper() then
             local ok = C.EditHD(key)
             if ok then return Say(label .. ": in WoW Helper") end
+        end
+        -- (Shape without WoW Helper, Lab off: where to go)
+        if not H.DB().lab then
+            if Shell.PulseLink then Shell.PulseLink() end
+            return Say("Start WoW Helper · Setup", true)
         end
         local feel, name = I.feel(key)
         if not feel then return Say("Pick a feel first", true) end
@@ -461,10 +509,12 @@ local function MakeRow(parent, y, width, kind, key)
         end, I.specials(key), label)
     end, function() I.try(key) end, I.tip(key), {
         default = function()
+            local undo = Snapshot(kind, key)
             I.default(key)
             VolumeDefault(kind, key)
-            Say(label .. ": its default")
             Refresh()
+            -- (as it ships, and Undo for 5 s)
+            Shell.Offer(label .. ": as it ships", "Undo", function() undo(); Refresh() end)
         end,
         edit = I.feel and Edit or nil,
         editLabel = "Shape",
@@ -577,7 +627,22 @@ local function StateRow(card, cw, i, o)
     r = HUI.MomentRow(card, -38 - (i - 1) * STATE_STEP, cw, nil, "", function(anchor)
         o.pick(anchor, key())
     end, o.try and function() o.try(key()) end or nil, nil, {
-        default = function() o.default(key()); Refresh() end,
+        default = function()
+            -- (as it ships, and Undo for 5 s: the row as it was, kept)
+            local k = key()
+            local kind = o.kind and o.kind()
+            local live = kind and kind.Row and kind:Row(k)
+            local was = Copy(live)
+            o.default(k)
+            Refresh()
+            if live then
+                Shell.Offer((r.label:GetText() or "") .. ": as it ships", "Undo", function()
+                    for f in pairs(live) do live[f] = nil end
+                    for f, v in pairs(Copy(was)) do live[f] = v end
+                    Refresh()
+                end)
+            end
+        end,
         clear = function()
             o.kind():Remove(key())
             Say("Removed")
@@ -1382,6 +1447,13 @@ local function Build(frame, header)
     ui.recent = HUI.JustFelt(header, W - 90, function() return ui.kind end, {
         icon = function(key, kind) return kind == "light" and FEEL_OF[key] and IconOf(FEEL_OF[key]) or IconOf(key) end,
         jump = function(key, kind) Jump(key, kind) end,
+        -- (Again: the last moment's Try, at its own volume)
+        again = function(key, kind)
+            for _, row in ipairs(ui.rows) do
+                if row.key == key and KIND_OF[row.kind] == kind then return ITEM[row.kind].try(key) end
+            end
+            if ui.TryMoment then ui.TryMoment(key) end
+        end,
     })
 
     -- Left: the kind's master, then the groups
@@ -1486,6 +1558,19 @@ local function Build(frame, header)
           end
         end
     end
+    -- sounds while the link is off: one card where the groups go
+    ui.soundOff = S.Card(frame, nil, LEFT_W + 10, 0, cw, PH)
+    if ui.soundOff.SetFrameLevel then ui.soundOff:SetFrameLevel((frame:GetFrameLevel() or 0) + 30) end
+    ui.soundOff:EnableMouse(true)
+    local bell = ui.soundOff:CreateTexture(nil, "ARTWORK")
+    bell:SetTexture(BELL); bell:SetSize(48, 48); bell:SetPoint("CENTER", 0, 70)
+    local t1 = S.Text(ui.soundOff, "Sounds play on the pad's speaker", 0, 0, cw - 40, 15, S.YELLOW)
+    t1:ClearAllPoints(); t1:SetPoint("TOP", bell, "BOTTOM", 0, -16); t1:SetJustifyH("CENTER")
+    local t2 = S.Text(ui.soundOff, "Needs WoW Helper", 0, 0, cw - 40, 12, S.GREY)
+    t2:ClearAllPoints(); t2:SetPoint("TOP", t1, "BOTTOM", 0, -8); t2:SetJustifyH("CENTER")
+    ui.soundOff.setup = S.NewButton(ui.soundOff, "Setup", 0, 0, 120, function() Shell.Open("setup") end, nil, 13, 32)
+    ui.soundOff.setup:ClearAllPoints(); ui.soundOff.setup:SetPoint("TOP", t2, "BOTTOM", 0, -18)
+    ui.soundOff:Hide()
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
     if b.panels.states then ui.BuildStates(b.panels.states, cw) end
     if b.panels.triggers then
@@ -1514,6 +1599,11 @@ Refresh = function()
     ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
     ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on: Companion stays off" or "")
     local toHelper = ui.ToHelper()
+    if ui.soundOff then
+        local blocked = kind == "sound" and not (K and K.Enabled())
+        ui.soundOff:SetShown(blocked)
+        if ui.browser and ui.browser.panelsFrame then ui.browser.panelsFrame:SetShown(not blocked) end
+    end
     for _, row in ipairs(ui.rows) do
         local I = ITEM[row.kind]
         local name, icon, sub, off, rgb = I.show(row.key)
@@ -1522,11 +1612,12 @@ Refresh = function()
         if row.level then row.level:SetShown(not off) end
         if row.try then row.try:SetShown(not off) end
         if row.edit then
-            -- the word follows where it goes: Shape in WoW Helper, Edit in Lab (only with Lab on)
-            row.edit:SetShown(toHelper or H.DB().lab == true)
-            local word = toHelper and "Shape" or "Edit"
+            -- Shape, always: in WoW Helper; dim when it can't go there (Edit in Lab when Lab is on)
+            local lab = not toHelper and H.DB().lab == true
+            local word = lab and "Edit" or "Shape"
             row.edit.label:SetText(word)
-            S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or "In Lab")
+            row.edit:SetAlpha((toHelper or lab) and 1 or 0.45)
+            S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or lab and "In Lab" or "Needs WoW Helper")
         end
         row:SetMarks(Marks(row))
         local rk = KIND_OF[row.kind]

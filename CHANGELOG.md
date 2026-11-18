@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.51.1 — 2026-11-18
+
+- **Shape, always there**: dim when WoW Helper can't take it; a click says "Start WoW Helper · Setup" and the footer's WoW Helper chip brightens once (Lab on: Edit, as before)
+- **Sounds with the link off**: one card where the groups go, **Sounds play on the pad's speaker** · Needs WoW Helper · **Setup**, not 60 dim rows
+- **Default, then Undo**: "Critical hit: as it ships · **Undo**" for 5 s (its choice and its volume back); the same for States › Default
+- **The plate flashes gold** (0.4 s) on Try, Default and a pick
+- **Volume as a chip**: "80%" after the plate, a click opens its slider with Default; the plate grows to 200 px
+- **Feels hovered 300 ms play faint** (half), once; the pick plays full
+- **Again**: a right-click on Just felt plays the last moment once more
+- **Groups**: a new **Interface** group (Halo ring open, tick, use, close; Error); Death and Alive in **Defense**; Instant's light with its feel in Attacks. One group per moment across Feel, Light and Sound (a test)
+
 ## 0.51.0 — 2026-11-18
 
 - **Hush**: a chip in the footer. Feels at 30 %, the light at rest, triggers free, no sounds. Right-click: also while resting

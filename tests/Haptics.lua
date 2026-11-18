@@ -925,6 +925,40 @@ do
     assert(ns.HelperCues.MomentSound("loot") == nil, "None")
     loot.default.scripts.OnClick(loot.default)
     assert(ns.HelperCues.MomentSound("loot") ~= nil, "back to its coin")
+    -- Default: as it ships, and Undo for a while
+    local offer = ns.ShellWindow().offer
+    assert(offer and offer:IsShown() and offer.label.text == "Undo", "as it ships · Undo")
+    offer.scripts.OnClick(offer)
+    assert(ns.HelperCues.MomentSound("loot") == nil, "Undo: None again")
+    loot.default.scripts.OnClick(loot.default)
+    -- one group per moment, whichever kind: feel, light and sound agree
+    do
+        local groupOf = {}
+        for _, g in ipairs(M.GROUPS) do for _, item in ipairs(g.items) do groupOf[item[2]] = g.key end end
+        for _, m in ipairs(ns.HelperCues.MOMENTS) do
+            if groupOf[m[1]] then assert(groupOf[m[1]] == m[2], m[1] .. ": sound in " .. m[2] .. ", feel in " .. groupOf[m[1]]) end
+        end
+        for feel, light in pairs(M.LIGHT_OF) do
+            local lg = M.LIGHT_GROUP[light]
+            if lg and groupOf[feel] and M.LIGHT_OF[feel] == light then
+                -- (a light several feels share sits with its first)
+                local first
+                for _, g in ipairs(M.GROUPS) do for _, item in ipairs(g.items) do
+                    if not first and M.LIGHT_OF[item[2]] == light then first = g.key end
+                end end
+                assert(lg == first, light .. ": light in " .. lg .. ", its feel in " .. tostring(first))
+            end
+        end
+        assert(groupOf.haloOpen == "Interface" and groupOf.uiError == "Interface" and groupOf.death == "Defense", "Interface; Death in Defense")
+    end
+    -- the link off: one card, not dim rows
+    local wasOn = ns.HelperLink.Enabled()
+    ns.HelperLink.SetEnabled(false)
+    ns.Shell.Refresh()
+    assert(M.soundOff:IsShown(), "sounds, link off: Needs WoW Helper")
+    ns.HelperLink.SetEnabled(wasOn)
+    ns.Shell.Refresh()
+    assert(not M.soundOff:IsShown() or not wasOn, "link on: the rows")
     -- The last moment: its row found
     M.SetKind("feel")
     ns.HapticsDebug.Note("Defense · Hit taken: Thud", "hitTaken", "feel", "Hit taken", "Thud")
@@ -940,19 +974,24 @@ do
     M.SetKind("light")
     assert(M.recent.caption.text == "Just lit" and M.recent.choice.text == "Flash", "Light: what last lit")
     M.SetKind("feel")
-    -- Edit with WoW Helper's data but the link off: Lab's editor all the same; reopening skips a hidden Lab
+    -- Shape, always there: the link off and Lab off, dim, and a click says where to go;
+    -- Lab on: Edit, Lab's editor; reopening skips a hidden Lab
     WowHelperData = { at = "18:02" }
     ns.HelperLink.SetEnabled(false)
     API.SetLab(false)
     M.SetKind("feel")
-    for _, f in ipairs(created) do
-        if rawget(f, "edit") and rawget(f, "key") == "critted" then f.edit.scripts.OnClick(f.edit) end
-    end
-    assert(ns.Shell.Current() == "lab", "link off: Lab's editor")
-    ns.Shell.Open("moments")
     local crittedRow
     for _, r in ipairs(M.rows) do if r.kind == "r" and r.key == "critted" then crittedRow = r end end
-    assert(crittedRow.edit.label.text == "Edit", "link off: Edit (Lab)")
+    assert(crittedRow.edit.label.text == "Shape" and crittedRow.edit:IsShown(), "Shape always there")
+    crittedRow.edit.scripts.OnClick(crittedRow.edit)
+    assert(ns.Shell.Current() == "moments" and ns.ShellWindow().status.text:find("Start WoW Helper", 1, true), "Shape: Start WoW Helper · Setup")
+    API.SetLab(true)
+    ns.Shell.Open("moments")
+    crittedRow.edit.scripts.OnClick(crittedRow.edit)
+    assert(ns.Shell.Current() == "lab", "Lab on: Lab's editor")
+    ns.Shell.Open("moments")
+    assert(crittedRow.edit.label.text == "Edit", "Lab on: Edit (Lab)")
+    API.SetLab(false)
     ns.HelperLink.SetEnabled(true)
     ns.Shell.Refresh()
     assert(crittedRow.edit.label.text == (ns.HelperLink.V2() and "Shape" or "Edit"), "linked: Shape (WoW Helper)")
@@ -1083,7 +1122,11 @@ do
     local lootRow
     for _, r in ipairs(M.rows) do if r.kind == "sound" and r.key == "loot" then lootRow = r end end
     assert(lootRow.level and lootRow.level.value.text == "100%", "loot: 100%")
-    lootRow.level.minus.scripts.OnClick(lootRow.level.minus)
+    -- (the volume chip opens its slider)
+    lootRow.level.scripts.OnClick(lootRow.level)
+    local pop = ns.HapticsUI.LevelPop()
+    pop.stepper.minus.scripts.OnClick(pop.stepper.minus)
+    pop:Hide()
     assert(math.abs(Vol.Sound("loot") - 0.9) < 1e-9 and lootRow.level.value.text == "90%", "loot: 90%")
     Vol.SetSound("loot", 1)
     M.SetKind("feel")

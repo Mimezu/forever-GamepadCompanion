@@ -39,13 +39,13 @@ C.MOMENTS = {
     { "rain", "Weather" }, { "thunder", "Weather" }, { "snow", "Weather" }, { "sand", "Weather" },
     { "embers", "Weather" },
     { "levelUp", "Progress" }, { "loot", "Progress" }, { "money", "Progress" }, { "questAccepted", "Progress" },
-    { "questDone", "Progress" }, { "skillUp", "Progress" }, { "death", "Progress" }, { "alive", "Progress" },
+    { "questDone", "Progress" }, { "skillUp", "Progress" }, { "death", "Defense" }, { "alive", "Defense" },
     { "whisper", "Social" }, { "readyCheck", "Social" }, { "invite", "Social" }, { "summon", "Social" },
-    { "uiError", "Social" }, { "haloOpen", "Social" }, { "wheelTick", "Social" }, { "haloUse", "Social" },
-    { "haloClose", "Social" },
+    { "uiError", "Interface" }, { "haloOpen", "Interface" }, { "wheelTick", "Interface" }, { "haloUse", "Interface" },
+    { "haloClose", "Interface" },
     -- light-only moments (Lights.lua keys; the others share Rumble's and the engine's), 69-75
     { "critTaken", "Defense" }, { "avoid", "Defense" }, { "combat", "Defense" }, { "cast", "Abilities" },
-    { "release", "Abilities" }, { "interrupted", "Abilities" }, { "halo", "Social" },
+    { "release", "Abilities" }, { "interrupted", "Abilities" }, { "halo", "Interface" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
