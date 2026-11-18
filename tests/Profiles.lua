@@ -145,7 +145,7 @@ Logout()
 P = Login("Dahlia", "Noir", "ROGUE")
 h = GamepadCompanionHapticsDB
 check(P.Current("feel") == "Dahlia" and P.state.note:find("Recommended", 1, true), "a new rogue: Recommended, said once")
-check(h.events.hit.on == false and h.events.combo.on == true and h.link.cues.clips == false, "the calm set, combo points for a rogue")
+check(h.events.hit.on == false and h.events.combo.on == true, "the calm set, combo points for a rogue")
 check(type(GamepadCompanionCharDB) == "table" and GamepadCompanionCharDB.keys == nil, "fresh controls")
 Logout()
 P = Login("Brann", "Noir", "PALADIN")

@@ -128,6 +128,9 @@ function T.LoadHelper()
         end
     end
     if type(d.linkLatency) == "number" then T.SetLinkLatency(d.linkLatency) end
+    -- the pad's link (USB, Bluetooth) and its pad delay, as WoW Helper found them
+    T.Store().link = (d.link == "usb" or d.link == "bt") and d.link or nil
+    T.Store().padDelay = (type(d.padDelay) == "number" and d.padDelay > 0) and min(0.2, d.padDelay) or nil
     return n
 end
 
@@ -160,18 +163,30 @@ end
 -- taken off whatever the addon schedules ahead (WoW Helper reports it:
 -- T.SetLinkLatency). Feels sent at once can't go out early.
 ---------------------------------------------------------------------------
+-- WoW Helper's link to the pad: "usb", "bt" or nil (not read yet)
+function T.Link() return T.Store().link end
+
 function T.SetLinkLatency(seconds)
     T.Store().linkLatency = (type(seconds) == "number" and seconds > 0) and min(0.5, seconds) or nil
 end
 
 -- (the game's own vibration lands a little after SetVibration: up to a
 -- frame, ~16 ms, and Bluetooth, ~12 ms; WoW Helper's: the strip drawn and
--- read, its air and actuator, until it publishes what it measured)
-T.MOTOR_LEAD, T.LINK_DEFAULT = 0.03, 0.03
+-- read, its air and actuator, until it publishes what it measured: the
+-- whole link once it has cues, else its pad delay for the link, USB or BT)
+-- (over USB, as WoW Helper found the pad: no Bluetooth part, a frame and the poll)
+T.MOTOR_LEAD, T.LINK_DEFAULT, T.MOTOR_LEAD_USB = 0.03, 0.03, 0.018
+local function MotorLead()
+    if T.Store().link == "usb" then return min(T.MOTOR_LEAD, T.MOTOR_LEAD_USB) end
+    return T.MOTOR_LEAD
+end
 function T.Lead()
     local K = ns.HelperLink
-    if K and K.Enabled and K.Enabled() then return max(T.MOTOR_LEAD, T.Store().linkLatency or T.LINK_DEFAULT) end
-    return T.MOTOR_LEAD
+    if K and K.Enabled and K.Enabled() then
+        local s = T.Store()
+        return max(MotorLead(), s.linkLatency or s.padDelay or T.LINK_DEFAULT)
+    end
+    return MotorLead()
 end
 
 -- fn after delay seconds (game time), less the lead; at once when that's 0

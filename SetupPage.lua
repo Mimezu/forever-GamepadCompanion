@@ -37,6 +37,10 @@ local function BuildHelper(frame)
         Refresh()
     end, 90)
     S.Tooltip(link, "Link", "A few pixels bottom left")
+    -- the pad's link as WoW Helper found it (read-only)
+    local via = S.Note(card, COL - 112, -42, 100, 1, 11, GREY)
+    via:SetJustifyH("RIGHT")
+    pg.via = via
     S.Note(card, 12, -72, COL - 24, 2, 11, GREY):SetText("Run WowHelper.exe" .. NL .. "Windowed or borderless")
     -- HD: the setup flow's mode when there, else the cue switch
     local function HD()
@@ -49,16 +53,11 @@ local function BuildHelper(frame)
         C.Refresh()
     end
     Choice(card, "Detail", 12, -108, { { "auto", "Auto" }, { "off", "Off" } }, HD, SetHD)
-    -- (USB: WoW Helper's own short clips for crits, landings, swings)
-    local usb = S.NewCheck(card, "USB feels", 12, -140, function(self)
-        C.Settings().clips = self:GetChecked() == true
-        C.Refresh()
-    end, 120)
-    S.Tooltip(usb, "USB feels", "USB only")
-    local data = S.Note(card, 12, -172, COL - 24, 1, 11, DIM)
+    local data = S.Note(card, 12, -144, COL - 24, 1, 11, DIM)
     pg.refresh[#pg.refresh + 1] = function()
         link:SetChecked(K.Enabled())
-        usb:SetChecked(C.Settings().clips == true)
+        local l = ns.Timing and ns.Timing.Link and ns.Timing.Link()
+        via:SetText(l == "usb" and "USB" or l == "bt" and "Bluetooth" or "")
         local d = type(C.Data) == "function" and C.Data() or nil
         if d and d.at then
             local sounds = tonumber(d.sounds) or 0

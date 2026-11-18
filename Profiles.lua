@@ -37,7 +37,6 @@ P.RECOMMENDED = {
     events = { hit = false, miss = false, targetDodge = false, targetParry = false, targetBlock = false, dodge = false,
         parry = false, missedYou = false, hitTaken = false, aggro = false, targetCast = false, gcd = false,
         combo = false, full = false, tension = false, heartbeat = false, rested = false, riding = false, oom = false },
-    cues = { clips = false },
 }
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
