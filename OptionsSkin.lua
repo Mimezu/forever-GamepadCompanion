@@ -5,6 +5,55 @@ ns.OptionsSkin = S
 local FONT = "Fonts\\FRIZQT__.TTF"
 S.GOLD, S.YELLOW, S.GREY, S.DIM = { 0.94, 0.86, 0.69 }, { 1, 0.82, 0 }, { 0.78, 0.78, 0.78 }, { 0.62, 0.62, 0.62 }
 
+-- Skin: "v2" (calm textures inside the native frame: Media\) or "blizzard"
+-- (the flat fills). The flat fills always stay underneath, so a texture that
+-- fails to load leaves today's look. Saved account-wide in
+-- GamepadCompanionHapticsDB.skin (nil: v2).
+local MEDIA = "Interface\\AddOns\\GamepadCompanion\\Media\\"
+S.MEDIA = { background = MEDIA .. "background", surface = MEDIA .. "surface", header = MEDIA .. "header",
+    divider = MEDIA .. "divider" }
+local skinned = {}
+
+function S.Skin()
+    local db = type(GamepadCompanionHapticsDB) == "table" and GamepadCompanionHapticsDB or nil
+    return (db and db.skin == "blizzard") and "blizzard" or "v2"
+end
+
+-- Show or hide every skin texture (and what it covers) at once
+function S.ApplySkin()
+    local on = S.Skin() == "v2"
+    for _, e in ipairs(skinned) do
+        local show = on and not e.failed
+        e.tex:SetShown(show)
+        if e.covers then e.covers:SetShown(not show) end
+    end
+end
+
+function S.SetSkin(v)
+    if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
+    GamepadCompanionHapticsDB.skin = v == "blizzard" and "blizzard" or nil
+    S.ApplySkin()
+end
+
+-- A skin texture on a region: tiled (tile) or stretched; covers: a flat
+-- region it replaces while shown
+function S.SkinTexture(parent, kind, layer, sub, tile, covers)
+    local tex = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sub or 0)
+    local e = { tex = tex, covers = covers }
+    local ok, loaded = pcall(tex.SetTexture, tex, S.MEDIA[kind], tile and "REPEAT" or nil, tile and "REPEAT" or nil)
+    -- (SetTexture says false when the file can't be read: keep the flat look)
+    if not ok or loaded == false then e.failed = true end
+    if tile then
+        if tex.SetHorizTile then tex:SetHorizTile(true) end
+        if tex.SetVertTile then tex:SetVertTile(true) end
+    end
+    skinned[#skinned + 1] = e
+    local on = S.Skin() == "v2" and not e.failed
+    tex:SetShown(on)
+    if covers then covers:SetShown(not on) end
+    return tex
+end
+
 -- A gradient on a plain texture (start = left or bottom); the end colour
 -- alone where the client has no gradients
 function S.Gradient(tex, orient, a, b)
@@ -382,6 +431,8 @@ function S.Card(parent, title, x, y, width, height, icon)
     local card = CreateFrame("Frame", nil, parent)
     card:SetPoint("TOPLEFT", x, y)
     card:SetSize(width, height)
+    local surface = S.SkinTexture(card, "surface", "BACKGROUND", -3, true)
+    surface:SetPoint("TOPLEFT", 1, -1); surface:SetPoint("BOTTOMRIGHT", -1, 1)
     local wash = card:CreateTexture(nil, "BACKGROUND", nil, -2)
     wash:SetAllPoints()
     -- (deeper toward the foot)
@@ -416,7 +467,9 @@ function S.Card(parent, title, x, y, width, height, icon)
             tx = 32
         end
         card.title = S.Text(card, title, tx, -10, width - tx - 12, 12, S.YELLOW)
-        Line(10, -30, width - 20, 1, 0.25)
+        local line = Line(10, -30, width - 20, 1, 0.25)
+        local divider = S.SkinTexture(card, "divider", "BORDER", 1, false, line)
+        divider:SetPoint("TOPLEFT", 10, -29); divider:SetSize(width - 20, 3)
     end
     return card
 end

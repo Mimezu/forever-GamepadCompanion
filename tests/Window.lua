@@ -155,6 +155,20 @@ assert(ns.Shell.Current() == "bars", "first page without the Controller page loa
 assert(tabs.bars.selected.shown and not tabs.tools.selected.shown, "the open page's tab is lit")
 tabs.tools.scripts.OnClick(tabs.tools)
 assert(ns.Shell.Current() == "tools" and find("Spread view: Off") and not find("Pet menu"), "Tools page")
+-- Skin: v2 by default; Blizzard and back, at once
+do
+    local S = ns.OptionsSkin
+    assert(S.Skin() == "v2", "v2 by default")
+    local blizzard = find("Blizzard")
+    for _, f in ipairs(created) do
+        if type(rawget(f, "label")) == "table" and f.label.text == "Blizzard" and rawget(f, "segment") then blizzard = f end
+    end
+    blizzard.scripts.OnClick(blizzard)
+    assert(S.Skin() == "blizzard" and GamepadCompanionHapticsDB.skin == "blizzard", "Blizzard")
+    S.SetSkin("v2")
+    assert(S.Skin() == "v2" and GamepadCompanionHapticsDB.skin == nil, "back to v2")
+    print("PASS: skin switch: v2 by default, Blizzard and back")
+end
 tabs.bars.scripts.OnClick(tabs.bars)
 assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")
 print("PASS: one window, side tabs, Cinematic registration, bars shown while open")

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.42.0 — 2026-11-18
+
+- **Skin v2** (the default): calm textures inside Blizzard's own frame, made with Astra from your feel icons and hand-finished (flat, neutral, seamless): a near-black background, a quiet card surface, a faint header strip under each page's name, a thin gold divider under card titles. The native frame, borders, close button, side tabs and every feel icon are unchanged
+- **Tools › Skin: v2 | Blizzard**, at once, no reload. A texture that fails to load leaves today's flat look
+- `Media\`: four 32-bit TGAs (256 × 256, 256 × 256, 256 × 32, 256 × 4), 564 KB
+
 ## 0.41.0 — 2026-11-18
 
 A visual pass (two critiques, one iteration): richer look, same simplicity.
