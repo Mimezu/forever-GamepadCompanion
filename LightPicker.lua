@@ -26,17 +26,20 @@ function LP.Sections(key)
     local LT = ns.Lights
     local e = LT.Def(key)
     local kind = e.state and "hold" or "once"
-    local ownKey = e.parent or key
+    local ownId = LT.DefaultLight(e.parent or key)
     local own, shapes, yours, more = {}, {}, {}, {}
     for _, l in ipairs(LT.Lights()) do
-        if l.kind == kind and l.group ~= "Resting" then
-            if l.key == ownKey then own[#own + 1] = l
+        -- (a state can rest: Steady, Breathe, Ember)
+        if l.kind == kind and (e.state or l.group ~= "Resting") then
+            if l.id == ownId then own[#own + 1] = l
             elseif l.yours then yours[#yours + 1] = l
             elseif l.group == "Shapes" then shapes[#shapes + 1] = l
             else more[#more + 1] = l end
         end
     end
     local first = {}
+    -- a state can leave the bar to what is below it
+    if e.state then first[#first + 1] = { id = 0, name = "Pass", kind = "hold", bar = {}, pass = true } end
     for _, l in ipairs(own) do first[#first + 1] = l end
     for _, l in ipairs(shapes) do first[#first + 1] = l end
     local out = { { "Lights", first } }
@@ -226,7 +229,8 @@ function LP.Open(anchor, key, onChange)
         head:SetPoint("TOPLEFT", 14, y0 - 2)
         local x = 0
         for _, p in ipairs(list) do
-            if p.key ~= "light" or (lit and lit.yours) or s0[field] == "light" then
+            local state = LT.Def(key).state
+            if (p.key ~= "light" or (lit and lit.yours) or s0[field] == "light") and (p.key ~= "pass" or state) then
                 local b = pop.pats[field .. p.key]
                 if not b then
                     b = S.NewButton(pop, p.label, 0, 0, 40, nil, nil, 11, 22)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.48.0 — 2026-11-18
+
+- **Lights stack like FrameGambit's list**: Moments › Light › **States**, top first, the first true one wins: Dead or ghost, Away, Low health, Casting, Halo ring, On flight path, Stealthed, In combat, Swimming, Mounted, Movement, Resting, then **Otherwise** (the base colour). Up / Down, Default for the order
+- Each state sets only what it has: the bar, the mic, the dots; **Pass** leaves one to the state below (In combat can light the mic while Movement colours the bar). Moments (crits, spells, whispers) play over it and hand back
+- New states are off until you turn them on, so nothing changes by itself; the old mic "In combat" is now the In combat state's mic
+- The order is your Feel profile's. Setup › Light's "Resting" row is now "Shape" (Steady, Breathe, Ember)
+- One module, `Stack.lua` (docs/STACK.md): triggers will use it next
+
 ## 0.47.3 — 2026-11-18
 
 - **Gestures: the square draws the gesture.** WoW Helper's `gestureInfo` (its path, 16 points in -1..1) drawn as a line with a start dot and an end arrow; the subtitle is its motion and mode ("Shake twice · Standard"), or a calm "Not ready". The WoW Helper column's Recognition: On or Off (`gesturesEnabled`). Older data (the names alone) keeps the quiet dot

@@ -56,7 +56,7 @@ local function Led()
     return r, g, b
 end
 
-for _, file in ipairs({ "HelperLink.lua", "LightPresets.lua", "Lights.lua" }) do
+for _, file in ipairs({ "HelperLink.lua", "Stack.lua", "LightPresets.lua", "Lights.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local K, LT = ns.HelperLink, ns.Lights
@@ -124,12 +124,16 @@ for row in io.lines(root .. "/tests/fixtures/light-samples.txt") do
 end
 ok(samples > 200, "samples: " .. samples)
 
--- Every moment has its own preset of the right kind
+-- Every moment has a Recommended light of the right kind
 for _, e in ipairs(LT.EVENTS) do
-    local l = LT.LightByKey(e.key)
-    ok(l, "a preset for " .. e.key)
+    local l = LT.Light(LT.DefaultLight(e.key))
+    ok(l, "a light for " .. e.key)
     ok((l.kind == "hold") == (e.state == true), e.key .. ": " .. l.kind)
 end
+-- every state is on the stack, in the Recommended order once
+local inStack = {}
+for _, key in ipairs(LT.STACK) do inStack[key] = (inStack[key] or 0) + 1 end
+for _, e in ipairs(LT.EVENTS) do if e.state then ok(inStack[e.key] == 1, "on the stack once: " .. e.key) end end
 
 -- Migration from 0.27 (an effect, a colour, a level) --------------------------------------
 GamepadCompanionHapticsDB.lightEvents = {
@@ -245,15 +249,68 @@ for _ = 1, 10 do K.Step(1 / 30) end
 LT.EndState("lowHp")
 K.Step(1 / 60)
 ok(drawn.hold == LT.LightByKey("breathe").id, "back to resting")
--- the mic: in combat only
-LT.Base().mic = "combat"
+-- The stack -----------------------------------------------------------------------------
+local St, S = ns.Stack, LT.stack
+local function Now() local r = S:Now(); return r.bar.layer, r.mic.layer, r.dots.layer end
+-- the mic card's "In combat" became the In combat state's mic (silently; its bar passing)
+GamepadCompanionHapticsDB.lightBase.stackV = nil
+GamepadCompanionHapticsDB.lightBase.mic = "combat"
+GamepadCompanionHapticsDB.lightEvents.combat = nil
+LT.Migrate()
+local cs = LT.Settings("combat")
+ok(cs.on and cs.light == 0 and cs.mic == "on" and LT.Base().mic == "off", "migrated: In combat sets only the mic")
+ok(LT.Settings("lowHp").dots == "pair", "a state's own dots kept")
 UnitAffectingCombat = function() return true end
-LT.ApplyMic()
+St.ReadAll(); LT.ApplyBase()
+local bar, mic = Now()
+ok(bar == "base" and mic == "combat", "in combat: the mic from In combat, the bar from Otherwise")
 ok(K.state.mic == K.MIC.on, "mic on in combat")
 ok(K.DecodeV2(K.EncodeV2(K.state)).mic == K.MIC.on, "the strip carries it (v2 bits 78-79)")
+K.Step(1 / 60)
+ok(drawn.hold == LT.LightByKey("breathe").id and drawn.resting and drawn.holdMic == LT.MIC.on.code, "the row: Otherwise's bar, In combat's mic")
+-- moving too: Movement sets the bar (it's on now), In combat still the mic (Movement passes it)
+LT.Settings("moving").on = true
+GetUnitSpeed = function() return 7 end
+St.ReadAll(); St.Refresh()
+bar, mic = Now()
+ok(bar == "moving" and mic == "combat", "pass-through: bar from Movement, mic from In combat")
+K.Step(1 / 60)
+ok(drawn.hold == LT.LightByKey("steady").id and not drawn.resting and drawn.holdMic == LT.MIC.on.code, "the row has both")
+-- the order decides: Movement above In combat, Movement's mic Off: the mic goes off
+local order = S:Order()
+ok(order[1] == "dead" and S:IsDefaultOrder(), "Recommended order")
+local function pos(key) for i, k2 in ipairs(S:Order()) do if k2 == key then return i end end end
+while pos("moving") > pos("combat") do S:Move("moving", -1) end
+ok(not S:IsDefaultOrder() and GamepadCompanionHapticsDB.lightStack.order ~= nil, "moved: saved in the Feel profile's table")
+LT.Settings("moving").mic = "off"
+LT.SendHold()
+bar, mic = Now()
+ok(bar == "moving" and mic == "moving", "Movement above: its mic Off wins")
+S:DefaultOrder()
+bar, mic = Now()
+ok(S:IsDefaultOrder() and bar == "moving" and mic == "combat", "Default order: In combat's mic again")
+-- a state turned off passes everything
+LT.Settings("moving").on = false
+LT.SendHold()
+bar = Now()
+ok(bar == "base", "off: Otherwise shows")
+-- a state not true: ignored, whatever its place
 UnitAffectingCombat = function() return false end
-LT.ApplyMic()
+St.ReadAll(); St.Refresh()
+bar, mic = Now()
+ok(bar == "base" and mic == "base", "nothing true: Otherwise")
 ok(K.state.mic == K.MIC.off, "mic off out of combat")
+-- a moment plays over the stack and hands back (the hold untouched)
+LT.Settings("moving").on, LT.Settings("moving").mic = true, "pass"
+St.ReadAll(); St.Refresh()
+LT.Fire("crit")
+for _ = 1, 2 do K.Step(1 / 60) end
+ok(drawn.cue == LT.LightByKey("crit").id and drawn.hold == LT.LightByKey("steady").id, "a crit over Movement")
+for _ = 1, 10 do K.Step(1 / 30) end
+ok(drawn.cue == 0 and drawn.hold == LT.LightByKey("steady").id, "back to Movement")
+LT.Settings("moving").on = false
+GetUnitSpeed = function() return 0 end
+St.ReadAll(); St.Refresh()
 -- link off again: the row goes, the game draws
 K.SetEnabled(false)
 K.Step(1 / 60)

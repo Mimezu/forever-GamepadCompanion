@@ -11,6 +11,11 @@
 -- light voices; the highest priority wins). Link on: WoW Helper plays every
 -- lane precisely; the game only sets the steady colour of what holds (never
 -- clears it) and sends the lights on the strip's light row.
+--
+-- What holds is Stack.lua's: the states in the player's order (Dead or ghost,
+-- Low health, Casting, In combat, Movement, Resting…), each setting only the
+-- channels it has (bar, mic, dots), over Otherwise (the base colour). Moments
+-- (crits, whispers) play over it and hand back.
 local _, ns = ...
 local H, L = ns.Haptics, ns.HapticsLab
 local LT = {}
@@ -166,11 +171,12 @@ end
 ---------------------------------------------------------------------------
 LT.BASE_MODES = { { "class", "Class" }, { "color", "Colour" }, { "off", "Off" } }
 LT.RESTING = { { "steady", "Steady" }, { "breathe", "Breathe" }, { "ember", "Ember" } }
-LT.MIC_MODES = { { "off", "Off" }, { "combat", "In combat" }, { "on", "On" } }
+LT.MIC_MODES = { { "off", "Off" }, { "on", "On" } }   -- Otherwise's mic (a state sets its own)
 
 -- The dots under the touchpad and the mic (orange) while a moment's light plays: the strip's
 -- codes (WoW Helper's lights::Dots / MicMode; 0 = the light's own, made in WoW Helper)
 LT.DOTS = {
+    { key = "pass", label = "Pass" },   -- (a state: what is below shows through)
     { key = "light", label = "Light's", code = 0 },
     { key = "off", label = "Off", code = 1 },
     { key = "all", label = "All", code = 2 },
@@ -185,6 +191,7 @@ LT.DOTS = {
     { key = "4", label = "4", code = 13 }, { key = "5", label = "5", code = 14 },
 }
 LT.MICS = {
+    { key = "pass", label = "Pass" },
     { key = "light", label = "Light's", code = 0 },
     { key = "off", label = "Off", code = 1 },
     { key = "on", label = "On", code = 2 },
@@ -292,7 +299,18 @@ LT.EVENTS = {
     { key = "whisper", group = "Social", label = "Whisper", color = "purple", strength = 5, on = true },
     { key = "readyCheck", group = "Social", label = "Ready check", color = "gold", strength = 5, on = true },
     { key = "invite", group = "Social", label = "Invites, duels", color = "green", strength = 5, on = true },
+    -- States (Stack.lua's conditions; FrameGambit's words): off until chosen, so nobody's look changes
+    { key = "dead", group = "States", label = "Dead or ghost", look = "breathe", color = "white", strength = 1, on = false, state = true },
+    { key = "afk", group = "States", label = "Away", look = "breathe", color = "base", strength = 1, on = false, state = true },
+    { key = "taxi", group = "States", label = "On flight path", look = "breathe", color = "base", strength = 2, on = false, state = true },
+    { key = "stealth", group = "States", label = "Stealthed", look = "breathe", color = "purple", strength = 1, on = false, state = true },
+    { key = "swimming", group = "States", label = "Swimming", look = "breathe", color = "teal", strength = 2, on = false, state = true },
+    { key = "mounted", group = "States", label = "Mounted", look = "steady", color = "base", strength = 4, on = false, state = true },
+    { key = "moving", group = "States", label = "Movement", look = "steady", color = "base", strength = 3, on = false, state = true },
+    { key = "rested", group = "States", label = "Resting", look = "breathe", color = "gold", strength = 2, on = false, state = true },
 }
+-- The states' Recommended order, top first (the first true one sets each channel)
+LT.STACK = { "dead", "afk", "lowHp", "cast", "halo", "taxi", "stealth", "combat", "swimming", "mounted", "moving", "rested" }
 -- Each moment's Recommended dots and mic (what its preset used to do on its own): data, so a
 -- row shows it, the picker changes it and Default brings it back
 local PATTERNS = {
@@ -304,7 +322,9 @@ local PATTERNS = {
 local EVENT = {}
 for _, e in ipairs(LT.EVENTS) do
     local p = PATTERNS[e.key] or {}
-    e.dots, e.mic = p[1] or "off", p[2] or "off"
+    -- (a state passes the channels it doesn't set)
+    local none = e.state and "pass" or "off"
+    e.dots, e.mic = p[1] or none, p[2] or none
     EVENT[e.key] = e
 end
 LT.EVENT = EVENT
@@ -339,7 +359,8 @@ end
 
 -- a moment's default light id (its own preset)
 function LT.DefaultLight(key)
-    local p = LT.LightByKey(key)
+    local e = EVENT[key]
+    local p = LT.LightByKey(e and e.look or key)
     return p and p.id
 end
 
@@ -388,8 +409,8 @@ function LT.Settings(key)
         s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
         db.lightEvents[key] = s
     end
-    if not DOTS[s.dots] then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
-    if not MICS[s.mic] then s.mic = e.mic end
+    if not DOTS[s.dots] or (s.dots == "pass" and not e.state) then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
+    if not MICS[s.mic] or (s.mic == "pass" and not e.state) then s.mic = e.mic end
     if s.effect then
         -- migrate once: the moment's own light, or the shape it had
         local own = s.effect == OLD_DEFAULT[key]
@@ -398,7 +419,8 @@ function LT.Settings(key)
         s.strength = Steps(s.level)
         s.effect, s.level = nil, nil
     end
-    if not LT.Light(s.light) then s.light = LT.DefaultLight(key) end   -- (deleted in WoW Helper)
+    -- (0: a state's bar passes; an unknown id was deleted in WoW Helper)
+    if not (e.state and s.light == 0) and not LT.Light(s.light) then s.light = LT.DefaultLight(key) end
     if not PALETTE[s.color] then s.color = e.color end
     s.strength = max(0, min(7, floor(tonumber(s.strength) or e.strength)))
     return s
@@ -415,15 +437,15 @@ end
 -- A moment's dots and mic as the strip's codes
 function LT.Patterns(key)
     local s = LT.Settings(key)
-    return (DOTS[s.dots] or DOTS.off).code, (MICS[s.mic] or MICS.off).code
+    return (DOTS[s.dots] or DOTS.off).code or DOTS.off.code, (MICS[s.mic] or MICS.off).code or MICS.off.code
 end
 
 -- Its dots and mic in a few words, for its row ("Spark · Mic pulse"); nil when both are off
 function LT.PatternWords(key)
     local s = LT.Settings(key)
     local parts = {}
-    if s.dots ~= "off" then parts[#parts + 1] = (s.dots == "light" and "Dots: light's" or (#s.dots == 1 and (s.dots .. " dots") or DOTS[s.dots].label)) end
-    if s.mic ~= "off" then parts[#parts + 1] = "Mic " .. (s.mic == "light" and "light's" or MICS[s.mic].label:lower()) end
+    if s.dots ~= "off" and s.dots ~= "pass" then parts[#parts + 1] = (s.dots == "light" and "Dots: light's" or (#s.dots == 1 and (s.dots .. " dots") or DOTS[s.dots].label)) end
+    if s.mic ~= "off" and s.mic ~= "pass" then parts[#parts + 1] = "Mic " .. (s.mic == "light" and "light's" or MICS[s.mic].label:lower()) end
     return #parts > 0 and table.concat(parts, " · ") or nil
 end
 
@@ -432,7 +454,7 @@ function LT.MicMoments()
     local list = {}
     for _, e in ipairs(LT.EVENTS) do
         local s = LT.Settings(e.key)
-        if s.on and s.mic ~= "off" then list[#list + 1] = e.label end
+        if s.on and s.mic ~= "off" and s.mic ~= "pass" then list[#list + 1] = e.label end
     end
     return list
 end
@@ -490,17 +512,65 @@ local function Ctx(colorKey, strength)
 end
 LT.Ctx = Ctx
 
--- What holds now: the highest active state, else the resting light
--- -> state key (nil: resting), light, colour key, strength, progress fn
-local function Holding()
-    local best, bp
-    for key, ctx in pairs(states) do
-        local s = LT.Settings(key)
-        if s.on and (not ctx.active or ctx.active()) and (not bp or (PRIO[key] or 5) > bp) then best, bp = key, PRIO[key] or 5 end
+---------------------------------------------------------------------------
+-- The stack (Stack.lua): states in the player's order over Otherwise
+---------------------------------------------------------------------------
+local St = ns.Stack
+local stack
+
+-- Silently, once: the mic card's "In combat" becomes the In combat state's mic
+-- (its bar passing when it had no light), a state's "off" dots / mic become
+-- Pass (before the stack nothing was below them)
+local function Migrate()
+    local b = LT.Base()
+    if b.stackV == 1 then return end
+    b.stackV = 1
+    local db = H.DB()
+    for key, s in pairs(type(db.lightEvents) == "table" and db.lightEvents or {}) do
+        local e = EVENT[key]
+        if e and e.state and type(s) == "table" then
+            if s.dots == "off" then s.dots = "pass" end
+            if s.mic == "off" then s.mic = "pass" end
+        end
     end
-    if best then
-        local s = LT.Settings(best)
-        return best, LT.Light(s.light), s.color, s.strength, states[best].progress
+    if b.mic == "combat" then
+        local s = LT.Settings("combat")
+        if not s.on then s.on, s.light = true, 0 end
+        s.mic, b.mic = "on", "off"
+    end
+end
+
+-- The stack's order is the Feel profile's (db.lightStack)
+local function Store()
+    local db = H.DB()
+    if type(db.lightStack) ~= "table" then db.lightStack = {} end
+    return db.lightStack
+end
+
+-- What Otherwise shows: the base light in the base colour, the base mic, no dots
+local function BaseValue(ch)
+    local b = LT.Base()
+    if ch == "bar" then return "base" end
+    if ch == "mic" then return b.mic == "on" and "on" or "off" end
+    return "off"
+end
+
+-- A channel's value from a state (nil: it passes)
+local function LayerValue(key, ch)
+    local s = LT.Settings(key)
+    if ch == "bar" then return s.light ~= 0 and key or nil end
+    local v = ch == "mic" and s.mic or s.dots
+    if v == "pass" then return nil end
+    return v
+end
+
+-- What the bar shows now -> state key (nil: Otherwise), light, colour key, strength, progress fn
+local function Holding()
+    local r = stack and stack:Now()
+    local key = r and r.bar.layer ~= "base" and r.bar.layer or nil
+    if key then
+        local s = LT.Settings(key)
+        return key, LT.Light(s.light), s.color, s.strength, states[key] and states[key].progress
     end
     local b = LT.Base()
     if not LT.On() or b.mode == "off" then return nil end
@@ -508,27 +578,53 @@ local function Holding()
 end
 LT.Holding = Holding
 
--- The light row from what holds; the game sets only its steady colour
-local lastStep
-function LT.SendHold()
-    local k = K()
-    if not (k and k.SetLight) then return end
-    if not (LT.On() and LT.HelperDrives()) then return k.SetLight(nil) end
-    local key, l, color, strength, progress = Holding()
-    local p = progress and progress()
-    lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
-    local dots, mic = 0, 0
-    if key then dots, mic = LT.Patterns(key) end
-    k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
-        progress = lastStep, resting = key == nil, holdDots = dots, holdMic = mic })
-    if l then
-        local r, g, b = LT.Sample(l, l.loop and l.loop[1] or 0, Ctx(color, strength))
-        if r then return H.Light("lt_base", function() return r, g, b end, 0) end
-    end
-    H.LightStop("lt_base")
+-- A channel's code on the strip (a light's own lanes only with its own bar)
+local function Code(list, res, barLayer, default)
+    local v = list[res.value]
+    if not v then return default end
+    if v.code == 0 and res.layer ~= barLayer then return default end
+    return v.code or default
 end
 
--- Start a moment's light (a state: ctx.active says while it lasts)
+-- The stack's result, drawn: by WoW Helper (the light row, the steady colour
+-- under it) or by the game (the bar)
+local lastStep
+local function Draw()
+    Migrate()   -- (once; here: the Feel profile's tables are in place by now)
+    local k = K()
+    local key, l, color, strength, progress = Holding()
+    if LT.HelperDrives() then
+        if not (k and k.SetLight) then return end
+        if not LT.On() then
+            H.LightStop("lt_base")
+            return k.SetLight(nil)
+        end
+        local r = stack:Now()
+        local p = progress and progress()
+        lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
+        local barLayer = r.bar.layer
+        local mic = Code(MICS, r.mic, barLayer, MICS.off.code)
+        k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
+            progress = lastStep, resting = key == nil, holdDots = Code(DOTS, r.dots, barLayer, DOTS.off.code), holdMic = mic })
+        -- (the mic's own field too: WoW Helper with the game's lights)
+        if k.SetMic then k.SetMic((mic == MICS.on.code) and "on" or (mic == MICS.pulse.code or mic == MICS.blink.code) and "pulse" or "off") end
+        if l then
+            local rr, g, b = LT.Sample(l, l.loop and l.loop[1] or 0, Ctx(color, strength))
+            if rr then return H.Light("lt_base", function() return rr, g, b end, 0) end
+        end
+        return H.LightStop("lt_base")
+    end
+    if k and k.SetLight then k.SetLight(nil) end
+    if not (LT.On() and l) then return H.LightStop("lt_base") end
+    H.Light("lt_base", Voice(l, Ctx(color, strength), nil, progress), 0)
+end
+
+-- (re-drawn when a setting changes; the stack calls it when what wins changes)
+function LT.SendHold()
+    if stack then stack:Refresh(true) end
+end
+
+-- Start a moment's light: over the stack, then back to it
 local function Play(key, ctx, force)
     if not (LT.On() or force) then return end
     local s = LT.Settings(key)
@@ -536,10 +632,6 @@ local function Play(key, ctx, force)
     local l = LT.Light(s.light)
     if not l then return end
     if LT.HelperDrives() then
-        if Def(key).state then return LT.SendHold() end
-        -- a cue on the strip; one ranking below what holds is dropped
-        local hk = Holding()
-        if hk and (PRIO[hk] or 5) > Prio(key) then return end
         return K().LightCue(l.id, LT.Tint(s.color), s.strength, LT.Patterns(key))
     end
     if not ctx then
@@ -562,6 +654,7 @@ local function Spelled(key, name)
 end
 LT.Spelled = Spelled
 
+-- A state this module knows of (Low health, Casting, Halo): on the stack
 function LT.StartState(key, ctx)
     if not EVENT[key] then return end
     ctx = ctx or {}
@@ -570,15 +663,14 @@ function LT.StartState(key, ctx)
     local own = ctx.active
     ctx.active = function() return alive and (not own or own()) end
     states[key] = ctx
-    Play(key, ctx)
+    if St then St.Set(key, true); stack:Refresh(true) end
 end
 
 function LT.EndState(key)
     local ctx = states[key]
     if ctx then ctx.stop() end
     states[key] = nil
-    H.LightStop("lt_" .. key)
-    if LT.HelperDrives() then LT.SendHold() end
+    if St then St.Set(key, false) end
 end
 
 -- Try a moment's light (or another light for it): a state for 3 s, a cast
@@ -605,26 +697,27 @@ function LT.Try(key, lightId)
     end
 end
 
--- The resting light: the game plays it, or (link) WoW Helper with the game's
--- steady colour under it
-function LT.ApplyBase()
-    if LT.HelperDrives() then return LT.SendHold() end
-    local k = K()
-    if k and k.SetLight then k.SetLight(nil) end
-    local b = LT.Base()
-    local l = LT.On() and b.mode ~= "off" and LT.LightByKey(b.light)
-    if not l then return H.LightStop("lt_base") end
-    H.Light("lt_base", Voice(l, Ctx("base", Steps(b.level))), 0)
-end
+-- Otherwise (the base colour, its light, its mic) or a state changed: draw again
+function LT.ApplyBase() LT.SendHold() end
+LT.ApplyMic = LT.ApplyBase
 
--- The resting mic: off, on in combat, on (WoW Helper only)
-function LT.ApplyMic()
-    local k = K()
-    if not (k and k.SetMic) then return end
-    local m = LT.Base().mic
-    local inCombat = UnitAffectingCombat and UnitAffectingCombat("player")
-    k.SetMic((m == "on" or (m == "combat" and inCombat)) and "on" or "off")
+-- The stack: states in the player's order, three channels
+local layers = {}
+for _, e in ipairs(LT.EVENTS) do if e.state then layers[#layers + 1] = { key = e.key, when = e.key } end end
+if St then
+    stack = St.Kind("lights", {
+        channels = { "bar", "mic", "dots" },
+        layers = layers,
+        recommended = LT.STACK,
+        store = Store,
+        enabled = function(key) return LT.On() and LT.Settings(key).on == true end,
+        value = LayerValue,
+        base = BaseValue,
+        apply = function() Draw() end,
+    })
 end
+LT.stack = stack
+LT.Migrate = Migrate
 
 ---------------------------------------------------------------------------
 -- Cues: Rumble's events and the Beta events (wrapped, so a light plays
@@ -700,9 +793,7 @@ frame:SetScript("OnEvent", function(_, event, unit, guid, spellID)
         if unit == "GamepadCompanion" then Wrap() end
         return
     end
-    if event == "PLAYER_ENTERING_WORLD" then LT.ApplyMic(); return LT.ApplyBase() end
-    if event == "PLAYER_REGEN_DISABLED" then LT.ApplyMic(); return LT.StartState("combat") end
-    if event == "PLAYER_REGEN_ENABLED" then LT.ApplyMic(); return LT.EndState("combat") end
+    if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then return end   -- (the stack's)
     if unit and unit ~= "player" then return end
     if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" then
         local channel = event == "UNIT_SPELLCAST_CHANNEL_START"

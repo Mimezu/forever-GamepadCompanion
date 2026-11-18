@@ -239,11 +239,12 @@ local LIGHT_ICON = "Interface\\Icons\\Spell_Nature_Lightning"
 -- a light moment's group
 local LIGHT_GROUP = {
     crit = "Attacks", kill = "Attacks",
-    critTaken = "Defense", hitTaken = "Defense", avoid = "Defense", lowHp = "Defense", combat = "Defense",
-    cast = "Abilities", release = "Abilities", interrupted = "Abilities", instant = "Abilities",
+    critTaken = "Defense", hitTaken = "Defense", avoid = "Defense",
+    release = "Abilities", interrupted = "Abilities", instant = "Abilities",
     levelUp = "Progress", questDone = "Progress", loot = "Progress", death = "Progress", alive = "Progress",
-    whisper = "Social", readyCheck = "Social", invite = "Social", halo = "Social", haloUse = "Social",
+    whisper = "Social", readyCheck = "Social", invite = "Social", haloUse = "Social",
 }
+-- (the states — Low health, Casting, In combat, Movement… — are the States list: the stack)
 -- a feel moment's light (several feels can share one light)
 local LIGHT_OF = {
     crit = "crit", critRanged = "crit", critted = "critTaken", hitTaken = "hitTaken", dodge = "avoid", parry = "avoid",
@@ -282,6 +283,7 @@ ITEM.light = {
         local s = LT.Settings(key)
         if not s.on then return "Off", V.OFF_ICON, nil, true end
         local l = LT.Light(s.light)
+        if s.light == 0 then l = { name = "Pass" } end   -- (a state leaving the bar to what is below)
         -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
         -- its dots and mic shown where it has them ("Spark · Mic pulse")
         local words = LT.PatternWords and LT.PatternWords(key)
@@ -478,6 +480,78 @@ local function MakeRow(parent, y, width, kind, key)
 end
 
 ---------------------------------------------------------------------------
+-- States (Light): the stack (Stack.lua), top first, as FrameGambit's list:
+-- the first true state sets each channel (bar, mic, dots) it has; Pass
+-- leaves one to what is below; Otherwise at the bottom. Up / Down reorder.
+---------------------------------------------------------------------------
+local STATE_STEP = 42
+function ui.BuildStates(panel, cw)
+    local S2 = LT.stack
+    local card = S.Card(panel, "States", 0, 0, cw, PH)
+    ui.states, ui.stateRows = card, {}
+    S.Text(card, "First true wins", 120, -12, 200, 11, DIM)
+    ui.statesDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
+        S2:DefaultOrder()
+        Say("States: their order")
+        Refresh()
+    end, nil, 11, 24)
+    S.Tooltip(ui.statesDefault, "Default", "The Recommended order")
+    for _, key in ipairs(S2:Order()) do
+        local row = MakeRow(card, -38, cw, "light", key)
+        row.icon:Hide()
+        local function Move(d)
+            if S2:Move(key, d) then Refresh() end
+        end
+        row.up = S.NewButton(row, "▲", 4, -1, 26, function() Move(-1) end, nil, 9, 18)
+        row.down = S.NewButton(row, "▼", 4, -21, 26, function() Move(1) end, nil, 9, 18)
+        S.Tooltip(row.up, "Up")
+        S.Tooltip(row.down, "Down")
+        ui.stateRows[key] = row
+    end
+    -- Otherwise: the base colour and its light (Setup › Light)
+    local o = HUI.MomentRow(card, -38, cw, nil, "Otherwise", function()
+        Shell.Open("setup")
+    end, function() LT.ApplyBase() end, "Setup › Light")
+    o.icon:Hide()
+    ui.otherwise = o
+end
+
+function ui.RefreshStates(kind)
+    local light = kind == "light"
+    local btn = ui.browser.buttons.states
+    if btn then btn:SetShown(light) end
+    if not light and ui.browser.current == "states" then ui.browser.Select(GROUPS[1].key) end
+    local S2 = LT.stack
+    local order = S2:Order()
+    local now = S2:Now()
+    local on = 0
+    for i, key in ipairs(order) do
+        local row = ui.stateRows[key]
+        if row then
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 10, -38 - (i - 1) * STATE_STEP)
+            row.up:SetEnabled(i > 1)
+            row.down:SetEnabled(i < #order)
+            -- (true now, and what it sets now)
+            local sets = {}
+            for _, ch in ipairs({ "bar", "mic", "dots" }) do if now[ch].layer == key then sets[#sets + 1] = ch == "bar" and "Bar" or ch == "mic" and "Mic" or "Dots" end end
+            local _, _, sub = ITEM.light.show(key)
+            local tail = #sets > 0 and ("Now: " .. table.concat(sets, ", ")) or (S2:Active(key) and "True now" or nil)
+            row.sub:SetText(sub and tail and (sub .. " · " .. tail) or sub or tail or "")
+            if LT.Settings(key).on then on = on + 1 end
+        end
+    end
+    local o = ui.otherwise
+    o:ClearAllPoints()
+    o:SetPoint("TOPLEFT", 10, -38 - #order * STATE_STEP)
+    local b = LT.Base()
+    local base = LT.LightByKey(b.light)
+    o:SetChoice(base and base.name or "?", nil, now.bar.layer == "base" and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
+    ui.statesDefault:SetEnabled(not S2:IsDefaultOrder())
+    if btn then btn.count:SetText(on .. "/" .. #order) end
+end
+
+---------------------------------------------------------------------------
 -- Build
 ---------------------------------------------------------------------------
 local LEFT_W = 300
@@ -512,6 +586,7 @@ Jump = function(key, kind)
                     if item[2] == key then ui.browser.Select(g.key) end
                 end
             end
+            if kind == "light" and ui.stateRows and ui.stateRows[key] then ui.browser.Select("states") end
             S.SetSelected(row.pick, true)
             if C_Timer and C_Timer.After then C_Timer.After(1.5, function() S.SetSelected(row.pick, false) end) end
             Say(row.label:GetText() or key)
@@ -854,6 +929,7 @@ local function Build(frame, header)
         groups[#groups + 1] = { key = g.key, label = g.key }
         if g.key == "Abilities" and SpellsOn() then groups[#groups + 1] = { key = "spells", label = "Your spells" } end
     end
+    if LT and LT.stack then groups[#groups + 1] = { key = "states", label = "States" } end
     local list = CreateFrame("Frame", nil, left)
     list:SetPoint("TOPLEFT", 0, -150)
     list:SetSize(LEFT_W, PH - 150)
@@ -876,6 +952,7 @@ local function Build(frame, header)
         end
     end
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
+    if b.panels.states then ui.BuildStates(b.panels.states, cw) end
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
 
 end
@@ -915,6 +992,7 @@ Refresh = function()
         local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
         row:SetAlpha(live and 1 or 0.55)
     end
+    if ui.states then ui.RefreshStates(kind) end
     for _, g in ipairs(GROUPS) do
         for k, card in pairs(ui.cards[g.key]) do card:SetShown(k == kind) end
         local items = Items(kind, g.key)

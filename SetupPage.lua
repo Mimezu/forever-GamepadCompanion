@@ -474,7 +474,7 @@ local function BuildBase(frame)
     local y = -78 - math.ceil(n / 5) * 34 - 8
     Stepper(card, "Brightness", 12, y, { labelWidth = 110, width = cw - 24, step = 0.125, min = 0.125, max = 1, format = Pct,
         get = function() return LT.Base().level end, set = function(v) LT.Base().level = v; LT.ApplyBase() end })
-    Stepper(card, "Resting", 12, y - 28, { labelWidth = 110, width = cw - 24, list = LT.RESTING,
+    Stepper(card, "Shape", 12, y - 28, { labelWidth = 110, width = cw - 24, list = LT.RESTING,
         get = function() return LT.Base().light end, set = function(v) LT.Base().light = v; LT.ApplyBase() end })
     -- the mic light (WoW Helper only: the game can't reach it); moments' lights can pulse it
     S.Heading(card, "Mic light", 10, y - 64, cw - 20)
