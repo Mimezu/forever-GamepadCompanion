@@ -152,7 +152,7 @@ UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
 for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -503,13 +503,35 @@ cap.scripts.OnClick(cap)
 assert(cvars.maxFPS == "100" and not L.FpsCapped(), "put back")
 C_CVar = nil
 ns.Shell.Open("setup")
-local find = assert(button("Find left"), "Find left, on Setup")
-find.scripts.OnClick(find)
-assert(L.Ramping(), "ramping")
-run(0.5)
-L.ramp.level = 0.23
-find.scripts.OnClick(find)
-near(H.DB().floor[1], 0.23, "floor set")
+-- Range: Check, a yes or no for each tap (a player who feels 7% and up on the left)
+local check = assert(button("Check"), "Check, on Setup")
+vib = {}
+check.scripts.OnClick(check)
+assert(button("Yes") and button("No") and button("Again"), "Felt? Yes / No / Again")
+local answered = 0
+while button("Yes") and answered < 12 do
+    run(0.4)
+    local level
+    for _, v in ipairs(vib) do if v[1] == "Low" and v[2] > 0 then level = v[2] end end
+    assert(level, "a tap at the level asked")
+    vib = {}
+    local b = button(level >= 0.07 - 1e-9 and "Yes" or "No")
+    b.scripts.OnClick(b)
+    answered = answered + 1
+end
+near(H.DB().floor[1], 0.07, "the floor from the check")
+assert(answered <= 10 and not button("Yes"), "done in " .. answered .. " taps")
+-- the slider: + raises the floor a step and taps at the new level
+local left = ns.SetupPage.range[1]
+vib = {}
+left.plus.scripts.OnClick(left.plus)
+near(H.DB().floor[1], 0.08, "a step up")
+run(0.3)
+local tapped
+for _, v in ipairs(vib) do if v[1] == "Low" and math.abs(v[2] - 0.08) < 1e-6 then tapped = true end end
+assert(tapped, "it taps at the new level")
+run(3)
+assert(not H.hold, "the taps end on their own, the motors free again")
 ns.Shell.Open("lab")
 ui.Select("editor")
 local new = assert(button("New"), "New")
@@ -937,7 +959,7 @@ do
     WowHelperData = nil
     ns.Timing.Store().link = "usb"
     ns.Shell.Open("setup")
-    assert(visible("Find left") and visible("Try") and not visible("Sync run") and not visible("Sync walk")
+    assert(visible("Check") and visible("Try") and not visible("Sync run") and not visible("Sync walk")
         and not visible("USB feels"), "range, timing (a status each, no Sync) on Setup; no USB feels")
     assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
     ns.Timing.Store().link = nil

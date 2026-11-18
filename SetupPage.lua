@@ -205,31 +205,124 @@ local function BuildTriggers(frame)
 end
 
 ---------------------------------------------------------------------------
--- Range: the faintest each grip feels, low battery, the battery
+-- Range: the faintest each grip feels (set by hand while it taps; or Check,
+-- yes or no tap by tap: no timing), low battery, the battery
 ---------------------------------------------------------------------------
+-- (the arrows and the d-pad nudge a hovered side)
+local NUDGE = { LEFT = -1, DOWN = -1, PADDLEFT = -1, PADDDOWN = -1, RIGHT = 1, UP = 1, PADDRIGHT = 1, PADDUP = 1 }
+local FLOOR_TOP = 0.4
+local min, max = math.min, math.max
+
 local function BuildRange(frame)
     local card = S.Card(frame, "Range", X2, 0, COL, 200, "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration")
-    local faint = S.Text(card, "", 12, -40, COL - 24, 13, YELLOW)
-    local find = {}
-    local bw = (COL - 30) / 2
-    for side = 1, 2 do
-        find[side] = S.NewButton(card, side == 1 and "Find left" or "Find right", 12 + (side - 1) * (bw + 6), -66, bw, function()
-            if HUI.Calibrate(side, "floor") then Say("Rising · click Felt it") end
-            Refresh()
-        end, nil, 12, 28)
-        S.Tooltip(find[side], "Faintest", "The lowest level you feel")
-    end
-    Choice(card, "Low battery", 12, -110, { { true, "Softer" }, { false, "Same" } },
-        function() return H.DB().battery end, function(v) H.DB().battery = v end)
-    local battery = S.Text(card, "", 12, -150, COL - 24, 12, GREY)
-    pg.refresh[#pg.refresh + 1] = function()
+    local St = ns.Staircase
+    local check -- { side, s }: a check under way
+    local function SetFloor(side, v)
         local db = H.DB()
-        faint:SetText("Faintest  L " .. Pct(db.floor[1]) .. " · R " .. Pct(db.floor[2]))
-        for side = 1, 2 do
-            local on = HUI.Calibrating(side, "floor")
-            find[side].label:SetText(on and "Felt it" or (side == 1 and "Find left" or "Find right"))
-            S.SetSelected(find[side], on)
+        db.floor[side] = max(0, min(FLOOR_TOP, floor(v * 100 + 0.5) / 100))
+        if db.ceil[side] <= db.floor[side] then db.ceil[side] = 1 end
+    end
+    S.Text(card, "Faint feels start here", 12, -38, COL - 24, 11, GREY)
+    local rows, checks = {}, {}
+    local cw = 64
+    for side = 1, 2 do
+        local y = side == 1 and -56 or -86
+        local name = side == 1 and "Left" or "Right"
+        local row = Stepper(card, name, 12, y, { labelWidth = 44, width = COL - 24 - cw - 8, step = 0.01, min = 0, max = FLOOR_TOP,
+            format = Pct, get = function() return H.DB().floor[side] or 0 end,
+            set = function(v) SetFloor(side, v); if not check then HUI.Audition(side) end end })
+        rows[side] = row
+        pg.range = rows
+        local function Press(self, key)
+            local n = NUDGE[key]
+            if not InCombatLockdown() and self.SetPropagateKeyboardInput then pcall(self.SetPropagateKeyboardInput, self, not n) end
+            if n and not check then
+                SetFloor(side, (H.DB().floor[side] or 0) + n * 0.01)
+                HUI.Audition(side)
+                Refresh()
+            end
         end
+        row:SetScript("OnKeyDown", Press)
+        row:SetScript("OnGamePadButtonDown", Press)
+        checks[side] = S.NewButton(card, "Check", COL - 12 - cw, y, cw, function()
+            if check and check.side == side then
+                check = nil
+                HUI.StopTaps()
+            else
+                local start = min(0.3, max(0.1, (H.DB().floor[side] or 0) + 0.08))
+                check = { side = side, s = St.New(start) }
+                HUI.Tap(side, check.s:Level(), 0.3)
+            end
+            Refresh()
+        end, nil, 11, 24)
+        S.Tooltip(checks[side], "Check", "Yes or no, tap by tap")
+    end
+    -- hovering a side: taps at its level, and the keys nudge it
+    local hovered
+    local function Keys(row, on)
+        if InCombatLockdown() then return end
+        pcall(row.EnableKeyboard, row, on)
+        if row.EnableGamePadButton then pcall(row.EnableGamePadButton, row, on) end
+    end
+    local watch = CreateFrame("Frame", nil, card)
+    watch:SetScript("OnUpdate", function()
+        local h
+        for side = 1, 2 do if rows[side]:IsMouseOver() then h = side end end
+        if h ~= hovered then
+            if hovered then Keys(rows[hovered], false) end
+            if h then Keys(rows[h], true) end
+            hovered = h
+        end
+        if h and not check then HUI.Audition(h, 0.7) end
+    end)
+    watch:SetScript("OnHide", function()
+        if hovered then Keys(rows[hovered], false) end
+        hovered, check = nil, nil
+        HUI.StopTaps()
+    end)
+
+    -- the check: Felt? Yes / No / Again, in place of low battery while it runs
+    local ask = CreateFrame("Frame", nil, card)
+    ask:SetPoint("TOPLEFT", 12, -120)
+    ask:SetSize(COL - 24, 60)
+    S.Text(ask, "Felt?", 0, -6, 70, 12, GOLD)
+    local function Answer(felt)
+        if not check then return end
+        check.s:Answer(felt)
+        if check.s.done then
+            local side, v = check.side, check.s:Result()
+            SetFloor(side, v)
+            check = nil
+            Say((side == 1 and "Left " or "Right ") .. Pct(v))
+            HUI.Audition(side, 1.3)
+        else
+            HUI.Tap(check.side, check.s:Level(), 0.3)
+        end
+        Refresh()
+    end
+    local abw = floor((COL - 24 - 70 - 12) / 3)
+    S.NewButton(ask, "Yes", 70, 0, abw, function() Answer(true) end, nil, 12, 26)
+    S.NewButton(ask, "No", 70 + abw + 6, 0, abw, function() Answer(false) end, nil, 12, 26)
+    S.NewButton(ask, "Again", 70 + 2 * (abw + 6), 0, abw, function()
+        if check then HUI.Tap(check.side, check.s:Level(), 0.1) end
+    end, nil, 12, 26)
+    local progress = S.Text(ask, "", 0, -36, COL - 24, 11, GREY)
+
+    local lowBattery = Choice(card, "Low battery", 12, -120, { { true, "Softer" }, { false, "Same" } },
+        function() return H.DB().battery end, function(v) H.DB().battery = v end)
+    local battery = S.Text(card, "", 12, -158, COL - 24, 12, GREY)
+    pg.refresh[#pg.refresh + 1] = function()
+        for side = 1, 2 do
+            local on = check and check.side == side
+            checks[side].label:SetText(on and "Stop" or "Check")
+            S.SetSelected(checks[side], on and true or false)
+            checks[side]:SetEnabled(not check or on)
+            rows[side]:SetEnabled(not check)
+        end
+        ask:SetShown(check ~= nil)
+        lowBattery:SetShown(check == nil)
+        battery:SetShown(check == nil)
+        if check then progress:SetText((check.side == 1 and "Left" or "Right") .. " · tap " .. (check.s.trials + 1)) end
         local B = ns.Battery
         local _, _, name = nil, nil, nil
         if B then _, _, name = B.Look(B.Level()) end

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.46.4 — 2026-11-18
+
+- **Setup › Range, redone: no reaction time.** Each grip has a slider (Left, Right) that plays the faint feels' micro-tap (33 ms) at its level, every 0.6 s, while you hover it or just after a change: slide down until you can't feel it, then one step up. − and +, the wheel, a click on the track, and while hovered the arrow keys and the d-pad
+- **Check** (per side): a yes/no test, one tap at a time, "Felt?" Yes / No / Again; it steps down after a Yes and up after a No, halving the step at each turn, and settles in about 6-10 taps on the lowest level you felt. The slider shows the result to nudge
+- "Faint feels start here" says what the floor does. Low battery and the battery stay in the card (hidden while a check runs)
+- Find left / Find right and their rising ramp are gone from Setup (Lab's ceiling still uses the ramp)
+
 ## 0.46.3 — 2026-11-18
 
 - **Help, a codex**: topics down the left with their glyphs (three new: Touchpad, Profiles, Credits); a topic: a small picture drawn from the addon's own art and widgets, a few numbered points that match the picture's marks, and Go there

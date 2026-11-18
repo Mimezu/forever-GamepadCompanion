@@ -442,6 +442,51 @@ function HUI.Calibrate(side, mode)
     return true
 end
 
+-- Setup › Range: micro-taps at a grip's floor, the same 33 ms tap the faint
+-- feels use. Repeated every 0.6 s while a side is being set (Audition), or one
+-- at a level (Tap, for the yes/no check). Straight to the motor: the floor is
+-- the motor's level, before calibration.
+local TAP, EVERY = 0.033, 0.6
+local taps = { side = nil, level = nil, untilT = 0, nextT = 0, offT = 0 }
+local tapper = CreateFrame("Frame")
+tapper:Hide()
+local function TapsOff()
+    tapper:Hide()
+    H.Silence()
+    H.hold = false
+    taps.side = nil
+end
+tapper:SetScript("OnUpdate", function()
+    local now = GetTime()
+    local side = taps.side
+    if not side then return TapsOff() end
+    local level = taps.level or H.DB().floor[side] or 0
+    if now >= taps.nextT and now < taps.untilT then
+        taps.offT, taps.nextT = now + TAP, now + EVERY
+    end
+    local on = now < taps.offT
+    H.Send(side == 1 and "Low" or "High", on and level or 0)
+    H.Send(side == 1 and "High" or "Low", 0)
+    if not on and now >= taps.untilT then TapsOff() end
+end)
+local function TapsStart(side, level, seconds, delay)
+    local L = ns.HapticsLab
+    if L.Ramping() then L.StopRamp() end
+    if taps.side ~= side or not tapper:IsShown() or level then
+        H.Stop()
+        taps.nextT, taps.offT = GetTime() + (delay or 0), 0
+    end
+    H.hold = true
+    taps.side, taps.level, taps.untilT = side, level, GetTime() + seconds
+    tapper:Show()
+end
+-- Taps at the side's floor (read live, so a change is felt on the next tap)
+-- for `seconds` from now; called again: longer
+function HUI.Audition(side, seconds) TapsStart(side, nil, seconds or 2.5) end
+-- One tap at `level`, after `delay` s (not under the click that asked)
+function HUI.Tap(side, level, delay) TapsStart(side, level, (delay or 0) + 0.05, delay) end
+function HUI.StopTaps() if tapper:IsShown() then TapsOff() end end
+
 -- A text box in a small window (Lab's export, a profile's name, Share)
 local textWin
 function HUI.TextWindow(title, text, onAccept, acceptLabel)
