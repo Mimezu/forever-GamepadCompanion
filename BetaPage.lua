@@ -993,7 +993,7 @@ local function BuildTune(p)
         -- (the floor is set in one place, Setup › Range: read here)
         local floorText = S.Text(cal, "", x, -64, cw, 11, GREY)
         ui.refresh[#ui.refresh + 1] = function()
-            floorText:SetText(string.format("Floor %d%% · Setup", floor((db().floor[side] or 0) * 100 + 0.5)))
+            floorText:SetText(string.format("Faintest feel %d%% · Setup", floor((db().floor[side] or 0) * 100 + 0.5)))
         end
         CRow("Ceiling", -86, { get = function() return db().ceil[side] end,
             set = function(v) db().ceil[side] = max(v, db().floor[side] + 0.05) end, step = 0.01, min = 0.1, max = 1 })
