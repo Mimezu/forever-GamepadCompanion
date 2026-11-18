@@ -198,6 +198,18 @@ do
     assert(rawget(tabs.tools.icon, "gpcGlyph") and tabs.tools.icon.texture:find("Media\\tab%-tools"), "Tools' glyph")
     assert(tabs.tools.icon.alpha == 1 and tabs.bars.icon.alpha < 1, "the open page's glyph bright, the rest dim")
     print("PASS: tab glyphs: one set, open bright, rest dim")
+    -- Joined choices: the highlight, hover and underline inset alike inside each cell
+    local seg
+    for _, f in ipairs(created) do if rawget(f, "segment") then seg = f; break end end
+    local IN = S.SEGMENT_INSET
+    local function inset(t)
+        local p1, p2 = t.points[1], t.points[2]
+        return p1[1] == "TOPLEFT" and p1[4] == IN and p1[5] == -IN and p2[1] == "BOTTOMRIGHT" and p2[4] == -IN and p2[5] == IN
+    end
+    assert(seg and inset(seg.selection) and inset(seg.hover), "highlight and hover inside the cell, same inset")
+    local u1, u2 = seg.underline.points[1], seg.underline.points[2]
+    assert(u1[1] == "BOTTOMLEFT" and u1[5] == IN and u2[1] == "BOTTOMRIGHT" and u2[5] == IN, "the underline at the cell's foot, inside")
+    print("PASS: joined choices: the highlight inside its cell")
 end
 tabs.bars.scripts.OnClick(tabs.bars)
 assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")

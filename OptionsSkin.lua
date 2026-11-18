@@ -520,20 +520,25 @@ end
 
 -- One segment of a joined control (S.Segments): no plate of its own, a
 -- warm fill and an underline when selected; works with S.SetSelected.
+S.SEGMENT_INSET = 4          -- the rim of a segments' well is 5 px, drawn from 1 px outside the cells
 function S.Segment(parent, label, x, y, width, action, size, height)
     local b = CreateFrame("Button", nil, parent)
     b:SetPoint("TOPLEFT", x, y)
     b:SetSize(width, height or 26)
+    -- (the highlight inside the well's rim: the same inset on every side)
+    local IN = S.SEGMENT_INSET
     b.selection = b:CreateTexture(nil, "BACKGROUND")
-    b.selection:SetAllPoints()
+    b.selection:SetPoint("TOPLEFT", IN, -IN); b.selection:SetPoint("BOTTOMRIGHT", -IN, IN)
     b.selection:Hide()
     b.underline = b:CreateTexture(nil, "ARTWORK")
-    b.underline:SetPoint("BOTTOMLEFT", 3, 1); b.underline:SetPoint("BOTTOMRIGHT", -3, 1)
+    b.underline:SetPoint("BOTTOMLEFT", IN + 2, IN); b.underline:SetPoint("BOTTOMRIGHT", -IN - 2, IN)
     b.underline:SetHeight(2)
     b.underline:SetColorTexture(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3], 0.9)
     b.underline:Hide()
     local hover = b:CreateTexture(nil, "HIGHLIGHT")
-    hover:SetAllPoints(); hover:SetColorTexture(1, 0.7, 0.2, 0.08)
+    hover:SetPoint("TOPLEFT", IN, -IN); hover:SetPoint("BOTTOMRIGHT", -IN, IN)
+    hover:SetColorTexture(1, 0.7, 0.2, 0.08)
+    b.hover = hover
     b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     b.label:SetFont(FONT, size or 12, "")
     b.label:SetPoint("LEFT", 4, 0); b.label:SetPoint("RIGHT", -4, 0)
@@ -614,8 +619,15 @@ function S.Card(parent, title, x, y, width, height, icon)
         line:SetColorTexture(0.68, 0.50, 0.26, alpha)
         return line
     end
-    local edges = { Line(0, 0, width, 1, 0.55), Line(0, -height + 1, width, 1, 0.3),
-        Line(0, 0, 1, height, 0.3), Line(width - 1, 0, 1, height, 0.3) }
+    -- (edges on the card's sides, so a resized card keeps them)
+    local function Edge(a1, a2, w, h)
+        local line = card:CreateTexture(nil, "BORDER")
+        line:SetPoint(a1); line:SetPoint(a2)
+        if w then line:SetWidth(w) else line:SetHeight(h) end
+        return line
+    end
+    local edges = { Edge("TOPLEFT", "TOPRIGHT", nil, 1), Edge("BOTTOMLEFT", "BOTTOMRIGHT", nil, 1),
+        Edge("TOPLEFT", "BOTTOMLEFT", 1), Edge("TOPRIGHT", "BOTTOMRIGHT", 1) }
     S.OnSkin(function(skin)
         for i, l in ipairs(edges) do
             if skin == "gilded" then l:SetColorTexture(0.85, 0.66, 0.32, i == 1 and 0.95 or 0.75)

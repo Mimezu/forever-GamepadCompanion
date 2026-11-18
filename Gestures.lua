@@ -10,6 +10,7 @@ local G = {}
 ns.Gestures = G
 
 G.SLOTS = 12
+G.RECENT = 5             -- the last gestures the Gestures tab lists
 G.BUTTON = "GamepadCompanionGestures"
 -- (WoW names chords Alt, Ctrl, Shift in that order; another order never matches)
 function G.Key(slot) return "ALT-CTRL-SHIFT-F" .. slot end
@@ -24,6 +25,16 @@ button:SetSize(1, 1)
 button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 local owner = CreateFrame("Frame", "GamepadCompanionGestureBinds")
+-- The last gesture that ran: { slot, at } (the Gestures tab's Last gesture)
+button:HookScript("OnClick", function(_, id, down)
+    local slot = type(id) == "string" and tonumber(id:match("^g(%d+)$"))
+    if not slot or down == false then return end
+    G.last = { slot = slot, at = GetTime and GetTime() or 0 }
+    G.recent = G.recent or {}
+    table.insert(G.recent, 1, G.last)
+    while #G.recent > G.RECENT do table.remove(G.recent) end
+    if G.onFire then G.onFire(slot) end
+end)
 
 function G.Normalize(raw)
     local out = {}

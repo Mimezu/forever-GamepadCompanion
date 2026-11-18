@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.45.8 — 2026-11-18
+
+- **Gestures, redrawn**: a grid of cards that fills the page, and a WoW Helper column
+  - A card: the motion (its path drawn when WoW Helper sends one, else a quiet dot), the name in title case, what it is (WoW Helper's words; nothing when they only repeat the name), the action on its plate with its icon (a lone /sit reads Sit), a quiet × on hover
+  - The cards share the page's height: few gestures, tall cards with the motion large; many, compact ones
+  - The last card: Record in WoW Helper (none when all 12 slots are taken). No gestures: a calm empty state over the grid
+  - WoW Helper column: Link, how many, its gesture mode, and the last 5 gestures that ran (as they run, no polling)
+  - Reads WoW Helper's richer gesture data when it comes ({ name, mode, desc, path }); today's names alone still work
+- **Joined choices: the highlight sits inside its cell** (it ran under the well's rim): highlight, hover and underline inset 4 px on every side, on every page and skin
+- Cards keep their edges when resized
+
 ## 0.45.7 — 2026-11-18
 
 - **Bars**, redrawn: one strip for the layout (Compact | Standard, as set in Edit Mode; Copy and Reset layout beside it), then the bars, a **live preview** of the screen, and the picked bar's values
