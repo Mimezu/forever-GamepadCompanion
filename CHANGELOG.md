@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.41.0 — 2026-11-18
+
+A visual pass (two critiques, one iteration): richer look, same simplicity.
+
+- **Switches** for every on / off: a rounded track, a knob, gold when on
+- **Joined choices**: a row of choices is one control (one well, dividers, the chosen one filled and underlined): Feel | Light | Sound, layers, pages, touch input and mode, and every choice row
+- **Value tracks**: a stepper shows where its value sits in its range (a click on the track sets it); a list shows pips
+- **Depth**: cards with a warm title band, a soft shadow and a gradient; Setup's cards with an icon; headings with a fading rule; every other moment row warmer, a hover, a bar in its state's colour (a light's own colour on Light)
+- **The shell**: each page's name with its tab's icon; pages, popups and group panels fade in; the status with a dot (green: done, orange: warning, grey: a state); a **WoW Helper** dot in the footer (linked, not read, off) that opens Setup
+- Light swatches update 20 times a second instead of every frame
+
 ## 0.40.0 — 2026-11-17
 
 - **Gestures, redesigned**: only the gestures that exist (recorded in WoW Helper, or given an action), one calm card; each its name, its action's icon, the action on its plate (**Choose** when there's none, never a red Off), and a quiet **×** to take it off. The key chord WoW Helper presses is only in the plate's tooltip. No gestures yet: "No gestures yet · Record them in WoW Helper › Gestures"

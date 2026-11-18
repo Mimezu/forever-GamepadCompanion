@@ -44,7 +44,9 @@ function Shell.SetStatus(text, sticky)
     if dot then
         local warn = text:find("|cffff7a5c", 1, true) == 1
         dot:SetShown(text ~= "")
-        if warn then dot:SetColorTexture(1, 0.48, 0.36, 1) else dot:SetColorTexture(0.35, 0.85, 0.4, sticky and 1 or 0.5) end
+        if warn then dot:SetColorTexture(1, 0.48, 0.36, 1)
+        elseif sticky then dot:SetColorTexture(0.35, 0.85, 0.4, 1)
+        else dot:SetColorTexture(0.62, 0.62, 0.62, 0.8) end
     end
     if sticky and text ~= "" then S.FadeIn(window.status, 0.15) end
 end
@@ -222,7 +224,7 @@ local function Build()
     for _, def in ipairs(defs) do Page(def.key) end
 
     -- Footer: status, version, Close
-    window.status = S.Note(window, inset.left + 2, -(inset.top + HEADER + Shell.H + 14), Shell.W - 600, 1, 12, S.GREY)
+    window.status = S.Note(window, inset.left + 16, -(inset.top + HEADER + Shell.H + 14), Shell.W - 740, 1, 12, S.GREY)
     local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")
     window.version = S.Text(window, type(version) == "string" and ("v" .. version) or "", 0, 0, 80, 11, S.DIM)
     window.version:ClearAllPoints()

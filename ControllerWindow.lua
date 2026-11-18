@@ -618,8 +618,8 @@ local function BuildTouchPanel(card)
     local function Settings() return Touch.Settings() end
 
     tp.enable = S.NewCheck(p, "Touch zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 100)
-    tp.preview = S.NewCheck(p, "Preview", 132, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 70)
-    tp.move = S.NewButton(p, "Move", W - 70, 0, 66, function(self)
+    tp.preview = S.NewCheck(p, "Preview", 128, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 60)
+    tp.move = S.NewButton(p, "Move", W - 60, 0, 56, function(self)
         local moving = Touch.MovePreview()
         self.label:SetText(moving and "Done" or "Move")
         S.SetSelected(self, moving)
@@ -666,7 +666,7 @@ local function BuildTouchPanel(card)
     tp.tapPlus = S.NewButton(p, "+", 118, -122, 24, function() Touch.SetTapTime(Settings().tapMs + T.TAP_MS.step) end, nil, 13, 24)
     S.Tooltip(tp.tapMinus, "Shorter tap")
     S.Tooltip(tp.tapPlus, "Longer tap")
-    tp.over = S.NewCheck(p, "Over windows", 150, -121, function(self) Touch.SetOverWindows(self:GetChecked() == true) end, 90)
+    tp.over = S.NewCheck(p, "Over UI", 150, -121, function(self) Touch.SetOverWindows(self:GetChecked() == true) end, 60)
     S.Tooltip(tp.over, "Over windows", "Off: an open window takes the pad")
 
     -- The picked zone's heading and slot, then swipes

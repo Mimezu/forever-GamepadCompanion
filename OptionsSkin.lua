@@ -241,30 +241,49 @@ function S.NewCheck(parent, label, x, y, onClick, labelWidth)
         local t = check[get] and check[get](check)
         if t and t.SetAlpha then t:SetAlpha(0) end
     end
-    local rim = check:CreateTexture(nil, "BACKGROUND")
-    rim:SetSize(34, 16); rim:SetPoint("LEFT", 0, 0)
-    rim:SetColorTexture(RIM[1], RIM[2], RIM[3], RIM[4])
-    local track = check:CreateTexture(nil, "BORDER")
-    track:SetSize(32, 14); track:SetPoint("LEFT", 1, 0)
-    local knob = check:CreateTexture(nil, "ARTWORK")
-    knob:SetSize(12, 12)
+    -- (a capsule: a middle and two round caps, so the track's ends are round)
+    local function Round(tex)
+        if check.CreateMaskTexture and tex.AddMaskTexture then
+            local mask = check:CreateMaskTexture()
+            if mask then mask:SetAtlas("CircleMask"); mask:SetAllPoints(tex); tex:AddMaskTexture(mask) end
+        end
+        return tex
+    end
+    local function Capsule(layer, sub)
+        return { mid = check:CreateTexture(nil, layer, nil, sub), a = Round(check:CreateTexture(nil, layer, nil, sub)),
+            b = Round(check:CreateTexture(nil, layer, nil, sub)) }
+    end
+    local rim, track = Capsule("BACKGROUND", 0), Capsule("BORDER", 0)
+    local knob = Round(check:CreateTexture(nil, "ARTWORK"))
     knob:SetColorTexture(0.95, 0.9, 0.8, 1)
-    if check.CreateMaskTexture and knob.AddMaskTexture then
-        local mask = check:CreateMaskTexture()
-        if mask then
-            mask:SetAtlas("CircleMask")
-            mask:SetAllPoints(knob)
-            knob:AddMaskTexture(mask)
+    local travel = 19
+    local function Place(cap, x, w, h)
+        cap.a:ClearAllPoints(); cap.a:SetPoint("LEFT", x, 0); cap.a:SetSize(h, h)
+        cap.b:ClearAllPoints(); cap.b:SetPoint("LEFT", x + w - h, 0); cap.b:SetSize(h, h)
+        cap.mid:ClearAllPoints(); cap.mid:SetPoint("LEFT", x + h / 2, 0); cap.mid:SetSize(math.max(1, w - h), h)
+    end
+    local function Paint(cap, a, b)
+        for _, t in pairs(cap) do
+            if b then S.Gradient(t, "VERTICAL", a, b) else t:SetColorTexture(a[1], a[2], a[3], a[4]) end
         end
     end
+    local function Layout()
+        local compact = (check:GetWidth() or 34) < 30
+        local w, h = compact and 26 or 34, compact and 14 or 16
+        Place(rim, 0, w, h)
+        Place(track, 1, w - 2, h - 2)
+        knob:SetSize(h - 4, h - 4)
+        travel = w - h
+    end
+    Paint(rim, RIM)
     local function Update()
         local on = check:GetChecked() and true or false
         knob:ClearAllPoints()
-        knob:SetPoint("LEFT", track, "LEFT", on and 19 or 1, 0)
-        if on then S.Gradient(track, "VERTICAL", { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 })
-        else track:SetColorTexture(TRACK_OFF[1], TRACK_OFF[2], TRACK_OFF[3], TRACK_OFF[4]) end
+        knob:SetPoint("LEFT", check, "LEFT", 2 + (on and travel or 0), 0)
+        if on then Paint(track, { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 }) else Paint(track, TRACK_OFF) end
         check:SetAlpha(check:IsEnabled() and 1 or 0.45)
     end
+    Layout()
     check.UpdateSwitch = Update
     local set = check.SetChecked
     check.SetChecked = function(self, v) set(self, v); Update() end
@@ -285,6 +304,7 @@ function S.NewCheck(parent, label, x, y, onClick, labelWidth)
     if check.HookScript then
         check:HookScript("OnEnable", Update)
         check:HookScript("OnDisable", Update)
+        check:HookScript("OnSizeChanged", function() Layout(); Update() end)
     end
     Update()
     return check
@@ -389,6 +409,10 @@ function S.Card(parent, title, x, y, width, height, icon)
             card.icon:SetSize(16, 16); card.icon:SetPoint("TOPLEFT", 10, -8)
             card.icon:SetTexture(icon)
             if card.icon.SetTexCoord then card.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+            card.icon:SetAlpha(0.85)
+            local rim = card:CreateTexture(nil, "BORDER")
+            rim:SetPoint("TOPLEFT", card.icon, "TOPLEFT", -1, 1); rim:SetPoint("BOTTOMRIGHT", card.icon, "BOTTOMRIGHT", 1, -1)
+            rim:SetColorTexture(0.68, 0.5, 0.26, 0.6)
             tx = 32
         end
         card.title = S.Text(card, title, tx, -10, width - tx - 12, 12, S.YELLOW)

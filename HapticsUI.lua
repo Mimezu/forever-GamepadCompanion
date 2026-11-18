@@ -39,10 +39,11 @@ function HUI.Stepper(pg, parent, label, x, y, opts)
         end
         pg.Refresh()
     end
+    local TRACK_W = opts.width and max(TRACK_W, opts.width - lw - 52) or TRACK_W
     row.minus = S.NewButton(row, "-", lw, 0, 24, function() change(-1) end, nil, 13, 24)
-    row.value = S.Text(row, "", lw + 26, -1, 70, 11, YELLOW)
+    row.value = S.Text(row, "", lw + 26, -1, TRACK_W + 2, 11, YELLOW)
     row.value:SetJustifyH("CENTER")
-    row.plus = S.NewButton(row, "+", lw + 98, 0, 24, function() change(1) end, nil, 13, 24)
+    row.plus = S.NewButton(row, "+", lw + TRACK_W + 30, 0, 24, function() change(1) end, nil, 13, 24)
     -- the track (a value) or the pips (a list)
     row.track = row:CreateTexture(nil, "BORDER")
     row.track:SetPoint("TOPLEFT", lw + 27, -16); row.track:SetSize(TRACK_W, 4)
@@ -172,6 +173,7 @@ function HUI.Popup(anchor, title, entries, current, onPick, cols, tw, up)
     popup:SetClampedToScreen(true)
     popup:Show()
     popup:Raise()
+    S.FadeIn(popup, 0.1)
 end
 
 DrawPopup = function()
@@ -264,7 +266,7 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r.accent:SetColorTexture(1, 0.78, 0.25, 0.9)
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(30, 30)
-    r.icon:SetPoint("LEFT", 2, 0)
+    r.icon:SetPoint("LEFT", 6, 0)
     if icon then r.icon:SetTexture(icon) end
     -- right to left: Edit, Default, Try, the plate
     local x = width - 20
@@ -327,9 +329,9 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         r.marks[i] = m
     end
     local textW = x - 48 - (opts.marks or 0) * 18
-    r.label = S.Text(r, label, 40, -4, textW, 13, GOLD)
+    r.label = S.Text(r, label, 44, -4, textW - 4, 13, GOLD)
     r.label:SetWordWrap(false)
-    r.sub = S.Text(r, "", 40, -22, textW, 11, GREY)
+    r.sub = S.Text(r, "", 44, -22, textW - 4, 11, GREY)
     r.sub:SetWordWrap(false)
     r:EnableMouse(true)
     r:SetScript("OnEnter", function(self)
@@ -402,6 +404,7 @@ function HUI.GroupBrowser(p, groups, opts)
     end
     function b.Select(key)
         b.current = key
+        if b.current ~= key and b.panels[key] then S.FadeIn(b.panels[key], 0.1) end
         for k, panel in pairs(b.panels) do panel:SetShown(k == key) end
         for k, btn in pairs(b.buttons) do S.SetSelected(btn, k == key) end
         if opts.onSelect then opts.onSelect(key) end
@@ -482,6 +485,7 @@ function HUI.TextWindow(title, text, onAccept, acceptLabel)
     textWin.accept:SetShown(onAccept ~= nil)
     textWin:Show()
     textWin:Raise()
+    S.FadeIn(textWin, 0.1)
     textWin.box:SetFocus()
     textWin.box:HighlightText()
 end

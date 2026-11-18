@@ -655,8 +655,8 @@ local function Build(frame, header)
     -- Header: the kind, its switch, the last moment
     ui.seg = {}
     for i, k in ipairs(KINDS) do
-        if i == 1 then S.Segments(header, 129, -2, { 72, 72, 72 }, 28) end
-        ui.seg[k[1]] = S.Segment(header, k[2], 130 + (i - 1) * 72, -3, 72, function() ui.SetKind(k[1]) end, 12, 28)
+        if i == 1 then S.Segments(header, 149, -2, { 72, 72, 72 }, 28) end
+        ui.seg[k[1]] = S.Segment(header, k[2], 150 + (i - 1) * 72, -3, 72, function() ui.SetKind(k[1]) end, 12, 28)
     end
     ui.enable = S.NewCheck(header, "On", W - 70, -4, function(self)
         ENABLE[ui.kind].set(self:GetChecked() == true)

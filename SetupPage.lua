@@ -32,6 +32,7 @@ local function BuildHelper(frame)
     if not (K and C) then return end
     local link = S.NewCheck(card, "Link", 12, -38, function(self)
         K.SetEnabled(self:GetChecked() == true)
+        if Shell.RefreshLink then Shell.RefreshLink() end
         C.Refresh()
         Refresh()
     end, 90)
@@ -208,7 +209,7 @@ end
 -- Range: the faintest each grip feels, low battery, the battery
 ---------------------------------------------------------------------------
 local function BuildRange(frame)
-    local card = S.Card(frame, "Range", X2, 0, COL, 200, "Interface\\Icons\\Spell_Nature_Lightning")
+    local card = S.Card(frame, "Range", X2, 0, COL, 200, "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration")
     local faint = S.Text(card, "", 12, -40, COL - 24, 13, YELLOW)
     local find = {}
     local bw = (COL - 30) / 2
