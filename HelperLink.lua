@@ -744,6 +744,8 @@ function K.SetEnabled(on)
     end
     K.Refresh()
     if ns.Lights and ns.Lights.LinkChanged then ns.Lights.LinkChanged() end
+    -- the triggers: the stack's current ones again (its resolution has not changed)
+    if ns.TriggerStack and ns.TriggerStack.LinkChanged then ns.TriggerStack.LinkChanged() end
 end
 
 Build()

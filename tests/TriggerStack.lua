@@ -119,6 +119,26 @@ now = now + 2
 RunTimers()
 check(TS.Trying() == nil, "then back to the stack")
 
+-- Link off, then on: the stack's triggers come back (night review T2-1)
+kind:Default()
+St.Set("cast", true)
+TS.Update({ cast = true, progress = 0.5 })
+check(K.trig and K.trig.right.shape == TS.ID.tension, "casting: Cast tension on the row")
+K.SetEnabled(false)
+check(K.trig == nil and K.state.right.mode == 0, "Link off: the triggers free")
+TS.Update({ cast = true, progress = 0.5 })
+TS.Update({ cast = true, progress = 0.5 })
+K.SetEnabled(true)
+check(K.trig and K.trig.right.shape == TS.ID.tension and math.abs((K.trig.right.value or 0) - 0.5) < 0.011,
+    "Link on: Cast tension back on the row")
+check(K.state.right.mode ~= 0, "Link on: the strip's own fields back")
+-- (and with no game update between)
+K.SetEnabled(false)
+K.SetEnabled(true)
+check(K.trig and K.trig.right.shape == TS.ID.tension and K.state.right.mode ~= 0, "Link off and on at once: back")
+St.Set("cast", false)
+TS.Update({})
+
 -- the old Setup rules move once, silently, each keeping its bytes; then the Recommended ones
 db.triggerStack = nil
 db.link.trigRules = { v = 1, list = {
@@ -138,6 +158,20 @@ check(K.trig == nil or K.trig.right.shape == 0, "and no shape on the row: the ol
 db.link.trigRules.list[1].on = false
 kind:Rows()
 check(rows[1].on == true, "moved once: never again")
+
+-- a reload: the same saved stack, fresh files; the first update draws the triggers
+db.link.trigRules = nil
+do
+    local ns2 = { Haptics = { DB = function() return db end } }
+    for _, f in ipairs({ "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "TriggerStack.lua" }) do
+        assert(loadfile(root .. "/" .. f))("GamepadCompanion", ns2)
+    end
+    ns2.TriggerStack.kind:Default()
+    ns2.Stack.Set("cast", true)
+    ns2.TriggerStack.Update({ cast = true, progress = 0.5 })
+    local K2 = ns2.HelperLink
+    check(K2.trig and K2.trig.right.shape == TS.ID.tension and K2.state.right.mode ~= 0, "after a reload: the triggers drawn")
+end
 
 print(string.format("TriggerStack: %s (%d checks)", failed == 0 and "ok" or (failed .. " failed"), n))
 os.exit(failed == 0 and 0 or 1)

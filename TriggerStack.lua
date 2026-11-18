@@ -263,6 +263,11 @@ function TS.SetOn(on)
     if kind then kind:Refresh(true) end
 end
 
+-- The link switched (on or off): send the stack's current triggers again
+function TS.LinkChanged()
+    if kind then kind:Refresh(true) end
+end
+
 function TS.Send(result)
     if not (K and K.SetTrigger) then return end
     local on = K.Enabled() and TS.On()
