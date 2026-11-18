@@ -394,6 +394,30 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         end
         ag:Stop(); ag:Play()
     end
+    -- WoW Helper's proposal for this row: "Proposed · Coin tap", Accept, Dismiss (nil: none)
+    function r:SetProposal(p, accept, dismiss)
+        if not p then
+            if r.proposal then r.proposal:Hide() end
+            r.sub:SetTextColor(GREY[1], GREY[2], GREY[3])
+            return
+        end
+        if not r.proposal then
+            local f = CreateFrame("Frame", nil, r)
+            f:SetSize(120, 20)
+            f.accept = S.NewButton(f, "Accept", 0, 0, 58, nil, nil, 10, 20)
+            f.dismiss = S.NewButton(f, "Dismiss", 60, 0, 58, nil, nil, 10, 20)
+            r.proposal = f
+        end
+        local f = r.proposal
+        r.sub:SetText("Proposed · " .. p.name)
+        r.sub:SetTextColor(YELLOW[1], YELLOW[2], YELLOW[3])
+        local w = r.sub:GetStringWidth()
+        f:ClearAllPoints()
+        f:SetPoint("LEFT", r.sub, "LEFT", math.min((type(w) == "number" and w or 120) + 8, 200), 0)
+        f.accept:SetScript("OnClick", accept)
+        f.dismiss:SetScript("OnClick", dismiss)
+        f:Show()
+    end
     function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
         -- (a new choice, not the first draw: a pick or Default)
         if r.shown ~= nil and r.shown ~= name then r:Flash() end

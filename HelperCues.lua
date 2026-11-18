@@ -265,6 +265,24 @@ function C.SetHDMode(v) C.Settings().hdFeels = v ~= "off" end
 
 -- A gesture slot as WoW Helper recorded it: { name, mode, desc, path } (nil
 -- without data). Older data gives the name alone (a string).
+-- WoW Helper's proposals: WowHelperData.proposals[momentKey] = { kind =
+-- "feel" | "sound" | "light", id, name }: a pick made there, applied only
+-- once accepted here. A dismissed one stays quiet until WoW Helper proposes
+-- another id (H.DB().proposalsDismissed[key] = id).
+function C.Proposal(kind, key)
+    local d = Data()
+    local p = d and type(d.proposals) == "table" and d.proposals[key]
+    if type(p) ~= "table" or p.kind ~= kind or p.id == nil then return nil end
+    local dismissed = H.DB().proposalsDismissed
+    if type(dismissed) == "table" and dismissed[key] == tostring(p.id) then return nil end
+    return { kind = p.kind, id = p.id, name = type(p.name) == "string" and p.name or tostring(p.id) }
+end
+function C.DismissProposal(key, id)
+    local db = H.DB()
+    if type(db.proposalsDismissed) ~= "table" then db.proposalsDismissed = {} end
+    db.proposalsDismissed[key] = tostring(id)
+end
+
 -- WoW Helper's gestureInfo[slot]: { name, mode, motion (a few words), arm,
 -- ready, plane, path = { x1, y1, x2, y2, ... } } in -1..1, y up. The path
 -- comes back as points in 0..1, y down (a box's own space).

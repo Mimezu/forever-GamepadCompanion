@@ -468,6 +468,24 @@ local function Snapshot(kind, key)
     end
 end
 
+-- A proposal accepted: WoW Helper's pick written as the player's own
+local function Accept(kind, key, p)
+    local k = KIND_OF[kind]
+    if k == "sound" then
+        C.SetMomentSound(key, tonumber(p.id) or p.id)
+    elseif k == "light" then
+        local s = LT.Own(key)
+        s.on, s.light = true, p.id
+    elseif ITEM[kind].pick and kind ~= "c" then
+        if not H.Feel(p.id) then return Say(p.name .. ": not in the game yet · /reload", true) end
+        ITEM[kind].pick(key, p.id)
+    else
+        return Say(p.name .. ": not for this moment", true)
+    end
+    C.DismissProposal(key, p.id)
+    Say(ITEM[kind].label(key) .. ": " .. p.name)
+end
+
 local function MakeRow(parent, y, width, kind, key)
     local I = ITEM[kind]
     local label = I.label(key)
@@ -1621,6 +1639,9 @@ Refresh = function()
         end
         row:SetMarks(Marks(row))
         local rk = KIND_OF[row.kind]
+        local p = C and C.Proposal and C.Proposal(rk, row.key)
+        row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
+            p and function() C.DismissProposal(row.key, p.id); Refresh() end)
         local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
         row:SetAlpha(live and 1 or 0.55)
     end
@@ -1634,7 +1655,12 @@ Refresh = function()
             local _, _, _, off = ITEM[item[1]].show(item[2])
             if not off then on = on + 1 end
         end
-        ui.browser.buttons[g.key].count:SetText(#items > 0 and (on .. "/" .. #items) or "")
+        -- (a gold dot: WoW Helper proposes something in this group)
+        local proposed = false
+        for _, item in ipairs(items) do
+            if C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
+        end
+        ui.browser.buttons[g.key].count:SetText((proposed and "|cffffcc4d•|r " or "") .. (#items > 0 and (on .. "/" .. #items) or ""))
     end
     for _, fn in ipairs(pg.refresh) do fn() end
     if kind == "feel" then

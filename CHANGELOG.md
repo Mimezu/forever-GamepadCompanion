@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.51.2 — 2026-11-18
+
+- **WoW Helper's proposals**: a pick made in WoW Helper (Copy, Use for) reaches the game as a proposal, not a live change. After /reload the row reads **Proposed · Coin tap** with **Accept** and **Dismiss**; the group's count shows a gold dot. Accept writes it as your own pick; Dismiss keeps it quiet until WoW Helper proposes another. Reads `WowHelperData.proposals[moment] = { kind, id, name }`
+
 ## 0.51.1 — 2026-11-18
 
 - **Shape, always there**: dim when WoW Helper can't take it; a click says "Start WoW Helper · Setup" and the footer's WoW Helper chip brightens once (Lab on: Edit, as before)

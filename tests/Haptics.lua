@@ -1129,6 +1129,26 @@ do
     pop:Hide()
     assert(math.abs(Vol.Sound("loot") - 0.9) < 1e-9 and lootRow.level.value.text == "90%", "loot: 90%")
     Vol.SetSound("loot", 1)
+    -- WoW Helper's proposal: Proposed · its name, Accept writes it, Dismiss keeps it quiet; a dot on the group
+    local savedData = WowHelperData
+    WowHelperData = { at = "18:02", proposals = { loot = { kind = "sound", id = K.SOUNDS.chime, name = "Chime" },
+        money = { kind = "sound", id = K.SOUNDS.click, name = "Click" } } }
+    ns.Shell.Refresh()
+    assert(lootRow.sub.text == "Proposed · Chime" and lootRow.proposal:IsShown(), "Proposed · Chime")
+    assert(M.browser.buttons.Progress.count.text:find("•", 1, true), "a dot on the group's count")
+    lootRow.proposal.accept.scripts.OnClick(lootRow.proposal.accept)
+    assert(ns.HelperCues.MomentSound("loot") == K.SOUNDS.chime and not lootRow.proposal:IsShown(), "Accept: the player's pick")
+    local moneyRow
+    for _, r in ipairs(M.rows) do if r.kind == "sound" and r.key == "money" then moneyRow = r end end
+    moneyRow.proposal.dismiss.scripts.OnClick(moneyRow.proposal.dismiss)
+    assert(not moneyRow.proposal:IsShown() and ns.HelperCues.MomentSound("money") ~= K.SOUNDS.click, "Dismiss: quiet, nothing changed")
+    WowHelperData.proposals.money.id = K.SOUNDS.coin
+    ns.Shell.Refresh()
+    assert(moneyRow.proposal:IsShown(), "a new proposal shows again")
+    ns.HelperCues.SetMomentSound("loot", nil)
+    H.DB().proposalsDismissed = nil
+    WowHelperData = savedData
+    ns.Shell.Refresh()
     M.SetKind("feel")
     K.SetEnabled(false)
     io.write("PASS: helper cues: casts tighten R2 (on the trigger row, following the cast), shots click it, low health weighs on L2, sounds queued, off by group" .. string.char(10))
