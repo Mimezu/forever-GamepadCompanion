@@ -453,23 +453,29 @@ do
     local function visible() local n = 0 for _, r in ipairs(page.cards) do if r:IsShown() then n = n + 1 end end return n end
     assert(visible() == 0 and page.empty:IsShown() and not page.record:IsShown(), "no gestures: the empty state, no cards")
     G.Set(2, "text:/dance")
-    WowHelperData = { at = "18:02", gestureMode = "precise", gestures = { [5] = "flick up",
-        [7] = { name = "Shake", mode = "shake", desc = "Shake twice", path = { { 0, 0.5 }, { 1, 0.5 }, { 0, 0.5 } } } } }
+    -- (WoW Helper's data: the names, and gestureInfo with the motion, mode, ready and a path in -1..1, y up)
+    WowHelperData = { at = "18:02", gesturesEnabled = true, gestures = { [5] = "flick up", [7] = "Shake" },
+        gestureInfo = { [7] = { name = "Shake", mode = "standard", motion = "Shake twice", arm = "always", ready = true,
+            plane = "right-up", path = { -1.00, 0.00, 1.00, 0.00, -1.00, 0.00, 1.00, 0.00 } },
+            [9] = { name = "spin", mode = "standard", motion = "Circle", ready = false, path = { 0.00, 1.00, 1.00, 0.00 } } } }
+    local pts = ns.HelperCues.GesturePath({ -1, 1, 1, -1 })
+    assert(pts[1][1] == 0 and pts[1][2] == 0 and pts[2][1] == 1 and pts[2][2] == 1, "the path: -1..1 y up to the box's 0..1 y down")
     ns.Shell.Refresh()
-    assert(visible() == 3 and not page.empty:IsShown(), "recorded ones and the one with an action: " .. visible())
-    local dance, flick, shake = page.cards[1], page.cards[2], page.cards[3]
+    assert(visible() == 4 and not page.empty:IsShown(), "recorded ones and the one with an action: " .. visible())
+    local dance, flick, shake, spin = page.cards[1], page.cards[2], page.cards[3], page.cards[4]
     assert(dance.slot == 2 and dance.pick.label.text == "Dance" and dance.action, "slot 2: /dance, by its name: " .. tostring(dance.pick.label.text))
     assert(flick.slot == 5 and flick.name.text == "Flick Up" and flick.pick.label.text == "Choose" and not flick.action,
         "recorded, unassigned: its name in title case, Choose")
-    assert(shake.desc.text == "Shake twice" and flick.desc.text == "", "what it is: WoW Helper's words, else nothing")
+    assert(shake.desc.text == "Shake twice  ·  Standard" and flick.desc.text == "", "what it is: its motion and mode, else nothing")
+    assert(spin.name.text == "Spin" and spin.desc.text == "Not ready", "not ready: calmly")
     assert(flick.pick.tipBody == "Ctrl Shift Alt F5", "the chord only in the tooltip")
-    assert(page.record:IsShown() and page.status.count.text == "3 of 12" and page.status.mode.text == "Precise",
-        "the record card last; the status: how many, the mode")
+    assert(page.record:IsShown() and page.status.count.text == "4 of 12" and page.status.mode.text == "On",
+        "the record card last; the status: how many, recognition on")
     -- the last gesture, as it runs
     GamepadCompanionGestures.scripts.OnClick(GamepadCompanionGestures, "g5", true)
     assert(G.last.slot == 5 and page.status.lastName.text == "Flick Up", "Last gesture: " .. tostring(page.status.lastName.text))
     dance.clear.scripts.OnClick(dance.clear)
-    assert(G.Get(2) == nil and visible() == 2, "× takes it off; not recorded: it goes")
+    assert(G.Get(2) == nil and visible() == 3, "× takes it off; not recorded: it goes")
     WowHelperData = nil
     G.last = nil
     ns.Shell.Open("lab")

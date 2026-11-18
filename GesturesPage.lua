@@ -51,6 +51,7 @@ end
 local function DrawPath(card, path)
     local box = card.glyphBox
     for _, l in ipairs(card.lines) do l:Hide() end
+    for _, l in ipairs(card.arrow) do l:Hide() end
     card.start:Hide()
     if type(path) ~= "table" or #path < 2 or type(box.CreateLine) ~= "function" then return false end
     -- (a long path: every n-th point, so it fits the pool)
@@ -77,6 +78,30 @@ local function DrawPath(card, path)
         l:SetStartPoint("TOPLEFT", box, x0, y0)
         l:SetEndPoint("TOPLEFT", box, x1, y1)
         l:Show()
+    end
+    -- (an arrow at the end: two short strokes back along the last segment)
+    local ex, ey = At(pts[#pts])
+    local px, py = At(pts[#pts - 1])
+    local dx, dy = ex - px, ey - py
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len > 0.01 then
+        dx, dy = dx / len, dy / len
+        local head = math.max(6, size / 10)
+        for k, a in ipairs({ 0.5, -0.5 }) do
+            local l = card.arrow[k]
+            if not l then
+                l = box:CreateLine(nil, "ARTWORK")
+                if type(l) ~= "table" then break end
+                l:SetThickness(2.5)
+                l:SetColorTexture(1, 1, 0.75, 0.95)
+                card.arrow[k] = l
+            end
+            local c, s = math.cos(math.pi - a), math.sin(math.pi - a)
+            local bx, by = dx * c - dy * s, dx * s + dy * c
+            l:SetStartPoint("TOPLEFT", box, ex, ey)
+            l:SetEndPoint("TOPLEFT", box, ex + bx * head, ey + by * head)
+            l:Show()
+        end
     end
     local sx, sy = At(pts[1])
     card.start:ClearAllPoints()
@@ -110,7 +135,7 @@ local function Card(parent, i)
         local mask = card.glyphBox:CreateMaskTexture()
         if mask then mask:SetAtlas("CircleMask"); mask:SetAllPoints(card.glyph); card.glyph:AddMaskTexture(mask) end
     end
-    card.lines = {}
+    card.lines, card.arrow = {}, {}
     card.start = card.glyphBox:CreateTexture(nil, "OVERLAY")
     card.start:SetSize(7, 7)
     card.start:SetColorTexture(0.43, 0.78, 0.55, 1)
@@ -245,8 +270,10 @@ local function Refresh()
             if action and ns.Touch then name, icon = ns.Touch.ActionLook(action) end
             card.name:SetText(g.name)
             local rec = g.rec or {}
-            -- (what it is: WoW Helper's words, else its mode, else nothing)
-            local desc = rec.desc or (rec.mode and Title(rec.mode)) or ""
+            -- (what it is: WoW Helper's words and its mode; Not ready, calmly)
+            local desc = rec.desc or ""
+            if rec.mode then desc = desc ~= "" and (desc .. "  ·  " .. Title(rec.mode)) or Title(rec.mode) end
+            if rec.ready == false then desc = "Not ready" end
             -- (words that only repeat the name say nothing)
             if desc:lower() == g.name:lower() then desc = "" end
             card.desc:SetText(desc)
@@ -286,8 +313,8 @@ local function Refresh()
     s.link:SetText(linked and (data and "Linked" or "Linked · no data") or "Off")
     s.dot:SetColorTexture(linked and 0.35 or 0.5, linked and 0.85 or 0.5, linked and 0.4 or 0.5, 1)
     s.count:SetText(n .. " of " .. G.SLOTS)
-    local mode = C and C.GestureMode and C.GestureMode()
-    s.mode:SetText(type(mode) == "string" and Title(mode) or "—")
+    local on = C and C.GesturesEnabled and C.GesturesEnabled()
+    s.mode:SetText(on == true and "On" or on == false and "Off" or "—")
     RefreshLast()
 end
 
@@ -319,7 +346,7 @@ local function Build(frame)
     s.dot:SetSize(8, 8)
     s.dot:SetPoint("TOPLEFT", 50, -51)
     s.count = StatusRow(s, "Gestures", -74)
-    s.mode = StatusRow(s, "Mode", -100)
+    s.mode = StatusRow(s, "Recognition", -100)
     S.Heading(s, "Last gestures", 12, -136, STATUS_W - 24)
     s.none = S.Text(s, "None yet", 14, -164, STATUS_W - 28, 12, S.DIM)
     s.recent = {}

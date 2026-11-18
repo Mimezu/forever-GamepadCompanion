@@ -300,18 +300,38 @@ function C.SetHDMode(v) C.Settings().hdFeels = v ~= "off" end
 
 -- A gesture slot as WoW Helper recorded it: { name, mode, desc, path } (nil
 -- without data). Older data gives the name alone (a string).
+-- WoW Helper's gestureInfo[slot]: { name, mode, motion (a few words), arm,
+-- ready, plane, path = { x1, y1, x2, y2, ... } } in -1..1, y up. The path
+-- comes back as points in 0..1, y down (a box's own space).
+local function Path(flat)
+    if type(flat) ~= "table" or #flat < 4 then return nil end
+    local pts = {}
+    for i = 1, #flat - 1, 2 do
+        local x, y = tonumber(flat[i]), tonumber(flat[i + 1])
+        if x and y then pts[#pts + 1] = { (x + 1) / 2, (1 - y) / 2 } end
+    end
+    return #pts >= 2 and pts or nil
+end
+C.GesturePath = Path
+local function Str(v) return type(v) == "string" and v ~= "" and v or nil end
 function C.Gesture(slot)
     local d = Data()
-    local g = d and type(d.gestures) == "table" and d.gestures[slot]
-    if type(g) == "string" then return { name = g } end
-    if type(g) ~= "table" or type(g.name) ~= "string" then return nil end
-    return { name = g.name, mode = type(g.mode) == "string" and g.mode or nil,
-        desc = type(g.desc) == "string" and g.desc or nil, path = type(g.path) == "table" and g.path or nil }
+    if not d then return nil end
+    local info = type(d.gestureInfo) == "table" and d.gestureInfo[slot]
+    if type(info) == "table" and Str(info.name) then
+        return { name = info.name, mode = Str(info.mode), desc = Str(info.motion), arm = Str(info.arm),
+            ready = info.ready ~= false, plane = Str(info.plane), path = Path(info.path) }
+    end
+    -- (older data: the name alone)
+    local g = type(d.gestures) == "table" and d.gestures[slot]
+    if type(g) == "string" then return { name = g, ready = true } end
+    return nil
 end
--- WoW Helper's gesture mode (nil without it)
-function C.GestureMode()
+-- Whether WoW Helper recognises gestures now (nil: it doesn't say)
+function C.GesturesEnabled()
     local d = Data()
-    return d and type(d.gestureMode) == "string" and d.gestureMode or nil
+    if d and type(d.gesturesEnabled) == "boolean" then return d.gesturesEnabled end
+    return nil
 end
 function C.GestureName(slot)
     local g = C.Gesture(slot)

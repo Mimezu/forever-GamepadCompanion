@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.47.3 — 2026-11-18
+
+- **Gestures: the square draws the gesture.** WoW Helper's `gestureInfo` (its path, 16 points in -1..1) drawn as a line with a start dot and an end arrow; the subtitle is its motion and mode ("Shake twice · Standard"), or a calm "Not ready". The WoW Helper column's Recognition: On or Off (`gesturesEnabled`). Older data (the names alone) keeps the quiet dot
+
 ## 0.47.1 — 2026-11-18
 
 - Bars in Edit Mode follow the suite's Edit Mode pattern (social_diary's toast, Plumber on this client): Edit Mode is listened to, never hooked. Our own boxes in Edit Mode's colours (blue, gold once picked, the name on it), no Blizzard template; a click anywhere else lets ours go (was a hook on Blizzard's pick); a fight ends it
