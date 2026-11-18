@@ -416,3 +416,32 @@ assert(not opened and GamepadCompanionOptions:IsShown(), "no settings call in co
 combat = false
 UnitClass = function() return "Mage", "MAGE" end
 print("PASS: options show compact/standard tabs, class tabs, gamepad settings shortcut and Blizzard Edit Mode button")
+
+-- Bars: the preview draws the picked bar and moves it by dragging; the arrows step it
+do
+    function methods:SetSize(w, h) self.width, self.height = w, h end
+    local fake = { GetLeft = function() return 100 end, GetBottom = function() return 50 end,
+        GetWidth = function() return 400 end, GetHeight = function() return 60 end,
+        GetEffectiveScale = function() return 1 end }
+    local realBarFrame, realWidth = api.GetBarFrame, UIParent.GetWidth
+    api.GetBarFrame = function() return fake end
+    UIParent.GetWidth = function() return 1120 end   -- the 560 px preview: half size
+    UIParent.GetEffectiveScale = function() return 1 end
+    local cursor = { 0, 0 }
+    GetCursorPosition = function() return cursor[1], cursor[2] end
+    click("Action bars")
+    local box
+    for _, b in ipairs(buttons) do
+        if rawget(b, "fill") and b.shown and b.name.text == "Action bars" then box = b end
+    end
+    assert(box and box.width == 200 and box.height == 30, "the picked bar drawn at half size")
+    local s0 = api.GetSettings().compact.bars
+    box.scripts.OnDragStart(box)
+    cursor[1], cursor[2] = 15, -10                   -- 15, -10 on the preview = 30, -20 on screen
+    box.scripts.OnUpdate(box)
+    box.scripts.OnDragStop(box)
+    local s1 = api.GetSettings().compact.bars
+    assert(s1.x == s0.x + 30 and s1.y == s0.y - 20, string.format("dragged: %s %s", s1.x, s1.y))
+    api.GetBarFrame, UIParent.GetWidth = realBarFrame, realWidth
+    print("PASS: Bars: the preview draws the picked bar and dragging it moves the bar")
+end

@@ -183,6 +183,11 @@ local function SlashButton(parent, label, x, y, width, height, slash)
 end
 
 -- Bars page ----------------------------------------------------------------------
+-- One strip for the layout (Blizzard's Compact / Standard, read from Edit Mode;
+-- Copy and Reset for the whole layout), then three columns: the bars, a live
+-- preview of the screen (click a bar to pick it, drag to move it; arrows and the
+-- pad's d-pad nudge it while the pointer is over it), and the picked bar's values
+-- (X, Y, Scale, its prompt) with one Reset.
 
 local function Arrow(button, direction)
     local atlas = direction == "left" and "common-icon-backarrow" or "common-icon-forwardarrow"
@@ -191,7 +196,7 @@ local function Arrow(button, direction)
         button.label:SetText("")
         local icon = button:CreateTexture(nil, "OVERLAY")
         icon:SetAtlas(atlas)
-        icon:SetSize(22, 22)
+        icon:SetSize(18, 18)
         icon:SetPoint("CENTER")
         if icon.SetRotation then
             icon:SetRotation(direction == "up" and math.pi / 2 or direction == "down" and -math.pi / 2 or 0)
@@ -203,16 +208,19 @@ local function Arrow(button, direction)
     end
 end
 
--- [-] [ value ] [+], the value typed or stepped
-local function ValueRow(parent, key, x, y, width)
+-- A label and a typed value; [-] [+] only where nothing else steps it (Scale)
+local function ValueRow(parent, key, x, y, width, steppers)
     local spec = specs[key]
     local c = {}
-    c.label = Text(parent, spec[6], x, y - 7, 60, 13, GOLD)
-    local editX, editW = x + 60 + 40, width - 60 - 80
-    c.minus = Button(parent, "-", x + 60, y, 36, function() Step(key, -1) end, nil, 16, 30)
-    c.plus = Button(parent, "+", x + width - 36, y, 36, function() Step(key, 1) end, nil, 16, 30)
-    Tooltip(c.minus, spec[6], string.format("Shift-click: -%g", spec[2]))
-    Tooltip(c.plus, spec[6], string.format("Shift-click: +%g", spec[2]))
+    c.label = Text(parent, spec[6], x, y - 8, 60, 13, GOLD)
+    local editX, editW = x + 60, width - 60
+    if steppers then
+        editX, editW = x + 60 + 40, width - 60 - 80
+        c.minus = Button(parent, "-", x + 60, y, 36, function() Step(key, -1) end, nil, 16, 30)
+        c.plus = Button(parent, "+", x + width - 36, y, 36, function() Step(key, 1) end, nil, 16, 30)
+        Tooltip(c.minus, spec[6], string.format("Shift-click: -%g", spec[2]))
+        Tooltip(c.plus, spec[6], string.format("Shift-click: +%g", spec[2]))
+    end
     local edit = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
     edit:SetPoint("TOPLEFT", editX, y)
     edit:SetSize(editW, 30)
@@ -245,6 +253,176 @@ local function ValueRow(parent, key, x, y, width)
     return c
 end
 
+-- Nudge the picked bar by the chosen step (Shift: 1)
+local function Nudge(dx, dy)
+    if not ui.supported then return end
+    local size = nudgeSteps[step][2]
+    if dx ~= 0 then Step("x", dx, size) end
+    if dy ~= 0 then Step("y", dy, size) end
+end
+local NUDGE_KEYS = { UP = { 0, 1 }, DOWN = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 },
+    PADDUP = { 0, 1 }, PADDDOWN = { 0, -1 }, PADDLEFT = { -1, 0 }, PADDRIGHT = { 1, 0 } }
+
+-- The preview: UIParent as a small screen, each bar of the layout a box
+local preview = { boxes = {} }
+
+-- A bar's box in UIParent units, or nil when it can't be read
+local function BarRect(key)
+    if not API.GetBarFrame then return nil end
+    local ok, frame = pcall(API.GetBarFrame, key)
+    if not ok or type(frame) ~= "table" then return nil end
+    local okR, left, bottom, width, height = pcall(function()
+        local l, b = frame:GetLeft(), frame:GetBottom()
+        return l, b, frame:GetWidth(), frame:GetHeight()
+    end)
+    local okS, fs = pcall(frame.GetEffectiveScale, frame)
+    local us = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    if not (okR and okS) then return nil end
+    for _, v in ipairs({ left, bottom, width, height, fs, us }) do
+        if type(v) ~= "number" or v ~= v or (issecretvalue and issecretvalue(v)) then return nil end
+    end
+    if fs <= 0 or us <= 0 or width <= 0 or height <= 0 then return nil end
+    local r = fs / us
+    return { left * r, bottom * r, width * r, height * r, units = us / fs }
+end
+
+local function PreviewScale()
+    local uw = UIParent.GetWidth and UIParent:GetWidth() or 1920
+    return preview.w / ((uw and uw > 0) and uw or 1920)
+end
+
+-- Drop a dragged box: the cursor's travel, as the bar's own offset units
+local function DragStop(box)
+    box:SetScript("OnUpdate", nil)
+    local d = preview.drag
+    preview.drag = nil
+    if not d then return end
+    local k = PreviewScale()
+    local dx, dy = (d.cx - d.x0) / k * d.units, (d.cy - d.y0) / k * d.units
+    if math.abs(dx) < 0.5 and math.abs(dy) < 0.5 then return Refresh() end
+    local x, y = Current("x") + dx, Current("y") + dy
+    local sx, sy = specs.x, specs.y
+    x = math.max(sx[3], math.min(sx[4], math.floor(x + 0.5)))
+    y = math.max(sy[3], math.min(sy[4], math.floor(y + 0.5)))
+    API.SetBarOption(selected, "x", x, mode)
+    Result(API.SetBarOption(selected, "y", y, mode))
+end
+
+local function Cursor()
+    local x, y = GetCursorPosition()
+    local s = preview.frame:GetEffectiveScale() or 1
+    return x / s, y / s
+end
+
+local function PreviewBox(key)
+    local box = preview.boxes[key]
+    if box then return box end
+    box = CreateFrame("Button", nil, preview.frame)
+    box.fill = box:CreateTexture(nil, "ARTWORK")
+    box.fill:SetAllPoints()
+    box.edge = {}
+    for i = 1, 4 do box.edge[i] = box:CreateTexture(nil, "OVERLAY") end
+    box.edge[1]:SetPoint("TOPLEFT"); box.edge[1]:SetPoint("TOPRIGHT"); box.edge[1]:SetHeight(1)
+    box.edge[2]:SetPoint("BOTTOMLEFT"); box.edge[2]:SetPoint("BOTTOMRIGHT"); box.edge[2]:SetHeight(1)
+    box.edge[3]:SetPoint("TOPLEFT"); box.edge[3]:SetPoint("BOTTOMLEFT"); box.edge[3]:SetWidth(1)
+    box.edge[4]:SetPoint("TOPRIGHT"); box.edge[4]:SetPoint("BOTTOMRIGHT"); box.edge[4]:SetWidth(1)
+    box.name = box:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    box.name:SetPoint("BOTTOM", box, "TOP", 0, 3)
+    box.name:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
+    box:RegisterForDrag("LeftButton")
+    box:SetScript("OnClick", function()
+        if selected ~= key then selected = key; Refresh() end
+    end)
+    box:SetScript("OnDragStart", function(self)
+        if not ui.supported or InCombatLockdown() then return end
+        if selected ~= key then selected = key; Refresh() end
+        local rect = BarRect(key)
+        if not rect then return end
+        local x0, y0 = Cursor()
+        local _, _, _, px, py = self:GetPoint(1)
+        px, py = tonumber(px) or 0, tonumber(py) or 0
+        preview.drag = { x0 = x0, y0 = y0, cx = x0, cy = y0, px = px, py = py, units = rect.units }
+        self:SetScript("OnUpdate", function(b)
+            local d = preview.drag
+            if not d then return b:SetScript("OnUpdate", nil) end
+            d.cx, d.cy = Cursor()
+            b:ClearAllPoints()
+            b:SetPoint("BOTTOMLEFT", preview.frame, "BOTTOMLEFT", d.px + d.cx - d.x0, d.py + d.cy - d.y0)
+            ui.drag:SetText(string.format("X %+d  Y %+d", (d.cx - d.x0) / PreviewScale() * d.units,
+                (d.cy - d.y0) / PreviewScale() * d.units))
+        end)
+    end)
+    box:SetScript("OnDragStop", DragStop)
+    preview.boxes[key] = box
+    return box
+end
+
+local function DrawPreview(list)
+    if not preview.frame then return end
+    for _, box in pairs(preview.boxes) do box:Hide() end
+    if preview.drag then return end
+    local k = PreviewScale()
+    local shown = 0
+    for _, entry in ipairs(list) do
+        local rect = BarRect(entry[1])
+        if rect then
+            local box = PreviewBox(entry[1])
+            local on = entry[1] == selected
+            box:ClearAllPoints()
+            box:SetPoint("BOTTOMLEFT", preview.frame, "BOTTOMLEFT", rect[1] * k, rect[2] * k)
+            box:SetSize(math.max(6, rect[3] * k), math.max(4, rect[4] * k))
+            box.fill:SetColorTexture(1, 0.72, 0.2, on and 0.32 or 0.07)
+            for _, e in ipairs(box.edge) do
+                if on then e:SetColorTexture(1, 0.82, 0.35, 0.95) else e:SetColorTexture(0.85, 0.85, 0.85, 0.35) end
+            end
+            box.name:SetText(on and entry[2] or "")
+            box:SetFrameLevel((preview.frame:GetFrameLevel() or 1) + (on and 3 or 1))
+            box:Show()
+            shown = shown + 1
+        end
+    end
+    ui.drag:SetText(shown == 0 and "No bars to show" or "")
+end
+
+local function BuildPreview(card, x, y, w, h)
+    local pv = CreateFrame("Frame", nil, card)
+    pv:SetPoint("TOPLEFT", x, y)
+    pv:SetSize(w, h)
+    local bg = pv:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.02, 0.02, 0.03, 0.75)
+    -- a screen: its rim and a faint centre cross
+    for i, p in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1 },
+        { "TOPLEFT", "BOTTOMLEFT", 1 }, { "TOPRIGHT", "BOTTOMRIGHT", 1 } }) do
+        local t = pv:CreateTexture(nil, "BORDER")
+        t:SetPoint(p[1]); t:SetPoint(p[2])
+        if p[3] then t:SetWidth(1) else t:SetHeight(1) end
+        t:SetColorTexture(0.68, 0.5, 0.26, i == 1 and 0.6 or 0.4)
+    end
+    local v = pv:CreateTexture(nil, "BORDER")
+    v:SetPoint("TOP"); v:SetPoint("BOTTOM"); v:SetWidth(1); v:SetColorTexture(1, 1, 1, 0.05)
+    local hz = pv:CreateTexture(nil, "BORDER")
+    hz:SetPoint("LEFT"); hz:SetPoint("RIGHT"); hz:SetHeight(1); hz:SetColorTexture(1, 1, 1, 0.05)
+    -- arrows and the pad's d-pad nudge while the pointer is over the screen
+    pv:EnableMouse(true)
+    local function Keys(on)
+        if InCombatLockdown() then return end
+        pcall(pv.EnableKeyboard, pv, on)
+        if pv.EnableGamePadButton then pcall(pv.EnableGamePadButton, pv, on) end
+    end
+    pv:SetScript("OnEnter", function() Keys(true) end)
+    pv:SetScript("OnLeave", function() Keys(false) end)
+    local function Press(self, key)
+        local n = NUDGE_KEYS[key]
+        if not InCombatLockdown() and self.SetPropagateKeyboardInput then pcall(self.SetPropagateKeyboardInput, self, not n) end
+        if n then Nudge(n[1], n[2]) end
+    end
+    pv:SetScript("OnKeyDown", Press)
+    pv:SetScript("OnGamePadButtonDown", Press)
+    preview.frame, preview.w, preview.h = pv, w, h
+    return pv
+end
+
 local function BuildBars(frame, header)
     ui.frame = frame
     ui.enable = S.NewCheck(header, "My bar layout", W - 150, -4, function(self)
@@ -252,10 +430,11 @@ local function BuildBars(frame, header)
     end, 110)
     Tooltip(ui.enable, "My bar layout", "Off: Blizzard's, settings kept")
 
-    -- Blizzard's layout in use
-    local layout = S.Card(frame, "Blizzard layout", 0, 0, W, 86)
+    -- The layout: Blizzard's (set in Edit Mode), and what applies to all of it
+    local strip = S.Card(frame, nil, 0, 0, W, 52)
+    Text(strip, "Layout", 16, -19, 70, 13, GOLD)
     for index, key in ipairs({ "compact", "standard" }) do
-        local b = Button(layout, key, 14 + (index - 1) * 286, -42, 280, nil, "InsecureActionButtonTemplate", 13, 32)
+        local b = Button(strip, key, 90 + (index - 1) * 172, -11, 172, nil, "InsecureActionButtonTemplate", 13, 30)
         b:RegisterForClicks("LeftButtonUp")
         b:SetAttribute("useOnKeyDown", false)
         b:SetAttribute("type", "macro")
@@ -267,67 +446,60 @@ local function BuildBars(frame, header)
         end)
         ui.modeButtons[key] = b
     end
-    Tooltip(ui.modeButtons.compact, "Compact", "Set in Edit Mode")
-    Tooltip(ui.modeButtons.standard, "Standard", "Set in Edit Mode")
-    ui.modeHint = Text(layout, "", 604, -50, W - 620, 12, GREY)
+    Tooltip(ui.modeButtons.compact, "Compact", "One bar at a time · set in Edit Mode")
+    Tooltip(ui.modeButtons.standard, "Standard", "Each bar its own spot · set in Edit Mode")
+    ui.resetLayout = Button(strip, "Reset layout", W - 134, -13, 120, function() Result(API.ResetMode(mode)) end, nil, 11, 26)
+    Tooltip(ui.resetLayout, "Reset layout", "Every bar of this layout")
+    ui.copy = Button(strip, "Copy from Standard", W - 300, -13, 160, function()
+        Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
+    end, nil, 11, 26)
 
-    -- The bar list
-    ui.list = S.Card(frame, "Bar", 0, -98, 250, H - 98)
+    local top, height = -64, H - 64
+    -- The bars
+    ui.list = S.Card(frame, "Bar", 0, top, 210, height)
 
-    -- Position
-    local pos = S.Card(frame, "Position", 262, -98, 470, H - 98)
-    ui.posCard = pos
-    local cx, cy = 235, -190      -- the readout's centre
-    local pad = {
-        up = { cx - 28, cy + 86, 0, 1, "Move up" }, down = { cx - 28, cy - 30, 0, -1, "Move down" },
-        left = { cx - 120, cy + 28, -1, 0, "Move left" }, right = { cx + 64, cy + 28, 1, 0, "Move right" },
-    }
-    for direction, info in pairs(pad) do
-        local b = Button(pos, "", info[1], info[2], 56, function()
-            local size = nudgeSteps[step][2]
-            if info[3] ~= 0 then Step("x", info[3], size) end
-            if info[4] ~= 0 then Step("y", info[4], size) end
-        end, nil, 14, 56)
-        Arrow(b, direction)
-        Tooltip(b, info[5], "Shift-click: 1")
-        ui.arrows[direction] = b
+    -- The preview, with the arrows and their step under it
+    local pw = 560
+    local card = S.Card(frame, "Position", 222, top, pw + 32, height)
+    ui.posCard = card
+    local sw, sh = pw, math.floor(pw * 9 / 16)
+    BuildPreview(card, 16, -44, sw, sh)
+    local ay = -44 - sh - 16
+    local x = 16
+    for _, info in ipairs({ { "left", -1, 0, "Move left" }, { "up", 0, 1, "Move up" }, { "down", 0, -1, "Move down" },
+        { "right", 1, 0, "Move right" } }) do
+        local b = Button(card, "", x, ay, 44, function() Nudge(info[2], info[3]) end, nil, 14, 34)
+        Arrow(b, info[1])
+        Tooltip(b, info[4], "Shift-click: 1")
+        ui.arrows[info[1]] = b
+        x = x + 48
     end
-    local box = CreateFrame("Frame", nil, pos, "BackdropTemplate")
-    box:SetPoint("TOPLEFT", cx - 56, cy + 22)
-    box:SetSize(112, 44)
-    S.Edit(box)
-    ui.readout = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    ui.readout:SetPoint("LEFT", 4, 0)
-    ui.readout:SetPoint("RIGHT", -4, 0)
-    ui.readout:SetJustifyH("CENTER")
-    Text(pos, "Step", 20, -296, 60, 13, GOLD)
+    Text(card, "Step", 228, ay - 10, 50, 13, GOLD)
     for index, info in ipairs(nudgeSteps) do
-        local b = Button(pos, info[1], 120 + (index - 1) * 82, -288, 76, function()
+        local b = Button(card, info[1], 278 + (index - 1) * 56, ay + 2, 52, function()
             step = index
             Refresh()
         end, nil, 13, 30)
-        Tooltip(b, "Step " .. info[1], string.format("Scale %.2f", info[3]))
+        Tooltip(b, info[1] .. " px")
         ui.stepButtons[index] = b
     end
-    ValueRow(pos, "x", 20, -346, 430)
-    ValueRow(pos, "y", 20, -386, 430)
+    ui.drag = Text(card, "", 16, ay - 52, sw, 11, DIM)
+    Text(card, "Drag · arrow keys · d-pad", 16, -(height - 26), sw, 11, DIM)
 
-    -- Size, prompt and resets
-    local size = S.Card(frame, "Size", 744, -98, W - 744, H - 98)
-    local sw = W - 744 - 40
-    ValueRow(size, "scale", 20, -50, sw)
-    ui.scaleSteps = Text(size, "", 80, -88, sw - 60, 11, DIM)
-    ui.promptsLabel = Text(size, "Button prompt", 20, -128, sw, 13, GOLD)
-    ui.prompts = Button(size, "Shown", 20, -150, sw, function()
+    -- The picked bar's values
+    local vx = 222 + pw + 32 + 12
+    local vw = W - vx
+    local vals = S.Card(frame, " ", vx, top, vw, height)
+    ui.valCard = vals
+    ValueRow(vals, "x", 16, -48, vw - 32)
+    ValueRow(vals, "y", 16, -88, vw - 32)
+    ValueRow(vals, "scale", 16, -140, vw - 32, true)
+    ui.promptsLabel = Text(vals, "Button prompt", 16, -192, vw - 32, 13, GOLD)
+    ui.prompts = Button(vals, "Shown", 16, -214, vw - 32, function()
         Result(API.SetClassPrompts(API.GetSettings().classPrompts == false))
     end, nil, 13, 30)
     Tooltip(ui.prompts, "Button prompt", "Both class buttons")
-    ui.resetBar = Button(size, "Reset", 20, -(H - 98) + 132, sw, function() Result(API.ResetBar(selected, mode)) end, nil, 13, 30)
-    ui.resetLayout = Button(size, "Reset layout", 20, -(H - 98) + 94, sw, function() Result(API.ResetMode(mode)) end, nil, 13, 30)
-    Tooltip(ui.resetLayout, "Reset layout", "Other layout unchanged")
-    ui.copy = Button(size, "Copy from Standard", 20, -(H - 98) + 56, sw, function()
-        Result(API.CopyLayout(mode == "compact" and "standard" or "compact", mode))
-    end, nil, 13, 30)
+    ui.resetBar = Button(vals, "Reset", 16, -(height - 50), vw - 32, function() Result(API.ResetBar(selected, mode)) end, nil, 13, 30)
 end
 
 local function LayoutList(list)
@@ -339,7 +511,7 @@ local function LayoutList(list)
         local key = entry[1]
         local tab = ui.tabs[key]
         if not tab then
-            tab = Button(ui.list, entry[2], 12, 0, 226, function()
+            tab = Button(ui.list, entry[2], 12, 0, 186, function()
                 selected = key
                 Refresh()
             end, nil, 13, 34)
@@ -391,7 +563,6 @@ local function RefreshBars()
         button:SetAttribute("type", key == live and "" or "macro")
         button:SetEnabled(not InCombatLockdown())
     end
-    ui.modeHint:SetText(mode == "compact" and "One bar at a time" or "Each bar in its own spot")
 
     local supported = not not (bar and state.available and caps.layout)
     ui.supported = supported
@@ -401,14 +572,11 @@ local function RefreshBars()
         if not supported then c.edit:ClearFocus() end
         local shade = supported and 1 or 0.5
         c.edit:SetTextColor(shade, shade, shade)
-        c.minus:SetEnabled(supported)
-        c.plus:SetEnabled(supported)
+        if c.minus then c.minus:SetEnabled(supported); c.plus:SetEnabled(supported) end
         c.label:SetTextColor(GOLD[1] * shade, GOLD[2] * shade, GOLD[3] * shade)
     end
     for _, b in pairs(ui.arrows) do b:SetEnabled(supported) end
-    ui.readout:SetText(bar and string.format("X  %d\nY  %d", bar.x, bar.y) or "")
     for index, b in ipairs(ui.stepButtons) do SetSelected(b, index == step) end
-    ui.scaleSteps:SetText(string.format("Arrows: %d px · %.2f scale", nudgeSteps[step][2], nudgeSteps[step][3]))
 
     ui.prompts:SetShown(classTab)
     ui.promptsLabel:SetShown(classTab)
@@ -417,11 +585,12 @@ local function RefreshBars()
     ui.prompts:SetEnabled(state.available == true)
 
     local tabName = entry and entry[2] or selected
-    ui.posCard.title:SetText("Position · " .. tabName)
+    ui.valCard.title:SetText(tabName)
     ui.resetBar.label:SetText("Reset " .. tabName)
     ui.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
     ui.enable:SetChecked(settings.enabled == true)
     ui.enable:SetEnabled(not caps.suspended)
+    DrawPreview(list)
     Shell.SetStatus(BarsStatus(settings, state, caps, classTab))
     refreshing = false
 end

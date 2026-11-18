@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.45.7 — 2026-11-18
+
+- **Bars**, redrawn: one strip for the layout (Compact | Standard, as set in Edit Mode; Copy and Reset layout beside it), then the bars, a **live preview** of the screen, and the picked bar's values
+- The preview: every bar of the layout as a box, the picked one gold. Click a box to pick its bar, drag it to move it; arrow keys and the pad's d-pad nudge it while the pointer is over the screen. Arrows and Step 1 / 10 / 50 under it
+- One set of values: X and Y typed (their +/- buttons went: the arrows do that), Scale with +/-, the class buttons' prompt, one Reset for the bar
+- Gone: the second X / Y readout inside the arrows, and the "Arrows: 10 px · 0.05 scale" line (the arrows never stepped the scale)
+
 ## 0.45.6 — 2026-11-18
 
 - **Side tabs: one set of glyphs** in the feel icons' style (a cream line, a dark edge, a green accent): Controller the pad, Moments the pad with waves, Gestures a swipe, Setup sliders, Bars slots, Tools a wrench, Help a book, Lab a flask. Also before each page's name. The open page's glyph bright, hovered a little less, the rest dim; Gilded warms them to gold (its old glyph tiles are gone). Blizzard's tab frame stays. A missing file falls back to the old icon
