@@ -11,6 +11,11 @@ M.compactLayers = { "bars", "stance", "classLeft", "classRight" }
 M.barKeys = { base = "topBar", lt = "leftBar", rt = "rightBar", both = "bottomBar", stance = "stanceBar" }
 M.classKeys = { classLeft = "LeftClassAction", classRight = "RightClassAction" }
 M.promptKeys = { classLeft = "LeftInputPrompt", classRight = "RightInputPrompt" }
+-- What each placed bar is called, and the class buttons by what they open
+M.layerNames = { bars = "Action bars", base = "Base", lt = "L2", rt = "R2", both = "L2 + R2", stance = "Stance",
+    classLeft = "L1 + L2", classRight = "R1 + R2" }
+M.classMenuNames = { Forms = "Form menu", Auras = "Aura menu", Stances = "Stance menu", Pet = "Pet menu",
+    ["Pet spells"] = "Pet spells" }
 M.modes = { "compact", "standard" }
 -- Active zoom was removed in 0.4.0: Blizzard's Edit Mode "Expand" setting on the
 -- controller action bar enlarges the selected bar natively.

@@ -429,6 +429,9 @@ local function BuildBars(frame, header)
         Result(API.SetEnabled(self:GetChecked() == true))
     end, 110)
     Tooltip(ui.enable, "My bar layout", "Off: Blizzard's, settings kept")
+    ui.editMode = SlashButton(header, "Edit Mode", W - 280, -2, 110, 28, "/editmode")
+    ui.editMode:SetScript("PostClick", function() if InCombatLockdown() then Notice("Not in combat") end end)
+    Tooltip(ui.editMode, "Edit Mode", "Drag the bars there, click one for its scale")
 
     -- The layout: Blizzard's (set in Edit Mode), and what applies to all of it
     local strip = S.Card(frame, nil, 0, 0, W, 52)
@@ -695,32 +698,8 @@ local function BuildTools(frame, header)
     Tooltip(ui.spread, "Spread view", "Not in combat")
     ToolNote(spread, "While this window is open", 14, -92, half - 28)
 
-    -- Edit Mode layouts
-    local em = S.Card(frame, "Edit Mode layouts", half + 12, 0, half, 210)
-    ui.emStatus = Text(em, "", 14, -44, half - 28, 13, GOLD)
-    ui.emStatus:SetHeight(60)
-    ui.emStatus:SetJustifyV("TOP")
-    local ew = (half - 36) / 2
-    Button(em, "Convert again", 12, -118, ew, function()
-        if API.EditMode then API.EditMode.Command("convert") end
-        Refresh()
-    end, nil, 13, 40)
-    Button(em, "List in chat", 24 + ew, -118, ew, function()
-        if API.EditMode then API.EditMode.Command("list") end
-    end, nil, 13, 40)
-    ToolNote(em, "From your old Companion layout", 14, -164, half - 28)
-
-    -- Profile
-    local profile = S.Card(frame, "Profiles", half + 12, -222, half, 128)
-    ui.profileName = Text(profile, "", 14, -44, half - 28, 14, GOLD)
-    ToolNote(profile, "In the footer", 14, -70, half - 28)
-
-    -- Frame Gambit
-    local fg = S.Card(frame, "Visibility", 0, -362, W, 90)
-    ui.fgText = Text(fg, "", 14, -44, W - 28, 13, GOLD)
-
     -- Window key and minimap icon (Access.lua)
-    if ns.Access then ui.access = ns.Access.BuildCard(frame, 0, -464, W, 100) end
+    if ns.Access then ui.access = ns.Access.BuildCard(frame, half + 12, 0, half, 210) end
 end
 
 local function RefreshTools()
@@ -730,12 +709,6 @@ local function RefreshTools()
     ui.spread.label:SetText(state.spread and "Spread view: On" or "Spread view: Off")
     SetSelected(ui.spread, state.spread == true)
     ui.spread:SetEnabled(state.enabled == true and (state.spread or not InCombatLockdown()))
-    local ok, emStatus = pcall(function() return API.EditMode and API.EditMode.Status() end)
-    ui.emStatus:SetText(ok and emStatus or "")
-    local P = ns.Profiles
-    local controls, feel = P and P.Current("controls"), P and P.Current("feel")
-    ui.profileName:SetText(controls and ("Controls: " .. controls .. "  ·  Feel: " .. feel) or "Profiles off this session")
-    ui.fgText:SetText(_G.FrameGambitAPI and "Shown by Frame Gambit" or "Shown by Blizzard")
     RefreshSpellbookButtons()
 end
 

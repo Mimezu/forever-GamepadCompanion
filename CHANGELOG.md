@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47.0 — 2026-11-18
+
+- **Bars in Blizzard Edit Mode.** In Edit Mode each bar Companion places (Base, L2, R2, L2 + R2, the compact stack, Stance, the class buttons) has Blizzard's own selection box: click to pick it, drag to move it (it snaps to Edit Mode's grid when Snap is on), arrows and the d-pad nudge it (Shift: 1). Its dialog: Scale, the button prompt (class buttons), Reset. Blizzard still moves the controller bar block; Compact / Expand stay Blizzard's. Values stay Companion's (per Compact / Standard); Blizzard's layouts are never written
+- Bars page: an **Edit Mode** button beside My bar layout (the page stays until Edit Mode is confirmed in game)
+- Tools: the Edit Mode layouts card (the old one-time conversion: `/gpc edit convert` and `/gpc edit list` remain), the Profiles card (the footer's chips do it) and the Visibility read-out are gone; the window key and minimap icon move up
+
 ## 0.46.5 — 2026-11-18
 
 - Timing is WoW Helper's, one place (as the design audit split it): Setup › Timing shows it read-only, in WoW Helper's words ("Learning…", "Learned ✓"); Reset and the one Pad delay are on WoW Helper's Timing card. Hits keep Try. A hit, mining or footstep timing once synced or set here is cleared, once, so what WoW Helper learns applies
