@@ -2253,11 +2253,25 @@ do
     H.DB().timing = { set = { ["5-2|twoHand|main"] = 0.35, ["5-2|twoHand|off"] = 0.35, ["5-2|dagger|main"] = 0.18 } }
     local set = T.Store().set
     assert(set["5-2|twoHand|main"] == nil and set["5-2|twoHand|off"] == nil, "the old 0.35 guess goes")
-    assert(set["5-2|dagger|main"] == 0.18, "a value of yours stays")
+    assert(set["5-2|dagger|main"] == nil, "timing is WoW Helper's (one place): a value set here goes too")
+    H.DB().stepSync = { ["1-2-run"] = { rate = 2.5, offset = 0.1, speed = 7, taps = 8 } }
+    H.DB().timing = { set = { ["5-2|dagger|main"] = 0.18 } }
+    T.Store()
+    assert(H.DB().stepSync == nil, "and a footstep sync")
+    set = T.Store().set
     set["5-2|twoHand|main"] = 0.35
-    assert(T.Store().set["5-2|twoHand|main"] == 0.35, "once: set again by hand, it stays")
+    assert(T.Store().set["5-2|twoHand|main"] == 0.35, "once")
+    -- the defaults as WoW Helper publishes them (one table); the addon's own only without it
+    WowHelperData = { timingDefaults = { mining = { first = 1.5, period = 1.3, crack = 3.1 }, run = { rate = 2.5, offset = 0.12, speed = 7 } } }
+    local p, f = V.StrikeTiming("mining")
+    assert(p == 1.3 and f == 1.5, "mining: the published default")
+    local rate, offset = L.StepTiming(7)
+    assert(math.abs(rate - 2.5) < 1e-9 and math.abs(offset - 0.12) < 1e-9, "running: the published default")
+    WowHelperData = nil
+    p, f = V.StrikeTiming("mining")
+    assert(p == 1.4 and f == 1.49, "without WoW Helper: the fallback here")
     H.DB().timing = nil
-    io.write("PASS: measured defaults: old guesses saved as yours cleared once" .. string.char(10))
+    io.write("PASS: timing is WoW Helper's: values set here cleared once; its published defaults, the fallback here" .. string.char(10))
 end
 
 -- Gathering markers for WoW Helper: start, succeeded, stopped; learned strikes back; then it plays them

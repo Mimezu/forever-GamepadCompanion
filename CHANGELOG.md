@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.46.5 — 2026-11-18
+
+- Timing is WoW Helper's, one place (as the design audit split it): Setup › Timing shows it read-only, in WoW Helper's words ("Learning…", "Learned ✓"); Reset and the one Pad delay are on WoW Helper's Timing card. Hits keep Try. A hit, mining or footstep timing once synced or set here is cleared, once, so what WoW Helper learns applies
+- The timing defaults are one table: WoW Helper publishes them (`timingDefaults`: mining's first strike, period and crack; running and walking steps); the addon's own numbers are only its fallback without WoW Helper
+
 ## 0.46.4 — 2026-11-18
 
 - **Setup › Range, redone: no reaction time.** Each grip has a slider (Left, Right) that plays the faint feels' micro-tap (33 ms) at its level, every 0.6 s, while you hover it or just after a change: slide down until you can't feel it, then one step up. − and +, the wheel, a click on the track, and while hovered the arrow keys and the d-pad

@@ -335,8 +335,8 @@ end
 ---------------------------------------------------------------------------
 local function BuildTiming(frame)
     local card = S.Card(frame, "Timing", X2, -210, COL, PH - 210, "Interface\\Icons\\INV_Misc_PocketWatch_01")
-    -- (WoW Helper learns these by listening: a status each, one Reset; any
-    -- nudge by hand is WoW Helper's one Pad delay)
+    -- (WoW Helper learns these by listening and owns them (one place): read
+    -- only here; Reset and the one Pad delay are WoW Helper's)
     local rows = {}
     local function Row(y, title, reset, try)
         local r = {}
@@ -346,31 +346,18 @@ local function BuildTiming(frame)
             r.try = S.NewButton(card, "Try", COL - 138, y + 6, 60, try, nil, 11, 24)
             S.Tooltip(r.try, "Try", "The next swings")
         end
-        if reset then
-            r.reset = S.NewButton(card, "Reset", COL - 72, y + 6, 60, function() reset(); Refresh() end, nil, 11, 24)
-            S.Tooltip(r.reset, "Reset", "To what WoW Helper learns")
-        end
+
         rows[#rows + 1] = r
         return r
     end
+    -- (the same words as WoW Helper's Timing card)
     local function word(source, n)
         if source == "learned" then return "Learned ✓" .. (n and (" · " .. n) or "") end
-        if source == "yours" or source == "set" or source == "synced" then return "Yours" end
         return "Learning…"
     end
-    local hits = Row(-40, "Hits", function()
-        local kind = V.WeaponKind(16)
-        ns.Timing.Clear(kind, kind == "ranged" and "ranged" or "main")
-        ns.Timing.Clear(kind, "off")
-    end, function() V.HitTry(); Refresh() end)
-    local mine = Row(-84, "Mining", function()
-        V.Settings().strikes.mining = nil
-    end)
-    local steps = Row(-128, "Footsteps", function()
-        local db = H.DB()
-        db.stepSync = db.stepSync or {}
-        for k in pairs(db.stepSync) do db.stepSync[k] = nil end
-    end)
+    local hits = Row(-40, "Hits", nil, function() V.HitTry(); Refresh() end)
+    local mine = Row(-84, "Mining")
+    local steps = Row(-128, "Footsteps")
     local wading = Row(-172, "Wading")
     wading.text:SetText("Not yet: not told apart by sound")
     -- Landing: when a fall is a real jump (not learned: yours)
@@ -383,6 +370,7 @@ local function BuildTiming(frame)
         get = function() return H.DB().landMax or L.LAND_MAX end,
         set = function(v) local db = H.DB(); db.landMax = v; if (db.landMin or L.LAND_MIN) >= v then db.landMin = v - 0.05 end end })
     local status = S.Note(card, 12, -302, COL - 24, 2, 11, GOLD)
+    S.Note(card, 12, -330, COL - 24, 2, 11, DIM):SetText("Learned by WoW Helper · Reset and Pad delay there")
     V.onHitSync = function(text) status:SetText(text); Refresh() end
     pg.refresh[#pg.refresh + 1] = function()
         local kind = V.WeaponKind(16)

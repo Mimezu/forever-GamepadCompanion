@@ -61,7 +61,23 @@ function T.Store()
         end
         t.guesses = 2
     end
+    -- (timing is WoW Helper's now, one place (the design audit, D3/D4): the
+    -- values once synced or set here go, once, so what it learns applies)
+    if t.guesses < 3 then
+        for k in pairs(t.set) do t.set[k] = nil end
+        db.stepSync = nil
+        t.guesses = 3
+    end
     return t
+end
+
+-- A timing default as WoW Helper publishes it (one table for both programs:
+-- WowHelperData.timingDefaults: mining { first, period, crack }, run and walk
+-- { rate, offset, speed }); nil without WoW Helper (the addon's own fallback)
+function T.Default(name)
+    local d = _G.WowHelperData
+    local t = type(d) == "table" and type(d.timingDefaults) == "table" and d.timingDefaults[name]
+    return type(t) == "table" and t or nil
 end
 
 -- The model: race id and sex ("1-2"), the shapeshift form when one ("1-2-f5")

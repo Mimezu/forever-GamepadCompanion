@@ -564,6 +564,11 @@ function V.Settings()
     end
     s.intensity = s.intensity or 0.8
     s.strikes = s.strikes or {}
+    -- (timing is WoW Helper's now: a mining timing once synced or set here goes, once)
+    if not s.ownTimingCleared then
+        for k in pairs(s.strikes) do s.strikes[k] = nil end
+        s.ownTimingCleared = true
+    end
     s.hitTiming = s.hitTiming or {}
     s.events = s.events or {}
     for _, e in ipairs(V.EVENTS) do
@@ -1054,6 +1059,9 @@ end
 -- they come from ("synced", "set", "learned": WoW Helper's, "guess")
 function V.StrikeTiming(action)
     local guess = STRIKES[action] or STRIKES.mining
+    -- (the default: WoW Helper's published one, else the fallback here)
+    local d = ns.Timing and ns.Timing.Default(action)
+    if d and tonumber(d.first) and tonumber(d.period) then guess = { period = tonumber(d.period), offset = tonumber(d.first) } end
     local cal = V.Settings().strikes[action]
     if type(cal) == "table" then
         local synced = (cal.taps or 0) > 0

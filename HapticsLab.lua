@@ -965,6 +965,7 @@ end
 -- step rate and timing
 local function Band(speed) return speed < 4 and "walk" or "run" end
 L.Band = Band
+-- (the fallback without WoW Helper; its published defaults win: Timing.Default)
 local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate = 2.4, speed = 7, offset = 0.1 } }
 
 -- A gait's sync for this character, or nil
@@ -1030,7 +1031,7 @@ end
 -- Steps per second at a speed, and the first step's time after the start
 -- A gait's steps per second at its own speed (synced, or the guess)
 function L.StepRate(band)
-    local cal = L.StepCal(band) or GUESS[band]
+    local cal = L.StepCal(band) or (ns.Timing and ns.Timing.Default(band)) or GUESS[band]
     return cal.rate
 end
 
@@ -1053,7 +1054,11 @@ function L.StepTiming(speed)
     local cal = L.StepCal(band)
     local nudge = H.DB().stepNudge or 0
     local synced = cal and cal.rate and cal.speed and cal.speed > 0
-    if not synced then cal = GUESS[band] end
+    -- (the default: WoW Helper's published one, else the fallback here)
+    if not synced then
+        local d = ns.Timing and ns.Timing.Default(band)
+        cal = d and tonumber(d.rate) and tonumber(d.speed) and d or GUESS[band]
+    end
     return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, synced and true or false
 end
 
