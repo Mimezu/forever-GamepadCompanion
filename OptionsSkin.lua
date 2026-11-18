@@ -248,10 +248,23 @@ local function Over(f)
     return f:IsShown() and f:IsMouseOver() and true or false
 end
 -- (keys pass on to the game unless one closes it; not changeable in combat)
+local function Fighting() return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false end
 local function Propagate(frame, on)
-    if type(InCombatLockdown) == "function" and InCombatLockdown() then return end
+    if Fighting() then return false end
     Call(frame, "SetPropagateKeyboardInput", on)
+    frame.gpcPassing = on
+    return true
 end
+-- A popup takes keys (Escape, the pad's B) only while they pass on to the
+-- game: out of combat. In combat it never holds the keyboard (Escape still
+-- closes it, as a special frame); after the fight it takes them again.
+local function TakeKeys(frame, on)
+    if on and not (frame.gpcPassing or Propagate(frame, true)) then on = false end
+    Call(frame, "EnableKeyboard", on)
+    Call(frame, "EnableGamePadButton", on)
+    frame.gpcKeys = on
+end
+S.TakeKeys = TakeKeys
 
 function S.Popup(frame, name, opts)
     opts = opts or {}
@@ -299,12 +312,10 @@ function S.Popup(frame, name, opts)
     end)
     -- the ways out
     if name and type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = name end
-    Call(frame, "EnableKeyboard", true)
-    Call(frame, "EnableGamePadButton", true)
-    Propagate(frame, true)
+    TakeKeys(frame, not Fighting())
     local function Key(self, key)
         if key == "ESCAPE" or key == "PAD2" then
-            -- (this key closes it only: not the window under it)
+            -- (this key closes it only: not the window under it; in combat it passes on)
             Propagate(self, false)
             self:Hide()
         end
@@ -312,11 +323,21 @@ function S.Popup(frame, name, opts)
     frame:SetScript("OnKeyDown", Key)
     frame:SetScript("OnGamePadButtonDown", Key)
     frame:HookScript("OnShow", function(self)
-        Propagate(self, true)
+        -- (in combat: no keys, unless they already pass on)
+        TakeKeys(self, not Fighting() or self.gpcPassing == true)
         if opts.outside then Call(self, "RegisterEvent", "GLOBAL_MOUSE_DOWN") end
+        Call(self, "RegisterEvent", "PLAYER_REGEN_DISABLED")
+        Call(self, "RegisterEvent", "PLAYER_REGEN_ENABLED")
+    end)
+    -- (a fight starts while it is open: keys that don't pass on are let go; it ends: taken again)
+    frame:HookScript("OnEvent", function(self, event)
+        if event == "PLAYER_REGEN_DISABLED" and not self.gpcPassing then TakeKeys(self, false)
+        elseif event == "PLAYER_REGEN_ENABLED" and self:IsShown() then TakeKeys(self, true) end
     end)
     frame:HookScript("OnHide", function(self)
         if opts.outside then Call(self, "UnregisterEvent", "GLOBAL_MOUSE_DOWN") end
+        Call(self, "UnregisterEvent", "PLAYER_REGEN_DISABLED")
+        Call(self, "UnregisterEvent", "PLAYER_REGEN_ENABLED")
         -- (keys pass on again from the next frame: the closing key stays caught)
         if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
             C_Timer.After(0, function() if not self:IsShown() then Propagate(self, true) end end)

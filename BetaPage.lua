@@ -1011,7 +1011,8 @@ local function BuildTune(p)
             H.Play({ keys = side == 1 and { left = keys, right = zero } or { left = zero, right = keys } }, { voice = "beta" })
         end, nil, 11, 28)
         S.NewButton(cal, "Default", x, -182, cw - 3, function()
-            db().floor[side], db().ceil[side], db().gamma[side] = H.DEFAULTS.floor[side], 1, 1
+            -- (the faintest feel is Setup's alone: Default here is the ceiling and the curve)
+            db().ceil[side], db().gamma[side] = 1, 1
             Refresh()
         end, nil, 11, 28)
         c.level = S.Text(cal, "", x, -218, cw, 12, YELLOW)

@@ -336,7 +336,7 @@ do
     end
     local fire, nova, renew = rows()[1], rows()[2], rows()[3]
     local novaFeel = nova.pick.label.text
-    assert(novaFeel ~= "Off" and novaFeel ~= "None" and nova.level:IsShown(), "Feel: Frost Nova's feel, its volume")
+    assert(novaFeel ~= "Off" and nova.level:IsShown(), "Feel: Frost Nova's feel, its volume")
     assert(count.text == "3/4", "Feel: on of all, as every group: " .. tostring(count.text))
     -- Light: each row the spell's own light, its parent's until it has one
     page.SetKind("light")
@@ -364,7 +364,7 @@ do
     assert(nova.pick.label.text == novaFeel and nova.default.enabled == false, "Feel: its feel again; the light is not the feel's")
     -- Sound: a sound for the spell on the pad's speaker, its volume
     page.SetKind("sound")
-    assert(nova.pick.label.text == "None" and not nova.level:IsShown() and not nova.try:IsShown() and count.text == "0/4",
+    assert(nova.pick.label.text == "Off" and not nova.level:IsShown() and not nova.try:IsShown() and count.text == "0/4",
         "Sound: none yet; nothing plays: no volume, no Try")
     nova.pick.scripts.OnClick(nova.pick)
     local chime
@@ -389,7 +389,7 @@ do
     page.SetKind("sound")
     sp.tabs[2].scripts.OnClick(sp.tabs[2])
     local attack = sp.rows[1]
-    assert(attack.pick.label.text == "None ›" and attack.sub.text == "With Auto attack" and not attack.level:IsShown(), "Attack: Auto attack's sound, a link")
+    assert(attack.pick.label.text == "Off ›" and attack.sub.text == "With Auto attack" and not attack.level:IsShown(), "Attack: Auto attack's sound, a link")
     attack.pick.scripts.OnClick(attack.pick)
     assert(page.kind == "sound" and page.browser.current == "Attacks", "jumped to Auto attack's sound")
     page.SetKind("feel")

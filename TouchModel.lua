@@ -622,7 +622,7 @@ T.SNIPPET = [[
 -- one this client has), clicked by the zone's macro, else the toggle Forever's
 -- bindings and gamepad radial run (/run). Character things, then social, then
 -- system. Started from Improved Forever's Actions.lua (MIT).
-local R, I = "gamepad-radial-icon-", "Interface\Icons\\"
+local R, I = "gamepad-radial-icon-", "Interface\\Icons\\"
 T.WINDOWS = {
     { key = "character", label = "Character", atlas = R .. "character", icon = I .. "INV_Chest_Cloth_17",
         buttons = { "CharacterMicroButton" }, run = 'ToggleCharacter("PaperDollFrame")' },

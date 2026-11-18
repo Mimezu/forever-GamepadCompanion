@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.52.1 — 2026-11-18
+
+- Night review, Addon UI:
+  - **UI-1, UI-2**: icon paths whole again ("Interface\\Icons\\…"): Choose › Windows and Quick use showed blank tiles, the Triggers card too. A test reads every Lua file for escapes Lua drops
+  - **Picker**: Mounts and Pets were always empty (a helper kept only 4 of the journal's values); now listed
+  - **UI-3**: a popup never holds the keyboard in combat; Escape still closes it; after the fight it takes Escape and B again
+  - **UI-4**: Setup's Faintest feel rows let go of the keys on leave and when a fight starts; a press in combat nudges nothing
+  - **UI-5, UI-12**: Lab's Default leaves the faintest feel to Setup; Setup's check climbs no higher than the floor; the result shows what was stored
+  - **UI-7**: Help's Bars and Setup topics describe today's controls (Edit Mode, Faintest feel, Resting light)
+  - **UI-8, UI-9**: names, not sentences ("Not yet", "First match wins"); **Off** everywhere (no None); the States × says **Remove**
+  - **UI-10**: Just felt's tooltip says Just lit / Just played in those views
+  - **UI-11**: tests read the icon paths (Windows, Quick use) and run Quick use, Mounts and Pets with the journals stubbed
+  - **UI-13**: item info only rescans the bags for our items still unnamed; **UI-14**: the spellbook's count isn't rebuilt on every refresh
+
 ## 0.52.0 — 2026-11-18
 
 Bars in Edit Mode, after the night review (B1-B18):

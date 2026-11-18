@@ -9,6 +9,7 @@ local Q = {}
 ns.Quick = Q
 
 local picks, scanned, pending = {}, false, false
+local missing = {}           -- items whose info hadn't come yet at the last scan
 
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -40,6 +41,8 @@ function Q.Scan()
                 seen[id] = true
                 local _, _, _, _, _, classID, subclass = Call(C_Item.GetItemInfoInstant, id)
                 local name, _, quality, ilvl, reqLevel = Call(C_Item.GetItemInfo or GetItemInfo, id)
+                -- (not known yet: its info will come; only that one calls for a new scan)
+                if not name then missing[id] = true end
                 local item = { id = id, name = name, classID = classID, subclass = subclass,
                     spell = Call(C_Item.GetItemSpell or GetItemSpell, id), quality = quality, ilvl = ilvl,
                     reqLevel = reqLevel, usable = Call(C_Item.IsUsableItem, id) and true or false }
@@ -119,10 +122,13 @@ for _, event in ipairs({ "PLAYER_LOGIN", "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENA
     pcall(events.RegisterEvent, events, event)
 end
 local wait = 0
-events:SetScript("OnEvent", function(_, event)
+events:SetScript("OnEvent", function(_, event, itemID)
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
-    -- (item info arrives in bursts: once, a moment later)
+    -- (item info arrives in bursts, mostly for others' items: only ours that
+    -- were missing, once, a moment later)
     if event == "GET_ITEM_INFO_RECEIVED" then
+        if not missing[tonumber(itemID) or 0] then return end
+        missing[tonumber(itemID)] = nil
         if wait > 0 then return end
         wait = 1
         C_Timer.After(1, function() wait = 0; Q.Refresh() end)

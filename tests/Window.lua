@@ -189,6 +189,24 @@ do
     p:Show(); p.scripts.OnEvent(p, "GLOBAL_MOUSE_DOWN"); assert(p:IsShown(), "a click inside keeps it")
     p:Hide()
     print("PASS: popups close: ×, Escape, pad B, a click elsewhere")
+    -- a popup first opened in combat never holds the keyboard; after the fight, it takes Escape again
+    local fighting = true
+    local realLockdown = rawget(_G, "InCombatLockdown")
+    InCombatLockdown = function() return fighting end
+    local q = CreateFrame("Frame", "GamepadCompanionTestPopup2", UIParent)
+    S.Popup(q, "GamepadCompanionTestPopup2")
+    q:Show()
+    assert(q.gpcKeys == false, "in combat: no keys taken")
+    fighting = false
+    q.scripts.OnEvent(q, "PLAYER_REGEN_ENABLED")
+    assert(q.gpcKeys == true and q.gpcPassing == true, "after the fight: keys, passing on")
+    fighting = true
+    q.gpcPassing = false
+    q.scripts.OnEvent(q, "PLAYER_REGEN_DISABLED")
+    assert(q.gpcKeys == false, "a fight while open: keys that don't pass on are let go")
+    q:Hide()
+    InCombatLockdown = realLockdown
+    print("PASS: popups never hold the keyboard in combat")
     -- Size: 90% by default, 100% saved, back
     assert(S.UIScale() == 0.9, "90% by default")
     S.SetUIScale(1)

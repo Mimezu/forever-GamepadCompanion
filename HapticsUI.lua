@@ -288,7 +288,7 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         local cw = opts.quiet and 26 or 50
         x = x - cw - 2
         r.clear = S.NewButton(r, opts.quiet and "×" or "Clear", x, -5, cw, function() opts.clear() end, nil, opts.quiet and 14 or 11, 30)
-        if opts.quiet then S.Tooltip(r.clear, "None") end
+        if opts.quiet then S.Tooltip(r.clear, "Remove") end
         x = x - 4
     end
     if onTry then
@@ -704,6 +704,7 @@ function HUI.JustFelt(header, right, kind, opts)
         if not e then return end
         local k = kind()
         chip.caption:SetText(CAPTION[k] or "")
+        S.Tooltip(chip, CAPTION[k] or CAPTION.feel, "Click: the last 10 · Right-click: again")
         chip.icon:SetTexture(opts.icon(e.key, k))
         chip.name:SetText(e.label or e.key)
         chip.choice:SetText(e.choice or "")

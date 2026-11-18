@@ -71,7 +71,7 @@ end
 -- Triggers: on the stack now, Moments › Triggers (one place per setting)
 ---------------------------------------------------------------------------
 local function BuildTriggers(frame)
-    local card = S.Card(frame, "Triggers", 0, -210, COL, 110, "Interface\Icons\INV_Gauntlets_04")
+    local card = S.Card(frame, "Triggers", 0, -210, COL, 110, "Interface\\Icons\\INV_Gauntlets_04")
     S.Text(card, "Moments › Triggers", 12, -44, COL - 24, 12, GREY)
     S.NewButton(card, "Open", 12, -70, 90, function()
         Shell.Open("moments")
@@ -89,6 +89,8 @@ local FLOOR_TOP = 0.4
 local min, max = math.min, math.max
 
 local function BuildRange(frame)
+    -- (the check climbs no higher than the floor can be set)
+    if ns.Staircase then ns.Staircase.TOP = FLOOR_TOP end
     local card = S.Card(frame, "Faintest feel", X2, 0, COL, 200, "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration")
     local St = ns.Staircase
     local check -- { side, s }: a check under way
@@ -109,7 +111,9 @@ local function BuildRange(frame)
         pg.range = rows
         local function Press(self, key)
             local n = NUDGE[key]
-            if not InCombatLockdown() and self.SetPropagateKeyboardInput then pcall(self.SetPropagateKeyboardInput, self, not n) end
+            -- (in combat: nothing nudged, every key passes on)
+            if InCombatLockdown() then return end
+            if self.SetPropagateKeyboardInput then pcall(self.SetPropagateKeyboardInput, self, not n) end
             if n and not check then
                 SetFloor(side, (H.DB().floor[side] or 0) + n * 0.01)
                 HUI.Audition(side)
@@ -133,11 +137,15 @@ local function BuildRange(frame)
     end
     -- hovering a side: taps at its level, and the keys nudge it
     local hovered
+    -- (keys taken only out of combat; let go whenever asked, in combat too)
     local function Keys(row, on)
-        if InCombatLockdown() then return end
+        if on and InCombatLockdown() then on = false end
+        if row.gpcKeys == on then return end
         pcall(row.EnableKeyboard, row, on)
         if row.EnableGamePadButton then pcall(row.EnableGamePadButton, row, on) end
+        row.gpcKeys = on
     end
+    pg.rangeKeys = Keys
     local watch = CreateFrame("Frame", nil, card)
     watch:SetScript("OnUpdate", function()
         local h
@@ -150,9 +158,18 @@ local function BuildRange(frame)
         if h and not check then HUI.Audition(h, 0.7) end
     end)
     watch:SetScript("OnHide", function()
-        if hovered then Keys(rows[hovered], false) end
+        for side = 1, 2 do Keys(rows[side], false) end
         hovered, check = nil, nil
         HUI.StopTaps()
+    end)
+    -- (a fight: both rows let go of the keys; after it, the hovered one takes them again)
+    for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }) do pcall(watch.RegisterEvent, watch, e) end
+    watch:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_REGEN_DISABLED" then
+            for side = 1, 2 do Keys(rows[side], false) end
+        elseif hovered then
+            Keys(rows[hovered], true)
+        end
     end)
 
     -- the check: Felt? Yes / No / Again, in place of low battery while it runs
@@ -167,7 +184,8 @@ local function BuildRange(frame)
             local side, v = check.side, check.s:Result()
             SetFloor(side, v)
             check = nil
-            Say((side == 1 and "Left " or "Right ") .. Pct(v))
+            -- (what was stored: the floor's own clamp)
+            Say((side == 1 and "Left " or "Right ") .. Pct(H.DB().floor[side]))
             HUI.Audition(side, 1.3)
         else
             HUI.Tap(check.side, check.s:Level(), 0.3)
@@ -233,7 +251,7 @@ local function BuildTiming(frame)
     local mine = Row(-84, "Mining")
     local steps = Row(-128, "Footsteps")
     local wading = Row(-172, "Wading")
-    wading.text:SetText("Not yet: not told apart by sound")
+    wading.text:SetText("Not yet")
     -- Landing: when a fall is a real jump (not learned: yours)
     S.Text(card, "Landing", 12, -216, 80, 12, GOLD)
     local function secs(v) return string.format("%.2f s", v) end
@@ -342,7 +360,7 @@ local function BuildBase(frame)
     local toMoments = S.NewButton(card, "Moments", cw - 108, y - 112, 96, function()
         if GamepadCompanionAPI and GamepadCompanionAPI.OpenMoments then GamepadCompanionAPI.OpenMoments("light") end
     end, nil, 11, 24)
-    S.Tooltip(toMoments, "Mic light", "Set it per moment: a light's Mic")
+    S.Tooltip(toMoments, "Mic light", "Per moment")
     -- who draws the lights now
     local who = S.Text(card, "", 12, y - 134, cw - 24, 11, GREY)
     pg.refresh[#pg.refresh + 1] = function()

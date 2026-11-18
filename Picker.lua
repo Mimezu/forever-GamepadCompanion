@@ -21,10 +21,11 @@ local request          -- the open request
 local category, query, offset = nil, "", 0
 local entries = {}     -- the category's entries, after the search
 
+-- (every value back: the mount journal's "collected" is its 11th, a pet's name its 8th)
+local function Pass(ok, ...) if ok then return ... end end
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, a, b, c, d = pcall(fn, ...)
-    if ok then return a, b, c, d end
+    return Pass(pcall(fn, ...))
 end
 
 -- Sources --------------------------------------------------------------------------

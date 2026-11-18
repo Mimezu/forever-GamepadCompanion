@@ -538,6 +538,22 @@ for _, v in ipairs(vib) do if v[1] == "Low" and math.abs(v[2] - 0.08) < 1e-6 the
 assert(tapped, "it taps at the new level")
 run(3)
 assert(not H.hold, "the taps end on their own, the motors free again")
+-- the keys: taken on hover out of combat only; let go in combat; a press in combat nudges nothing
+do
+    local Keys = ns.SetupPage.rangeKeys
+    local realLockdown = rawget(_G, "InCombatLockdown")
+    Keys(left, true)
+    assert(left.gpcKeys == true, "hovered: the keys")
+    InCombatLockdown = function() return true end
+    Keys(left, false)
+    assert(left.gpcKeys == false, "let go in combat")
+    Keys(left, true)
+    assert(left.gpcKeys == false, "not taken in combat")
+    local f0 = H.DB().floor[1]
+    left.scripts.OnKeyDown(left, "UP")
+    near(H.DB().floor[1], f0, "a press in combat nudges nothing")
+    InCombatLockdown = realLockdown
+end
 ns.Shell.Open("lab")
 ui.Select("editor")
 local new = assert(button("New"), "New")
@@ -921,8 +937,8 @@ do
     local loot = row("sound", "loot")
     assert(loot:IsVisible() and loot.pick.label.text == "Coin" and not loot.edit, "loot: Coin, no Edit")
     loot.pick.scripts.OnClick(loot.pick)
-    tile("None").scripts.OnClick(tile("None"))
-    assert(ns.HelperCues.MomentSound("loot") == nil, "None")
+    tile("Off").scripts.OnClick(tile("Off"))
+    assert(ns.HelperCues.MomentSound("loot") == nil, "Off")
     loot.default.scripts.OnClick(loot.default)
     assert(ns.HelperCues.MomentSound("loot") ~= nil, "back to its coin")
     -- Default: as it ships, and Undo for a while

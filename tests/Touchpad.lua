@@ -220,9 +220,13 @@ do
         check(w.key ~= "map", "World Map not listed")
         check(not seen[w.key], "window listed once: " .. w.key)
         seen[w.key] = true
-        check(type(w.icon) == "string" and w.icon ~= "", "window has an icon: " .. w.key)
+        -- (a path, its separators intact: "Interface\\Icons\\..." in Lua; an atlas name has none)
+        check(type(w.icon) == "string" and w.icon:find("^Interface\\Icons\\[%w_]+$") ~= nil, "window icon path: " .. w.key .. " " .. tostring(w.icon))
         check((w.buttons and #w.buttons > 0) or w.run, "window opens something: " .. w.key)
         check(not (w.run and #w.run > 200), "toggle fits a macro: " .. w.key)
+    end
+    for _, q in ipairs(T.QUICK) do
+        check(type(q.icon) == "string" and q.icon:find("^Interface\\Icons\\[%w_]+$") ~= nil, "quick use icon path: " .. q.key .. " " .. tostring(q.icon))
     end
     eq(T.MacroText("spell:133", lookup), "/cast Fireball", "spell macro")
     eq(T.MacroText("item:6948", lookup), "/use item:6948", "item macro")

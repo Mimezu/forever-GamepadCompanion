@@ -314,11 +314,11 @@ ITEM.sound = {
     tip = function() return "A sound on the pad's speaker" end,
     show = function(key)
         local id = C.MomentSound(key)
-        if not id then return "None", V.OFF_ICON, nil, true end
+        if not id then return "Off", V.OFF_ICON, nil, true end
         return C.SoundName(id), BELL
     end,
     pick = function(key, anchor)
-        local entries = { { key = "off", label = "None", icon = V.OFF_ICON } }
+        local entries = { { key = "off", label = "Off", icon = V.OFF_ICON } }
         for _, e in ipairs(C.SoundList()) do entries[#entries + 1] = { key = e.id, label = e.name, icon = BELL } end
         HUI.Popup(anchor, LabelOf(key), entries, C.MomentSound(key) or "off", function(choice)
             C.SetMomentSound(key, choice ~= "off" and choice or false)
@@ -794,7 +794,7 @@ end
 function ui.BuildFeelStates(panel, cw)
     local card = S.Card(panel, "States", 0, 0, cw, PH)
     ui.feelStates = card
-    S.Text(card, "First match wins · how strong every feel is", 120, -12, 320, 11, DIM)
+    S.Text(card, "First match wins", 120, -12, 320, 11, DIM)
     S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
         HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
             local row = FK():Add(c)
@@ -1046,7 +1046,7 @@ end
 function ui.BuildTriggerStack(panel, cw)
     local card = S.Card(panel, "Triggers", 0, 0, cw, PH)
     ui.trigStack, ui.trigRows = card, tgs.pool
-    S.Text(card, "First match wins · R2 the hand, L2 the body", 120, -12, 320, 11, DIM)
+    S.Text(card, "First match wins", 120, -12, 320, 11, DIM)
     ui.trigAdd = S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
         HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
             TK():Add(c)
@@ -1294,7 +1294,7 @@ local function SpellChoice(plan, kind)
     end
     local when = plan.base == "release" and "When released" or plan.when == "none" and "At the cast" or WHEN[plan.when] or ""
     local key, linked = SpellKey(plan, kind)
-    if not (key and ITEM[kind]) then return "None", V.OFF_ICON, true, nil, "", true end
+    if not (key and ITEM[kind]) then return "Off", V.OFF_ICON, true, nil, "", true end
     local I = ITEM[kind]
     local name, icon, _, off, rgb = I.show(key)
     if linked then return name .. " ›", icon, off, rgb, "With " .. LabelOf(key), true, key, true end
@@ -1433,7 +1433,11 @@ local function BuildSpells(panel, cw)
                 end
             end
         end
-        -- (the count on the left, as every group's: on of all, in this kind)
+        -- (the count on the left, as every group's: on of all, in this kind; the whole
+        -- spellbook's plans only when the kind changed, the card is open, or now and then)
+        local now = GetTime and GetTime() or 0
+        if not (sp.card:IsVisible() or sp.countKind ~= kind or not sp.countAt or now - sp.countAt > 10) then return end
+        sp.countKind, sp.countAt = kind, now
         local all, on = 0, 0
         for _, line in ipairs(sp.lines) do
             for _, e in ipairs(line.list) do
@@ -1615,7 +1619,7 @@ Refresh = function()
     ui.enable:SetEnabled(not (kind == "feel" and other))
     S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
     ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
-    ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on: Companion stays off" or "")
+    ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on" or "")
     local toHelper = ui.ToHelper()
     if ui.soundOff then
         local blocked = kind == "sound" and not (K and K.Enabled())

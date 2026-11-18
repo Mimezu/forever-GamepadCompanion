@@ -197,7 +197,7 @@ end
 PICTURES.setup = function(f)
     local cw, gap = 230, 24
     local x0 = (WELL_W - (3 * cw + 2 * gap)) / 2
-    local titles = { "WoW Helper", "Range", "Base colour" }
+    local titles = { "WoW Helper", "Faintest feel", "Resting light" }
     for i = 1, 3 do
         local card = S.Card(f, titles[i], x0 + (i - 1) * (cw + gap), -28, cw, 160)
         Badge(f, i, x0 + (i - 1) * (cw + gap) + cw - 14, -28)
@@ -207,11 +207,15 @@ PICTURES.setup = function(f)
             Label(card, "Linked", 34, -57, 150, 13, S.GOLD)
             Label(card, "USB", 34, -80, 150, 12, S.GREY)
         elseif i == 2 then
-            local track = card:CreateTexture(nil, "ARTWORK")
-            track:SetColorTexture(1, 1, 1, 0.12); track:SetSize(cw - 40, 8); track:SetPoint("TOPLEFT", 20, -72)
-            local fill = card:CreateTexture(nil, "OVERLAY")
-            fill:SetColorTexture(1, 0.78, 0.25, 0.9); fill:SetSize((cw - 40) * 0.6, 8); fill:SetPoint("TOPLEFT", 20, -72)
-            Label(card, "Find left", 20, -100, 150, 12, S.GREY)
+            -- (Left and Right, each a slider: as on Setup)
+            for k, side in ipairs({ { "Left", 0.35 }, { "Right", 0.3 } }) do
+                local y = -54 - (k - 1) * 30
+                Label(card, side[1], 16, y - 2, 50, 12, S.GOLD)
+                local track = card:CreateTexture(nil, "ARTWORK")
+                track:SetColorTexture(1, 1, 1, 0.12); track:SetSize(cw - 110, 6); track:SetPoint("TOPLEFT", 66, y - 6)
+                local fill = card:CreateTexture(nil, "OVERLAY")
+                fill:SetColorTexture(1, 0.78, 0.25, 0.9); fill:SetSize((cw - 110) * side[2], 6); fill:SetPoint("TOPLEFT", 66, y - 6)
+            end
         else
             for k, c in ipairs({ { 0.9, 0.3, 0.2 }, { 1, 0.7, 0.2 }, { 0.3, 0.8, 0.4 }, { 0.3, 0.5, 1 }, { 0.7, 0.4, 1 } }) do
                 local sw = card:CreateTexture(nil, "ARTWORK")
@@ -282,11 +286,11 @@ local TOPICS = {
     { key = "gestures", name = "Gestures", glyph = "gestures", marks = 3, go = Go("gestures"), points = {
         "Record: WoW Helper › Gestures", "Recognised: WoW Helper presses its keys", "Runs: the action chosen here" } },
     { key = "bars", name = "Bars", glyph = "bars", marks = 2, go = Go("bars"), points = {
-        "Drag a bar on the preview", "Compact or Standard: Edit Mode", "Fine steps: Shift or the wheel",
+        "Edit Mode: drag a bar", "Compact or Standard: Edit Mode", "Click a bar: scale, prompt, reset",
         "Class menus: L1 + L2, R1 + R2" } },
     { key = "setup", name = "Setup", glyph = "setup", marks = 3, go = Go("setup"), points = {
-        "WoW Helper: run it, Link on", "Range: stop when you feel it", "Base colour: between moments",
-        "Timing: footsteps in step" } },
+        "WoW Helper: run it, Link on", "Faintest feel: slide down until gone, one step up",
+        "Resting light: between moments", "Timing: learned by WoW Helper" } },
     { key = "profiles", name = "Profiles", glyph = "topic-profiles", marks = 2, points = {
         "Controls: buttons, touchpad, bars", "Feel: vibration, light, sound", "New character: Recommended" } },
     { key = "commands", name = "Commands", glyph = "tools", commands = {
