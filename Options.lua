@@ -151,7 +151,7 @@ end
 
 local function BarsStatus(settings, state, caps)
     if caps.suspended then return "Paused · settings kept" end
-    if state.layoutError then return "Layout blocked · turn My bar layout off and on" end
+    if state.layoutError then return "Layout blocked" end
     if not state.available then return "Controller bars unavailable" end
     if InCombatLockdown() then return "Applies after combat" end
     if state.pendingLayout then return "Waiting for Blizzard's bars" end
@@ -164,8 +164,8 @@ local function RefreshBars()
     if not ui.frame then return end
     local settings, state, caps = API.GetSettings(), API.GetState(), API.GetCapabilities()
     mode = state.mode or "standard"
-    -- off: Edit Mode shows Blizzard's bars only, and says so here
-    ui.off:SetText(settings.enabled == true and "" or "My bar layout is off: Edit Mode shows Blizzard's bars only")
+    -- (off: Blizzard's bars, said in a few words)
+    ui.off:SetText(settings.enabled == true and "" or "Off · Blizzard's bars")
     ui.layout:SetText((mode == "compact" and "Compact" or "Standard") .. "  ·  set in Edit Mode")
     ui.copy.label:SetText(mode == "compact" and "Copy from Standard" or "Copy from Compact")
     ui.editMode:SetEnabled(not InCombatLockdown())

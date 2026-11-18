@@ -858,3 +858,60 @@ do
     assert(low.when:IsShown(), "the chip back")
     io.write("PASS: U2-16/U2-9/U2-11: popover Undo, chip under a proposal, one When" .. string.char(10))
 end
+-- Night review 2, U2-5: Undo on a States row works the stack out again at once
+do
+    local LT = ns.Lights
+    page.SetKind("light")
+    page.browser.Select("states")
+    page.Refresh()
+    local row
+    for _, r in ipairs(page.statePool) do
+        if not row and r:IsShown() and r.key and LT.stack:Recommended(r.key) then
+            -- (one whose Default is the stack's: on/off goes back)
+            LT.stack:SetOn(r.key, false)
+            LT.Default(r.key)
+            if LT.stack:Row(r.key).on ~= false then row = r end
+            LT.stack:SetOn(r.key, true)
+        end
+    end
+    assert(row, "a Recommended reaction shown")
+    LT.stack:SetOn(row.key, false)
+    page.Refresh()
+    row.default.scripts.OnClick(row.default)
+    assert(LT.stack:Row(row.key).on ~= false, "Default: on again")
+    local forced = false
+    local refresh = LT.stack.Refresh
+    LT.stack.Refresh = function(self, force) if force then forced = true end return refresh(self, force) end
+    local offer = ns.ShellWindow().offer
+    assert(offer:IsShown(), "Undo offered")
+    offer.scripts.OnClick(offer)
+    LT.stack.Refresh = refresh
+    assert(LT.stack:Row(row.key).on == false, "Undo: off again")
+    assert(forced, "U2-5: the stack worked out again at once (it waited for the next event)")
+    LT.stack:SetOn(row.key, true)
+    page.SetKind("feel")
+    io.write("PASS: U2-5: States Undo refreshes the stack" .. string.char(10))
+end
+-- Night review 2, U2-6: the group list stays above the footer; Triggers' view lists Triggers alone
+do
+    local b, PH = page.browser, ns.Shell.H
+    local function shown()
+        local n = 0
+        for _, g in ipairs(page.groupOrder) do local bb = b.buttons[g.key]; if bb and bb:IsShown() then n = n + 1 end end
+        return n
+    end
+    for _, kind in ipairs({ "feel", "light", "sound" }) do
+        page.SetKind(kind)
+        local n = shown()
+        assert(8 + (n - 1) * page.groupStep + page.groupStep - 4 <= PH - 150, kind .. ": " .. n .. " buttons fit above the footer")
+    end
+    if b.buttons.triggers then
+        page.SetKind("trigger")
+        for k, bb in pairs(b.buttons) do
+            if k ~= "triggers" then assert(not bb:IsShown(), "U2-6: Triggers' view: " .. k .. " hidden") end
+        end
+    end
+    page.SetKind("feel")
+    assert(not b.buttons.triggers or not b.buttons.triggers:IsShown(), "back: Triggers hidden")
+    io.write("PASS: U2-6: the group list fits; Triggers alone in its view" .. string.char(10))
+end

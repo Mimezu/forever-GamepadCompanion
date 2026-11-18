@@ -310,7 +310,7 @@ local function SoundOn() return C and K and K.Enabled() and C.Settings().sounds 
 ITEM.sound = {
     label = LabelOf,
     icon = IconOf,
-    tip = function() return "A sound on the pad's speaker" end,
+    tip = function() return "Pad speaker" end,
     show = function(key)
         local id = C.MomentSound(key)
         if not id then return "Off", V.OFF_ICON, nil, true end
@@ -772,11 +772,24 @@ local function StateRow(card, cw, i, o)
             o.default(k)
             Refresh()
             if live then
+                -- (Undo: the row as it was, and the stack worked out again at once: U2-5)
+                local function Words(t)
+                    local keys, out = {}, {}
+                    for f in pairs(t or {}) do keys[#keys + 1] = tostring(f) end
+                    table.sort(keys)
+                    for _, f in ipairs(keys) do
+                        local v = t[f]
+                        out[#out + 1] = f .. "=" .. (type(v) == "table" and ("{" .. Words(v) .. "}") or tostring(v))
+                    end
+                    return table.concat(out, ",")
+                end
+                local after = Words(live)
                 Shell.Offer((r.label:GetText() or "") .. ": Recommended", "Undo", function()
                     for f in pairs(live) do live[f] = nil end
                     for f, v in pairs(Copy(was)) do live[f] = v end
+                    if kind.Refresh then kind:Refresh(true) end
                     Refresh()
-                end)
+                end, nil, function() return Words(live) == after end)
             end
         end,
         clear = function()
@@ -876,6 +889,7 @@ function ui.BuildStates(panel, cw)
     local LIGHT = { kind = function() return LT.stack end, pick = function(anchor, id) ns.LightPicker.Open(anchor, id, Refresh) end,
         try = function(id) LT.Try(id) end, default = function(id) LT.Default(id) end }
     for i = 1, STATE_ROWS do sts.pool[i] = StateRow(card, cw, i, LIGHT) end
+    ui.statePool = sts.pool
     if ns.Hush then ui.BuildFeelStates(panel, cw) end
     card:EnableMouseWheel(true)
     card:SetScript("OnMouseWheel", function(_, d)
@@ -1232,8 +1246,8 @@ function ui.RefreshTriggerStack(kind)
     local b = ui.browser
     local btn = b.buttons.triggers
     if btn then btn:SetShown(on) end
-    for _, g in ipairs(GROUPS) do if b.buttons[g.key] then b.buttons[g.key]:SetShown(not on) end end
-    if b.buttons.spells then b.buttons.spells:SetShown(not on) end
+    -- (Triggers alone in its view: the groups, Your spells and the panels step aside; States its own)
+    for k, bb in pairs(b.buttons) do if k ~= "triggers" and k ~= "states" then bb:SetShown(not on) end end
     if on and b.current ~= "triggers" then b.Select("triggers") end
     if not on and b.current == "triggers" then b.Select(GROUPS[1].key) end
     if not on then return end
@@ -1406,7 +1420,7 @@ tourStop:SetScript("OnEvent", function() if ui.touring then ui.StopTour(true) en
 function ui.TryMoment(key)
     for _, g in ipairs(GROUPS) do
         for _, item in ipairs(g.items) do
-            if item[2] == key and ITEM[item[1]] and ITEM[item[1]].try then return ITEM[item[1]].try(key) end
+            if item[2] == key and ITEM[item[1]] and ITEM[item[1]].try then ITEM[item[1]].try(key); return true end
         end
     end
 end
@@ -1858,7 +1872,9 @@ local function Build(frame, header)
             for _, row in ipairs(ui.rows) do
                 if row.key == key and KIND_OF[row.kind] == kind then return ITEM[row.kind].try(key) end
             end
-            if ui.TryMoment then ui.TryMoment(key) end
+            if ui.TryMoment and ui.TryMoment(key) then return end
+            -- (a spell's own moment, a light-only one elsewhere: said, not silent: U2-20)
+            Say(LabelOf(key) .. ": not here", true)
         end,
     })
 
@@ -1945,6 +1961,7 @@ local function Build(frame, header)
     end
     if LT and LT.stack then groups[#groups + 1] = { key = "states", label = "States" } end
     if ns.TriggerStack and ns.TriggerStack.kind then groups[#groups + 1] = { key = "triggers", label = "Triggers" } end
+    ui.groupOrder = groups
     local list = CreateFrame("Frame", nil, left)
     list:SetPoint("TOPLEFT", 0, -150)
     list:SetSize(LEFT_W, PH - 150)
@@ -1980,9 +1997,9 @@ local function Build(frame, header)
     ui.soundOff:EnableMouse(true)
     local bell = ui.soundOff:CreateTexture(nil, "ARTWORK")
     bell:SetTexture(BELL); bell:SetSize(48, 48); bell:SetPoint("CENTER", 0, 70)
-    local t1 = S.Text(ui.soundOff, "Sounds play on the pad's speaker", 0, 0, cw - 40, 15, S.YELLOW)
+    local t1 = S.Text(ui.soundOff, "Pad speaker", 0, 0, cw - 40, 15, S.YELLOW)
     t1:ClearAllPoints(); t1:SetPoint("TOP", bell, "BOTTOM", 0, -16); t1:SetJustifyH("CENTER")
-    local t2 = S.Text(ui.soundOff, "Needs WoW Helper", 0, 0, cw - 40, 12, S.GREY)
+    local t2 = S.Text(ui.soundOff, "WoW Helper", 0, 0, cw - 40, 12, S.GREY)
     t2:ClearAllPoints(); t2:SetPoint("TOP", t1, "BOTTOM", 0, -8); t2:SetJustifyH("CENTER")
     ui.soundOff.setup = S.NewButton(ui.soundOff, "Setup", 0, 0, 120, function() Shell.Open("setup") end, nil, 13, 32)
     ui.soundOff.setup:ClearAllPoints(); ui.soundOff.setup:SetPoint("TOP", t2, "BOTTOM", 0, -18)
@@ -1999,7 +2016,6 @@ local function Build(frame, header)
         b.buttons.triggers:ClearAllPoints()
         b.buttons.triggers:SetPoint("TOPLEFT", 10, -8)
     end
-    ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
 
 end
 
@@ -2016,8 +2032,7 @@ Refresh = function()
     ui.enable:SetChecked(enabled)
     ui.enable:SetEnabled(not (kind == "feel" and other))
     S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
-    ui.soundNote:SetText((K and K.Enabled()) and "On the pad's speaker" or "With WoW Helper: Setup › Link")
-    ui.other:SetText(kind == "feel" and other and "Improved Forever: Vibration is on" or "")
+    ui.soundNote:SetText((K and K.Enabled()) and "Pad speaker" or "WoW Helper · Setup › Link")
     local toHelper = ui.ToHelper()
     if ui.soundOff then
         local blocked = kind == "sound" and not (K and K.Enabled())
@@ -2076,7 +2091,8 @@ Refresh = function()
             if C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
         end
         local btn = ui.browser.buttons[g.key]
-        btn.count:SetText((proposed and "|cffffcc4d•|r " or "") .. (#items > 0 and (on .. "/" .. #items) or ""))
+        -- (WoW Helper proposes something here: "+", not the changed dot's "•": U2-17)
+        btn.count:SetText((proposed and "|cffffcc4d+|r " or "") .. (#items > 0 and (on .. "/" .. #items) or ""))
         -- (a ring by the count: something here differs from Recommended)
         if changed > 0 and not btn.ring then
             btn.ring = btn:CreateTexture(nil, "OVERLAY")
@@ -2092,6 +2108,7 @@ Refresh = function()
         btn.changed = changed
     end
     for _, fn in ipairs(pg.refresh) do fn() end
+    ui.Reflow()
     -- (a newer change: an Undo for an older one goes)
     if Shell.CheckOffer then Shell.CheckOffer() end
     if kind == "feel" then
@@ -2100,6 +2117,26 @@ Refresh = function()
         Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or kind == "trigger" and "Triggers off" or "Sounds off"))
     end
 end
+-- The group list from the buttons shown, top down, as tight as it must be to stay above the
+-- footer (U2-6: 13 buttons ran 18 px into it; Triggers' view kept gaps)
+function ui.Reflow()
+    local b = ui.browser
+    if not (b and ui.groupOrder) then return end
+    local shown = {}
+    for _, g in ipairs(ui.groupOrder) do
+        local bb = b.buttons[g.key]
+        if bb and bb:IsShown() then shown[#shown + 1] = bb end
+    end
+    local room = PH - 150 - 16
+    local step = math.min(36, math.floor(room / math.max(1, #shown)))
+    for i, bb in ipairs(shown) do
+        bb:ClearAllPoints()
+        bb:SetPoint("TOPLEFT", 10, -8 - (i - 1) * step)
+        bb:SetHeight(step - 4)
+    end
+    ui.groupStep = step
+end
+
 ui.Refresh = function() Refresh() end
 ns.RumblePage = ui
 

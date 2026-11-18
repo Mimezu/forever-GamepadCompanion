@@ -277,7 +277,7 @@ assert(settings.compact.bars.x == 33 and settings.compact.stance.y == -12, "Undo
 -- off: the page says what Edit Mode will show
 settings.enabled = false
 api.RefreshOptions()
-assert(shownText("My bar layout is off"), "off: said")
+assert(shownText("Off · Blizzard's bars"), "off: said")
 settings.enabled = true
 api.RefreshOptions()
 assert(#visibleEdits() == 0, "no typed values: Edit Mode has them")

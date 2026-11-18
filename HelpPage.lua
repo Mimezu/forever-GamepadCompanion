@@ -284,7 +284,7 @@ local TOPICS = {
         "Edit Mode: drag a bar", "Compact or Standard: Edit Mode", "Click a bar: scale, prompt, reset",
         "Class menus: L1 + L2, R1 + R2" } },
     { key = "setup", name = "Setup", glyph = "setup", marks = 3, go = Go("setup"), points = {
-        "WoW Helper: run it, Link on", "Faintest feel: slide down until gone, one step up",
+        "WoW Helper: run it, Link on", "Faintest feel: just felt",
         "Resting light: between moments", "Timing: learned by WoW Helper" } },
     { key = "profiles", name = "Profiles", glyph = "topic-profiles", marks = 2, points = {
         "Controls: buttons, touchpad, bars", "Feel: vibration, light, sound", "New character: Recommended" } },

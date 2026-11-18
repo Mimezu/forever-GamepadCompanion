@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.53.11 — 2026-11-18
+
+- Night review 2, **Addon UI**:
+  - **U2-5**: Undo on a States row works the light or feel out again at once (it waited for the next event)
+  - **U2-6**: the group list fits above the footer however many groups there are; Triggers' view lists Triggers alone
+  - **U2-17**: a group WoW Helper proposes something in shows "+" by its count (the gold dot means changed)
+  - **U2-18**: fewer words: "Pad speaker · WoW Helper", "Off · Blizzard's bars", "Layout blocked", "Faintest feel: just felt"
+  - **U2-19**: the Improved Forever line no longer sits over a group button (the status says it)
+  - **U2-20**: Again on Just felt says "not here" when it can't play that moment, instead of nothing
+
 ## 0.53.10 — 2026-11-18
 
 - Night review 2, **Triggers**:

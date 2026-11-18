@@ -1178,7 +1178,7 @@ do
         money = { kind = "sound", id = K.SOUNDS.click, name = "Click" } } }
     ns.Shell.Refresh()
     assert(lootRow.sub.text == "Proposed · Chime" and lootRow.proposal:IsShown(), "Proposed · Chime")
-    assert(M.browser.buttons.Progress.count.text:find("•", 1, true), "a dot on the group's count")
+    assert(M.browser.buttons.Progress.count.text:find("+", 1, true), "a + on the group's count (the dot means changed: U2-17)")
     lootRow.proposal.accept.scripts.OnClick(lootRow.proposal.accept)
     assert(ns.HelperCues.MomentSound("loot") == K.SOUNDS.chime and not lootRow.proposal:IsShown(), "Accept: the player's pick")
     local moneyRow
