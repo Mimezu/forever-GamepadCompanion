@@ -617,27 +617,27 @@ local function BuildTouchPanel(card)
     ui.tpw = tp
     local function Settings() return Touch.Settings() end
 
-    tp.enable = S.NewCheck(p, "Zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 60)
+    tp.enable = S.NewCheck(p, "Touch zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 100)
     tp.preview = S.NewCheck(p, "Preview", 132, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 70)
     tp.move = S.NewButton(p, "Move", W - 70, 0, 66, function(self)
         local moving = Touch.MovePreview()
         self.label:SetText(moving and "Done" or "Move")
         S.SetSelected(self, moving)
     end, nil, 11, 24)
-    S.Tooltip(tp.move, "Move", "The preview: drag it where you want it")
+    S.Tooltip(tp.move, "Move preview")
     local x = 0
     for _, e in ipairs({ { "click", "Click", 74 }, { "tap", "Tap or click", 90 }, { "dual", "Touch + click", 90 } }) do
         tp.inputs[e[1]] = S.NewButton(p, e[2], x, -32, e[3], function() Touch.SetInput(e[1]) end, nil, 11, 24)
         x = x + e[3] + 4
     end
-    S.Tooltip(tp.inputs.click, "Press", "A full click")
-    S.Tooltip(tp.inputs.tap, "Press", "Taps out of combat only")
+    S.Tooltip(tp.inputs.click, "Click")
+    S.Tooltip(tp.inputs.tap, "Tap or click", "Taps out of combat only")
     S.Tooltip(tp.inputs.dual, "Touch + click", "Whole pad only")
     local half = (W - 4) / 2
     tp.modes.chord = S.NewButton(p, "Whole pad", 0, -62, half, function() Touch.SetMode("chord") end, nil, 11, 24)
     tp.modes.split = S.NewButton(p, "Right half", half + 4, -62, half, function() Touch.SetMode("split") end, nil, 11, 24)
-    S.Tooltip(tp.modes.chord, "Whole pad", "L1 + touchpad: Blizzard's focus")
-    S.Tooltip(tp.modes.split, "Right half", "Left half: Blizzard's focus")
+    S.Tooltip(tp.modes.chord, "Whole pad", "L1 + pad: Blizzard's")
+    S.Tooltip(tp.modes.split, "Right half", "Left half: Blizzard's")
 
     local function Step(sx, tip, dc, dr)
         local b = S.NewButton(p, dc + dr < 0 and "-" or "+", sx, -92, 24, function()
@@ -700,6 +700,11 @@ local function RefreshTouchPanel()
     if not T.IsZone(s, s.mode, tpZone) then tpZone = "r1c1" end
     tp.enable:SetChecked(s.enabled)
     tp.preview:SetChecked(s.preview)
+    if ui.tp.GetChildren then
+        for _, child in ipairs({ ui.tp:GetChildren() }) do
+            if child ~= tp.enable then child:SetAlpha(s.enabled and 1 or 0.45) end
+        end
+    end
     for input, b in pairs(tp.inputs) do
         S.SetSelected(b, input == s.input)
         b:SetEnabled(input ~= "dual" or s.mode == "chord")
@@ -823,8 +828,7 @@ Refresh = function()
     end
     LayoutZones(layer)
     RefreshCard()
-    local note = InCombat() and "Not in combat" or ((ns.Keys.IsPending() and "Applies after combat · " or "")
-        .. "Drag: pick up · Drop: bind")
+    local note = InCombat() and "Not in combat" or (ns.Keys.IsPending() and "Applies after combat" or "")
     ui.status:SetText(note)
 end
 

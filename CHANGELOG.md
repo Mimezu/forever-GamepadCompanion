@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.0 — 2026-11-17
+
+- **Gestures, redesigned**: only the gestures that exist (recorded in WoW Helper, or given an action), one calm card; each its name, its action's icon, the action on its plate (**Choose** when there's none, never a red Off), and a quiet **×** to take it off. The key chord WoW Helper presses is only in the plate's tooltip. No gestures yet: "No gestures yet · Record them in WoW Helper › Gestures"
+- Sweep of the pages the passes left behind: Controller's status says a state, not "Drag: pick up · Drop: bind"; **Touch zones** (was "Zones") and the zone editor dims while they're off; its tooltips name their buttons; Tools in few words ("While this window is open", "Shown by Blizzard"); the rumble patterns' credit moved from Moments to Help › Credits; Setup's Base colour card hugs its content
+
 ## 0.39.2 — 2026-11-17
 
 - Long names: a label cut short (a 40-letter spell on a plate, a row's name) shows in full on hover

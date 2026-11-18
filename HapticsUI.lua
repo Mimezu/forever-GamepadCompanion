@@ -223,8 +223,11 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
         x = x - 4
     end
     if opts.clear then
-        x = x - 52
-        r.clear = S.NewButton(r, "Clear", x, -5, 50, function() opts.clear() end, nil, 11, 30)
+        -- (opts.quiet: a small × instead of the word)
+        local cw = opts.quiet and 26 or 50
+        x = x - cw - 2
+        r.clear = S.NewButton(r, opts.quiet and "×" or "Clear", x, -5, cw, function() opts.clear() end, nil, opts.quiet and 14 or 11, 30)
+        if opts.quiet then S.Tooltip(r.clear, "None") end
         x = x - 4
     end
     if onTry then

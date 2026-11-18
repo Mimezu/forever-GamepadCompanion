@@ -211,7 +211,7 @@ end
 local function BuildBase(frame)
     local LT = ns.Lights
     local cw = W - X3
-    local card = S.Card(frame, "Base colour", X3, 0, cw, PH)
+    local card = S.Card(frame, "Base colour", X3, 0, cw, 320)
     if not LT then return end
     local swatch = card:CreateTexture(nil, "ARTWORK")
     swatch:SetPoint("TOPRIGHT", -14, -10)

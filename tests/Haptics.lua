@@ -444,20 +444,28 @@ for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes" }) 
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
--- Gestures: twelve rows, an action shown by name, Clear
+-- Gestures: only those that exist; none yet: the empty state; a recorded one calm until chosen; × takes it off
 do
     local G = ns.Gestures
-    G.Set(2, "text:/dance")
+    local page = ns.GesturesPage
+    for slot = 1, G.SLOTS do G.Set(slot, nil) end
     ns.Shell.Open("gestures")
-    local n, dance = 0, nil
-    for _, f in ipairs(created) do
-        if type(rawget(f, "label")) == "table" and f.label.text == "Clear" and f:IsVisible() then n = n + 1 end
-        if type(rawget(f, "label")) == "table" and type(f.label.text) == "string" and f.label.text:find("/dance", 1, true) and f:IsVisible() then dance = f end
-    end
-    assert(n == 12 and dance, "twelve gesture rows, slot 2 /dance: " .. n)
-    G.Set(2, nil)
+    local function visible() local n = 0 for _, r in ipairs(page.rows) do if r:IsShown() then n = n + 1 end end return n end
+    assert(visible() == 0 and page.empty:IsShown(), "no gestures: the empty state, no rows")
+    G.Set(2, "text:/dance")
+    WowHelperData = { at = "18:02", gestures = { [5] = "Flick up" } }
+    ns.Shell.Refresh()
+    assert(visible() == 2 and not page.empty:IsShown(), "the recorded one and the one with an action: " .. visible())
+    local dance, flick = page.rows[1], page.rows[2]
+    assert(dance.slot == 2 and dance.pick.label.text:find("/dance", 1, true) and dance.clear:IsShown(), "slot 2: /dance, ×")
+    assert(flick.slot == 5 and flick.label.text == "Flick up" and flick.pick.label.text == "Choose" and not flick.clear:IsShown(),
+        "recorded, unassigned: Choose, no ×")
+    assert(flick.pick.tipBody == "Ctrl Shift Alt F5" and not (flick.sub.text or ""):find("Ctrl", 1, true), "the chord only in the tooltip")
+    dance.clear.scripts.OnClick(dance.clear)
+    assert(G.Get(2) == nil and visible() == 1, "× takes it off; not recorded: it goes")
+    WowHelperData = nil
     ns.Shell.Open("lab")
-    io.write("PASS: gestures page: twelve slots, each an action" .. string.char(10))
+    io.write("PASS: gestures page: only those that exist, calm Choose, ×, the chord in a tooltip, an empty state" .. string.char(10))
 end
 local function button(label)
     for _, f in ipairs(created) do

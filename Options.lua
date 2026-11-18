@@ -492,7 +492,7 @@ local function BuildTools(frame, header)
         Result(API.SetSpread(not API.GetState().spread))
     end, nil, 13, 40)
     Tooltip(ui.spread, "Spread view", "Not in combat")
-    ToolNote(spread, "All 4 bars side by side, and the form bars · while this window is open", 14, -92, half - 28)
+    ToolNote(spread, "While this window is open", 14, -92, half - 28)
 
     -- Edit Mode layouts
     local em = S.Card(frame, "Edit Mode layouts", half + 12, 0, half, 210)
@@ -507,12 +507,12 @@ local function BuildTools(frame, header)
     Button(em, "List in chat", 24 + ew, -118, ew, function()
         if API.EditMode then API.EditMode.Command("list") end
     end, nil, 13, 40)
-    ToolNote(em, "Your old Companion layout, as a Blizzard gamepad layout", 14, -164, half - 28)
+    ToolNote(em, "From your old Companion layout", 14, -164, half - 28)
 
     -- Profile
     local profile = S.Card(frame, "Profiles", half + 12, -222, half, 128)
     ui.profileName = Text(profile, "", 14, -44, half - 28, 14, GOLD)
-    ToolNote(profile, "Switch, copy, share: the chips below", 14, -70, half - 28)
+    ToolNote(profile, "In the footer", 14, -70, half - 28)
 
     -- Frame Gambit
     local fg = S.Card(frame, "Visibility", 0, -362, W, 90)
@@ -534,8 +534,7 @@ local function RefreshTools()
     local P = ns.Profiles
     local controls, feel = P and P.Current("controls"), P and P.Current("feel")
     ui.profileName:SetText(controls and ("Controls: " .. controls .. "  ·  Feel: " .. feel) or "Profiles off this session")
-    ui.fgText:SetText(_G.FrameGambitAPI and "Frame Gambit decides when bars show · Companion: place and size"
-        or "Companion places and sizes the bars · Blizzard shows them")
+    ui.fgText:SetText(_G.FrameGambitAPI and "Shown by Frame Gambit" or "Shown by Blizzard")
     RefreshSpellbookButtons()
 end
 
@@ -550,6 +549,7 @@ local topics = {
     { "Moments", "What the pad does when: Feel, Light, Sound\nEach moment: pick, Try, Default\nMarks after a name: its light, its sound\nThe line top right: the last moment, click to find it\nOff while Improved Forever: Vibration is on" },
     { "Gestures", "Record them in WoW Helper › Gestures\nHere: what each one runs\nKeys Ctrl Shift Alt F1-F12" },
     { "Setup", "WoW Helper: run it, Link on, game windowed\nRange: Find, stop when you feel it\nBase colour: the light bar between moments\nTriggers, timing: footsteps and mining in step" },
+    { "Credits", "Rumble patterns: Improved Forever: Vibration (markg)\nand Easy Controller (moust4ki), MIT\nSee licenses/" },
     { "Profiles", "Controls: buttons, touchpad, bars\nFeel: vibration, light, sound\nNew character: Recommended\nSwitch: the footer's chips" },
     { "Commands", "/gpc  window\n/gpc pad  controller\n/gpc touch  touchpad\n/gpc bars  bar layout\n/gpc rumble  moments\n/gpc light  moments: light\n/gpc rumble test  each motor\n/gpc gestures  gestures\n/gpc setup  setup\n/gpc lab  lab, on for good\n/gpc on | off  my bar layout\n/gpc reset  both bar layouts\n/gpc gamepad  Blizzard options\n/gpc edit  Edit Mode layout\n/gpc help  commands in chat" },
 }

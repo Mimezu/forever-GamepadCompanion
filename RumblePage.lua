@@ -774,8 +774,7 @@ local function Build(frame, header)
     end
     if b.panels.spells then BuildSpells(b.panels.spells, cw) end
     ui.other = S.Text(left, "", 14, -(PH - 74), LEFT_W - 28, 11, RED)
-    ui.credit = S.Text(left, "Patterns: Improved Forever: Vibration (markg) and Easy Controller (moust4ki), MIT",
-        14, -(PH - 46), LEFT_W - 28, 9, DIM)
+
 end
 
 Refresh = function()
