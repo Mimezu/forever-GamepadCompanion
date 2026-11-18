@@ -46,9 +46,20 @@ C.MOMENTS = {
     -- light-only moments (Lights.lua keys; the others share Rumble's and the engine's), 69-75
     { "critTaken", "Defense" }, { "avoid", "Defense" }, { "combat", "Defense" }, { "cast", "Abilities" },
     { "release", "Abilities" }, { "interrupted", "Abilities" }, { "halo", "Interface" },
+    -- a cast's other ends (they went with no number, 0), 76-77
+    { "cancelled", "Abilities" }, { "pushback", "Abilities" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
+-- Light-only moments: no cue goes with their number (no sound row for them). A cast's cue goes
+-- as its kind's moment (Spell casting, Gathering, Crafting: 22-24), not as "cast" (72)
+C.LIGHT_ONLY = { critTaken = true, avoid = true, combat = true, cast = true, halo = true }
+function C.CueKey(key)
+    if key ~= "cast" then return key end
+    local V = ns.Rumble
+    local kind = V and V.castKind
+    return kind and C.MOMENT_N[kind] and kind or "spell"
+end
 
 function C.Settings()
     local db = H.DB()
@@ -170,7 +181,13 @@ local function SoundDB()
     local db = H.DB()
     if type(db.link) ~= "table" then db.link = {} end
     if type(db.link.sounds) ~= "table" then db.link.sounds = {} end
-    return db.link.sounds
+    local s = db.link.sounds
+    -- (a sound picked for "Casting", 72, never a cue's now: Spell casting's, unless it has one)
+    if s.cast ~= nil then
+        if s.spell == nil then s.spell = s.cast end
+        s.cast = nil
+    end
+    return s
 end
 
 -- (a sub-moment, a spell's "spell:instant:Frost Nova": saved by its owner,
@@ -497,6 +514,7 @@ local function ExportMoments(export)
     for n, m in ipairs(C.MOMENTS) do
         local key = m[1]
         local label = C.MomentLabel(key)
+        if C.LIGHT_ONLY[key] then label = label .. " (light)" end
         moments[key] = { n = n, group = m[2], label = label, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
             feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
@@ -571,7 +589,7 @@ loopFrame:SetScript("OnUpdate", function()
     local due = floor((GetTime() - loopCue.start) / loopCue.period) + 1
     if due > loopCue.sent then
         loopCue.sent = due
-        C.Moment(loopCue.key, loopCue.feel, { noSound = true, intensity = C.LoopIntensity(loopCue.key) })
+        C.Moment(C.CueKey(loopCue.key), loopCue.feel, { noSound = true, intensity = C.LoopIntensity(loopCue.key) })
     end
 end)
 
@@ -588,7 +606,7 @@ local function Wrap()
             if V.cueTimed then return end
             local okA, active = pcall(V.Active)
             local pattern = okA and active and V.EventPattern(key)
-            C.Moment(Spelled(key), pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
+            C.Moment(Spelled(C.CueKey(key)), pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
             -- (a looping moment: its HD cue again each cycle while it lasts)
             if V.looping and V.looping.key == key then C.LoopBegan(V.looping) end
             if key == "lowHp" then low = true; UpdateL2() end

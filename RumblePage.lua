@@ -347,7 +347,9 @@ local function Items(kind, group)
     if kind == "light" and LT then
         for _, e in ipairs(LT.EVENTS) do if LIGHT_GROUP[e.key] == group then list[#list + 1] = { "light", e.key } end end
     elseif kind == "sound" and C and C.MOMENTS then
-        for _, m in ipairs(C.MOMENTS) do if m[2] == group then list[#list + 1] = { "sound", m[1] } end end
+        for _, m in ipairs(C.MOMENTS) do
+            if m[2] == group and not (C.LIGHT_ONLY and C.LIGHT_ONLY[m[1]]) then list[#list + 1] = { "sound", m[1] } end
+        end
     end
     return list
 end

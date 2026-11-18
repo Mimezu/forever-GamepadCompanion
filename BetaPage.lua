@@ -1047,11 +1047,11 @@ local function BuildLink(p)
     end
     -- The link
     local link = S.Card(p, "Link", 0, 0, 330, PH - 40)
-    local wide = S.NewCheck(link, "HD link", 12, -38, function(self)
+    local wide = S.NewCheck(link, "HD", 12, -38, function(self)
         K.SetV2(self:GetChecked() == true)
         Refresh()
     end, 90)
-    S.Tooltip(wide, "HD link", "Off: the old strip, no HD feels")
+    S.Tooltip(wide, "HD", "Off: the old strip, no HD feels")
     local gameLights = S.NewCheck(link, "Game lights", 170, -38, function(self)
         H.DB().lightGameOnly = self:GetChecked() == true or nil
         if ns.Lights then ns.Lights.ApplyBase() end

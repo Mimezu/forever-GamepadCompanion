@@ -504,3 +504,53 @@ do
     for key in pairs(P.RECOMMENDED.events) do L.EventDefault(key) end
     io.write("PASS: one Default: a row's Default is Recommended, as the profile's Reset (" .. n .. " checks)\n")
 end
+-- A cast's cue goes as its kind's moment (Spell casting 22, Gathering 23, Crafting 24), not as
+-- "cast" (72); cancelled and pushback have numbers (76, 77); light-only moments have no sound row
+do
+    local C, K = ns.HelperCues, ns.HelperLink
+    assert(C.MOMENT_N.cancelled == 76 and C.MOMENT_N.pushback == 77 and C.MOMENT_N.cast == 72 and C.MOMENT_N.halo == 75, "appended, none moved")
+    local enabled, v2, cue = K.Enabled, K.V2, K.Cue
+    local sent = {}
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    K.Cue = function(item) sent[#sent + 1] = item.moment; return true end
+    local Ksounds = C.Settings().sounds
+    C.Settings().sounds = true
+    C.SetMomentSound("spell", K.SOUNDS.chime)
+    for _, kind in ipairs({ "spell", "gather", "craft" }) do
+        V.castKind = kind
+        sent = {}
+        V.Fire("cast")
+        assert(sent[1] == C.MOMENT_N[kind], kind .. ": its own number, not 72: " .. tostring(sent[1]))
+    end
+    V.castKind = "spell"
+    for _, k in ipairs({ "cancelled", "pushback" }) do
+        sent = {}
+        C.SetMomentSound(k, K.SOUNDS.chime)
+        V.Fire(k)
+        assert(sent[1] == C.MOMENT_N[k], k .. ": its number: " .. tostring(sent[1]))
+        C.SetMomentSound(k, nil)
+    end
+    C.SetMomentSound("spell", nil)
+    -- a sound picked for "Casting" (72) once: Spell casting's now
+    ns.Haptics.DB().link.sounds.cast = K.SOUNDS.coin
+    assert(C.MomentSound("spell") == K.SOUNDS.coin and C.MomentSound("cast") == nil, "Casting's sound moved to Spell casting")
+    C.SetMomentSound("spell", nil)
+    C.Settings().sounds = Ksounds
+    K.Enabled, K.V2, K.Cue = enabled, v2, cue
+    -- the Sound view: no row for a light-only moment (Critical hit taken once, not twice)
+    page.SetKind("sound")
+    for _, g in ipairs(page.GROUPS) do
+        page.browser.Select(g.key)
+        local seen = {}
+        for _, r in ipairs(page.rows) do
+            if r:IsVisible() and r.kind == "sound" then
+                assert(not C.LIGHT_ONLY[r.key], "a light-only moment's sound row: " .. r.key)
+                local label = r.label:GetText()
+                assert(not seen[label], g.key .. ": two sound rows named " .. tostring(label))
+                seen[label] = true
+            end
+        end
+    end
+    page.SetKind("feel")
+    io.write("PASS: casts as Spell casting / Gathering / Crafting; cancelled 76, pushback 77; no light-only sound rows\n")
+end

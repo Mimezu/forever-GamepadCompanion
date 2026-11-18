@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.52.8 — 2026-11-18
+
+- **Casts reach their own rows:** a cast's cue goes to WoW Helper as Spell casting, Gathering or Crafting (moments 22-24), not as the light-only "Casting" (72), so a sound picked on those rows now plays. A sound picked on the old Casting row moves to Spell casting, once
+- **Cancelled and Pushed back have numbers** (76, 77; they went as 0, "?" in WoW Helper's log) and their own sound rows
+- **Sound shows no light-only moments:** Critical hit taken is listed once (the light's twin, 69, is gone from Sound), and so are the other moments that only light (In combat, Avoid, Casting, the Halo). WoW Helper reads them as "… (light)"
+- Lab's HD switch is named **HD** (was "HD link")
+
 ## 0.52.7 — 2026-11-18
 
 - **One meaning of Default:** a moment's Default now goes to Recommended for your class, the same as the Feel profile's Reset. They used to disagree on Hit, Miss, the dodges and parries, Hit taken, Combo points, Out of mana and the other moments Recommended turns off (Default turned them back on). Default's tip and its Undo line say "Recommended". A test checks both agree for every moment, per class.
