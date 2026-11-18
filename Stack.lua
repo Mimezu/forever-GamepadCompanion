@@ -218,6 +218,19 @@ local function Percent(row)
     return cmp(v, tonumber(row.threshold) or 50)
 end
 
+-- A percentage requirement's own operator and threshold (L10): { operator, threshold }
+function St.ReqParams(row, cond)
+    local p = type(row.reqParams) == "table" and row.reqParams[cond]
+    if type(p) ~= "table" then
+        p = { operator = row.reqOperator or "<", threshold = row.reqThreshold or 50 }
+    end
+    return p
+end
+function St.SetReqParams(row, cond, operator, threshold)
+    row.reqParams = type(row.reqParams) == "table" and row.reqParams or {}
+    row.reqParams[cond] = { operator = operator, threshold = threshold }
+end
+
 -- A reaction matches: its condition (with its percentage) and all its requirements
 function St.Matches(row)
     if conds[row.condition] and conds[row.condition].value then
@@ -227,7 +240,8 @@ function St.Matches(row)
     end
     for _, r in ipairs(row.requirements or {}) do
         if conds[r] and conds[r].value then
-            if not Percent({ condition = r, operator = row.reqOperator, threshold = row.reqThreshold }) then return false end
+            local p = St.ReqParams(row, r)
+            if not Percent({ condition = r, operator = p.operator, threshold = p.threshold }) then return false end
         elseif not Holds(r) then
             return false
         end
@@ -235,11 +249,27 @@ function St.Matches(row)
     return true
 end
 
--- Read every condition with a test or a value (on its events, at login)
-local function ReadAll()
+-- The conditions some kind's reactions use (L13: read only these)
+local function Needed()
+    local need = {}
+    for _, k in pairs(kinds) do
+        local store = k.spec.store()
+        for _, r in ipairs(type(store.rows) == "table" and store.rows or k.spec.recommended) do
+            need[r.condition] = true
+            for _, q in ipairs(r.requirements or {}) do need[q] = true end
+        end
+    end
+    return need
+end
+
+-- Read the conditions with a test or a value (on their events, at login): those in use, or all
+local function ReadAll(all)
+    local need = not all and Needed() or nil
     for _, c in ipairs(condList) do
-        if c.test then flags[c.key] = c.test() and true or false end
-        if c.value then values[c.key] = c.value() end
+        if not need or need[c.key] then
+            if c.test then flags[c.key] = c.test() and true or false end
+            if c.value then values[c.key] = c.value() end
+        end
     end
 end
 St.ReadAll = ReadAll
@@ -339,6 +369,7 @@ function Kind:Add(condition, at)
     store.nextID = store.nextID + 1
     if St.IsPercentage(condition) then row.operator, row.threshold = "<", 35 end
     table.insert(rows, at or 1, row)
+    ReadAll()   -- (a condition nobody read before)
     Changed(self)
     return row
 end
@@ -393,6 +424,7 @@ function Kind:AddRequirement(id, condition)
     row.requirements = row.requirements or {}
     for _, r in ipairs(row.requirements) do if r == condition then return false end end
     row.requirements[#row.requirements + 1] = condition
+    ReadAll()
     Changed(self)
     return true
 end
@@ -417,7 +449,10 @@ function St.Words(row)
         return St.Label(c)
     end
     local parts = { one(row.condition, row.operator, row.threshold) }
-    for _, r in ipairs(row.requirements or {}) do parts[#parts + 1] = one(r, row.reqOperator, row.reqThreshold) end
+    for _, r in ipairs(row.requirements or {}) do
+        local p = St.ReqParams(row, r)
+        parts[#parts + 1] = one(r, p.operator, p.threshold)
+    end
     return table.concat(parts, " + ")
 end
 
@@ -465,13 +500,26 @@ function Kind:Resolve()
         return result
     end
     local matched = {}
+    self.ended = self.ended or {}
+    self.waitUntil = nil
     for _, r in ipairs(rows) do
-        if r.on ~= false and St.Matches(r) then self.held[r.id], matched[r.id] = now, true end
+        if r.on ~= false and St.Matches(r) then
+            matched[r.id], self.held[r.id], self.ended[r.id] = true, true, nil
+        elseif self.held[r.id] then
+            -- (the true -> false edge: Wait counts from here: L6)
+            self.held[r.id] = nil
+            self.ended[r.id] = now
+        end
     end
     for _, ch in ipairs(spec.channels) do
         for _, r in ipairs(rows) do
-            local seen = self.held[r.id]
-            local live = r.on ~= false and (matched[r.id] or (seen and timing.wait > 0 and now - seen < timing.wait))
+            local ended = self.ended[r.id]
+            local waiting = r.on ~= false and ended and timing.wait > 0 and now - ended < timing.wait
+            if waiting then
+                local til = ended + timing.wait
+                if not self.waitUntil or til < self.waitUntil then self.waitUntil = til end
+            end
+            local live = r.on ~= false and (matched[r.id] or waiting)
             if live then
                 local v = spec.value(r, ch)
                 if v ~= nil then
@@ -514,11 +562,10 @@ function Kind:Refresh(force)
     local changed = force or not Same(self.spec, r, self.last)
     self.last = r
     if changed and self.spec.apply then self.spec.apply(r) end
-    -- a reaction held by Wait: look again when it runs out
-    local wait = r.timing.wait
-    if wait > 0 and C_Timer and C_Timer.After and not self.waiting then
+    -- a reaction held by Wait: look again when it runs out (only while one is waiting)
+    if self.waitUntil and C_Timer and C_Timer.After and not self.waiting then
         self.waiting = true
-        C_Timer.After(wait + 0.02, function() self.waiting = false; self:Refresh() end)
+        C_Timer.After(math.max(0.01, self.waitUntil - Now()) + 0.02, function() self.waiting = false; self:Refresh() end)
     end
     return r
 end

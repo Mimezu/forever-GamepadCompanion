@@ -61,10 +61,22 @@ local CLASS_TINT = { WARRIOR = 21, PALADIN = 22, HUNTER = 23, ROGUE = 24, PRIEST
 ---------------------------------------------------------------------------
 -- The lights: presets, then the player's own (WoW Helper's data addon)
 ---------------------------------------------------------------------------
-LT.GROUPS = { "Resting", "Shapes", "Combat", "Casting", "World", "Social" }
+LT.GROUPS = { "Resting", "Basics", "Combat", "Casting", "World", "Social" }
 
 -- every light: presets by id (an edited preset replaced), then the player's own
+local lightsCache = {}
 function LT.Lights()
+    local d = type(WowHelperData) == "table" and WowHelperData or nil
+    local dl = d and d.lights
+    if lightsCache.list and lightsCache.presets == ns.LIGHT_PRESETS and lightsCache.data == d and lightsCache.lights == dl then
+        return lightsCache.list
+    end
+    local list = LT.BuildLights()
+    lightsCache.list, lightsCache.presets, lightsCache.data, lightsCache.lights = list, ns.LIGHT_PRESETS, d, dl
+    return list
+end
+
+function LT.BuildLights()
     local list, seen, mine = {}, {}, {}
     local d = type(WowHelperData) == "table" and WowHelperData or nil
     for _, l in ipairs(d and type(d.lights) == "table" and d.lights or {}) do
@@ -218,7 +230,9 @@ function LT.Base()
     if not LT.LightByKey(b.light) then b.light = "steady" end
     b.breathe = nil
     -- the mic light: in combat by default (0.29 saved "off" without asking: once)
-    if b.micV ~= 2 then b.mic, b.micV = (b.mic == nil or b.mic == "off") and "combat" or b.mic, 2 end
+    -- (0.28 wrote "off" without asking: that one meant In combat; a fresh profile is Off, as
+    -- Recommended: L8)
+    if b.micV ~= 2 then b.mic, b.micV = (b.mic == "off") and "combat" or (b.mic or "off"), 2 end
     return b
 end
 
@@ -322,8 +336,8 @@ local PATTERNS = {
 local EVENT = {}
 for _, e in ipairs(LT.EVENTS) do
     local p = PATTERNS[e.key] or {}
-    -- (a state passes the channels it doesn't set)
-    local none = e.state and "pass" or "off"
+    -- (a moment or a state with no pattern leaves the channel: Pass, 0 on the strip: L2)
+    local none = "pass"
     e.dots, e.mic = p[1] or none, p[2] or none
     EVENT[e.key] = e
 end
@@ -346,7 +360,9 @@ local function RowDef(key)
     local base = EVENT[row.condition]
     local d = rowDefs[key]
     if not d then
-        d = setmetatable({}, { __index = function(_, f)
+        d = setmetatable({}, { __index = function(t, f)
+            local row = rawget(t, "row")   -- (the row now, not the first one: L11)
+            local base = EVENT[row.condition]
             if f == "label" then return St.Words(row) end
             if base and base.state and base[f] ~= nil then return base[f] end
             return ({ key = key, state = true, group = "States", look = "steady", color = "base", strength = 3,
@@ -450,8 +466,8 @@ function LT.Settings(key)
         s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
         db.lightEvents[key] = s
     end
-    if not DOTS[s.dots] or (s.dots == "pass" and not e.state) then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
-    if not MICS[s.mic] or (s.mic == "pass" and not e.state) then s.mic = e.mic end
+    if not DOTS[s.dots] then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
+    if not MICS[s.mic] then s.mic = e.mic end
     if s.effect then
         -- migrate once: the moment's own light, or the shape it had
         local own = s.effect == OLD_DEFAULT[key]
@@ -479,7 +495,8 @@ end
 -- A moment's dots and mic as the strip's codes
 function LT.Patterns(key)
     local s = LT.Settings(key)
-    return (DOTS[s.dots] or DOTS.off).code or DOTS.off.code, (MICS[s.mic] or MICS.off).code or MICS.off.code
+    -- (Pass: 0, the light's own lanes, none on a preset: the hold's mic and dots go on)
+    return (DOTS[s.dots] or DOTS.pass).code or 0, (MICS[s.mic] or MICS.pass).code or 0
 end
 
 -- Its dots and mic in a few words, for its row ("Spark · Mic pulse"); nil when both are off
@@ -495,8 +512,14 @@ end
 function LT.MicMoments()
     local list = {}
     for _, e in ipairs(LT.EVENTS) do
-        local s = LT.Settings(e.key)
-        if s.on and s.mic ~= "off" and s.mic ~= "pass" then list[#list + 1] = e.label end
+        if not e.state then
+            local s = LT.Settings(e.key)
+            if s.on and s.mic ~= "off" and s.mic ~= "pass" then list[#list + 1] = e.label end
+        end
+    end
+    -- (the reactions as they are now: L14)
+    for _, row in ipairs(stack and stack:Rows() or {}) do
+        if row.on ~= false and row.mic and row.mic ~= "off" and row.mic ~= "pass" then list[#list + 1] = ns.Stack.Words(row) end
     end
     return list
 end
@@ -564,9 +587,10 @@ local Store, FromStates, Recommended   -- (below; Migrate uses them)
 -- Silently, once: the mic card's "In combat" becomes the In combat state's mic
 -- (its bar passing when it had no light), a state's "off" dots / mic become
 -- Pass (before the stack nothing was below them)
+local Repair
 local function Migrate()
     local b = LT.Base()
-    if b.stackV == 1 then return FromStates() end
+    if b.stackV == 1 then FromStates(); return Repair() end
     b.stackV = 1
     local db = H.DB()
     for key, s in pairs(type(db.lightEvents) == "table" and db.lightEvents or {}) do
@@ -591,6 +615,38 @@ local function Migrate()
         -- (rows already there: the same on In combat's)
         local row = stack and type(Store().rows) == "table" and stack:Row("combat")
         if row then row.on, row.mic = true, "on"; if row.light == nil or not s.light or s.light == 0 then row.light = 0 end end
+    end
+    Repair()
+end
+LT.Migrate = Migrate
+
+-- Once: profiles where the reactions were made before 0.48's conversion ran (L1): a state's
+-- copied "off" mic / dots (then the "none" default) become Pass, as its 0.48 setting says;
+-- moments' unasked "off" (0.46's default) becomes Pass (L2)
+Repair = function()
+    local store, b, db = Store(), LT.Base(), H.DB()
+    local ev = type(db.lightEvents) == "table" and db.lightEvents or {}
+    if not store.repairL1 then
+        store.repairL1 = true
+        if type(store.rows) == "table" then
+            for _, row in ipairs(store.rows) do
+                local was = ev[row.id]
+                if EVENT[row.id] and EVENT[row.id].state and type(was) == "table" then
+                    if row.mic == "off" and was.mic == "pass" then row.mic = "pass" end
+                    if row.dots == "off" and was.dots == "pass" then row.dots = "pass" end
+                end
+            end
+        end
+    end
+    if not b.passV then
+        b.passV = 1
+        for key, s in pairs(ev) do
+            local e = EVENT[key]
+            if e and not e.state and type(s) == "table" then
+                if s.mic == "off" and e.mic == "pass" then s.mic = "pass" end
+                if s.dots == "off" and e.dots == "pass" then s.dots = "pass" end
+            end
+        end
     end
 end
 
@@ -663,7 +719,10 @@ local function Holding()
     local key = r and r.bar.row and r.bar.row.id or nil
     if key then
         local s = LT.Settings(key)
-        return key, LT.Light(s.light), s.color, s.strength, states[key] and states[key].progress
+        local row = r.bar.row
+        local ctx = states[key] or states[row.condition]
+        for _, q in ipairs(row.requirements or {}) do ctx = ctx or states[q] end
+        return key, LT.Light(s.light), s.color, s.strength, ctx and ctx.progress
     end
     local b = LT.Base()
     if not LT.On() or b.mode == "off" then return nil end
@@ -682,10 +741,19 @@ end
 -- The stack's result, drawn: by WoW Helper (the light row, the steady colour
 -- under it) or by the game (the bar)
 local lastStep, lastIdx
+local function MicWord(code)
+    return (code == MICS.on.code) and "on" or (code == MICS.pulse.code or code == MICS.blink.code) and "pulse" or "off"
+end
+
 local function Draw()
     Migrate()   -- (once; here: the Feel profile's tables are in place by now)
     local k = K()
     local key, l, color, strength, progress = Holding()
+    -- the mic, whoever draws the bar (lights off: Off): L3
+    if k and k.SetMic then
+        local r0 = stack:Now()
+        k.SetMic(LT.On() and MicWord(Code(MICS, r0.mic, r0.bar.row, MICS.off.code)) or "off")
+    end
     if LT.HelperDrives() then
         if not (k and k.SetLight) then return end
         if not LT.On() then
@@ -697,10 +765,10 @@ local function Draw()
         lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
         local barRow = r.bar.row
         local mic = Code(MICS, r.mic, barRow, MICS.off.code)
-        k.SetLight({ hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
+        local d = type(WowHelperData) == "table" and WowHelperData or nil
+        k.SetLight({ version = (d and (tonumber(d.lightRow) or 0) >= 1) and 1 or 0,
+            hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
             progress = lastStep, resting = key == nil, holdDots = Code(DOTS, r.dots, barRow, DOTS.off.code), holdMic = mic })
-        -- (the mic's own field too: WoW Helper with the game's lights)
-        if k.SetMic then k.SetMic((mic == MICS.on.code) and "on" or (mic == MICS.pulse.code or mic == MICS.blink.code) and "pulse" or "off") end
         if l then
             local rr, g, b = LT.Sample(l, l.loop and l.loop[1] or 0, Ctx(color, strength))
             if rr then return H.Light("lt_base", function() return rr, g, b end, 0) end
@@ -820,11 +888,10 @@ if St then
         base = BaseValue,
         apply = function() Draw() end,
         timing = { fadeIn = 0.25, fadeOut = 0.4, wait = 0 },
-        prepare = function() FromStates() end,
+        prepare = function() Migrate() end,   -- (the one load step, in order: L1)
     })
 end
 LT.stack = stack
-LT.Migrate = Migrate
 
 ---------------------------------------------------------------------------
 -- Cues: Rumble's events and the Beta events (wrapped, so a light plays

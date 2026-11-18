@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.52.2 — 2026-11-18
+
+- Lights, after the night review (L1-L16): the mic stays In combat's while you cast in combat (old profiles read in the right order, and repaired); a crit or a kill no longer blanks the mic and dots (a moment leaves them unless you pick Off); the mic goes off with the lights and is sent with the game's lights too; a fresh character starts as Recommended (Default greyed)
+- Light row version 1 only to a WoW Helper that reads it (an older one keeps working on version 0)
+- States: Wait counts from when a reaction stops; Fade in / Fade out shown only when the game draws the light; each percentage requirement has its own operator and threshold (click the words); the light picker's Dots row wraps
+- Basics: the helper's new name for the shapes (LightPresets.lua regenerated from WoW Helper)
+
 ## 0.52.1 — 2026-11-18
 
 - Night review, Addon UI:

@@ -33,7 +33,7 @@ function LP.Sections(key)
         if l.kind == kind and (e.state or l.group ~= "Resting") then
             if l.id == ownId then own[#own + 1] = l
             elseif l.yours then yours[#yours + 1] = l
-            elseif l.group == "Shapes" then shapes[#shapes + 1] = l
+            elseif l.group == "Basics" or l.group == "Shapes" then shapes[#shapes + 1] = l
             else more[#more + 1] = l end
         end
     end
@@ -224,22 +224,24 @@ function LP.Open(anchor, key, onChange)
     -- yours with its own)
     local s0 = LT.Settings(key)
     local lit = LT.Light(s0.light)
+    -- (a row wraps at the popup's edge: L9) -> the lines it took
+    local inside = COLS * (TILE_W + 3) - 4
     local function Row(head, list, field, y0)
         head:ClearAllPoints()
         head:SetPoint("TOPLEFT", 14, y0 - 2)
-        local x = 0
+        local x, line = 0, 0
         for _, p in ipairs(list) do
-            local state = LT.Def(key).state
-            if (p.key ~= "light" or (lit and lit.yours) or s0[field] == "light") and (p.key ~= "pass" or state) then
+            if p.key ~= "light" or (lit and lit.yours) or s0[field] == "light" then
                 local b = pop.pats[field .. p.key]
                 if not b then
                     b = S.NewButton(pop, p.label, 0, 0, 40, nil, nil, 11, 22)
                     pop.pats[field .. p.key] = b
                 end
                 local w = (p.key == "light" and 56) or (#p.label == 1 and 26) or 52
+                if x + w > inside then x, line = 0, line + 1 end
                 b:SetWidth(w)
                 b:ClearAllPoints()
-                b:SetPoint("TOPLEFT", 12 + x, y0 - 16)
+                b:SetPoint("TOPLEFT", 12 + x, y0 - 16 - line * 25)
                 b.field, b.value = field, p.key
                 b:SetScript("OnClick", function()
                     LT.Own(key)[field] = p.key
@@ -252,12 +254,12 @@ function LP.Open(anchor, key, onChange)
                 pop.pats[field .. p.key]:Hide()
             end
         end
+        return line + 1
     end
+    local strengthY = y
     y = y - 30
-    Row(pop.dotsHead, LT.DOTS, "dots", y)
-    y = y - 44
-    Row(pop.micHead, LT.MICS, "mic", y)
-    y = y - 46
+    y = y - 19 - 25 * Row(pop.dotsHead, LT.DOTS, "dots", y)
+    y = y - 21 - 25 * Row(pop.micHead, LT.MICS, "mic", y)
     if not ns.HelperLink or not ns.Lights.HelperDrives() then
         pop.dotsHead:SetText("Dots · WoW Helper")
         pop.micHead:SetText("Mic · orange · WoW Helper")
@@ -268,7 +270,7 @@ function LP.Open(anchor, key, onChange)
     -- Off, Try
     local width = 24 + COLS * (TILE_W + 3)
     pop.try:ClearAllPoints()
-    pop.try:SetPoint("TOPRIGHT", -12, y + 124)   -- (on the strength row)
+    pop.try:SetPoint("TOPRIGHT", -12, strengthY + 4)   -- (on the strength row)
     pop.try:SetScript("OnClick", function() LT.Try(key) end)
     pop.off:ClearAllPoints()
     pop.off:SetPoint("RIGHT", pop.try, "LEFT", -6, 0)

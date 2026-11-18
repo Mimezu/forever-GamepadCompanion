@@ -150,6 +150,36 @@ ok(result.R2.row and result.R2.row.id == "moving", "still Movement during Wait")
 Run(now + 0.6)
 ok(result.R2.row == nil, "then the next")
 
+-- L6: Wait counts from when the reaction stopped matching, not from the last refresh
+k:SetTiming("wait", 2)
+world.speed = 7
+event("PLAYER_STARTED_MOVING")
+ok(result.R2.row and result.R2.row.id == "moving", "moving")
+local stop = now
+world.speed = 0
+event("PLAYER_STOPPED_MOVING")
+Run(stop + 0.5)
+event("UNIT_HEALTH", "player")   -- (another event half way)
+Run(stop + 1.9)
+ok(result.R2.row and result.R2.row.id == "moving", "L6: still held at 1.9 s")
+Run(stop + 2.1)
+ok(result.R2.row == nil, "L6: released at 2 s after it stopped, not 2 s after the last event")
+k:SetTiming("wait", 0)
+
+-- L10: each percentage requirement has its own operator and threshold
+local pr = k:Row("combat")
+k:AddRequirement("combat", "player_health")
+St.SetReqParams(pr, "player_health", "<", 30)
+world.combat, world.hp = true, 40
+event("PLAYER_REGEN_DISABLED"); event("UNIT_HEALTH", "player")
+ok(result.L2.row == nil or result.L2.row.id ~= "combat", "In combat + Health < 30 %: 40 % no")
+world.hp = 20
+event("UNIT_HEALTH", "player")
+ok(result.L2.row.id == "combat" and St.Words(pr) == "In combat + Health percentage < 30%", "20 %: yes")
+k:RemoveRequirement("combat", "player_health")
+world.hp = 100
+event("UNIT_HEALTH", "player")
+
 -- Default: reactions, order and timing as they ship; one row back too
 k:Row("combat").on = false
 k:Default("combat")

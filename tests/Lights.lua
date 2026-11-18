@@ -149,9 +149,17 @@ ok(s.light == LT.LightByKey("double").id and s.strength == 2, "loot: Double at 3
 s = LT.Settings("kill")
 ok(s.light == LT.LightByKey("glow").id and s.on == false and s.strength == 3, "kill: Glow, off kept")
 ok(LT.Base().light == "breathe" and LT.Base().breathe == nil, "base: Breathe")
-ok(LT.Base().mic == "combat", "the mic light: in combat by default")
+-- L8: a fresh profile's mic is Off (Recommended); only 0.28's unasked "off" meant In combat
+ok(LT.Base().mic == "off", "a fresh profile: the mic Off")
+GamepadCompanionHapticsDB.lightBase.micV, GamepadCompanionHapticsDB.lightBase.mic = nil, "off"
+ok(LT.Base().mic == "combat", "0.28's unasked off: In combat")
 -- dots and mic: each moment's Recommended, as data (older settings get it)
-ok(LT.Settings("crit").dots == "spark" and LT.Settings("crit").mic == "off", "crit: Spark, no mic")
+-- L2: a moment with no pattern leaves the mic (Pass, 0 on the strip), only an explicit Off sends Off
+ok(LT.Settings("crit").dots == "spark" and LT.Settings("crit").mic == "pass", "crit: Spark, the mic left alone")
+local _, critMic = LT.Patterns("crit")
+ok(critMic == 0, "crit's mic: 0 on the strip (leave), not 1 (Off)")
+local lootDots, lootMic = LT.Patterns("loot")
+ok(lootDots == 0 and lootMic == 0, "loot: leaves both")
 ok(LT.Settings("whisper").mic == "pulse" and LT.Settings("lowHp").dots == "pair" and LT.Settings("lowHp").mic == "pulse", "whisper, low health")
 ok(LT.PatternWords("lowHp") == "Pair · Mic pulse", "words: " .. tostring(LT.PatternWords("lowHp")))
 ok(LT.PatternWords("kill") == "All" and LT.PatternWords("loot") == nil, "kill: All; loot: nothing")
@@ -211,12 +219,19 @@ ok(drawn and drawn.resting and drawn.hold == LT.LightByKey("breathe").id and dra
 local vr, vg, vb = Led()
 local vr2 = select(1, Led())
 ok(vr and vr == vr2, "a steady colour from the game")
+-- L5: version 1 only to a helper that reads it (WowHelperData.lightRow), else version 0
+WowHelperData = nil
+LT.SendHold(); K.Step(1 / 60)
+ok(#K.EncodeLight(K.light) == 17 and drawn.version == 0, "no WoW Helper data: version 0, 17 cells")
+WowHelperData = { lightRow = 1 }
+LT.SendHold(); K.Step(1 / 60)
+ok(#K.EncodeLight(K.light) == 23 and drawn.version == 1, "lightRow 1: version 1, 23 cells")
 -- a crit: a cue on the row, nothing animated in the game
 voices.lt_crit = nil
 LT.Fire("crit")
 for _ = 1, 2 do K.Step(1 / 60) end
 ok(drawn.cue == LT.LightByKey("crit").id and drawn.cueStrength == 7, "the crit's cue")
-ok(drawn.version == 1 and drawn.cueDots == LT.DOT.spark.code and drawn.cueMic == LT.MIC.off.code, "with its dots and mic")
+ok(drawn.cueDots == LT.DOT.spark.code and drawn.cueMic == 0, "with its dots, the mic left (L2)")
 ok(voices.lt_crit == nil, "the game doesn't animate it")
 for _ = 1, 10 do K.Step(1 / 30) end
 ok(drawn.cue == 0, "the cue cleared after it was shown")
@@ -371,6 +386,62 @@ IsResting = nil
 S:SetOn("moving", false)
 GetUnitSpeed = function() return 0 end
 St.ReadAll(); St.Refresh()
+
+-- The night review's P1s, each the way it happened -------------------------------------------
+-- L1: an old profile loaded for real: the reactions are read first (Kind:Rows), before Draw
+db.lightStack = {}
+db.lightBase.stackV, db.lightBase.mic = nil, "combat"
+db.lightEvents.cast = { on = true, light = LT.LightByKey("cast").id, color = "school", strength = 6, dots = "off", mic = "off" }
+db.lightEvents.combat = nil
+local rows1 = S:Rows()
+local castRow, combatRow
+for _, r in ipairs(rows1) do if r.id == "cast" then castRow = r end; if r.id == "combat" then combatRow = r end end
+ok(castRow.mic == "pass" and castRow.dots == "pass", "L1: Casting's old off mic / dots read as Pass, not Off")
+ok(combatRow.on and combatRow.mic == "on", "L1: In combat lights the mic")
+UnitAffectingCombat = function() return true end
+St.Set("cast", true); St.ReadAll(); St.Refresh()
+local _, micNow = Now()
+ok(micNow == "combat", "L1: casting in combat: the mic stays In combat's")
+St.Set("cast", false)
+-- L1 repair: a profile already made in the wrong order
+db.lightStack.repairL1 = nil
+S:Row("cast").mic = "off"
+db.lightEvents.cast.mic = "pass"
+LT.Migrate()
+ok(S:Row("cast").mic == "pass", "L1: repaired")
+-- L3: lights off in combat: the mic goes off; with the game's lights the mic is still sent
+St.ReadAll(); St.Refresh()
+ok(K.state.mic == K.MIC.on, "in combat: mic on")
+LT.SetOn(false)
+ok(K.state.mic == K.MIC.off, "L3: lights off: the mic off")
+LT.SetOn(true)
+db.lightGameOnly = true
+LT.SendHold()
+ok(not LT.HelperDrives() and K.state.mic == K.MIC.on, "L3: the game's lights: the mic still sent")
+db.lightGameOnly = nil
+LT.SendHold()
+UnitAffectingCombat = function() return false end
+St.ReadAll(); St.Refresh()
+-- L14: the mic's moments from the reactions as they are
+S:Remove("combat")
+ok(not table.concat(LT.MicMoments(), ","):find("In combat"), "L14: a removed In combat is not listed")
+S:Default()
+-- L16: a hold refreshing while a cue is on screen keeps the cue
+LT.Fire("crit")
+K.Step(1 / 60)
+LT.SendHold()
+K.SetLight({ version = 1, hold = 2, holdTint = 1, holdStrength = 3, progress = 0 })
+K.Step(1 / 60)
+ok(drawn.cue == LT.LightByKey("crit").id, "L16: the cue survives a hold change")
+for _ = 1, 10 do K.Step(1 / 30) end
+LT.SendHold()
+-- L8: a fresh profile is all Recommended (Default greyed)
+local saved = GamepadCompanionHapticsDB
+GamepadCompanionHapticsDB = { engine = true, light = true }
+ok(S:IsDefault() and LT.IsDefault("combat") and LT.IsDefault("cast") and LT.Base().mic == "off", "L8: a fresh profile: Default greyed")
+GamepadCompanionHapticsDB = saved
+db = saved
+St.Refresh(true)
 
 -- link off again: the row goes, the game draws
 K.SetEnabled(false)

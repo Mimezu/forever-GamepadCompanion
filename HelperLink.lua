@@ -501,13 +501,15 @@ function K.SetLight(row)
         return
     end
     cur = cur or {}
+    local version = row.version == nil and 1 or row.version   -- (0: an older helper: L5)
     local same = cur.hold == row.hold and cur.holdTint == row.holdTint and cur.holdStrength == row.holdStrength
         and cur.progress == row.progress and (cur.resting or false) == (row.resting or false)
-        and cur.holdDots == (row.holdDots or 0) and cur.holdMic == (row.holdMic or 0)
+        and cur.holdDots == (row.holdDots or 0) and cur.holdMic == (row.holdMic or 0) and cur.version == version
     if same and K.light then return end
-    K.light = { version = 1, hold = row.hold or 0, holdTint = row.holdTint or 0, holdStrength = row.holdStrength or 0,
+    -- (a cue on screen keeps its fields until it has had its frames: L16)
+    K.light = { version = version, hold = row.hold or 0, holdTint = row.holdTint or 0, holdStrength = row.holdStrength or 0,
         progress = row.progress or 0, resting = row.resting or false, holdDots = row.holdDots or 0, holdMic = row.holdMic or 0,
-        cue = 0, cueTint = 0, cueStrength = 0, cueDots = 0, cueMic = 0 }
+        cue = cur.cue or 0, cueTint = cur.cueTint or 0, cueStrength = cur.cueStrength or 0, cueDots = cur.cueDots or 0, cueMic = cur.cueMic or 0 }
     dirty = true
 end
 

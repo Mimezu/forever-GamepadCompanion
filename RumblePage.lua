@@ -579,21 +579,39 @@ local function ConditionEntries(skip, row)
     return list
 end
 
--- A percentage reaction's operator, then its threshold
-local function PickPercent(anchor, row)
+-- A percentage's operator, then its threshold: the reaction's own condition (part nil) or one
+-- of its requirements (each its own: L10)
+local function PickPercent(anchor, row, part)
     local St = ns.Stack
+    local cond = part or row.condition
+    local cur = part and St.ReqParams(row, part) or { operator = row.operator, threshold = row.threshold }
     local ops = {}
     for _, o in ipairs(St.OPERATORS) do ops[#ops + 1] = { key = o.id, label = o.label } end
-    HUI.Popup(anchor, St.Label(row.condition), ops, row.operator, function(op)
-        row.operator = op
+    HUI.Popup(anchor, St.Label(cond), ops, cur.operator, function(op)
         local th = {}
         for v = 10, 90, 5 do th[#th + 1] = { key = v, label = v .. "%" } end
-        HUI.Popup(anchor, St.Label(row.condition), th, row.threshold, function(v)
-            row.threshold = v
+        HUI.Popup(anchor, St.Label(cond), th, cur.threshold, function(v)
+            if part then St.SetReqParams(row, part, op, v) else row.operator, row.threshold = op, v end
             St.Refresh(true)
             Refresh()
         end, 6, 64)
     end, 3, 120)
+end
+
+-- The words clicked: the percentage parts of a reaction (one: straight to it; more: which)
+local function PickPercentPart(anchor, row)
+    local St = ns.Stack
+    local parts = {}
+    if St.IsPercentage(row.condition) then parts[#parts + 1] = { key = "", label = St.Label(row.condition) } end
+    for _, q in ipairs(row.requirements or {}) do
+        if St.IsPercentage(q) then parts[#parts + 1] = { key = q, label = St.Label(q) } end
+    end
+    if #parts == 1 then return PickPercent(anchor, row, parts[1].key ~= "" and parts[1].key or nil) end
+    if #parts > 1 then
+        HUI.Popup(anchor, St.Words(row), parts, nil, function(k)
+            PickPercent(anchor, row, k ~= "" and k or nil)
+        end, 1, 200)
+    end
 end
 
 -- (▲▼ hit areas: 28 px, the whole half of the row each)
@@ -710,7 +728,7 @@ local function StateRow(card, cw, i, o)
     r.words:SetSize(220, 18)
     r.words:SetScript("OnClick", function(self)
         local row = o.kind():Row(key())
-        if row and ns.Stack.IsPercentage(row.condition) then PickPercent(self, row) end
+        if row then PickPercentPart(self, row) end
     end)
     -- + requirements (all must be true)
     r.req = S.NewButton(r, "+", 280, -8, 34, function(self)
@@ -767,12 +785,12 @@ function ui.BuildStates(panel, cw)
     -- Timing (FrameGambit's: fade in, fade out, wait before fade-out)
     local y = -38 - (STATE_ROWS + 1) * STATE_STEP - 4
     local function T(label, x, field, maxv)
-        HUI.Stepper(pg, card, label, x, y, { labelWidth = 70, width = 200, step = 0.05, min = 0, max = maxv,
+        return HUI.Stepper(pg, card, label, x, y, { labelWidth = 70, width = 200, step = 0.05, min = 0, max = maxv,
             format = function(v) return string.format("%.2fs", v or 0) end,
             get = function() return LT.stack:Timing()[field] end, set = function(v) LT.stack:SetTiming(field, v) end })
     end
-    T("Fade in", 12, "fadeIn", 2)
-    T("Fade out", 222, "fadeOut", 2)
+    ui.fadeIn = T("Fade in", 12, "fadeIn", 2)
+    ui.fadeOut = T("Fade out", 222, "fadeOut", 2)
     T("Wait", 432, "wait", 5)
 end
 
@@ -903,6 +921,9 @@ function ui.RefreshStates(kind)
     end
     local o = ui.otherwise
     ui.PlaceList(ui.states, rows, sts.offset, STATE_ROWS, o)
+    -- (the fades are the game's: WoW Helper cross-fades on its own: L7)
+    local game = not LT.HelperDrives()
+    if ui.fadeIn then ui.fadeIn:SetShown(game); ui.fadeOut:SetShown(game) end
     local b = LT.Base()
     local base = LT.LightByKey(b.light)
     local now = stack:Now()
