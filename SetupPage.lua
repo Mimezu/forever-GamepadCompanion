@@ -247,26 +247,20 @@ local function BuildTiming(frame)
         if source == "learned" then return "Learned ✓" .. (n and (" · " .. n) or "") end
         return "Learning…"
     end
-    local hits = Row(-40, "Hits", nil, function() V.HitTry(); Refresh() end)
-    local mine = Row(-84, "Mining")
-    local steps = Row(-128, "Footsteps")
-    local wading = Row(-172, "Wading")
+    -- (hits and mining: Moments › Learned, one place, U2-14; Landing: its row's When chip)
+    local steps = Row(-40, "Footsteps")
+    local wading = Row(-84, "Wading")
     wading.text:SetText("Not yet")
-    -- (Landing's Soft at / Full at: on the Landing row's When chip, Moments › Moving)
-    local status = S.Note(card, 12, -216, COL - 24, 2, 11, GOLD)
-    S.NewButton(card, "WoW Helper ›", 12, -244, 120, function()
-        if Shell.SetStatus then Shell.SetStatus("WoW Helper › Pad › Timing", true) end
+    local status = S.Note(card, 12, -128, COL - 24, 2, 11, GOLD)
+    local learned = S.NewButton(card, "Learned ›", 12, -160, 120, function()
+        Shell.Open("moments")
+        local page = ns.RumblePage
+        if page and page.SetKind then page.SetKind("feel") end
+        if page and page.browser and page.browser.buttons.learnedWeapons then page.browser.Select("learnedWeapons") end
     end, nil, 11, 24)
+    S.Tooltip(learned, "Learned", "Hits and gathering · Moments")
     V.onHitSync = function(text) status:SetText(text); Refresh() end
     pg.refresh[#pg.refresh + 1] = function()
-        local kind = V.WeaponKind(16)
-        local d, _, source, n = V.HitDelay(kind)
-        hits.text:SetText(V.HitKindLabel(kind) .. " · " .. word(source, source == "learned" and n or nil)
-            .. string.format(" · %.2f s", d))
-        S.SetSelected(hits.try, V.HitTrying() and true or false)
-        local _, first, _, mineSource, mineStrikes = V.StrikeTiming("mining")
-        mine.text:SetText(word(mineSource, mineSource == "learned" and mineStrikes or nil)
-            .. string.format(" · %.2f s, then the crack", first))
         local parts = {}
         for _, g in ipairs({ { "run", "Run" }, { "walk", "Walk" } }) do
             local source, sn = L.StepSource(g[1])

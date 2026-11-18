@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.53.12 — 2026-11-18
+
+- Night review 2, **Addon UI**, the rest:
+  - **U2-7**: /gpc opens Start here once (pad or WoW Helper not ready), then your last page: playing without WoW Helper is fine
+  - **U2-14**: Setup › Timing no longer repeats hits and mining (Moments › Learned has them): its **Learned ›** opens them; the dead "WoW Helper ›" button and the second Try are gone
+  - **UI-7**: Help's Bars picture shows what the topic says (Edit Mode, a bar picked and dragged), no old preview or Compact | Standard; Setup's picture says Read, never Linked
+  - **U2-12**: the Edit Mode class-button test now fails on the old maths (its button and page scales differ)
+  - docs/PHILOSOPHY.md matches the code: Default (a row) and Reset (a whole thing) both go to Recommended with Undo; "+" for proposals; Again; Edit without WoW Helper; Used by still planned
+
 ## 0.53.11 — 2026-11-18
 
 - Night review 2, **Addon UI**:

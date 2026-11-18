@@ -89,7 +89,9 @@ GamepadCompanionAPI = {
     GetBarFrame = function(layer)
         local b = bars[layer]
         if not b then return nil end
-        local scale = layer == "classLeft" and 1.5 or 1
+        -- (U2-12: the class button's own scale is the page's 1.5 x its record's 1.5, so the old
+        -- button-scale maths gives 13.3 units, the page-scale maths 20)
+        local scale = layer == "classLeft" and 2.25 or 1
         return { GetLeft = function() return b[1] / scale end, GetBottom = function() return b[2] / scale end,
             GetWidth = function() return b[3] / scale end, GetHeight = function() return b[4] / scale end,
             GetEffectiveScale = function() return scale end, GetParent = function() return page end,
@@ -210,7 +212,7 @@ for layer, q in pairs(EB.proxies) do
 end
 assert(STRATA[d.strata or "DIALOG"] >= STRATA.HIGH and d.dontSave == true, "dialog above, its spot not saved (B14)")
 
--- B4: a class button (page scale 1.5) dragged 30 px on screen moves 20 page units
+-- B4: a class button (page scale 1.5, its own 2.25) dragged 30 px on screen moves 20 page units
 EB.Select("classLeft")
 local cl = EB.proxies.classLeft
 local x0, y0 = settings.bars.classLeft.x, settings.bars.classLeft.y

@@ -310,6 +310,14 @@ C_GamePad = { GetActiveDeviceID = function() return -1 end }
 ns.Shell.RefreshLink()
 assert(sw.noPad:IsShown(), "No pad")
 assert(ns.HelpPage.NeedsStart(), "/gpc: Start here while the pad isn't there")
+-- U2-7: once; then /gpc opens the last page, pad or not
+do
+    local ui = GamepadCompanionHapticsDB and GamepadCompanionHapticsDB.ui
+    if ui then ui.startSeen = nil end
+    local first = GamepadCompanionAPI.OpenStart()
+    local again = GamepadCompanionAPI.OpenStart()
+    assert(first and not again, "U2-7: Start here once, then the last page (" .. tostring(first) .. ", " .. tostring(again) .. ")")
+end
 C_GamePad = nil
 ns.Shell.RefreshLink()
 -- Fix it: four problems, their checks now, Go there; the tour on Start here

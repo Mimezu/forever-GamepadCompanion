@@ -28,17 +28,23 @@ doesn't match yet, the audit's migration plan says when it will.)
 - **Recommended** ships, tuned to be faint, analog and calm, with class touches only where
   they help.
 - Then your **profile**, then **your tweaks**. Each layer stores only what differs.
-- **Default** means one thing: back to Recommended. A row's Default and the profile's Reset
-  agree. Every Default offers **Undo** for a few seconds.
-- Every row that differs from Recommended shows a **gold dot**; its group's count shows a ring.
+- **Default** means one thing: one row (or one stepper) back to Recommended. **Reset** is the
+  same for a whole thing at once: a group, a profile, a bar layout (a layout's Recommended is
+  neutral). They agree. Every Default and Reset offers **Undo** for a few seconds, and an Undo
+  goes away once something newer changed (Lab's tuning Default is the exception: Lab is a lab).
+- Every row that differs from Recommended shows a **gold dot**, its When included; its group's
+  count shows a ring. WoW Helper proposing something shows "+", never the dot.
 - Nothing needs setup. WoW Helper adds HD feel, sound and light; without it, the pad still
   rumbles well.
 
 ## Finding things
-- **Just felt**: the last moments, in both programs; click one to open it.
+- **Just felt**: the last moments, in both programs; click one to open it, right-click: **Again**.
 - **One search** finds any moment, spell, state, feel, sound or light.
-- Every row links: **Shape** opens it in WoW Helper; every feel, sound and light lists
-  **Used by**, each name a link.
+- Every row links: **Shape** opens it in WoW Helper (without it, with Lab on, **Edit** opens
+  Lab). Every feel, sound and light should list **Used by**, each name a link (today only the
+  mic light does: planned).
+- One setting, one place: a moment's When is on its feel row; learned timing is in Moments ›
+  Learned (Setup links there).
 
 ## Feel
 - Faint and short by default; strength is earned by rare, big moments (rhythm and contrast).

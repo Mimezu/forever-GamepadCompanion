@@ -1047,8 +1047,8 @@ do
     WowHelperData = nil
     ns.Timing.Store().link = "usb"
     ns.Shell.Open("setup")
-    assert(visible("Check") and visible("Try") and not visible("Sync run") and not visible("Sync walk")
-        and not visible("USB feels"), "range, timing (a status each, no Sync) on Setup; no USB feels")
+    assert(visible("Check") and visible("Learned ›") and not visible("Sync run") and not visible("Sync walk")
+        and not visible("USB feels") and not visible("WoW Helper ›"), "range, timing on Setup (hits and mining: Learned ›, U2-14); no USB feels")
     assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
     ns.Timing.Store().link = nil
     -- Setup › Triggers: only the way to Moments › Triggers now

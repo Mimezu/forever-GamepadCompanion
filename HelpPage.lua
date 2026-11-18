@@ -164,36 +164,35 @@ end
 
 -- the bars: two rows of slots on a preview, Compact | Standard
 PICTURES.bars = function(f)
+    -- (as the topic says: 1 Edit Mode, 2 a bar picked in it, dragged; no preview, no switch: UI-7)
     local slot, gap = 26, 4
     local rowW = 12 * slot + 11 * gap
     local x0 = (WELL_W - rowW) / 2
+    local edit = S.NewButton(f, "Edit Mode", (WELL_W - 140) / 2, -24, 140, nil, nil, 12, 28)
+    Still(edit)
+    Badge(f, 1, -8, -2, edit)
     local frame = f:CreateTexture(nil, "BACKGROUND", nil, 1)
     frame:SetColorTexture(0, 0, 0, 0.3)
-    frame:SetSize(rowW + 40, 2 * slot + gap + 40); frame:SetPoint("TOPLEFT", x0 - 20, -80)
-    for r = 0, 1 do
-        for c = 0, 11 do
-            local t = f:CreateTexture(nil, "ARTWORK")
-            t:SetColorTexture(0.85, 0.66, 0.32, r == 0 and 0.55 or 0.3)
-            t:SetSize(slot, slot)
-            t:SetPoint("TOPLEFT", x0 + c * (slot + gap), -100 - r * (slot + gap))
-        end
+    frame:SetSize(rowW + 40, slot + 40); frame:SetPoint("TOPLEFT", x0 - 20, -86)
+    for c = 0, 11 do
+        local t = f:CreateTexture(nil, "ARTWORK")
+        t:SetColorTexture(0.85, 0.66, 0.32, 0.55)
+        t:SetSize(slot, slot)
+        t:SetPoint("TOPLEFT", x0 + c * (slot + gap), -106)
     end
-    local seg = CreateFrame("Frame", nil, f)
-    seg:SetPoint("TOPLEFT", (WELL_W - 182) / 2, -26)
-    seg:SetSize(184, 30)
-    S.Segments(seg, 0, 0, { 90, 92 }, 26)
-    for i, name in ipairs({ "Compact", "Standard" }) do
-        local b = S.Segment(seg, name, 1 + (i - 1) * 90, -1, i == 1 and 90 or 92, nil, 12, 26)
-        S.SetSelected(b, i == 1)
+    -- (picked: a gold box round the bar)
+    for _, e in ipairs({ { "TOPLEFT", rowW + 12, 2, -6 }, { "BOTTOMLEFT", rowW + 12, 2, -6 - slot - 12 + 2 },
+        { "TOPLEFT", 2, slot + 12, -6 }, { "TOPRIGHT", 2, slot + 12, -6 } }) do
+        local l = f:CreateTexture(nil, "OVERLAY")
+        l:SetColorTexture(1, 0.78, 0.25, 0.9)
+        l:SetSize(e[2], e[3])
+        if e[1] == "TOPRIGHT" then l:SetPoint("TOPLEFT", x0 + rowW + 4, -100)
+        elseif e[1] == "BOTTOMLEFT" then l:SetPoint("TOPLEFT", x0 - 6, -100 - slot - 10)
+        else l:SetPoint("TOPLEFT", x0 - 6, -100) end
     end
-    Still(seg)
-    Label(f, "↔", x0 + rowW + 30, -112, 40, 22, S.YELLOW)
-    Badge(f, 1, x0 + rowW + 70, -122)
-    Badge(f, 2, -8, -2, seg)
-    Badge(f, 3, x0 - 30, -122)
+    Label(f, "↔", x0 + rowW + 30, -110, 40, 22, S.YELLOW)
+    Badge(f, 2, x0 + rowW + 70, -120)
 end
-
--- Setup: the link, the range, the base colour
 PICTURES.setup = function(f)
     local cw, gap = 230, 24
     local x0 = (WELL_W - (3 * cw + 2 * gap)) / 2
@@ -204,7 +203,7 @@ PICTURES.setup = function(f)
         if i == 1 then
             local dot = card:CreateTexture(nil, "ARTWORK")
             dot:SetColorTexture(0.35, 0.85, 0.4, 1); dot:SetSize(10, 10); dot:SetPoint("TOPLEFT", 16, -60)
-            Label(card, "Linked", 34, -57, 150, 13, S.GOLD)
+            Label(card, "Read", 34, -57, 150, 13, S.GOLD)   -- (never "Linked": only WoW Helper can say that)
             Label(card, "USB", 34, -80, 150, 12, S.GREY)
         elseif i == 2 then
             -- (Left and Right, each a slider: as on Setup)
@@ -255,13 +254,21 @@ FeelIt = function()
 end
 
 -- /gpc: Start here while the pad or WoW Helper isn't ready (a client that
--- can't tell about the pad counts as ready); else the last page
+-- can't tell about the pad counts as ready), once; then the last page (playing
+-- without WoW Helper is fine: Start here isn't forced every time, U2-7)
 function help.NeedsStart()
     local padKnown = C_GamePad and C_GamePad.GetActiveDeviceID
     return (padKnown and not PadReady()) or not HelperReady()
 end
+local function UI()
+    if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
+    local h = GamepadCompanionHapticsDB
+    if type(h.ui) ~= "table" then h.ui = {} end
+    return h.ui
+end
 function API.OpenStart()
-    if not help.NeedsStart() then return false end
+    if not help.NeedsStart() or UI().startSeen then return false end
+    UI().startSeen = true
     Shell.Open("help")
     if help.ShowTopic then help.ShowTopic(1) end
     return true
