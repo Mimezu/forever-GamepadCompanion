@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.53.8 — 2026-11-18
+
+- **Hush, the second night review** (L2-1…L2-14): a pending Wait no longer spins a timer while hushed, and runs out then instead of starting again after (L2-1, L2-2). The footer chip sits left of WoW Helper with No pad beside it, in the window's colours, and the status line makes room (L2-3)
+- **Hush without the mouse** (L2-4): a key binding (Hush), `/gpc hush on | off | resting`, and a Hush button on Feel › States (Off, On, When resting) that the pad's ring reaches
+- **Try works while hushed** (L2-5): a light's or a sound's Try is a preview and goes out; Light › States says "Hushed · at rest"
+- **The States lists' Default has Undo** (L2-6), says "Recommended", and Undo stays only while nothing changed since
+- **Reactions removed in 0.49 or 0.50 stay removed** (L2-7): those versions didn't write removals down, so a Recommended reaction a list from then lacks was removed by you
+- **Less work per event** (L2-8): the reactions and their timing are read once until they change
+- **Feel › States**: a dragged row lands where it's dropped when the light list is scrolled (L2-9); a reaction you add takes its 50 % at once (L2-10); Hush is offered only there, where it can show (L2-13)
+- **The light row's version** comes from WoW Helper's data in every case, a Try's too (L2-12)
+- **A moment's light picker** shows one Pass (Light's was the same thing on a moment, L2-14); a state keeps both
+- Tests that checked nothing now check something (L2-11)
+
 ## 0.53.7 — 2026-11-18
 
 - **Every popover Default has Undo** (night review 2, U2-16): the volume and When steppers' Default offer Undo for 5 s, like the rows

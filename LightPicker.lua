@@ -224,6 +224,8 @@ function LP.Open(anchor, key, onChange)
     -- yours with its own)
     local s0 = LT.Settings(key)
     local lit = LT.Light(s0.light)
+    -- (on a moment Pass and Light's are one thing, code 0: Pass alone, unless saved so: L2-14)
+    local state = LT.Def(key).state
     -- (a row wraps at the popup's edge: L9) -> the lines it took
     local inside = COLS * (TILE_W + 3) - 4
     local function Row(head, list, field, y0)
@@ -231,7 +233,7 @@ function LP.Open(anchor, key, onChange)
         head:SetPoint("TOPLEFT", 14, y0 - 2)
         local x, line = 0, 0
         for _, p in ipairs(list) do
-            if p.key ~= "light" or (lit and lit.yours) or s0[field] == "light" then
+            if p.key ~= "light" or s0[field] == "light" or (state and lit and lit.yours) then
                 local b = pop.pats[field .. p.key]
                 if not b then
                     b = S.NewButton(pop, p.label, 0, 0, 40, nil, nil, 11, 22)

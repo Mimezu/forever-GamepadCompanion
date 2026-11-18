@@ -80,8 +80,9 @@ function Hu.Paint()
     local c = Hu.chip
     local S = ns.OptionsSkin
     local on = Hu.On()
-    c.dot:SetColorTexture(on and 0.58 or 0.5, on and 0.76 or 0.5, on and 0.77 or 0.5, 1)
-    c.text:SetTextColor(on and 1 or 0.6, on and 0.82 or 0.6, on and 0 or 0.6)
+    local dot, text = on and S.YELLOW or S.DIM, on and S.GOLD or S.GREY
+    c.dot:SetColorTexture(dot[1], dot[2], dot[3], 1)
+    c.text:SetTextColor(text[1], text[2], text[3])
     if S then
         S.Tooltip(c, "Hush", (on and "On" or "Off") .. (Hu.Auto() and " · when resting too" or "") .. " · right-click: when resting")
     end
@@ -93,6 +94,14 @@ local function Chip(window)
     local c = CreateFrame("Button", nil, window)
     c:SetSize(64, 22)
     c:SetPoint("RIGHT", window.link, "LEFT", -6, 0)
+    -- (No pad moves left of the chip; the status gives up the chip's width: L2-3)
+    if window.noPad then
+        window.noPad:ClearAllPoints()
+        window.noPad:SetPoint("RIGHT", c, "LEFT", -8, 0)
+    end
+    if window.status and window.status.GetWidth then
+        window.status:SetWidth(math.max(120, (window.status:GetWidth() or 0) - 70))
+    end
     c.dot = c:CreateTexture(nil, "ARTWORK")
     c.dot:SetSize(7, 7)
     c.dot:SetPoint("LEFT", 4, 0)
@@ -116,6 +125,37 @@ local function Chip(window)
     Hu.Paint()
 end
 Hu.Chip = Chip
+
+-- Hush with a word: on, off, resting (when resting too), or a toggle
+function Hu.Say(on)
+    if ns.Shell then ns.Shell.SetStatus(on and "Hush" or "Hush off", true) end
+    if ns.RumblePage and ns.RumblePage.Refresh then ns.RumblePage.Refresh() end
+end
+function Hu.Command(arg)
+    arg = (arg or ""):lower()
+    if arg == "on" then Hu.Set(true)
+    elseif arg == "off" then Hu.Set(false); Hu.SetAuto(false)
+    elseif arg == "resting" then Hu.SetAuto(not Hu.Auto())
+    else Hu.Toggle() end
+    local words = (Hu.On() and "on" or "off") .. (Hu.Auto() and " · when resting" or "")
+    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffffd100Gamepad Companion|r Hush " .. words) end
+    Hu.Say(Hu.On())
+    return words
+end
+
+-- The key binding (Bindings.xml): Hush on / off
+BINDING_NAME_GAMEPADCOMPANION_HUSH = "Hush"
+function GamepadCompanion_Hush() Hu.Toggle(); Hu.Say(Hu.Manual()) end
+
+-- /gpc hush [on | off | resting]
+if type(SlashCmdList) == "table" and SlashCmdList.GAMEPADCOMPANION then
+    local slash = SlashCmdList.GAMEPADCOMPANION
+    SlashCmdList.GAMEPADCOMPANION = function(message)
+        local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
+        if command and command:lower() == "hush" then return Hu.Command(rest) end
+        return slash(message)
+    end
+end
 
 local frame = CreateFrame("Frame")
 pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")

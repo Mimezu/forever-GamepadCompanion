@@ -765,8 +765,7 @@ local function Draw()
         lastStep = p and (1 + floor(max(0, min(1, p)) * 14 + 0.5)) or 0
         local barRow = r.bar.row
         local mic = Code(MICS, r.mic, barRow, MICS.off.code)
-        local d = type(WowHelperData) == "table" and WowHelperData or nil
-        k.SetLight({ version = (d and (tonumber(d.lightRow) or 0) >= 1) and 1 or 0,
+        k.SetLight({ version = k.LightVersion(),
             hold = l and l.id or 0, holdTint = LT.Tint(color or "base"), holdStrength = strength or 0,
             progress = lastStep, resting = key == nil, holdDots = Code(DOTS, r.dots, barRow, DOTS.off.code), holdMic = mic })
         if l then
@@ -860,8 +859,9 @@ function LT.Try(key, lightId)
     if not l then return end
     if LT.HelperDrives() then
         local dots, mic = LT.Patterns(key)
-        if l.kind == "once" then return K().LightCue(l.id, LT.Tint(s.color), s.strength, dots, mic) end
-        K().SetLight({ hold = l.id, holdTint = LT.Tint(s.color), holdStrength = s.strength, progress = 0, holdDots = dots, holdMic = mic })
+        -- (a Try goes out even while hushed: L2-5)
+        if l.kind == "once" then return K().Preview(K().LightCue, l.id, LT.Tint(s.color), s.strength, dots, mic) end
+        K().SetLight({ version = K().LightVersion(), hold = l.id, holdTint = LT.Tint(s.color), holdStrength = s.strength, progress = 0, holdDots = dots, holdMic = mic })
         if C_Timer then C_Timer.After(3, LT.SendHold) end
         return
     end

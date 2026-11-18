@@ -325,7 +325,7 @@ ITEM.sound = {
     isDefault = function(key) return C.IsSoundDefault(key) end,
     default = function(key) C.SetMomentSound(key, nil) end,
     try = function(key)
-        local name, why = C.TrySound(key)
+        local name, why = ns.HelperLink.Preview(C.TrySound, key)
         if not name then return Say(LabelOf(key) .. ": " .. why, true) end
         Say(LabelOf(key) .. ": " .. name)
     end,
@@ -658,12 +658,12 @@ local TEAL = { 0.58, 0.76, 0.77 }
 local sts = { offset = 0, pool = {} }
 
 -- Every condition to pick, by family: { key, label } (FrameGambit's palette)
-local function ConditionEntries(skip, row)
+local function ConditionEntries(skip, row, kind)
     local St = ns.Stack
     local list = {}
     for _, cat in ipairs(St.CATEGORIES) do
         for _, c in ipairs(St.Conditions()) do
-            if c.category == cat.id and c.key ~= skip then
+            if c.category == cat.id and c.key ~= skip and St.Offered(c.key, kind) then
                 local bad = row and St.Conflict(row, c.key)
                 if not bad then
                     local have = false
@@ -811,7 +811,7 @@ local function StateRow(card, cw, i, o)
         local _, y = GetCursorPosition()
         local scale = card:GetEffectiveScale() or 1
         local top = card:GetTop() or 0
-        local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + sts.offset
+        local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + (o.offset and o.offset() or sts.offset)
         if o.kind():MoveTo(key(), n) then Refresh() end
     end)
     S.Tooltip(r, "Reorder reaction", "First match wins")
@@ -843,10 +843,23 @@ local function StateRow(card, cw, i, o)
     return r
 end
 
+-- A reactions list back to Recommended, and Undo for a few seconds while nothing changed since
+-- (as every Default: L2-6)
+function ui.ListDefault(kind, what)
+    local snap = kind:Snapshot()
+    kind:Default()
+    Refresh()
+    local after = ns.Stack.Sig(kind:Snapshot())
+    Shell.Offer(what .. ": Recommended", "Undo", function()
+        kind:Restore(snap)
+        Refresh()
+    end, nil, function() return ns.Stack.Sig(kind:Snapshot()) == after end)
+end
+
 function ui.BuildStates(panel, cw)
     local card = S.Card(panel, "States", 0, 0, cw, PH)
     ui.states, ui.stateRows = card, {}
-    S.Text(card, "First match wins", 120, -12, 200, 11, DIM)
+    ui.statesNote = S.Text(card, "First match wins", 120, -12, 200, 11, DIM)
     ui.statesAdd = S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
         HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
             LT.stack:Add(c)
@@ -855,11 +868,7 @@ function ui.BuildStates(panel, cw)
             Refresh()
         end, 3, 200)
     end, nil, 11, 24)
-    ui.statesDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
-        LT.stack:Default()
-        Say("States: as they ship")
-        Refresh()
-    end, nil, 11, 24)
+    ui.statesDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function() ui.ListDefault(LT.stack, "Light states") end, nil, 11, 24)
     S.Tooltip(ui.statesDefault, "Default", "The Recommended reactions, order and timing")
     local LIGHT = { kind = function() return LT.stack end, pick = function(anchor, id) ns.LightPicker.Open(anchor, id, Refresh) end,
         try = function(id) LT.Try(id) end, default = function(id) LT.Default(id) end }
@@ -911,20 +920,27 @@ function ui.BuildFeelStates(panel, cw)
     ui.feelStates = card
     S.Text(card, "First match wins", 120, -12, 320, 11, DIM)
     S.NewButton(card, "+ Add reaction", cw - 216, -8, 124, function(self)
-        HUI.Popup(self, "Add a reaction", ConditionEntries(), nil, function(c)
-            local row = FK():Add(c)
-            row.feel = 0.5
+        HUI.Popup(self, "Add a reaction", ConditionEntries(nil, nil, "feel"), nil, function(c)
+            FK():Add(c, nil, { feel = 0.5 })
             fsts.offset = 0
             Say(ns.Stack.Label(c) .. ": added on top")
             Refresh()
         end, 3, 200)
     end, nil, 11, 24)
-    ui.feelDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function()
-        FK():Default()
-        Say("States: as they ship")
-        Refresh()
+    ui.feelDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function() ui.ListDefault(FK(), "Feel states") end, nil, 11, 24)
+    -- Hush here too (Off / On / When resting): the pad's ring reaches it (L2-4)
+    ui.feelHush = S.NewButton(card, "Hush", cw - 316, -8, 92, function(self)
+        local Hu = ns.Hush
+        local cur = Hu.Manual() and "on" or (Hu.Auto() and "resting" or "off")
+        HUI.Popup(self, "Hush", { { key = "off", label = "Off" }, { key = "on", label = "On" },
+            { key = "resting", label = "When resting" } }, cur, function(k)
+            Hu.Set(k == "on")
+            Hu.SetAuto(k == "resting")
+            Say(k == "on" and "Hush" or (k == "resting" and "Hush when resting" or "Hush off"))
+            Refresh()
+        end, 3, 140)
     end, nil, 11, 24)
-    local FEEL = { kind = FK, pick = PickStrength, default = function(id) FK():Default(id) end }
+    local FEEL = { kind = FK, pick = PickStrength, default = function(id) FK():Default(id) end, offset = function() return fsts.offset end }
     for i = 1, STATE_ROWS do fsts.pool[i] = StateRow(card, cw, i, FEEL) end
     card:EnableMouseWheel(true)
     card:SetScript("OnMouseWheel", function(_, d)
@@ -967,6 +983,8 @@ function ui.RefreshFeelStates()
     ui.feelOtherwise:SetChoice("Full", nil, full and "Now" or nil, false, nil, true)
     ui.feelOtherwise.teal:SetShown(full)
     ui.feelDefault:SetEnabled(not stack:IsDefault())
+    local Hu = ns.Hush
+    ui.feelHush.label:SetText(Hu.Manual() and "Hush: On" or (Hu.Auto() and "Hush: Resting" or "Hush: Off"))
 end
 
 function ui.RefreshStates(kind)
@@ -1028,6 +1046,7 @@ function ui.RefreshStates(kind)
     o:SetChoice("Resting light", nil, now.bar.row == nil and "Now: Bar" or nil, b.mode == "off", LT.BaseRGB(), true)
     o.teal:SetShown(otherwise)
     ui.statesDefault:SetEnabled(not stack:IsDefault())
+    ui.statesNote:SetText(now.hushed and "Hushed · at rest" or "First match wins")
     if btn then btn.count:SetText(on .. "/" .. #rows) end
 end
 

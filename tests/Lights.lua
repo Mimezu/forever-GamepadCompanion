@@ -226,6 +226,16 @@ ok(#K.EncodeLight(K.light) == 17 and drawn.version == 0, "no WoW Helper data: ve
 WowHelperData = { lightRow = 1 }
 LT.SendHold(); K.Step(1 / 60)
 ok(#K.EncodeLight(K.light) == 23 and drawn.version == 1, "lightRow 1: version 1, 23 cells")
+-- L2-12: a caller without a version (a Try's hold, a cue's start) gets the gate's
+WowHelperData = nil
+K.SetLight({ hold = 3, holdTint = 1, holdStrength = 4, progress = 0 })
+ok(K.light.version == 0, "L2-12: no lightRow: version 0")
+LT.Try("combat")
+ok(K.light.version == 0, "L2-12: a state's Try: version 0")
+WowHelperData = { lightRow = 1 }
+K.SetLight({ hold = 3, holdTint = 1, holdStrength = 5, progress = 0 })
+ok(K.light.version == 1, "lightRow 1: version 1")
+LT.SendHold(); K.Step(1 / 60)
 -- a crit: a cue on the row, nothing animated in the game
 voices.lt_crit = nil
 LT.Fire("crit")
@@ -372,10 +382,30 @@ ok(S:Now().hushed and drawn.resting and drawn.hold == LT.LightByKey("breathe").i
 LT.Fire("crit")
 for _ = 1, 3 do K.Step(1 / 60) end
 ok(drawn.cue == 0, "hushed: no moment light")
-ok(K.Play("coin", 5) == false, "hushed: no sound")
+ok(K.PlaySound("coin", 5) == false, "hushed: no sound")
+-- L2-5: a Try is a preview: it goes out hushed (a moment light, a sound)
+local q0 = #K.queue
+LT.Try("crit")
+ok(#K.queue == q0 + 1 and K.queue[#K.queue].light ~= nil, "L2-5: hushed, a light's Try is sent")
+ok(K.Preview(K.PlaySound, "coin", 5) == true and K.queue[#K.queue].sound == K.SOUNDS.coin, "L2-5: hushed, a sound's Try is sent")
+ok(K.PlaySound("coin", 5) == false, "and after it, hushed again")
+for _ = 1, 30 do K.Step(1 / 30) end
 Hu.Set(false)
 K.Step(1 / 60)
 ok(ns.FeelScale() == 1 and drawn.hold == LT.LightByKey("steady").id, "unhushed: Movement again")
+ok(K.PlaySound("coin", 5) == true, "unhushed: the sound goes (L2-11: the check above means something)")
+for _ = 1, 30 do K.Step(1 / 30) end
+-- L2-4: Hush without the chip: a key binding, /gpc hush
+ok(BINDING_NAME_GAMEPADCOMPANION_HUSH == "Hush" and type(GamepadCompanion_Hush) == "function", "L2-4: a binding")
+local xml = io.open(root .. "/Bindings.xml"):read("*a")
+ok(xml:find('name="GAMEPADCOMPANION_HUSH"', 1, true) and xml:find("GamepadCompanion_Hush()", 1, true), "in Bindings.xml")
+GamepadCompanion_Hush()
+ok(Hu.On(), "the key: Hush")
+GamepadCompanion_Hush()
+ok(not Hu.On(), "again: off")
+ok(Hu.Command("on") == "on" and Hu.On(), "/gpc hush on")
+ok(Hu.Command("resting") == "on · when resting" and Hu.Auto(), "/gpc hush resting")
+ok(Hu.Command("off") == "off" and not Hu.On() and not Hu.Auto(), "/gpc hush off: both")
 -- when resting too
 IsResting = function() return true end
 Hu.SetAuto(true)
@@ -416,6 +446,8 @@ LT.SetOn(false)
 ok(K.state.mic == K.MIC.off, "L3: lights off: the mic off")
 LT.SetOn(true)
 db.lightGameOnly = true
+K.SetMic("off")
+ok(K.state.mic == K.MIC.off, "(from the mic off)")
 LT.SendHold()
 ok(not LT.HelperDrives() and K.state.mic == K.MIC.on, "L3: the game's lights: the mic still sent")
 db.lightGameOnly = nil

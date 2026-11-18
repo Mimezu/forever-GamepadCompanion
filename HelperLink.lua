@@ -414,7 +414,7 @@ end
 local function Queue(item)
     if not K.Enabled() or #K.queue >= K.QUEUE_MAX then return false end
     -- Hush (Hush.lua): no sounds, no moment lights; a touch still goes (the Feel channel scales it)
-    if ns.Stack and ns.Stack.Is("hush") then
+    if ns.Stack and ns.Stack.Is("hush") and not K.previewing then
         item.sound, item.light = 0, nil
         if (item.touch or 0) == 0 and not item.open then return false end
     end
@@ -495,6 +495,23 @@ function K.SetMic(mode)
     if K.state.mic ~= m then K.state.mic = m; dirty = true end
 end
 
+-- The light row's version WoW Helper reads (its data addon says): 1, else 0 (L5)
+function K.LightVersion()
+    local d = type(WowHelperData) == "table" and WowHelperData or nil
+    return d and (tonumber(d.lightRow) or 0) >= 1 and 1 or 0
+end
+
+-- A preview (a Try in the window) goes out even while hushed (L2-5)
+local function Previewed(ok, ...)
+    K.previewing = false
+    if not ok then error((...), 0) end
+    return ...
+end
+function K.Preview(fn, ...)
+    K.previewing = true
+    return Previewed(pcall(fn, ...))
+end
+
 -- The light row's state (Lights.lua): what holds { hold, holdTint,
 -- holdStrength, progress, resting }, or nil: no light row (the game's lights)
 K.light = nil
@@ -505,7 +522,7 @@ function K.SetLight(row)
         return
     end
     cur = cur or {}
-    local version = row.version == nil and 1 or row.version   -- (0: an older helper: L5)
+    local version = row.version == nil and K.LightVersion() or row.version   -- (0: an older helper: L5, L2-12)
     local same = cur.hold == row.hold and cur.holdTint == row.holdTint and cur.holdStrength == row.holdStrength
         and cur.progress == row.progress and (cur.resting or false) == (row.resting or false)
         and cur.holdDots == (row.holdDots or 0) and cur.holdMic == (row.holdMic or 0) and cur.version == version

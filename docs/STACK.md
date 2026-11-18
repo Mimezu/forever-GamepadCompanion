@@ -95,12 +95,22 @@ shape id, value = 0-1 | nil, count = n | nil }`.
   Recommended **Hush → 30 %** (on), **Resting → 30 %**, **In an instance → 50 %**, **In raid →
   full** (off); Otherwise full. Moments › Feel › States, the same list.
 - **Hush** is a condition (`hush`, System) set by the footer's **Hush** chip (click: on / off;
-  right-click: also while resting). While it holds, every kind resolves to **Otherwise** (lights
-  at rest, triggers free) unless its spec says `hush = "rows"` (Feel: its Hush row says how
-  quiet); no sounds and no moment lights go out (HelperLink's queue, Lights' Play).
+  right-click: also while resting), Feel › States' **Hush** button (Off / On / When resting: the
+  pad's ring reaches it), a key binding (Hush) and `/gpc hush [on | off | resting]`. While it
+  holds, every kind resolves to **Otherwise** (lights at rest, triggers free) unless its spec says
+  `hush = "rows"` (Feel: its Hush row says how quiet); no sounds and no moment lights go out
+  (HelperLink's queue, Lights' Play). A Try is a preview (`K.Preview`): it goes out hushed. The
+  Light States list says "Hushed · at rest". Reactions keep their edges while hushed: a Wait runs
+  out then, and no timer runs for it.
+- A condition can be for some kinds only (`kinds = { feel = true }`; `Stack.Offered(key, kind)`):
+  Hush is offered only in Feel's `+ Add reaction`, where it can show.
 - Generic: `spec.hush = "base"` (default) or `"rows"`; `result.hushed` while it holds.
 - **Rows shipped later** reach a saved list at their Recommended place; a Recommended row the
-  player removed stays removed (`store.removed`), until Default.
+  player removed stays removed (`store.removed`), until Default. A list carries `joinV`
+  (`Stack.JOIN`); a row shipped later says `since = <JOIN>`. A list saved before the stamp (0.49,
+  0.50 wrote no removals) lacks the others because they were removed: written down as removed.
+- The whole list's **Default** offers Undo (`Kind:Snapshot` / `Kind:Restore`, `Stack.Sig` to
+  know nothing changed since). `Rows()` and `Timing()` are read once until the list changes.
 
 ## The list (lights, triggers, feel)
 

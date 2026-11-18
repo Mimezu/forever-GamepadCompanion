@@ -63,6 +63,11 @@ function St.Condition(key, def)
     return def
 end
 function St.Conditions() return condList end
+-- A condition a kind's reactions can use (some are for one kind only: Hush, Feel's)
+function St.Offered(key, kind)
+    local c = conds[key]
+    return c ~= nil and (c.kinds == nil or (kind ~= nil and c.kinds[kind] == true))
+end
 function St.Info(key) return conds[key] end
 function St.Label(key) return conds[key] and conds[key].label or key end
 function St.IsPercentage(key) return conds[key] and conds[key].value ~= nil or false end
@@ -130,7 +135,7 @@ St.Condition("indoors", { label = "Indoors", category = "social", test = functio
 St.Condition("outdoors", { label = "Outdoors", category = "social", test = function() return call(IsOutdoors) == true end,
     events = { "ZONE_CHANGED_INDOORS", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA" } })
 -- System
-St.Condition("hush", { label = "Hush", category = "system" })   -- (Hush.lua: the footer's chip, or when resting)
+St.Condition("hush", { label = "Hush", category = "system", kinds = { feel = true } })   -- (Hush.lua: the footer's chip, or when resting)
 St.Condition("afk", { label = "Away", category = "system", test = function() return call(UnitIsAFK, "player") == true end,
     events = { "PLAYER_FLAGS_CHANGED" } })
 -- Events: true for a while after they happen (again: the while restarts)
@@ -308,21 +313,44 @@ local function Copy(v)
     return t
 end
 St.Copy = Copy
+-- The Recommended rows' version: a row shipped later carries since = the JOIN it came with
+St.JOIN = 1
+
+-- A value in words, the same for equal tables (keys sorted): has it changed since?
+local function Sig(v)
+    if type(v) ~= "table" then return type(v) .. ":" .. tostring(v) end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local out = {}
+    for _, k in ipairs(keys) do out[#out + 1] = tostring(k) .. "=" .. Sig(v[k]) end
+    return "{" .. table.concat(out, ",") .. "}"
+end
+St.Sig = Sig
 
 -- The reactions, top first (the Recommended ones until the player changes them)
 function Kind:Rows()
     local store = self.spec.store()
+    -- (checked already: the same list, nothing shipped since: L2-8)
+    if self.checked == store.rows and store.rows ~= nil and self.checkedStore == store then return store.rows end
     -- (a kind's older saved form first: prepare migrates it into rows)
     if type(store.rows) ~= "table" and self.spec.prepare then self.spec.prepare() end
     if type(store.rows) ~= "table" then
         store.rows = Copy(self.spec.recommended)
+        store.joinV = St.JOIN
     end
-    -- (a Recommended reaction shipped later: at its place, unless the player removed it)
+    -- (a Recommended reaction shipped later: at its place, unless the player removed it. One
+    -- shipped later says so (since = the St.JOIN it came with); a list saved before stamps
+    -- (0.49, 0.50: removals not written) lacks the others because the player removed them: L2-7)
     local have = {}
     for _, r in ipairs(store.rows) do have[r.id] = true end
     local removed = type(store.removed) == "table" and store.removed or {}
+    local joined = tonumber(store.joinV) or 0
     for i, rec in ipairs(self.spec.recommended) do
-        if not have[rec.id] and not removed[rec.id] then
+        if not have[rec.id] and not removed[rec.id] and (rec.since or 0) <= joined and joined < St.JOIN then
+            removed[rec.id] = true
+            store.removed = removed
+        elseif not have[rec.id] and not removed[rec.id] then
             local at = 1
             for j = i - 1, 1, -1 do
                 local above = self.spec.recommended[j].id
@@ -333,6 +361,8 @@ function Kind:Rows()
             have[rec.id] = true
         end
     end
+    store.joinV = St.JOIN
+    self.checked, self.checkedStore = store.rows, store
     return store.rows
 end
 
@@ -346,26 +376,31 @@ end
 
 function Kind:Timing()
     local store = self.spec.store()
+    if self.timing and self.timingStore == store and self.timingOf == store.timing then return self.timing end
     local rec = self.spec.timing or {}
     store.timing = type(store.timing) == "table" and store.timing or {}
     local t = store.timing
-    return { fadeIn = tonumber(t.fadeIn) or rec.fadeIn or 0.2, fadeOut = tonumber(t.fadeOut) or rec.fadeOut or 0.2,
+    self.timing = { fadeIn = tonumber(t.fadeIn) or rec.fadeIn or 0.2, fadeOut = tonumber(t.fadeOut) or rec.fadeOut or 0.2,
         wait = tonumber(t.wait) or rec.wait or 0 }
+    self.timingStore, self.timingOf = store, store.timing
+    return self.timing
 end
 
 function Kind:SetTiming(field, v)
     self:Timing()
     self.spec.store().timing[field] = v
+    self.timing = nil
     self:Refresh(true)
 end
 
 local function Changed(k) k:Refresh(true) end
 
 -- + Add: a new reaction for a condition, at the top (it matters most when you just added it)
-function Kind:Add(condition, at)
+function Kind:Add(condition, at, fields)
     local store, rows = self.spec.store(), self:Rows()
     store.nextID = (tonumber(store.nextID) or 1)
     local row = { id = "r" .. store.nextID, condition = condition, on = true }
+    for f, v in pairs(fields or {}) do row[f] = v end
     store.nextID = store.nextID + 1
     if St.IsPercentage(condition) then row.operator, row.threshold = "<", 35 end
     table.insert(rows, at or 1, row)
@@ -456,6 +491,18 @@ function St.Words(row)
     return table.concat(parts, " + ")
 end
 
+-- The kind's saved reactions, timing and removals as they are now / put back (Undo)
+function Kind:Snapshot()
+    local store = self.spec.store()
+    return { rows = Copy(store.rows), timing = Copy(store.timing), removed = Copy(store.removed), nextID = store.nextID }
+end
+function Kind:Restore(snap)
+    local store = self.spec.store()
+    store.rows, store.timing, store.removed, store.nextID = Copy(snap.rows), Copy(snap.timing), Copy(snap.removed), snap.nextID
+    self.timing, self.checked = nil, nil
+    Changed(self)
+end
+
 -- Everything back as shipped (or one Recommended reaction)
 function Kind:Default(id)
     if id then
@@ -467,6 +514,7 @@ function Kind:Default(id)
     else
         local store = self.spec.store()
         store.rows, store.timing, store.removed = nil, nil, nil
+        self.timing, self.checked = nil, nil
     end
     Changed(self)
 end
@@ -493,23 +541,25 @@ end
 function Kind:Resolve()
     local spec, result = self.spec, {}
     local rows, timing, now = self:Rows(), self:Timing(), Now()
-    -- Hush: every channel Otherwise (lights at rest, triggers free), unless the kind mixes it
-    if spec.hush ~= "rows" and Holds("hush") then
-        for _, ch in ipairs(spec.channels) do result[ch] = { value = spec.base(ch), row = nil } end
-        result.timing, result.hushed = timing, true
-        return result
-    end
     local matched = {}
     self.ended = self.ended or {}
     self.waitUntil = nil
+    local hushed = spec.hush ~= "rows" and Holds("hush")
     for _, r in ipairs(rows) do
         if r.on ~= false and St.Matches(r) then
             matched[r.id], self.held[r.id], self.ended[r.id] = true, true, nil
         elseif self.held[r.id] then
-            -- (the true -> false edge: Wait counts from here: L6)
+            -- (the true -> false edge: Wait counts from here: L6; also while hushed: L2-2)
             self.held[r.id] = nil
             self.ended[r.id] = now
         end
+    end
+    -- Hush: every channel Otherwise (lights at rest, triggers free), unless the kind mixes it;
+    -- no Wait timer while it holds (L2-1)
+    if hushed then
+        for _, ch in ipairs(spec.channels) do result[ch] = { value = spec.base(ch), row = nil } end
+        result.timing, result.hushed = timing, true
+        return result
     end
     for _, ch in ipairs(spec.channels) do
         for _, r in ipairs(rows) do

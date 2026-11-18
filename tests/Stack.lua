@@ -208,4 +208,89 @@ feel:Refresh(true)
 ok(mixed == 0.3, "a mixing kind: its Hush row (30 %)")
 St.Set("hush", false)
 ok(result.L2.row.id == "combat" and mixed == 1, "unhushed: as before")
+
+-- The second night review ----------------------------------------------------------------------
+-- L2-1: hushed with a Wait pending: no timer spinning (one at most, then none)
+local armed = 0
+local after0 = C_Timer.After
+C_Timer.After = function(t, fn) armed = armed + 1; after0(t, fn) end
+world.combat = false
+event("PLAYER_REGEN_ENABLED")
+k:SetTiming("wait", 2)
+world.speed = 7
+event("PLAYER_STARTED_MOVING")
+local t0 = now
+world.speed = 0
+event("PLAYER_STOPPED_MOVING")       -- (a Wait of 2 s now pending)
+St.Set("hush", true)
+armed = 0
+for i = 1, 150 do Run(t0 + i * 0.03) end   -- (4.5 s)
+ok(armed <= 1, "L2-1: hushed, the Wait timer doesn't re-arm (" .. armed .. " timers)")
+St.Set("hush", false)
+ok(result.R2.row == nil, "after: released")
+-- L2-2: a reaction that stops matching while hushed: its Wait runs then, not again after
+world.speed = 7
+event("PLAYER_STARTED_MOVING")
+ok(result.R2.row and result.R2.row.id == "moving", "moving")
+St.Set("hush", true)
+local t1 = now
+world.speed = 0
+event("PLAYER_STOPPED_MOVING")
+Run(t1 + 3)
+St.Set("hush", false)
+ok(result.R2.row == nil, "L2-2: its Wait ran out while hushed: released when Hush ends")
+C_Timer.After = after0
+k:SetTiming("wait", 0)
+for _ = 1, 3 do Run(now + 1) end
+
+-- L2-6: the whole list back to Recommended can be undone
+k:Row("combat").on = false
+k:MoveTo("moving", 1)
+local snap = k:Snapshot()
+k:Default()
+ok(k:IsDefault(), "Default: Recommended")
+k:Restore(snap)
+ok(k:Row("combat").on == false and k:Rows()[1].id == "moving" and not k:IsDefault(), "L2-6: Undo puts the list back")
+ok(St.Sig(k:Snapshot()) == St.Sig(snap) and St.Sig({ a = 1, b = { 2 } }) == St.Sig({ b = { 2 }, a = 1 }), "a list in words: equal when equal")
+k:Default()
+
+-- L2-7: a list saved before 0.51 (no removals written): a Recommended reaction it lacks was removed
+store.rows, store.removed, store.joinV = { St.Copy(recommended[2]), St.Copy(recommended[3]) }, nil, nil
+ok(#k:Rows() == 2 and not k:Row("lowHp"), "L2-7: removed under 0.49 stays removed")
+ok(store.removed and store.removed.lowHp and store.joinV == St.JOIN, "and is written down as removed")
+recommended[1].since = St.JOIN + 1   -- (a reaction shipped later says so)
+St.JOIN = St.JOIN + 1
+store.rows, store.removed, store.joinV = { St.Copy(recommended[2]), St.Copy(recommended[3]) }, nil, St.JOIN - 1
+k.checked = nil
+ok(k:Rows()[1].id == "lowHp", "one shipped later joins")
+recommended[1].since, St.JOIN = nil, St.JOIN - 1
+k:Default()
+
+-- L2-8: reading the reactions and the timing again allocates nothing
+k:Rows(); k:Timing()
+collectgarbage("collect"); collectgarbage("stop")
+local kb = collectgarbage("count")
+for _ = 1, 200 do k:Rows(); k:Timing(); k:Row("moving") end
+local grew = (collectgarbage("count") - kb) * 1024
+collectgarbage("restart")
+ok(grew < 256, "L2-8: 200 reads: " .. math.floor(grew) .. " bytes")
+k:SetTiming("wait", 1)
+ok(k:Timing().wait == 1, "a new timing is read")
+k:SetTiming("wait", 0)
+
+-- L2-10: a reaction added with its fields: the refresh sees them at once
+local fstore, fv = {}, nil
+local fk = St.Kind("feelT", { channels = { "feel" }, store = function() return fstore end, hush = "rows",
+    recommended = {}, value = function(row) return row.feel end, base = function() return 1 end,
+    apply = function(r) fv = r.feel.value end })
+world.combat = true
+event("PLAYER_REGEN_DISABLED")
+fk:Add("combat", nil, { feel = 0.5 })
+ok(fv == 0.5, "L2-10: In combat 50 %: at once")
+world.combat = false
+event("PLAYER_REGEN_ENABLED")
+
+-- L2-13: Hush is offered only where it can show (Feel); everything else everywhere
+ok(St.Offered("hush", "feel") and not St.Offered("hush", "triggers") and not St.Offered("hush", "lights"), "L2-13: Hush: Feel only")
+ok(St.Offered("combat", "triggers") and St.Offered("combat", "feel") and not St.Offered("nope", "feel"), "the others: everywhere")
 print("Stack: ok (" .. checks .. " checks)")

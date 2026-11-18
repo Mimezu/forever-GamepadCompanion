@@ -744,6 +744,7 @@ local commandHelp = {
     "/gpc bars  bar layout · nudge: without Edit Mode",
     "/gpc rumble  moments · test: each motor",
     "/gpc light  moments: light",
+    "/gpc hush  on | off | resting",
     "/gpc gestures | setup  their tab",
     "/gpc lab  tuning and probes",
     "/gpc debug  why it vibrates",
