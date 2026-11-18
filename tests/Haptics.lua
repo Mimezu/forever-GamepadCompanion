@@ -963,6 +963,28 @@ do
         and not visible("USB feels"), "range, timing (a status each, no Sync) on Setup; no USB feels")
     assert(ns.SetupPage.via:GetText() == "USB", "the pad's link, read-only")
     ns.Timing.Store().link = nil
+    -- Triggers: six rows in view, the editor beside the card on a row's click
+    local C = ns.HelperCues
+    C.ResetTriggerRules()
+    local ed = ns.SetupPage.trigEditor
+    assert(not ed:IsShown(), "editor closed")
+    local row
+    for _, f in ipairs(created) do
+        if type(rawget(f, "label")) == "table" and f.label.text == "Auto shot · R2 · Click" and f:IsVisible() then row = f end
+    end
+    assert(row, "a rule's row")
+    row.scripts.OnClick(row)
+    assert(ed:IsShown() and visible("Remove"), "the editor beside it")
+    local l = C.TriggerRules()
+    for i = #l + 1, 6 do l[i] = ns.TriggerRules.Clean({ when = "mounted" }) end
+    ns.Shell.Refresh()
+    local shown = 0
+    for _, f in ipairs(created) do
+        if type(rawget(f, "label")) == "table" and f.label.text == "Mounted · R2 · Resist" and f:IsVisible() then shown = shown + 1 end
+    end
+    assert(shown == 3, "all six rules in view: " .. shown)
+    ed:Hide()
+    C.ResetTriggerRules()
     io.write("PASS: pages: an event Off from its grid, Edit and Back, light by mark (effect, colour, Default), sounds, jump, Setup\n")
 end
 

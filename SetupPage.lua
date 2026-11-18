@@ -75,7 +75,7 @@ end
 -- first rule that holds wins its trigger, so the list's order is the priority)
 local function BuildTriggers(frame)
     local C, T = ns.HelperCues, ns.TriggerRules
-    local card = S.Card(frame, "Triggers", 0, -210, COL, PH - 210, "Interface\\Icons\\INV_Gauntlets_04")
+    local card = S.Card(frame, "Triggers", 0, -210, COL, PH - 210, "Interface\Icons\INV_Gauntlets_04")
     if not (C and T and C.TriggerRules) then return end
     local sel = 1
     local function Rules() return C.TriggerRules() end
@@ -85,31 +85,56 @@ local function BuildTriggers(frame)
         return l[sel]
     end
     local function Changed() C.Refresh(); Refresh() end
+    -- the editor: a panel beside the card, the list stays in view
+    local ed = CreateFrame("Frame", "GamepadCompanionTriggerRule", Shell.Window and Shell.Window() or frame)
+    ed:SetFrameStrata("DIALOG")
+    ed:SetToplevel(true)
+    ed:EnableMouse(true)
+    ed:SetSize(COL, 300)
+    ed:SetPoint("TOPLEFT", card, "TOPRIGHT", 8, 0)
+    S.Panel(ed)
+    ed:Hide()
+    S.Popup(ed, "GamepadCompanionTriggerRule")
+    local title = S.Text(ed, "", 14, -11, COL - 60, 13, YELLOW)
+    pg.trigEditor = ed
+    local function Open(i)
+        sel = i
+        ed:Show()
+        Refresh()
+    end
     local add = S.NewButton(card, "Add", COL - 74, -6, 62, function()
         local l = Rules()
         if #l >= T.MAX then return Say("Six at most", true) end
         l[#l + 1] = T.Clean({ when = "combat", side = "R2", effect = "resist", from = 6, strength = 4 })
-        sel = #l
-        Changed()
+        C.Refresh()
+        Open(#l)
     end, nil, 11, 22)
     S.Tooltip(add, "Add", "A new rule")
-    -- the list
+    -- the list: a row a rule, all six in view
     local rows = {}
+    local RH = 32
     for i = 1, T.MAX do
-        local y = -34 - (i - 1) * 22
-        local check = S.NewCheck(card, "", 10, y + 1, function(self)
+        local y = -40 - (i - 1) * (RH + 4)
+        local check = S.NewCheck(card, "", 10, y - 4, function(self)
             local r = Rules()[i]
             if r then r.on = self:GetChecked() == true; Changed() end
         end, 0)
-        check:SetSize(22, 22)
-        local b = S.NewButton(card, "", 36, y, COL - 48, function() sel = i; Refresh() end, nil, 11, 21)
+        check:SetSize(24, 24)
+        local b = S.NewButton(card, "", 40, y, COL - 52, function() Open(i) end, nil, 12, RH)
         b.label:SetJustifyH("LEFT")
         rows[i] = { check = check, button = b }
     end
+    local empty = S.Text(card, "No rules", 12, -46, COL - 24, 12, GREY)
+    local default = S.NewButton(card, "Default", 12, -(PH - 210) + 38, 110, function()
+        C.ResetTriggerRules()
+        sel = 1
+        Changed()
+    end, nil, 11, 26)
+    S.Tooltip(default, "Default", "Cast, auto shot, low health")
     -- the chosen rule
-    local y0 = -172
-    S.Text(card, "When", 12, y0 - 5, 100, 12, GOLD)
-    local when = S.NewButton(card, "", 112, y0, COL - 124, nil, nil, 11, 24)
+    local y0 = -44
+    S.Text(ed, "When", 12, y0 - 5, 100, 12, GOLD)
+    local when = S.NewButton(ed, "", 112, y0, COL - 124, nil, nil, 11, 24)
     when:SetScript("OnClick", function(self)
         local r = Cur()
         if not r then return end
@@ -121,10 +146,10 @@ local function BuildTriggers(frame)
             Changed()
         end, 3, 110)
     end)
-    Choice(card, "Trigger", 12, y0 - 27, T.SIDES, function() local r = Cur(); return r and r.side end,
-        function(v) local r = Cur(); if r then r.side = v; C.Refresh() end end, 56)
-    S.Text(card, "Effect", 12, y0 - 59, 100, 12, GOLD)
-    local effect = S.NewButton(card, "", 112, y0 - 54, COL - 124, nil, nil, 11, 24)
+    Choice(ed, "Trigger", 12, y0 - 27, T.SIDES, function() local r = Cur(); return r and r.side end,
+        function(v) local r = Cur(); if r then r.side = v; Changed() end end, 56)
+    S.Text(ed, "Effect", 12, y0 - 59, 100, 12, GOLD)
+    local effect = S.NewButton(ed, "", 112, y0 - 54, COL - 124, nil, nil, 11, 24)
     effect:SetScript("OnClick", function(self)
         local r = Cur()
         if not r then return end
@@ -133,22 +158,22 @@ local function BuildTriggers(frame)
         HUI.Popup(self, "Effect", entries, r.effect, function(k) r.effect = k; Changed() end, 3, 90)
     end)
     local function Num(key, label, y, fmt, lo, hi)
-        return Stepper(card, label, 12, y, { labelWidth = 100, width = 240, step = 1, min = lo, max = hi, format = fmt,
+        return Stepper(ed, label, 12, y, { labelWidth = 100, width = 240, step = 1, min = lo, max = hi, format = fmt,
             get = function() local r = Cur(); return r and r[key] or lo end,
             set = function(v) local r = Cur(); if r then r[key] = v; C.Refresh() end end })
     end
-    local from = Num("from", "From", y0 - 81, T.Pct, 0, 15)
-    local to = Num("to", "To", y0 - 108, T.Pct, 0, 15)
-    local strength = Num("strength", "Strength", y0 - 135, T.Pct, 1, 15)
-    local speed = Num("speed", "Speed", y0 - 162, T.Hz, 0, 15)
-    local grow = S.NewCheck(card, "Grows", 248, y0 - 162, function(self)
+    local from = Num("from", "From", y0 - 86, T.Pct, 0, 15)
+    local to = Num("to", "To", y0 - 113, T.Pct, 0, 15)
+    local strength = Num("strength", "Strength", y0 - 140, T.Pct, 1, 15)
+    local speed = Num("speed", "Speed", y0 - 167, T.Hz, 0, 15)
+    local grow = S.NewCheck(ed, "Grows", 12, y0 - 194, function(self)
         local r = Cur()
         if r then r.grow = self:GetChecked() == true; C.Refresh() end
-    end, 60)
+    end, 80)
     S.Tooltip(grow, "Grows", "With the cast")
-    local bw = floor((COL - 24 - 18) / 4)
+    local bw = floor((COL - 24 - 12) / 3)
     local function Btn(i, label, tip, fn)
-        local b = S.NewButton(card, label, 12 + (i - 1) * (bw + 6), y0 - 192, bw, fn, nil, 11, 24)
+        local b = S.NewButton(ed, label, 12 + (i - 1) * (bw + 6), y0 - 230, bw, fn, nil, 11, 26)
         if tip then S.Tooltip(b, label, tip) end
         return b
     end
@@ -165,12 +190,7 @@ local function BuildTriggers(frame)
     end)
     local remove = Btn(3, "Remove", nil, function()
         local l = Rules()
-        if l[sel] then table.remove(l, sel); Changed() end
-    end)
-    Btn(4, "Default", "Cast, auto shot, low health", function()
-        C.ResetTriggerRules()
-        sel = 1
-        Changed()
+        if l[sel] then table.remove(l, sel); ed:Hide(); Changed() end
     end)
     pg.refresh[#pg.refresh + 1] = function()
         local l = Rules()
@@ -181,27 +201,30 @@ local function BuildTriggers(frame)
             if r then
                 row.check:SetChecked(r.on)
                 row.button.label:SetText(T.Label(r))
-                S.SetSelected(row.button, i == sel)
+                S.SetSelected(row.button, ed:IsShown() and i == sel)
                 row.button:SetAlpha(r.on and 1 or 0.5)
             end
         end
+        empty:SetShown(#l == 0)
         add:SetEnabled(#l < T.MAX)
         local r = Cur()
+        if not r then ed:Hide() end
         local uses = r and T.EFFECT[r.effect].uses or {}
+        title:SetText(r and T.Label(r) or "")
         when.label:SetText(r and T.WHEN_LABEL[r.when] or "")
         effect.label:SetText(r and T.EFFECT[r.effect].label or "")
-        when:SetEnabled(r ~= nil)
-        effect:SetEnabled(r ~= nil)
         from:SetShown(r ~= nil and uses.from == true)
         to:SetShown(r ~= nil and uses.to == true)
         strength:SetShown(r ~= nil and uses.strength == true)
         speed:SetShown(r ~= nil and uses.speed == true)
         grow:SetShown(r ~= nil and r.when == "cast" and uses.strength == true)
         grow:SetChecked(r and r.grow or false)
-        for _, b in ipairs({ try, up, remove }) do b:SetEnabled(r ~= nil) end
         up:SetEnabled(r ~= nil and sel > 1)
         S.SetSelected(try, r ~= nil and C.TryingTrigger() == r)
     end
+    ed:HookScript("OnHide", function() Refresh() end)
+    -- (leaving the page closes it)
+    card:HookScript("OnHide", function() ed:Hide() end)
 end
 
 ---------------------------------------------------------------------------
