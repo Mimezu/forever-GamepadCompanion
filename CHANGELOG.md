@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.6 — 2026-11-18
+
+- **Side tabs: one set of glyphs** in the feel icons' style (a cream line, a dark edge, a green accent): Controller the pad, Moments the pad with waves, Gestures a swipe, Setup sliders, Bars slots, Tools a wrench, Help a book, Lab a flask. Also before each page's name. The open page's glyph bright, hovered a little less, the rest dim; Gilded warms them to gold (its old glyph tiles are gone). Blizzard's tab frame stays. A missing file falls back to the old icon
+
 ## 0.45.5 — 2026-11-18
 
 - **One picker a kind, every row:** cast-time spells (Healing, Holy, Fire...) and the Abilities cast rows (Spell casting, Gathering, Crafting) open the Feel picker every moment opens, not a short list of their own. Their sets sit on top as tiles with their icons (Off, the spell's own set as it ships; Match the action and Alerts only on the cast rows), and any feel below can be a cast's: it plays while casting, with the usual alerts if the cast ends badly. A test opens every row's picker in Feel, Light and Sound.

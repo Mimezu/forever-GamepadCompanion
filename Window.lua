@@ -92,18 +92,11 @@ local function Page(key)
     page.header:SetSize(Shell.W, HEADER - 6)
     page.header:Hide()
     local glyph = page.header:CreateTexture(nil, "ARTWORK")
-    glyph:SetSize(22, 22)
-    glyph:SetPoint("LEFT", 4, 0)
-    if def.atlas then glyph:SetAtlas(def.atlas) else
-        glyph:SetTexture(def.icon)
-        if glyph.SetTexCoord then glyph:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
-    end
+    glyph:SetSize(26, 26)
+    glyph:SetPoint("LEFT", 2, 0)
+    Shell.Glyph(glyph, def, 0.07)
+    S.OnSkin(function() Shell.PaintGlyph(glyph, "active") end)
     page.glyph = glyph
-    if Shell.GILDED[key] then
-        local tile = S.SkinTexture(page.header, nil, "ARTWORK", 1, false, glyph, { gilded = true },
-            "Interface\\AddOns\\GamepadCompanion\\Media\\gilded-" .. Shell.GILDED[key])
-        tile:SetAllPoints(glyph)
-    end
     local title = page.header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("LEFT", glyph, "RIGHT", 8, 0)
     title:SetText(def.name)
@@ -143,7 +136,7 @@ function Shell.Select(key)
         p.frame:SetShown(on)
         p.header:SetShown(on)
     end
-    for k, tab in pairs(tabs) do tab.selected:SetShown(k == key) end
+    for k, tab in pairs(tabs) do tab.selected:SetShown(k == key); if tab.Paint then tab.Paint() end end
     if current ~= key then S.FadeIn(page.frame, 0.12); S.FadeIn(page.header, 0.12) end
     current = key
     statusUntil = nil
@@ -158,9 +151,31 @@ function Shell.Refresh()
     if page and page.def.refresh then page.def.refresh() end
 end
 
--- Gilded's glyph tiles by page (the rest keep their icons)
-Shell.GILDED = { controller = "controller", moments = "feel", gestures = "gesture", setup = "gear", bars = "bars",
-    help = "book" }
+-- Each page's glyph: one set in the feel icons' style (Media\\tab-<key>), the
+-- page's own icon when the file is missing
+Shell.GLYPHS = { controller = true, moments = true, gestures = true, setup = true, bars = true, tools = true,
+    help = true, lab = true }
+function Shell.Glyph(tex, def, cut)
+    if Shell.GLYPHS[def.key] then
+        local ok, loaded = pcall(tex.SetTexture, tex, "Interface\\AddOns\\GamepadCompanion\\Media\\tab-" .. def.key)
+        if ok and loaded ~= false then
+            if tex.SetTexCoord then tex:SetTexCoord(0, 1, 0, 1) end
+            tex.gpcGlyph = true
+            return
+        end
+    end
+    if def.atlas then tex:SetAtlas(def.atlas) else
+        tex:SetTexture(def.icon)
+        if tex.SetTexCoord then tex:SetTexCoord(cut, 1 - cut, cut, 1 - cut) end
+    end
+end
+-- active (bright), hover, idle (dim); Gilded warms the cream to gold
+local GLYPH_ALPHA = { active = 1, hover = 0.85, idle = 0.55 }
+function Shell.PaintGlyph(tex, state)
+    if not rawget(tex, "gpcGlyph") then tex:SetVertexColor(1, 1, 1); tex:SetAlpha(state == "idle" and 0.8 or 1); return end
+    if S.Skin() == "gilded" then tex:SetVertexColor(1, 0.84, 0.5) else tex:SetVertexColor(1, 1, 1) end
+    tex:SetAlpha(GLYPH_ALPHA[state] or 1)
+end
 
 local function Tab(def, index)
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("common-sidetab")
@@ -171,29 +186,32 @@ local function Tab(def, index)
     background:SetAtlas("common-sidetab", true)
     background:SetPoint("CENTER")
     local icon = tab:CreateTexture(nil, "ARTWORK")
-    if def.atlas then icon:SetAtlas(def.atlas) else
-        icon:SetTexture(def.icon)
-        icon:SetTexCoord(0.03125, 0.96875, 0.03125, 0.96875)
-    end
+    Shell.Glyph(icon, def, 0.03125)
     icon:SetPoint("CENTER", -4, 0)
-    local mask = tab.CreateMaskTexture and icon.AddMaskTexture and tab:CreateMaskTexture()
-    if mask then
-        icon:SetSize(50, 50)
-        mask:SetAtlas("common-sidetab-mask", true)
-        mask:SetPoint("CENTER")
-        icon:AddMaskTexture(mask)
+    if rawget(icon, "gpcGlyph") then
+        -- (a glyph on the native tab: no mask, a little inside its round)
+        icon:SetSize(36, 36)
     else
-        icon:SetSize(34, 34)
+        local mask = tab.CreateMaskTexture and icon.AddMaskTexture and tab:CreateMaskTexture()
+        if mask then
+            icon:SetSize(50, 50)
+            mask:SetAtlas("common-sidetab-mask", true)
+            mask:SetPoint("CENTER")
+            icon:AddMaskTexture(mask)
+        else
+            icon:SetSize(34, 34)
+        end
     end
-    if Shell.GILDED[def.key] then
-        local tile = S.SkinTexture(tab, nil, "ARTWORK", 1, false, icon, { gilded = true },
-            "Interface\\AddOns\\GamepadCompanion\\Media\\gilded-" .. Shell.GILDED[def.key])
-        tile:SetPoint("CENTER", -4, 0); tile:SetSize(34, 34)
+    tab.icon = icon
+    local function Paint()
+        Shell.PaintGlyph(icon, tab.selected:IsShown() and "active" or tab.hovered and "hover" or "idle")
     end
+    tab.Paint = Paint
     tab.selected = tab:CreateTexture(nil, "OVERLAY")
     tab.selected:SetAtlas("common-sidetab-selected", true)
     tab.selected:SetPoint("CENTER")
     tab.selected:Hide()
+    S.OnSkin(function() Paint() end)
     local hover = tab:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAtlas("common-sidetab-hover", true)
     hover:SetPoint("CENTER")
@@ -204,12 +222,16 @@ local function Tab(def, index)
         Shell.Select(def.key)
     end)
     tab:SetScript("OnEnter", function(self)
+        tab.hovered = true; Paint()
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(def.name, 1, 0.82, 0)
         GameTooltip:Show()
     end)
-    tab:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    tab:SetScript("OnLeave", function()
+        tab.hovered = false; Paint()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
     tab.def = def
     tabs[def.key] = tab
     return tab

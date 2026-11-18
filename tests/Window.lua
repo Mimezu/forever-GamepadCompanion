@@ -17,6 +17,8 @@ local function new(kind, name, parent)
 end
 function methods:SetScript(key, callback) self.scripts[key] = callback end
 function methods:GetScript(key) return self.scripts[key] end
+function methods:SetTexture(t) self.texture = t end
+function methods:SetAlpha(a) self.alpha = a end
 function methods:HookScript(key, callback)
     local previous = self.scripts[key]
     self.scripts[key] = function(...) if previous then previous(...) end; callback(...) end
@@ -192,6 +194,10 @@ do
     S.SetUIScale(0.9)
     assert(S.UIScale() == 0.9 and GamepadCompanionHapticsDB.uiScale == nil, "back to 90%")
     print("PASS: size: 90% by default, 100% and back")
+    -- Tab glyphs: one set; the open page's bright, the rest dim
+    assert(rawget(tabs.tools.icon, "gpcGlyph") and tabs.tools.icon.texture:find("Media\\tab%-tools"), "Tools' glyph")
+    assert(tabs.tools.icon.alpha == 1 and tabs.bars.icon.alpha < 1, "the open page's glyph bright, the rest dim")
+    print("PASS: tab glyphs: one set, open bright, rest dim")
 end
 tabs.bars.scripts.OnClick(tabs.bars)
 assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")
