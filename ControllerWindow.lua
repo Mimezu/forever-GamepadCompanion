@@ -8,11 +8,16 @@ local _, ns = ...
 local C, S, T, Sh = ns.ControllerModel, ns.OptionsSkin, ns.TouchModel, ns.Shared
 local API = GamepadCompanionAPI
 
-local K = 0.78                                  -- art scale
-local ART_W, ART_H = C.ART_W * K, C.ART_H * K   -- 799 x 530
-local TOP = 0                                   -- (the layer and page tabs sit in the page header)
-local CARD_X, CARD_W = math.floor(ART_W) + 16, 286
 local BODY_W, BODY_H = ns.Shell.W, ns.Shell.H
+local TOP = 0                                   -- (the layer and page tabs sit in the page header)
+local AREA_W = 798                              -- the pad's card, left of the editing card
+local CARD_X, CARD_W = AREA_W + 16, 286
+local MARGIN, STATUS_H = 16, 26                 -- the pad's margin in its card; the status line at its foot
+local K = (AREA_W - 2 * MARGIN) / C.ART_W       -- art scale: the card's width, less its margins
+local ART_W, ART_H = C.ART_W * K, C.ART_H * K   -- 766 x 509
+-- (the pad centred in what's left above the status line)
+local ART_X = math.floor((AREA_W - ART_W) / 2)
+local ART_Y = math.floor((BODY_H - STATUS_H - ART_H) / 2)
 local W = CARD_W - 24                           -- the card's content width
 
 local window, body      -- the page frame (Window.lua's Controller page)
@@ -620,8 +625,8 @@ local function BuildTouchPanel(card)
     local function Settings() return Touch.Settings() end
 
     tp.enable = S.NewCheck(p, "Touch zones", -2, 0, function(self) Touch.SetEnabled(self:GetChecked() == true) end, 100)
-    tp.preview = S.NewCheck(p, "Preview", 128, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 60)
-    tp.move = S.NewButton(p, "Move", W - 60, 0, 56, function(self)
+    tp.preview = S.NewCheck(p, "Preview", 116, 0, function(self) Touch.SetPreview(self:GetChecked() == true) end, 52)
+    tp.move = S.NewButton(p, "Move", W - 46, 0, 46, function(self)
         local moving = Touch.MovePreview()
         self.label:SetText(moving and "Done" or "Move")
         S.SetSelected(self, moving)
@@ -857,7 +862,7 @@ local function Build(frame, header)
         S.Tooltip(ui.layers[layer], C.LAYER_LABELS[layer])
         x = x + widths[i]
     end
-    local pageX = ART_W - C.PAGES * 36 - 50
+    local pageX = AREA_W - C.PAGES * 36 - 50
     ui.pageLabel = S.Text(header, "Page", pageX, -11, 46, 12, S.GOLD)
     local pw = {}
     for p = 1, C.PAGES do pw[p] = 36 end
@@ -871,9 +876,9 @@ local function Build(frame, header)
     end
 
     -- The controller, on a card of the skin's surface
-    ui.artCard = S.Card(body, nil, 0, -TOP, ART_W, ART_H)
+    ui.artCard = S.Card(body, nil, 0, -TOP, AREA_W, BODY_H)
     ui.art = CreateFrame("Frame", nil, body)
-    ui.art:SetPoint("TOPLEFT", 0, -TOP)
+    ui.art:SetPoint("TOPLEFT", ART_X, -(TOP + ART_Y))
     ui.art:SetSize(ART_W, ART_H)
     ui.art:SetFrameLevel((ui.artCard:GetFrameLevel() or 0) + 1)
     local art = ui.art:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -885,7 +890,7 @@ local function Build(frame, header)
     ui.padText:SetPoint("CENTER", ui.art, "TOPLEFT", C.ToFrame(512, 192, K))
     for _, info in ipairs(C.BUTTONS) do ui.buttons[info.id] = HotSpot(info) end
     for index, info in ipairs(C.SLOTS) do ui.slots[index] = SlotButton(info) end
-    ui.status = S.Note(body, 2, -(TOP + ART_H + 10), ART_W - 4, 1, 11, S.GREY)
+    ui.status = S.Note(ui.artCard, MARGIN, -(BODY_H - STATUS_H + 4), AREA_W - 2 * MARGIN, 1, 11, S.GREY)
 
     -- Card
     ui.card = S.Card(body, " ", CARD_X, 0, CARD_W, BODY_H)

@@ -185,6 +185,13 @@ do
     p:Show(); p.scripts.OnEvent(p, "GLOBAL_MOUSE_DOWN"); assert(p:IsShown(), "a click inside keeps it")
     p:Hide()
     print("PASS: popups close: ×, Escape, pad B, a click elsewhere")
+    -- Size: 90% by default, 100% saved, back
+    assert(S.UIScale() == 0.9, "90% by default")
+    S.SetUIScale(1)
+    assert(S.UIScale() == 1 and GamepadCompanionHapticsDB.uiScale == 1, "100%")
+    S.SetUIScale(0.9)
+    assert(S.UIScale() == 0.9 and GamepadCompanionHapticsDB.uiScale == nil, "back to 90%")
+    print("PASS: size: 90% by default, 100% and back")
 end
 tabs.bars.scripts.OnClick(tabs.bars)
 assert(find("Compact  ·  in use") and find("Action bars") and find("Pet menu") and find("Pet spells"), "Bars page")

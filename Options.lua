@@ -452,6 +452,19 @@ local function BuildTools(frame, header)
         end
         for k, b in pairs(ui.skin) do S.SetSelected(b, k == S.Skin()) end
         S.OnSkin(function(skin) for k, b in pairs(ui.skin) do S.SetSelected(b, k == skin) end end)
+        -- Size: 90% or 100%
+        local sizeLabel = Text(header, "Size", W - 525, -11, 40, 12, GOLD)
+        sizeLabel:SetJustifyH("RIGHT")
+        S.Segments(header, W - 480, -2, { 56, 56 }, 26)
+        ui.size = {}
+        local function Mark() for v, b in pairs(ui.size) do S.SetSelected(b, math.abs(v - S.UIScale()) < 0.01) end end
+        for i, v in ipairs(S.SIZES) do
+            ui.size[v] = S.Segment(header, math.floor(v * 100 + 0.5) .. "%", W - 479 + (i - 1) * 56, -3, 56, function()
+                S.SetUIScale(v)
+                Mark()
+            end, 12, 26)
+        end
+        Mark()
     end
     -- Lab: the tuning and probes tab, for the curious
     if header and API.SetLab then

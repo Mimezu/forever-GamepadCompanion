@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.4 — 2026-11-18
+
+- **Size: 90% or 100%** (Tools header, 90% by default): the whole window at that scale, its popups with it, the action picker too. Saved account-wide (`uiScale`). A small screen still shrinks it further
+- **Controller page**: the pad on a full-height card, a 16 px margin all round, centred above the status line (no empty band under it). The touchpad card's first row (Touch zones, Preview, Move) no longer runs together
+
 ## 0.45.3 — 2026-11-18
 
 - Choose › More › **Quick use**: Food, Drink, Health potion, Mana potion, Trinket 1, Trinket 2, Random mount, Random pet, for any pad button, zone or gesture
@@ -7,11 +12,6 @@
   - Health potion: a healthstone first, else the best potion; potions chain, so a press uses the next one in the bags
   - Picked out of combat (bags change, combat ends, level up); in combat the last pick stays. The icon shows the pick, or "No food" and the like
 - Choose › More › **Mounts** and **Pets**: a chosen mount or companion
-
-## 0.45.3 — 2026-11-18
-
-- **Size: 90% or 100%** (Tools header, 90% by default): the whole window at that scale, its popups with it, the action picker too. Saved account-wide (`uiScale`). A small screen still shrinks it further
-- **Controller page**: the pad on a full-height card, a 16 px margin all round, centred above the status line (no empty band under it). The touchpad card's first row (Touch zones, Preview, Move) no longer runs together
 
 ## 0.45.2 — 2026-11-18
 

@@ -39,6 +39,23 @@ function S.ApplySkin()
     for _, fn in ipairs(hooks) do fn(skin) end
 end
 
+-- Size: the window and its popups at 90% (the default) or 100%; saved
+-- account-wide in GamepadCompanionHapticsDB.uiScale (nil: 90%)
+S.SIZES = { 0.9, 1 }
+local scaleHooks = {}
+function S.UIScale()
+    local db = type(GamepadCompanionHapticsDB) == "table" and GamepadCompanionHapticsDB or nil
+    local v = db and tonumber(db.uiScale)
+    return (v and v >= 0.5 and v <= 1.2) and v or 0.9
+end
+function S.OnScale(fn) scaleHooks[#scaleHooks + 1] = fn end
+function S.SetUIScale(v)
+    if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
+    v = tonumber(v)
+    GamepadCompanionHapticsDB.uiScale = (v and v ~= 0.9) and v or nil
+    for _, fn in ipairs(scaleHooks) do fn(S.UIScale()) end
+end
+
 function S.SetSkin(v)
     if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
     GamepadCompanionHapticsDB.skin = (v == "blizzard" or v == "gilded") and v or nil
@@ -754,7 +771,8 @@ end
 function S.Fit(frame)
     local width, height = frame:GetWidth(), frame:GetHeight()
     if not width or not height or width <= 0 or height <= 0 then return end
-    frame:SetScale(math.max(0.5, math.min(1, (UIParent:GetWidth() - 30) / width, (UIParent:GetHeight() - 30) / height)))
+    local size = S.UIScale()
+    frame:SetScale(math.max(0.5, math.min(size, (UIParent:GetWidth() - 30) / width, (UIParent:GetHeight() - 30) / height)))
 end
 
 -- A (controller) and B use the Legacy chrome; C is the classic look.

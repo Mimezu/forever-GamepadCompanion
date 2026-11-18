@@ -71,8 +71,10 @@ function Shell.IsShown(key) return window ~= nil and window:IsShown() and (key =
 local function Fit()
     local tabW = 48
     local w, h = window:GetWidth() + tabW, window:GetHeight()
-    window:SetScale(math.max(0.45, math.min(1, (UIParent:GetWidth() - 40) / w, (UIParent:GetHeight() - 40) / h)))
+    -- (the Size setting, smaller still on a small screen; popups follow the window)
+    window:SetScale(math.max(0.45, math.min(S.UIScale(), (UIParent:GetWidth() - 40) / w, (UIParent:GetHeight() - 40) / h)))
 end
+S.OnScale(function() if window then Fit() end end)
 
 local function Page(key)
     local def = Def(key)
