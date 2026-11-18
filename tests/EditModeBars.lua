@@ -31,11 +31,11 @@ function methods:CreateTexture() return frame("Texture") end
 function methods:GetWidth() return rawget(self, "width") or 1600 end
 function methods:GetHeight() return rawget(self, "height") or 900 end
 function methods:GetEffectiveScale() return 1 end
+function methods:IsMouseOver() return rawget(self, "over") == true end
 
 CreateFrame = function(kind, name, parent, template)
-    if template == "EditModeSystemSelectionTemplate" or template == "DialogBorderTranslucentTemplate" then
-        error("no such template here")   -- the fallbacks are tested; the client has them
-    end
+    if template == "EditModeSystemSelectionTemplate" then error("no Blizzard Edit Mode template") end
+    if template == "DialogBorderTranslucentTemplate" then error("no such template here") end
     local f = frame(kind)
     f.parent, f.template = parent, template
     if name then _G[name] = f end
@@ -51,12 +51,12 @@ IsShiftKeyDown = function() return shift end
 -- Edit Mode as the client has it: callbacks, the manager, its grid
 local callbacks = {}
 EventRegistry = { RegisterCallback = function(_, event, fn, owner) callbacks[event] = function() fn(owner) end end }
-local cleared, hooked = 0, nil
+local cleared = 0
 EditModeManagerFrame = { snapEnabled = false, Grid = { gridSpacing = 20 },
     IsSnapEnabled = function(self) return self.snapEnabled end,
     ClearSelectedSystem = function() cleared = cleared + 1 end,
     SelectSystem = function() end }
-hooksecurefunc = function(t, name, fn) hooked = fn end
+hooksecurefunc = function() error("Edit Mode is listened to, never hooked") end
 
 -- Companion's API: settings per layout, bars as frames at known spots
 local ns = {}
@@ -145,15 +145,26 @@ d.prompt.checked = false
 d.prompt.scripts.OnClick(d.prompt)
 assert(settings.classPrompts == false, "prompt off")
 
--- A Blizzard frame picked: ours lets go
-hooked(EditModeManagerFrame, {})
-assert(EB.Selected() == nil and not d.shown, "Blizzard's pick wins")
+-- A click on our box keeps it; anywhere else (a Blizzard frame) lets it go
+EB.proxies.classLeft.over = true
+EB.events.scripts.OnEvent(EB.events, "GLOBAL_MOUSE_DOWN")
+assert(EB.Selected() == "classLeft", "a click on ours keeps it")
+EB.proxies.classLeft.over = false
+EB.events.scripts.OnEvent(EB.events, "GLOBAL_MOUSE_DOWN")
+assert(EB.Selected() == nil and not d.shown, "a click elsewhere lets it go")
+assert(EB.proxies.lt.selection.label.text == "" and EB.proxies.lt.selection.edges[1], "our own box")
 
 -- Combat: no drag
 combat = true
 EB.proxies.base:OnDragStart()
 assert(not rawget(EB.proxies.base, "moving"), "no drag in combat")
 combat = false
+
+-- A fight ends it
+EB.Select("base")
+EB.events.scripts.OnEvent(EB.events, "PLAYER_REGEN_DISABLED")
+assert(not EB.active and not editing, "a fight ends it")
+callbacks["EditMode.Enter"]()
 
 -- Exit: boxes and dialog gone, bars back to normal
 callbacks["EditMode.Exit"]()
@@ -164,4 +175,4 @@ for _, q in pairs(EB.proxies) do assert(not q.shown, "boxes hidden") end
 settings.enabled = false
 callbacks["EditMode.Enter"]()
 assert(not EB.active, "off while My bar layout is off")
-print("PASS: EditModeBars: boxes over each bar, pick, drag (snap), dialog, arrows, Blizzard's pick, combat, exit")
+print("PASS: EditModeBars: listened to, never hooked; boxes over each bar, pick, drag (snap), dialog, arrows, a click elsewhere, a fight, exit")

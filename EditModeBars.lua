@@ -6,11 +6,14 @@
 -- its button prompt and Reset. Blizzard still moves the controller bar block
 -- itself, and Compact / Expand stay Blizzard's settings.
 --
--- The LibEditMode pattern, in house: our own frames under Blizzard's selection
--- template, Edit Mode's Enter / Exit callbacks, nothing registered with the
--- manager and none of its tables written. Values are Companion's own (the
--- offsets from Blizzard's spot, per Compact / Standard), so Blizzard's saved
--- layouts are never touched.
+-- The suite's Edit Mode pattern (as social_diary's toast and Plumber's
+-- SharedEditMode on this client): Edit Mode is listened to (EventRegistry's
+-- EditMode.Enter / EditMode.Exit), never hooked; our own boxes and dialog, no
+-- Blizzard template, nothing registered with the manager, none of its tables
+-- written. Picking one of ours clears Blizzard's pick (ClearSelectedSystem, its
+-- own secure delegate); a click anywhere else lets ours go. A fight ends it.
+-- Values are Companion's own (offsets from Blizzard's spot, per Compact /
+-- Standard): Blizzard's saved layouts are never touched.
 local _, ns = ...
 local M = ns.Model
 local API = GamepadCompanionAPI
@@ -105,21 +108,35 @@ end
 local selected
 local Place, Select, ShowDialog
 
+-- A box in Edit Mode's colours: blue while waiting, gold once picked, the name on it
+local BLUE, GOLD = { 0.25, 0.6, 1 }, { 1, 0.82, 0.2 }
+local function Paint(sel, c, fill)
+    sel.fill:SetColorTexture(c[1], c[2], c[3], fill)
+    for _, e in ipairs(sel.edges) do e:SetColorTexture(c[1], c[2], c[3], 0.95) end
+end
+
 local function Selection(proxy)
-    -- Blizzard's own box when the client has it; a plain one otherwise
-    local ok, sel = pcall(CreateFrame, "Frame", nil, proxy, "EditModeSystemSelectionTemplate")
-    if not ok or type(sel) ~= "table" or not sel.ShowSelected then
-        sel = CreateFrame("Frame", nil, proxy)
-        sel.fill = sel:CreateTexture(nil, "OVERLAY")
-        sel.fill:SetAllPoints()
-        function sel:ShowSelected() self.fill:SetColorTexture(1, 0.82, 0.2, 0.35); self.isSelected = true; self:Show() end
-        function sel:ShowHighlighted() self.fill:SetColorTexture(0.3, 0.6, 1, 0.25); self.isSelected = false; self:Show() end
-        sel:EnableMouse(true)
-        if sel.RegisterForDrag then sel:RegisterForDrag("LeftButton") end
-    end
+    local sel = CreateFrame("Frame", nil, proxy)
     sel:SetAllPoints(proxy)
-    sel.parent, sel.system = proxy, proxy
-    if sel.SetSystem then pcall(sel.SetSystem, sel, proxy) end
+    sel:SetFrameLevel(999)
+    sel:EnableMouse(true)
+    if sel.RegisterForDrag then sel:RegisterForDrag("LeftButton") end
+    sel.fill = sel:CreateTexture(nil, "BACKGROUND")
+    sel.fill:SetAllPoints()
+    sel.edges = {}
+    for i, p in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" }, { "TOPLEFT", "BOTTOMLEFT" },
+        { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local e = sel:CreateTexture(nil, "BORDER")
+        e:SetPoint(p[1]); e:SetPoint(p[2])
+        if i <= 2 then e:SetHeight(2) else e:SetWidth(2) end
+        sel.edges[i] = e
+    end
+    sel.label = sel:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
+    sel.label:SetPoint("CENTER")
+    function sel:ShowSelected() Paint(self, GOLD, 0.3); self.label:SetText(proxy:GetSystemName()); self.isSelected = true; self:Show() end
+    function sel:ShowHighlighted() Paint(self, BLUE, 0.18); self.label:SetText(""); self.isSelected = false; self:Show() end
+    sel:SetScript("OnEnter", function(self) if not self.isSelected then self.label:SetText(proxy:GetSystemName()) end end)
+    sel:SetScript("OnLeave", function(self) if not self.isSelected then self.label:SetText("") end end)
     sel:SetScript("OnMouseDown", function() Select(proxy.layer) end)
     sel:SetScript("OnDragStart", function() proxy:OnDragStart() end)
     sel:SetScript("OnDragStop", function() proxy:OnDragStop() end)
@@ -312,9 +329,20 @@ if EventRegistry and EventRegistry.RegisterCallback then
     EventRegistry:RegisterCallback("EditMode.Enter", EB.Enter, EB)
     EventRegistry:RegisterCallback("EditMode.Exit", EB.Exit, EB)
 end
--- A Blizzard frame picked: ours lets go
-if hooksecurefunc and EditModeManagerFrame and EditModeManagerFrame.SelectSystem then
-    hooksecurefunc(EditModeManagerFrame, "SelectSystem", function(_, frame)
-        if selected and not (frame and frame.layer) then selected = nil; Place() end
-    end)
+-- A click anywhere but our boxes and dialog lets ours go (Blizzard's frames
+-- included); a fight ends it all
+local function Over(frame) return frame and frame.IsShown and frame:IsShown() and frame.IsMouseOver and frame:IsMouseOver() end
+function EB.MouseDown()
+    if not (EB.active and selected) then return end
+    for _, p in pairs(EB.proxies) do if Over(p) then return end end
+    if dialog and Over(dialog) then return end
+    selected = nil
+    Place()
 end
+local events = CreateFrame("Frame")
+pcall(events.RegisterEvent, events, "GLOBAL_MOUSE_DOWN")
+pcall(events.RegisterEvent, events, "PLAYER_REGEN_DISABLED")
+events:SetScript("OnEvent", function(_, event)
+    if event == "GLOBAL_MOUSE_DOWN" then EB.MouseDown() else EB.Exit() end
+end)
+EB.events = events

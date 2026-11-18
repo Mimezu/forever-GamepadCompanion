@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.47.1 — 2026-11-18
+
+- Bars in Edit Mode follow the suite's Edit Mode pattern (social_diary's toast, Plumber on this client): Edit Mode is listened to, never hooked. Our own boxes in Edit Mode's colours (blue, gold once picked, the name on it), no Blizzard template; a click anywhere else lets ours go (was a hook on Blizzard's pick); a fight ends it
+
 ## 0.47.0 — 2026-11-18
 
 - **Bars in Blizzard Edit Mode.** In Edit Mode each bar Companion places (Base, L2, R2, L2 + R2, the compact stack, Stance, the class buttons) has Blizzard's own selection box: click to pick it, drag to move it (it snaps to Edit Mode's grid when Snap is on), arrows and the d-pad nudge it (Shift: 1). Its dialog: Scale, the button prompt (class buttons), Reset. Blizzard still moves the controller bar block; Compact / Expand stay Blizzard's. Values stay Companion's (per Compact / Standard); Blizzard's layouts are never written
