@@ -79,6 +79,7 @@ function Shell.Offer(text, action, fn, seconds, still)
         Shell.SetStatus(text:gsub(":.*$", "") .. ": back", true)
     end)
     b:Show()
+    if ns.Focus and ns.Focus.Relayout then ns.Focus.Relayout() end
     b.until_ = (GetTime and GetTime() or 0) + (seconds or 5)
     if C_Timer and C_Timer.After then
         C_Timer.After(seconds or 5, function()

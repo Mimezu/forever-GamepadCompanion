@@ -241,6 +241,11 @@ end
 -- bottom }, outside = true.
 local popups = {}
 local shownAt = 0
+-- Told when a popup opens or closes (the pad's focus moves with it)
+local popupHooks = {}
+function S.OnPopupChange(fn) popupHooks[#popupHooks + 1] = fn end
+local function PopupChanged() for _, fn in ipairs(popupHooks) do pcall(fn) end end
+
 -- The popup on top: the last one shown that is still shown (the pad's focus stays in it)
 function S.TopPopup()
     local top
@@ -339,6 +344,7 @@ function S.Popup(frame, name, opts)
         if opts.outside then Call(self, "RegisterEvent", "GLOBAL_MOUSE_DOWN") end
         Call(self, "RegisterEvent", "PLAYER_REGEN_DISABLED")
         Call(self, "RegisterEvent", "PLAYER_REGEN_ENABLED")
+        PopupChanged()
     end)
     -- (a fight starts while it is open: keys that don't pass on are let go; it ends: taken again)
     frame:HookScript("OnEvent", function(self, event)
@@ -349,6 +355,7 @@ function S.Popup(frame, name, opts)
         if opts.outside then Call(self, "UnregisterEvent", "GLOBAL_MOUSE_DOWN") end
         Call(self, "UnregisterEvent", "PLAYER_REGEN_DISABLED")
         Call(self, "UnregisterEvent", "PLAYER_REGEN_ENABLED")
+        PopupChanged()
         -- (keys pass on again from the next frame: the closing key stays caught)
         if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
             C_Timer.After(0, function() if not self:IsShown() then Propagate(self, true) end end)

@@ -43,7 +43,10 @@ function methods:SetAlpha(v) self.alpha = v end
 function methods:EnableMouse() end
 function methods:ClearAllPoints() end
 function methods:SetPoint() end
-CreateFrame = function(kind, _, parent) return Frame(kind, parent) end
+local lastFrame
+CreateFrame = function(kind, _, parent) lastFrame = Frame(kind, parent); return lastFrame end
+cursor = { 0, 0 }
+GetCursorPosition = function() return cursor[1], cursor[2] end
 UIParent = Frame("Frame")
 
 -- the page: two rows (a plate and Try each), a header segment
@@ -58,6 +61,9 @@ row2.gpcTry = function() row2.tried = true end
 local seg = Frame("Button", header, 200, 480)
 local hidden = Frame("Button", page, 300, 300); hidden.shown = false
 local secure = Frame("Button", page, 320, 320); secure.protected = true
+local action = Frame("Button", page, 340, 330)
+action.attrs = { type = "macro", macrotext = "/editmode" }
+function methods:GetAttribute(k) return self.attrs and self.attrs[k] end
 
 local current, stepped = "moments", 0
 local window = Frame("Frame")
@@ -75,14 +81,19 @@ local list = F.Controls()
 local has = {}
 for _, c in ipairs(list) do has[c] = true end
 assert(has[plate1] and has[plate2] and has[row1.try] and has[seg], "visible buttons, the header's too")
-assert(not has[hidden] and not has[secure], "hidden and secure frames: never focused")
+assert(not has[hidden] and not has[secure] and not has[action], "hidden, secure and action buttons (a type attribute): never focused")
 
--- the first press: the top left; the d-pad: the nearest that way
+-- open: the pad still plays; only the d-pad engages the ring
 F.Attach(window)
+window.events = lastFrame.scripts
 window.scripts.OnShow(window)
 assert(window.pad == true and window.propagate == true, "open, out of combat: the pad's buttons, passing on")
+for _, b in ipairs({ "PAD1", "PAD2", "PAD3", "PAD4", "PADLTRIGGER", "PADRSHOULDER" }) do
+    assert(F.Press(window, b) == false, b .. ": the game's until the d-pad engages the ring")
+end
+assert(window.shown ~= false and not F.state.active, "nothing taken, the window still open")
 F.Press(window, "PADDDOWN")
-assert(F.state.focus == seg and F.state.active, "first press: the top left (the header)")
+assert(F.state.focus == seg and F.state.active, "the d-pad: engaged, the top left (the header)")
 F.Press(window, "PADDDOWN")
 assert(F.state.focus == plate1, "down: the first row's plate")
 assert(window.propagate == false, "a handled press stops here")
@@ -101,21 +112,37 @@ F.Set(plate1)
 F.Press(window, "PAD3")
 F.Press(window, "PAD4")
 assert(row1.try.clicked == 1 and row1.default.clicked == 1, "X / Y: its Try and Default buttons")
--- the shoulders: the tabs; the triggers: the page's own
-F.Press(window, "PADRSHOULDER")
-assert(stepped == 1, "R1: the next tab")
+-- the shoulders: never taken; the tab steps on release, not with the touchpad (Focus UI chord)
+assert(F.Press(window, "PADRSHOULDER") == false and stepped == 0, "R1 down: the game's")
+F.Release("PADRSHOULDER")
+assert(stepped == 1, "R1 released: the next tab")
+F.Press(window, "PADLSHOULDER"); F.Press(window, "PADBACK"); F.Release("PADLSHOULDER")
+assert(stepped == 1, "L1 + touchpad: the Focus UI chord, no tab step")
+-- the triggers: only where the page has a step
+current = "setup"
+assert(F.Press(window, "PADLTRIGGER") == false, "L2 on a page without a step: the game's")
+current = "moments"
 local trig
 F.SetTrigger("moments", function(dir) trig = dir end)
-F.Press(window, "PADLTRIGGER")
-assert(trig == -1, "L2: the page's own step")
--- something else passes on
-assert(F.Press(window, "PADSOCIAL") == false, "other buttons: not ours")
--- combat: nothing taken, nothing handled
+assert(F.Press(window, "PADLTRIGGER") == true and trig == -1, "L2 on Moments: its groups")
+-- another button: the player is back in the game; the ring lets go
+assert(F.Press(window, "PADSOCIAL") == false and not F.state.active, "other buttons: the ring lets go")
+assert(F.Press(window, "PAD1") == false, "A: the game's again")
+-- the mouse moved: the ring lets go too
+F.Press(window, "PADDDOWN")
+assert(F.state.active, "engaged again")
+cursor = { 500, 500 }
+assert(F.Press(window, "PAD1") == false and not F.state.active, "the mouse moved: the game's")
+-- a fight: the window lets go of the pad; after it, takes it again (not engaged)
+F.Press(window, "PADDDOWN")
+window.events.OnEvent(nil, "PLAYER_REGEN_DISABLED")
 fighting = true
-local before = F.state.focus
-assert(F.Press(window, "PADDDOWN") == false and F.state.focus == before, "in combat: a press is the game's")
+assert(window.pad == false and not F.state.active, "a fight: the pad let go")
+assert(F.Press(window, "PADDDOWN") == false, "in combat: a press is the game's")
 fighting = false
+window.events.OnEvent(nil, "PLAYER_REGEN_ENABLED")
+assert(window.pad == true and not F.state.active, "after the fight: the pad's buttons again, the ring not engaged")
 -- the window gone: the ring and legend too
 window:Hide()
 assert(window.pad == false and not F.state.active, "closed: the pad let go")
-io.write("PASS: the pad's focus ring: nearest each way, A, X / Y, the tabs, never in combat" .. string.char(10))
+io.write("PASS: the pad's focus ring: engaged by the d-pad, never action buttons, shoulders on release, never in combat" .. string.char(10))

@@ -103,6 +103,8 @@ local function SlashButton(parent, label, x, y, width, height, slash)
     b:SetAttribute("useOnKeyDown", false)
     b:SetAttribute("type", "macro")
     b:SetAttribute("macrotext", slash)
+    -- (the pad's focus ring never clicks it: a click from addon code runs it tainted)
+    b.gpcFocusSkip = true
     return b
 end
 
@@ -223,6 +225,7 @@ local function BuildTools(frame, header)
     local blizz = S.Card(frame, "Blizzard", 0, 0, half, 210)
     local bw = (half - 36) / 2
     local spells = Button(blizz, "Spells", 12, -44, bw, nil, "InsecureActionButtonTemplate", 13, 40)
+    spells.gpcFocusSkip = true
     spells:RegisterForClicks("LeftButtonUp")
     spells:SetAttribute("useOnKeyDown", false)
     spells:HookScript("OnShow", RefreshSpellbookButtons)

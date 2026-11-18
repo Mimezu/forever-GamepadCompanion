@@ -499,22 +499,37 @@ function ui.PickWhen(anchor, moment, label)
 end
 
 -- A proposal accepted: WoW Helper's pick written as the player's own
+-- (WoW Helper writes ids as text, "12": a sound and a light are numbers here, a
+-- feel a key; written, then read back: kept only when it took)
 local function Accept(kind, key, p)
     local k = KIND_OF[kind]
+    local ok
     if k == "sound" then
-        C.SetMomentSound(key, tonumber(p.id) or p.id)
+        local id = tonumber(p.id)
+        if not id then return Say(p.name .. ": not a sound", true) end
+        C.SetMomentSound(key, id)
+        ok = C.MomentSound(key) == id
     elseif k == "light" then
+        local id = tonumber(p.id)
+        if not (id and LT.Light(id)) then return Say(p.name .. ": not in the game yet · /reload", true) end
         local s = LT.Own(key)
-        s.on, s.light = true, p.id
+        s.on, s.light = true, id
+        local now = LT.Settings(key)
+        ok = now.on ~= false and now.light == id
     elseif ITEM[kind].pick and kind ~= "c" then
-        if not H.Feel(p.id) then return Say(p.name .. ": not in the game yet · /reload", true) end
-        ITEM[kind].pick(key, p.id)
+        local id = tostring(p.id)
+        if not H.Feel(id) then return Say(p.name .. ": not in the game yet · /reload", true) end
+        ITEM[kind].pick(key, id)
+        ok = true
     else
         return Say(p.name .. ": not for this moment", true)
     end
+    if not ok then return Say(p.name .. ": didn't take · kept as proposed", true) end
     C.DismissProposal(key, p.id)
     Say(ITEM[kind].label(key) .. ": " .. p.name)
+    return true
 end
+ui.Accept = Accept
 
 -- A moment as Recommended (its choice and its volume)
 local function IsRecommended(kind, key)
@@ -1503,14 +1518,23 @@ local function BuildSpells(panel, cw)
             nil, {
                 default = function()
                     if not row.plan then return end
+                    -- (as Recommended, and Undo for 5 s: the spell's own choices, kept)
+                    local name, key = row.plan.name, row.key
+                    local before = Copy(O.DB()[name])
+                    local Vol = ns.Volume
+                    local soundVol = Vol and key and ui.kind == "sound" and Vol.Sound(key)
                     if ui.kind == "feel" then
-                        O.ClearKind(row.plan.name, "feel")
-                    elseif row.key and not row.linked then
-                        ITEM[ui.kind].default(row.key)
-                        VolumeDefault(ui.kind, row.key)
+                        O.ClearKind(name, "feel")
+                    elseif key and not row.linked then
+                        ITEM[ui.kind].default(key)
+                        VolumeDefault(ui.kind, key)
                     end
-                    Say(row.plan.name .. ": Recommended")
                     Refresh()
+                    Shell.Offer(name .. ": Recommended", "Undo", function()
+                        O.DB()[name] = Copy(before)
+                        if soundVol then Vol.SetSound(key, soundVol) end
+                        Refresh()
+                    end)
                 end,
                 defaultTip = "Recommended",
                 level = { step = 0.1, min = 0, max = 1, format = function(v) return floor(v * 100 + 0.5) .. "%" end,
@@ -1642,7 +1666,8 @@ function ui.Search(query)
     for w in (query or ""):lower():gmatch("%S+") do words[#words + 1] = w end
     if #words == 0 then return {} end
     local found = {}
-    for _, e in ipairs(ui.SearchIndex()) do
+    ui.searchCache = ui.searchCache or ui.SearchIndex()
+    for _, e in ipairs(ui.searchCache) do
         local text = (e.label .. " " .. e.where):lower()
         local all = true
         for _, w in ipairs(words) do if not text:find(w, 1, true) then all = false end end
@@ -1732,19 +1757,25 @@ local function BuildSearch(frame, left, cw)
         card:Hide()
         return select(...)
     end
-    box:SetScript("OnEditFocusGained", function(self) ui.ShowSearch(self:GetText()) end)
+    -- (the index: built again when the field is entered, then filtered per key)
+    box:SetScript("OnEditFocusGained", function(self) ui.searchCache = nil; ui.ShowSearch(self:GetText()) end)
     -- Ctrl+F: to the field (the key still reaches the game: nothing taken)
     function ui.SearchKey(key)
         if key == "F" and IsControlKeyDown and IsControlKeyDown() then box:SetFocus(); return true end
         return false
     end
     -- (only where every key can pass on to the game: never a page that eats the keyboard)
-    local fighting = InCombatLockdown and InCombatLockdown()
-    if frame.EnableKeyboard and frame.SetPropagateKeyboardInput and not fighting
-        and pcall(frame.SetPropagateKeyboardInput, frame, true) then
-        frame:EnableKeyboard(true)
-        frame:SetScript("OnKeyDown", function(_, key) ui.SearchKey(key) end)
+    -- (built in combat: wired on the first show out of it)
+    local function Wire()
+        if ui.searchWired or (InCombatLockdown and InCombatLockdown()) then return end
+        if frame.EnableKeyboard and frame.SetPropagateKeyboardInput and pcall(frame.SetPropagateKeyboardInput, frame, true) then
+            frame:EnableKeyboard(true)
+            frame:SetScript("OnKeyDown", function(_, key) ui.SearchKey(key) end)
+            ui.searchWired = true
+        end
     end
+    Wire()
+    if frame.HookScript then frame:HookScript("OnShow", Wire) end
 end
 
 local function Build(frame, header)

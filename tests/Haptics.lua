@@ -1171,6 +1171,21 @@ do
     WowHelperData.proposals.money.id = K.SOUNDS.coin
     ns.Shell.Refresh()
     assert(moneyRow.proposal:IsShown(), "a new proposal shows again")
+    -- the helper writes ids as text ("12"): every kind takes them, and says so only when it took
+    do
+        local LT = ns.Lights
+        local light
+        for _, l in ipairs(LT.Lights()) do if l.id ~= LT.Settings("crit").light then light = l.id; break end end
+        assert(M.Accept("light", "crit", { kind = "light", id = tostring(light), name = "Glow" }), "light: a text id accepted")
+        assert(LT.Settings("crit").light == light and LT.Settings("crit").on ~= false, "light: stored as its number, kept")
+        assert(not M.Accept("light", "kill", { kind = "light", id = "99999", name = "Gone" })
+            and ns.HelperCues.Proposal ~= nil, "light: an unknown id refused")
+        assert(M.Accept("sound", "money", { kind = "sound", id = tostring(K.SOUNDS.chime), name = "Chime" }), "sound: a text id")
+        assert(ns.HelperCues.MomentSound("money") == K.SOUNDS.chime, "sound: stored as its number")
+        assert(M.Accept("l", "loot", { kind = "feel", id = H.AllFeels()[1].key, name = "Coin" }), "feel: its key")
+        LT.Default("crit")
+        ns.HelperCues.SetMomentSound("money", nil)
+    end
     ns.HelperCues.SetMomentSound("loot", nil)
     H.DB().proposalsDismissed = nil
     WowHelperData = savedData
@@ -1253,16 +1268,15 @@ do
     WowHelperData.use.whisper = { sound = 900, soundBase = K.SOUNDS.click, stamp = 3 }
     WowHelperData.use.questDone = { sound = false, soundBase = 12345, stamp = 3 }
     local killWas = C.MomentLight("kill")
-    assert(C.LoadHelperData() == 3, "a feel, a light and a sound applied")
-    assert(C.MomentSound("whisper") == 900 and C.MomentSound("questDone") == K.SOUNDS.chime, "sound: applied where its base held")
-    assert(C.MomentLight("crit") == other and C.MomentLight("kill") == killWas, "light: applied where its base held")
+    local whisperWas, lootWas = C.MomentSound("whisper"), C.MomentFeel("loot")
+    -- (WoW Helper's old "use" never swaps anything live: its picks come as proposals)
+    assert(C.LoadHelperData() == 0, "nothing applied")
+    assert(C.MomentSound("whisper") == whisperWas and C.MomentLight("crit") == critLight and C.MomentLight("kill") == killWas,
+        "sounds and lights as they were")
+    assert(C.MomentFeel("loot") == lootWas and C.MomentFeel("money") == moneyWas, "feels as they were")
     assert(H.Feel("hx_2048") and H.Feel("hx_2048").label == "Coin tap 2" and ns.HapticsLab.HdId("hx_2048") == 2048,
         "its feel joins, with its id")
-    assert(C.MomentFeel("loot") == "hx_2048", "loot uses it")
-    assert(C.MomentFeel("money") == moneyWas, "money changed since: left alone")
-    -- once per stamp: a choice made in game after it stays
     C.SetMomentFeel("loot", lootFeel)
-    assert(C.LoadHelperData() == 0 and C.MomentFeel("loot") == lootFeel, "applied once")
     -- Edit HD: one cue, the moment, open
     for i = #K.queue, 1, -1 do K.queue[i] = nil end
     ok = C.EditHD("loot")
@@ -1295,7 +1309,7 @@ do
     local ex = ns.HapticsLab.Export()
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel
         and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
-    assert(ex.moments.crit.light == other and ex.moments.jump.light == false, "lights exported")
+    assert(ex.moments.crit.light == critLight and ex.moments.jump.light == false, "lights exported")
     assert(ex.moments.loot.feelVol == 1 and ex.moments.loot.soundVol, "volumes exported")
     assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
     K.SetEnabled(false)

@@ -471,39 +471,9 @@ function C.LoadHelperData()
             own.helper = true
         end
     end
-    local applied = 0
-    if type(db.link) ~= "table" then db.link = {} end
-    if type(db.link.used) ~= "table" then db.link.used = {} end
-    for moment, u in pairs(type(d.use) == "table" and d.use or {}) do
-        local stamp = type(u) == "table" and tonumber(u.stamp)
-        if stamp and stamp > (db.link.used[moment] or 0) and C.MOMENT_N[moment] then
-            db.link.used[moment] = stamp
-            local was = C.MomentFeel(moment)
-            if u.feel and was == u.base and H.Feel(u.feel) and u.feel ~= was then
-                C.SetMomentFeel(moment, u.feel)
-                local f, w = H.Feel(u.feel), was and H.Feel(was)
-                C.Say(string.format("%s: %s (was %s) · WoW Helper", C.MomentLabel(moment), f.label or u.feel, w and (w.label or was) or "Off"))
-                applied = applied + 1
-            end
-            -- a sound (false: none): only where the moment still has the sound it had
-            local had = C.MomentSound(moment)
-            if u.sound ~= nil and (had or false) == (u.soundBase or false) and (u.sound or nil) ~= had then
-                C.SetMomentSound(moment, u.sound or false)
-                C.Say(string.format("%s: %s (was %s) · WoW Helper", C.MomentLabel(moment), u.sound and C.SoundName(u.sound) or "no sound",
-                    had and C.SoundName(had) or "none"))
-                applied = applied + 1
-            end
-            -- a light: only where the moment still shows the light it had
-            local LT = ns.Lights
-            if tonumber(u.light) and LT and LT.Light and LT.Light(tonumber(u.light)) and C.MomentLight(moment)
-                and C.MomentLight(moment) == tonumber(u.lightBase) then
-                LT.Settings(moment).light = tonumber(u.light)
-                applied = applied + 1
-            end
-        end
-    end
+    -- (WoW Helper's picks reach the game as proposals only (C.Proposal): nothing applied here)
     if L.RegisterInRumble then L.RegisterInRumble() end
-    return applied
+    return 0
 end
 
 -- The export (for WoW Helper): every moment with its number, group, feel and

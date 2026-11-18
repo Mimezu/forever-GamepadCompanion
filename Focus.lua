@@ -43,8 +43,14 @@ local function Focusable(f)
     if type(f.IsVisible) == "function" and not f:IsVisible() then return false end
     if type(f.IsMouseEnabled) == "function" and not f:IsMouseEnabled() then return false end
     if type(f.IsEnabled) == "function" and not f:IsEnabled() then return false end
-    -- (a secure button clicked from here would be blocked: never focused)
+    -- (a secure button, or one that runs an action (InsecureActionButtonTemplate: a
+    -- type attribute), clicked from here would run tainted: never focused)
     if type(f.IsProtected) == "function" and f:IsProtected() then return false end
+    if type(f.GetAttribute) == "function" then
+        for _, a in ipairs({ "type", "type1", "*type1", "*type-1", "macrotext", "spell" }) do
+            if f:GetAttribute(a) ~= nil then return false end
+        end
+    end
     if type(f.GetAlpha) == "function" and (f:GetAlpha() or 1) < 0.05 then return false end
     return true
 end
@@ -72,6 +78,10 @@ function Focus.Controls()
     if Shell.PageFrames then frame, header = Shell.PageFrames(key) end
     local out = Collect(frame, {})
     Collect(header, out)
+    -- (the status line's Undo, while it is offered)
+    local w = Shell.Window and Shell.Window()
+    local offer = w and rawget(w, "offer")
+    if offer and Focusable(offer) then out[#out + 1] = offer end
     return out, nil
 end
 
@@ -157,6 +167,11 @@ local function Legend(show)
             .. G("Shp_Triangle") .. " Default    " .. G("Shp_LShoulder") .. G("Shp_RShoulder") .. " Tabs    "
             .. G("Shp_LTrigger") .. G("Shp_RTrigger") .. " Groups")
     end
+    -- (after the Undo when one is offered, not over it)
+    local offer = rawget(w, "offer")
+    w.padLegend:ClearAllPoints()
+    if offer and offer:IsShown() then w.padLegend:SetPoint("LEFT", offer, "RIGHT", 14, 0)
+    else w.padLegend:SetPoint("LEFT", w.status, "LEFT", 0, 0) end
     w.padLegend:SetShown(show)
     w.status:SetAlpha(show and 0 or 1)
     if w.statusDot then w.statusDot:SetAlpha(show and 0 or 1) end
@@ -172,6 +187,8 @@ function Focus.Set(control)
     r:Show()
     for _, fn in ipairs(listeners) do pcall(fn, control) end
 end
+
+function Focus.Relayout() if state.active then Legend(true) end end
 
 -- the pad in use (a press) or not (the mouse, the window gone, a fight)
 function Focus.SetActive(on)
@@ -237,27 +254,81 @@ local ACTIONS = {
     end,
     PAD3 = function() RowAction("try") end,
     PAD4 = function() RowAction("default") end,
-    PADLSHOULDER = function() if Shell.Step then Shell.Step(-1) end; Focus.Set(nil) end,
-    PADRSHOULDER = function() if Shell.Step then Shell.Step(1) end; Focus.Set(nil) end,
     PADLTRIGGER = function() local t = triggers[Shell.Current()]; if t then t(-1); Focus.Set(nil) end end,
     PADRTRIGGER = function() local t = triggers[Shell.Current()]; if t then t(1); Focus.Set(nil) end end,
 }
 Focus.ACTIONS = ACTIONS
 
+local DPAD = { PADDUP = true, PADDDOWN = true, PADDLEFT = true, PADDRIGHT = true }
+local SHOULDER = { PADLSHOULDER = -1, PADRSHOULDER = 1 }
+
+-- (the mouse moved since the last press: the player is back on the mouse)
+local function Cursor()
+    if type(GetCursorPosition) ~= "function" then return nil end
+    return GetCursorPosition()
+end
+local function MouseMoved()
+    local x, y = Cursor()
+    if not (x and state.cx) then return false end
+    return math.abs(x - state.cx) + math.abs(y - state.cy) > 6
+end
+
 -- One press: handled here (it stops) or passed on to the game. Never in combat.
+-- Nothing is taken until the d-pad engages the ring: the window open, the pad
+-- still plays. Once engaged: A, B, X, Y and the d-pad; L2 / R2 only where the
+-- page uses them; L1 / R1 never taken (they step the tabs when released, unless
+-- the touchpad came with them: Blizzard's Focus UI chord). Any other button,
+-- or the mouse moved, gives it all back.
 function Focus.Press(frame, button)
     if Fighting() then return false end
+    if state.active and MouseMoved() then Focus.SetActive(false) end
+    if SHOULDER[button] then
+        if state.active then state.shoulder, state.chord = button, false end
+        return false
+    end
+    -- (the touchpad: part of a chord, the game's; the ring stays)
+    if button == "PADBACK" then state.chord = true; return false end
     local act = ACTIONS[button]
-    if not act then return false end
+    if not act then
+        if state.active then Focus.SetActive(false) end
+        return false
+    end
+    if not state.active and not DPAD[button] then return false end
+    if (button == "PADLTRIGGER" or button == "PADRTRIGGER") and not triggers[Shell.Current()] then return false end
     -- (this press stops here; from the next frame on, presses pass again)
     Call(frame, "SetPropagateKeyboardInput", false)
     if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
         C_Timer.After(0, function() if not Fighting() then Call(frame, "SetPropagateKeyboardInput", true) end end)
     end
     if not state.active then Focus.SetActive(true) end
+    state.cx, state.cy = Cursor()
     act()
     if state.active and state.focus then Focus.Set(state.focus) end
     return true
+end
+
+-- L1 / R1 released: the side tabs, unless the touchpad came with them
+function Focus.Release(button)
+    local dir = SHOULDER[button]
+    if not dir or state.shoulder ~= button then return end
+    local chord = state.chord
+    state.shoulder, state.chord = nil, false
+    if chord or Fighting() or not state.active then return end
+    if Shell.Step then Shell.Step(dir) end
+    Focus.Set(nil)
+end
+
+-- A popup opened or closed: the focus starts again where the pad can reach
+function Focus.Rescope()
+    if not state.active then return end
+    state.focus = nil
+    local pts = {}
+    for _, c in ipairs((Focus.Controls())) do
+        local x, y = Center(c)
+        if x then pts[#pts + 1] = { x, y, c } end
+    end
+    local first = Focus.First(pts)
+    Focus.Set(first and first[3] or nil)
 end
 
 -- The window takes the pad's buttons while open, out of combat
@@ -271,6 +342,7 @@ function Focus.Attach(window)
     window:HookScript("OnShow", function() Take(true) end)
     window:HookScript("OnHide", function() Take(false); Focus.SetActive(false); state.focus = nil end)
     window:SetScript("OnGamePadButtonDown", function(self, button) Focus.Press(self, button) end)
+    window:SetScript("OnGamePadButtonUp", function(_, button) Focus.Release(button) end)
     local events = CreateFrame("Frame")
     for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "GLOBAL_MOUSE_DOWN" }) do
         pcall(events.RegisterEvent, events, e)
@@ -282,6 +354,8 @@ function Focus.Attach(window)
     end)
     Focus.Take = Take
 end
+
+if S.OnPopupChange then S.OnPopupChange(function() Focus.Rescope() end) end
 
 -- Moments: L2 / R2 step through the groups
 Focus.SetTrigger("moments", function(dir)

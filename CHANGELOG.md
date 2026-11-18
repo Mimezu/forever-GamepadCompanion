@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.53.5 — 2026-11-18
+
+- Night review 2, Safety:
+  - **F2-1**: the pad's ring never clicks a button that runs an action (Edit Mode, Macros, Spells: InsecureActionButtonTemplate, a type attribute): a click from addon code would run them tainted
+  - **F2-2**: the window open, the pad still plays: nothing is taken until the d-pad engages the ring; then A, B, X, Y and the d-pad; L2 / R2 only where the page uses them; L1 / R1 never taken (the tabs step on release); another button or the mouse moved gives it all back
+  - **F2-7**: L1 + the touchpad (Blizzard's Focus UI) steps no tab. **F2-8**: a popup opened or closed, the focus starts again inside what's in reach
+  - **F2-6**: the Undo in reach of the ring; the legend beside it, not over it
+  - **F2-4**: a proposal's id as WoW Helper writes it ("12"): a light and a sound stored as numbers, an unknown light refused; written, read back, and only then accepted (a test per kind, with text ids)
+  - **F2-3**: Your spells' Default offers Undo (the trigger rows' is the Triggers session's, T2-4)
+  - **F2-9**: Search's index built when the field is entered, filtered per key. **F2-10**: Ctrl+F wired on the first show out of combat
+  - **F2-12**: WoW Helper's old "use" (a live swap) gone: its picks come as proposals only
+  - **F2-11**: the focus test stubs a real action button and fires the combat events
+
 ## 0.53.4 — 2026-11-18
 
 - **Undo belongs to its own change** (night review 2, U2-4): a pick on the same row, or a newer message, takes the Undo away, and a stale Undo can no longer put an old choice back over a newer one ("changed since · not undone")
