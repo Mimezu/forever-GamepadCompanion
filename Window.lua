@@ -97,6 +97,11 @@ local function Page(key)
         if glyph.SetTexCoord then glyph:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
     end
     page.glyph = glyph
+    if Shell.GILDED[key] then
+        local tile = S.SkinTexture(page.header, nil, "ARTWORK", 1, false, glyph, { gilded = true },
+            "Interface\\AddOns\\GamepadCompanion\\Media\\gilded-" .. Shell.GILDED[key])
+        tile:SetAllPoints(glyph)
+    end
     local title = page.header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("LEFT", glyph, "RIGHT", 8, 0)
     title:SetText(def.name)
@@ -109,6 +114,15 @@ local function Page(key)
     end
     local strip = S.SkinTexture(page.header, "header", "BACKGROUND", 0, false)
     strip:SetPoint("TOPLEFT", -2, 4); strip:SetPoint("BOTTOMRIGHT", 2, -2)
+    -- (Gilded: the plaque, its ends kept square, its middle stretched)
+    local G = { gilded = true }
+    local ph, pw = HEADER - 6, 300
+    local pl = S.SkinTexture(page.header, "plaqueL", "BACKGROUND", 1, false, nil, G)
+    pl:SetPoint("LEFT", -2, 0); pl:SetSize(ph, ph)
+    local pr = S.SkinTexture(page.header, "plaqueR", "BACKGROUND", 1, false, nil, G)
+    pr:SetPoint("LEFT", pw - ph, 0); pr:SetSize(ph, ph)
+    local pm = S.SkinTexture(page.header, "plaqueM", "BACKGROUND", 1, false, nil, G)
+    pm:SetPoint("LEFT", pl, "RIGHT", 0, 0); pm:SetPoint("RIGHT", pr, "LEFT", 0, 0); pm:SetHeight(ph)
     local line = page.header:CreateTexture(nil, "ARTWORK")
     line:SetPoint("BOTTOMLEFT", 0, -2)
     line:SetSize(Shell.W, 1)
@@ -142,6 +156,10 @@ function Shell.Refresh()
     if page and page.def.refresh then page.def.refresh() end
 end
 
+-- Gilded's glyph tiles by page (the rest keep their icons)
+Shell.GILDED = { controller = "controller", moments = "feel", gestures = "gesture", setup = "gear", bars = "bars",
+    help = "book" }
+
 local function Tab(def, index)
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("common-sidetab")
     local tab = CreateFrame("Button", nil, window)
@@ -164,6 +182,11 @@ local function Tab(def, index)
         icon:AddMaskTexture(mask)
     else
         icon:SetSize(34, 34)
+    end
+    if Shell.GILDED[def.key] then
+        local tile = S.SkinTexture(tab, nil, "ARTWORK", 1, false, icon, { gilded = true },
+            "Interface\\AddOns\\GamepadCompanion\\Media\\gilded-" .. Shell.GILDED[def.key])
+        tile:SetPoint("CENTER", -4, 0); tile:SetSize(34, 34)
     end
     tab.selected = tab:CreateTexture(nil, "OVERLAY")
     tab.selected:SetAtlas("common-sidetab-selected", true)
@@ -217,7 +240,7 @@ local function Build()
     local inset = window.chrome:Insets()
     window:SetSize(Shell.W + inset.left + inset.right, HEADER + Shell.H + FOOTER + inset.top + inset.bottom)
     -- (the skin's background, inside the native frame, under everything)
-    local back = S.SkinTexture(window, "background", "BACKGROUND", 7, true)
+    local back = S.SkinTexture(window, "background", "BACKGROUND", 7, true, nil, { v2 = true, gilded = true })
     back:SetPoint("TOPLEFT", inset.left, -inset.top)
     back:SetPoint("BOTTOMRIGHT", -inset.right, inset.bottom)
     content = CreateFrame("Frame", nil, window)

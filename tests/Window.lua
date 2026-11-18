@@ -165,6 +165,8 @@ do
     end
     blizzard.scripts.OnClick(blizzard)
     assert(S.Skin() == "blizzard" and GamepadCompanionHapticsDB.skin == "blizzard", "Blizzard")
+    S.SetSkin("gilded")
+    assert(S.Skin() == "gilded" and GamepadCompanionHapticsDB.skin == "gilded", "Gilded")
     S.SetSkin("v2")
     assert(S.Skin() == "v2" and GamepadCompanionHapticsDB.skin == nil, "back to v2")
     print("PASS: skin switch: v2 by default, Blizzard and back")

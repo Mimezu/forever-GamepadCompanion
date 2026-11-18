@@ -436,17 +436,22 @@ local function BuildTools(frame, header)
     local half = (W - 12) / 2
     -- Skin: v2 (calm textures) or Blizzard (flat fills); applies at once
     if header and S.Segments then
-        local label = Text(header, "Skin", W - 300, -11, 40, 12, GOLD)
+        local label = Text(header, "Skin", W - 370, -11, 40, 12, GOLD)
         label:SetJustifyH("RIGHT")
-        S.Segments(header, W - 255, -2, { 50, 72 }, 26)
+        local widths = { 50, 66, 72 }
+        S.Segments(header, W - 325, -2, widths, 26)
         ui.skin = {}
-        for i, e in ipairs({ { "v2", "v2" }, { "blizzard", "Blizzard" } }) do
-            ui.skin[e[1]] = S.Segment(header, e[2], W - 254 + (i == 1 and 0 or 50), -3, i == 1 and 50 or 72, function()
+        local sx = W - 324
+        for i, e in ipairs({ { "v2", "v2" }, { "gilded", "Gilded" }, { "blizzard", "Blizzard" } }) do
+            local x = sx
+            sx = sx + widths[i]
+            ui.skin[e[1]] = S.Segment(header, e[2], x, -3, widths[i], function()
                 S.SetSkin(e[1])
                 for k, b in pairs(ui.skin) do S.SetSelected(b, k == S.Skin()) end
             end, 12, 26)
         end
         for k, b in pairs(ui.skin) do S.SetSelected(b, k == S.Skin()) end
+        S.OnSkin(function(skin) for k, b in pairs(ui.skin) do S.SetSelected(b, k == skin) end end)
     end
     -- Lab: the tuning and probes tab, for the curious
     if header and API.SetLab then

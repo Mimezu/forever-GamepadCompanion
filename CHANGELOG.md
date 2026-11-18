@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.43.0 — 2026-11-18
+
+- **Skin: Gilded**, a third choice (Tools › Skin: v2 | Gilded | Blizzard), from Astra's sheet with flat gold glyphs (style-sheet-v2B): cards in dark leather with a thin gold rule, an angled plaque behind each page's name, gold glyph tiles on the side tabs and page names (Controller, Moments, Gestures, Setup, Bars, Help; Tools and Lab keep theirs), joined choices filled with gold, switches with a gold knob and rim. Blizzard's native frame and close button stay; the feel icons are unchanged
+- Skins switch at once; whatever a skin doesn't draw falls back to the flat look
+- `Media\gilded-*`: ten 32-bit TGAs (tiles 128, plaque 64 in three pieces, leather 256)
+
 ## 0.42.0 — 2026-11-18
 
 - **Skin v2** (the default): calm textures inside Blizzard's own frame, made with Astra from your feel icons and hand-finished (flat, neutral, seamless): a near-black background, a quiet card surface, a faint header strip under each page's name, a thin gold divider under card titles. The native frame, borders, close button, side tabs and every feel icon are unchanged

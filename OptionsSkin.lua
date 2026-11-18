@@ -11,36 +11,47 @@ S.GOLD, S.YELLOW, S.GREY, S.DIM = { 0.94, 0.86, 0.69 }, { 1, 0.82, 0 }, { 0.78, 
 -- GamepadCompanionHapticsDB.skin (nil: v2).
 local MEDIA = "Interface\\AddOns\\GamepadCompanion\\Media\\"
 S.MEDIA = { background = MEDIA .. "background", surface = MEDIA .. "surface", header = MEDIA .. "header",
-    divider = MEDIA .. "divider" }
-local skinned = {}
+    divider = MEDIA .. "divider", leather = MEDIA .. "gilded-leather", plaqueL = MEDIA .. "gilded-plaque-left",
+    plaqueM = MEDIA .. "gilded-plaque-mid", plaqueR = MEDIA .. "gilded-plaque-right" }
+S.SKINS = { v2 = true, gilded = true, blizzard = true }
+local skinned, hooks = {}, {}
 
 function S.Skin()
     local db = type(GamepadCompanionHapticsDB) == "table" and GamepadCompanionHapticsDB or nil
-    return (db and db.skin == "blizzard") and "blizzard" or "v2"
+    local v = db and db.skin
+    return (v == "blizzard" or v == "gilded") and v or "v2"
 end
 
--- Show or hide every skin texture (and what it covers) at once
+-- Something drawn in code that looks different per skin: fn(skin), now and on every change
+function S.OnSkin(fn)
+    hooks[#hooks + 1] = fn
+    fn(S.Skin())
+end
+
+-- Show or hide every skin texture (and what it covers) at once; restyle the rest
 function S.ApplySkin()
-    local on = S.Skin() == "v2"
+    local skin = S.Skin()
     for _, e in ipairs(skinned) do
-        local show = on and not e.failed
-        e.tex:SetShown(show)
+        local show = e.skins[skin] and not e.failed
+        e.tex:SetShown(show and true or false)
         if e.covers then e.covers:SetShown(not show) end
     end
+    for _, fn in ipairs(hooks) do fn(skin) end
 end
 
 function S.SetSkin(v)
     if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
-    GamepadCompanionHapticsDB.skin = v == "blizzard" and "blizzard" or nil
+    GamepadCompanionHapticsDB.skin = (v == "blizzard" or v == "gilded") and v or nil
     S.ApplySkin()
 end
 
 -- A skin texture on a region: tiled (tile) or stretched; covers: a flat
--- region it replaces while shown
-function S.SkinTexture(parent, kind, layer, sub, tile, covers)
+-- region it replaces while shown; skins: the skins it shows in (default v2);
+-- path: a file of its own (else S.MEDIA[kind])
+function S.SkinTexture(parent, kind, layer, sub, tile, covers, skins, path)
     local tex = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sub or 0)
-    local e = { tex = tex, covers = covers }
-    local ok, loaded = pcall(tex.SetTexture, tex, S.MEDIA[kind], tile and "REPEAT" or nil, tile and "REPEAT" or nil)
+    local e = { tex = tex, covers = covers, skins = skins or { v2 = true } }
+    local ok, loaded = pcall(tex.SetTexture, tex, path or S.MEDIA[kind], tile and "REPEAT" or nil, tile and "REPEAT" or nil)
     -- (SetTexture says false when the file can't be read: keep the flat look)
     if not ok or loaded == false then e.failed = true end
     if tile then
@@ -48,7 +59,7 @@ function S.SkinTexture(parent, kind, layer, sub, tile, covers)
         if tex.SetVertTile then tex:SetVertTile(true) end
     end
     skinned[#skinned + 1] = e
-    local on = S.Skin() == "v2" and not e.failed
+    local on = e.skins[S.Skin()] and not e.failed
     tex:SetShown(on)
     if covers then covers:SetShown(not on) end
     return tex
@@ -237,6 +248,7 @@ local function LabelColor(button)
     local label = button.label
     if not label then return end
     if not button:IsEnabled() then label:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3])
+    elseif button.selected and rawget(button, "segment") and S.Skin and S.Skin() == "gilded" then label:SetTextColor(0.16, 0.1, 0.04)
     elseif button.selected then label:SetTextColor(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3])
     else label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) end
 end
@@ -329,7 +341,12 @@ function S.NewCheck(parent, label, x, y, onClick, labelWidth)
         local on = check:GetChecked() and true or false
         knob:ClearAllPoints()
         knob:SetPoint("LEFT", check, "LEFT", 2 + (on and travel or 0), 0)
-        if on then Paint(track, { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 }) else Paint(track, TRACK_OFF) end
+        local gilded = S.Skin and S.Skin() == "gilded"
+        if on then Paint(track, { 0.7, 0.45, 0.1, 1 }, { 1, 0.78, 0.25, 1 })
+        else Paint(track, gilded and { 0.12, 0.08, 0.05, 1 } or TRACK_OFF) end
+        if gilded then knob:SetColorTexture(on and 1 or 0.85, on and 0.86 or 0.68, on and 0.5 or 0.35, 1)
+        else knob:SetColorTexture(0.95, 0.9, 0.8, 1) end
+        Paint(rim, gilded and { 0.9, 0.7, 0.35, 0.9 } or RIM)
         check:SetAlpha(check:IsEnabled() and 1 or 0.45)
     end
     Layout()
@@ -350,6 +367,7 @@ function S.NewCheck(parent, label, x, y, onClick, labelWidth)
     end)
     check:SetScript("OnEnter", S.ShowTooltip)
     check:SetScript("OnLeave", S.HideTooltip)
+    S.OnSkin(function() Update() end)
     if check.HookScript then
         check:HookScript("OnEnable", Update)
         check:HookScript("OnDisable", Update)
@@ -367,7 +385,6 @@ function S.Segment(parent, label, x, y, width, action, size, height)
     b:SetSize(width, height or 26)
     b.selection = b:CreateTexture(nil, "BACKGROUND")
     b.selection:SetAllPoints()
-    S.Gradient(b.selection, "VERTICAL", { 0.6, 0.4, 0.1, 0.2 }, { 1, 0.82, 0.3, 0.35 })
     b.selection:Hide()
     b.underline = b:CreateTexture(nil, "ARTWORK")
     b.underline:SetPoint("BOTTOMLEFT", 3, 1); b.underline:SetPoint("BOTTOMRIGHT", -3, 1)
@@ -389,7 +406,12 @@ function S.Segment(parent, label, x, y, width, action, size, height)
     if b.HookScript then b:HookScript("OnEnable", LabelColor); b:HookScript("OnDisable", LabelColor) end
     if action then b:SetScript("OnClick", action) end
     b.segment = true
-    LabelColor(b)
+    S.OnSkin(function(skin)
+        if skin == "gilded" then S.Gradient(b.selection, "VERTICAL", { 0.72, 0.5, 0.16, 0.95 }, { 0.98, 0.8, 0.38, 0.95 })
+        else S.Gradient(b.selection, "VERTICAL", { 0.6, 0.4, 0.1, 0.2 }, { 1, 0.82, 0.3, 0.35 }) end
+        b.underline:SetAlpha(skin == "gilded" and 0 or 1)
+        LabelColor(b)
+    end)
     return b
 end
 
@@ -403,7 +425,10 @@ function S.Segments(parent, x, y, widths, height)
     local bg = well:CreateTexture(nil, "BACKGROUND", nil, -3)
     bg:SetAllPoints(); bg:SetColorTexture(0, 0, 0, 0.35)
     local rim = Plate(well, "common-button-list-collapseExpand", true)
-    rim:Tint({ 0.85, 0.85, 0.85, 0.7 })
+    S.OnSkin(function(skin)
+        if skin == "gilded" then rim:Tint({ 1, 0.82, 0.45, 0.95 }); bg:SetColorTexture(0.1, 0.07, 0.05, 0.85)
+        else rim:Tint({ 0.85, 0.85, 0.85, 0.7 }); bg:SetColorTexture(0, 0, 0, 0.35) end
+    end)
     local at = 1
     for i = 1, #widths - 1 do
         at = at + widths[i]
@@ -433,6 +458,8 @@ function S.Card(parent, title, x, y, width, height, icon)
     card:SetSize(width, height)
     local surface = S.SkinTexture(card, "surface", "BACKGROUND", -3, true)
     surface:SetPoint("TOPLEFT", 1, -1); surface:SetPoint("BOTTOMRIGHT", -1, 1)
+    local leather = S.SkinTexture(card, "leather", "BACKGROUND", -3, true, nil, { gilded = true })
+    leather:SetPoint("TOPLEFT", 1, -1); leather:SetPoint("BOTTOMRIGHT", -1, 1)
     local wash = card:CreateTexture(nil, "BACKGROUND", nil, -2)
     wash:SetAllPoints()
     -- (deeper toward the foot)
@@ -444,8 +471,15 @@ function S.Card(parent, title, x, y, width, height, icon)
         line:SetColorTexture(0.68, 0.50, 0.26, alpha)
         return line
     end
-    Line(0, 0, width, 1, 0.55); Line(0, -height + 1, width, 1, 0.3)
-    Line(0, 0, 1, height, 0.3); Line(width - 1, 0, 1, height, 0.3)
+    local edges = { Line(0, 0, width, 1, 0.55), Line(0, -height + 1, width, 1, 0.3),
+        Line(0, 0, 1, height, 0.3), Line(width - 1, 0, 1, height, 0.3) }
+    S.OnSkin(function(skin)
+        for i, l in ipairs(edges) do
+            if skin == "gilded" then l:SetColorTexture(0.85, 0.66, 0.32, i == 1 and 0.95 or 0.75)
+            else l:SetColorTexture(0.68, 0.50, 0.26, i == 1 and 0.55 or 0.3) end
+        end
+        wash:SetAlpha(skin == "gilded" and 0.5 or 1)
+    end)
     if title then
         -- a warm title band, a soft shadow under it, an icon before the title
         local band = card:CreateTexture(nil, "BACKGROUND", nil, -1)
@@ -468,6 +502,9 @@ function S.Card(parent, title, x, y, width, height, icon)
         end
         card.title = S.Text(card, title, tx, -10, width - tx - 12, 12, S.YELLOW)
         local line = Line(10, -30, width - 20, 1, 0.25)
+        S.OnSkin(function(skin)
+            if skin == "gilded" then line:SetColorTexture(0.85, 0.66, 0.32, 0.8) else line:SetColorTexture(0.68, 0.50, 0.26, 0.25) end
+        end)
         local divider = S.SkinTexture(card, "divider", "BORDER", 1, false, line)
         divider:SetPoint("TOPLEFT", 10, -29); divider:SetSize(width - 20, 3)
     end
