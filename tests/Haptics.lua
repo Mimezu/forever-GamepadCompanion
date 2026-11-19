@@ -3339,7 +3339,7 @@ do
     H.DB().light = true
     local before = Today()
     assert(F.MODES == nil and F.SetMode == nil, "no mode switch")
-    assert(P.RECOMMENDED.plainUnderHD == nil and F.Faint == nil, "no second faint rule: Under HD is the one setting")
+    assert(P.RECOMMENDED.plainUnderHD == nil and F.Faint == nil, "no faint rule: the plain rumble at full")
     WowHelperData = { plain = {
         levelUp = { name = "Rise up", hd = true, rumble = { { 0, 0, 0 }, { 0.1, 1, 0.5 }, { 0.3, 0, 0 } }, light = { 1, 0, 0, 0.5 } },
         gather = { name = "Dig", rumble = { { 0.05, 0.37, 0.37 }, { 0.2, 0, 0 } } },
@@ -3388,23 +3388,15 @@ do
     end
     K.Enabled = function() return true end
     Style("Shapes")
-    -- (0.57.2: one setting, Under HD, scales every game rumble at the send; the plain one too)
+    -- (0.57.3: the plain rumble always at full; the DualSense plays only WoW Helper's HD while it
+    -- runs, so nothing doubles; tested in game 2026-11-19)
     local _, sc = F.Rumble("levelUp")
-    assert(F.PlayStation() and F.HelperPlaysHD() and sc == 1, "Shapes style, link on: the plain at its own scale")
-    assert(H.UnderHD() == 1, "Under HD as shipped: 100 %, both as before")
-    H.SetUnderHD(0)
-    assert(H.UnderHD() == 0, "Under HD 0 %, Shapes style, link on: no game rumble")
-    local sent = {}
-    local setVib = C_GamePad.SetVibration
-    C_GamePad.SetVibration = function(kind, v) sent[kind] = v end
-    H.Send("Low", 0.8); H.Send("LTrigger", 0.5)
-    assert(sent.Low == 0 and sent.LTrigger == 0.5, "Under HD: the motors only, never the triggers")
-    C_GamePad.SetVibration = setVib
+    assert(F.PlayStation() and F.HelperPlaysHD() and sc == 1, "Shapes style, link on: at full")
+    assert(H.UnderHD == nil, "no Under HD setting: the pad ignores the game's rumble under HD")
     now = now + 2
     V.Fire("levelUp")
-    assert(#plains == 2 and plains[2].scale == 1, "Shapes style: played, scaled at the send")
+    assert(#plains == 2 and plains[2].scale == 1, "Shapes style: played at full")
     Style("Letters")
-    assert(H.UnderHD() == 1, "Xbox style: the game's rumble at full, whatever Under HD says")
     _, sc = F.Rumble("levelUp")
     assert(not F.PlayStation() and not F.HelperPlaysHD() and sc == 1, "Xbox style, link on: at full")
     now = now + 2
@@ -3414,9 +3406,7 @@ do
     assert(not F.PlayStation() and select(2, F.Rumble("levelUp")) == 1, "no pad read: at full")
     Style("Shapes")
     K.Enabled = function() return false end
-    assert(select(2, F.Rumble("levelUp")) == 1 and H.UnderHD() == 1, "Shapes style, link off: at full")
-    H.SetUnderHD(1)
-    assert(H.DB().underHD == nil, "100 %: nothing stored")
+    assert(select(2, F.Rumble("levelUp")) == 1, "Shapes style, link off: at full")
     K.Enabled, C_GamePad.GetDeviceMappedState = enabled, mapped
     for i = #plains, 2, -1 do plains[i] = nil end
     plays = { plays[1] }

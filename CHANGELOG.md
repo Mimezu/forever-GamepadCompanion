@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.57.3 — 2026-11-19
+
+- Under HD removed: tested in game, the DualSense plays only WoW Helper's HD while it runs, whatever the game's rumble says; with WoW Helper closed the game's rumble is the backup and should play in full. So the game's rumble always plays at full (full feels' backups too), and nothing doubles
+
 ## 0.57.2 — 2026-11-19
 
 - **Lab › Link › Under HD** (0-100 %, as shipped 100 %): how much of the game's own rumble plays while WoW Helper plays HD, for every moment. Only on a PlayStation pad with the link and HD on; any other pad keeps the rumble at full. The triggers' rumble is never touched

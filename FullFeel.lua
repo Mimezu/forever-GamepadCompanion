@@ -89,7 +89,9 @@ function F.Rumble(key)
     local e = F.Plain(key)
     local points = e and F.Points(e)
     if not points then return nil end
-    -- (under HD: Setup › Under HD scales every game rumble, this one too: one setting)
+    -- (always at full: while WoW Helper drives the pad, the DualSense plays only its HD and
+    -- this is not felt; with WoW Helper closed it is the backup, felt in full. Tested in game
+    -- 2026-11-19)
     return points, 1
 end
 
