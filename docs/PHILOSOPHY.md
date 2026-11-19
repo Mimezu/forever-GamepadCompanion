@@ -36,6 +36,11 @@ doesn't match yet, the audit's migration plan says when it will.)
   count shows a ring. WoW Helper proposing something shows "+", never the dot.
 - Nothing needs setup. WoW Helper adds HD feel, sound and light; without it, the pad still
   rumbles well.
+- Three tiers, no switch; each moment's active full feel decides:
+  - no WoW Helper: the addon's basic rumble;
+  - with WoW Helper: its basic HD feels;
+  - a full feel made in WoW Helper: that moment plays it (the addon plays its plain version
+    faintly underneath). The rest stay as they were.
 
 ## Finding things
 - **Just felt**: the last moments, in both programs; click one to open it, right-click: **Again**.

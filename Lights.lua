@@ -805,7 +805,7 @@ local function Play(key, ctx, force)
     if not force and St and St.Is("hush") then return end
     local s = LT.Settings(key)
     if not (s.on or force) then return end
-    -- (Full feels: WoW Helper's plain bar colour, while the game drives the bar)
+    -- (a full feel: WoW Helper's plain bar colour, while the game drives the bar)
     local F = ns.FullFeel
     if F and not LT.HelperDrives() then
         local r, g, b, t = F.Light(key)

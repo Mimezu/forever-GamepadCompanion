@@ -3310,9 +3310,10 @@ do
     io.write("PASS: gathering's actions: moments of their own, their sound on each strike once, proposals, nested" .. string.char(10))
 end
 
--- Full feels (FullFeel.lua, the full-feel plan steps 5 and 6): Lab › Mode, Classic by default and
--- as before; WoW Helper's plain version played instead (faint under HD), inherited by Gathering's
--- actions; lighter moment rows; today's settings never rewritten
+-- Full feels (FullFeel.lua, the full-feel plan steps 5 and 6): no mode switch, a moment's own
+-- plain entry from WoW Helper decides. With one: its rumble and bar colour play (faint under
+-- HD), inherited by Gathering's actions, a lighter row. Without one: as before. 0.55's
+-- feelMode is ignored; today's settings never rewritten
 do
     local F, C, LT, page, P = ns.FullFeel, ns.HelperCues, ns.Lights, ns.RumblePage, ns.Profiles
     local function Dump(v, out)
@@ -3337,7 +3338,7 @@ do
     V.Settings().enabled = true
     H.DB().light = true
     local before = Today()
-    assert(F.Mode() == "classic" and not F.On() and H.DB().feelMode == nil, "Classic by default")
+    assert(F.MODES == nil and F.SetMode == nil, "no mode switch")
     assert(P.RECOMMENDED.plainUnderHD == 0.3 and F.Faint() == 0.3, "faint under HD: one Recommended value")
     WowHelperData = { plain = {
         levelUp = { name = "Rise up", hd = true, rumble = { { 0, 0, 0 }, { 0.1, 1, 0.5 }, { 0.3, 0, 0 } }, light = { 1, 0, 0, 0.5 } },
@@ -3360,19 +3361,22 @@ do
     V.PlayPlain = function(p, s) plains[#plains + 1] = { points = p, scale = s } end
     V.Play = function(k) plays[#plays + 1] = k end
     H.Flash = function(id, r, g, b, t) flashes[#flashes + 1] = { id, r, g, b, t } end
-    -- Classic: as before, plain or not
-    assert(F.Plain("levelUp") == nil and F.Rumble("levelUp") == nil, "Classic: nothing plain")
+    -- no entry: Classic, unchanged (an old feelMode = "full" read and ignored)
+    local plain = WowHelperData
+    WowHelperData = nil
+    H.DB().feelMode = "full"
+    assert(F.Plain("levelUp") == nil and F.Rumble("levelUp") == nil and F.Light("levelUp") == nil, "no entry: nothing plain")
     now = now + 2
     V.Fire("levelUp")
-    assert(#plays == 1 and #plains == 0, "Classic: its own feel")
+    assert(#plays == 1 and #plains == 0, "no entry: its own feel")
     LT.Fire("levelUp")
-    assert(#flashes == 0, "Classic: its own light")
-    -- Full feels
-    F.SetMode("full")
-    assert(H.DB().feelMode == "full" and F.On(), "Full feels: one new key")
+    assert(#flashes == 0, "no entry: its own light")
+    -- a plain entry plays with no switch
+    WowHelperData = plain
+    H.DB().feelMode = nil
     now = now + 2
     V.Fire("levelUp")
-    assert(#plays == 1 and #plains == 1 and math.abs(plains[1].scale - 0.3) < 1e-6, "the plain rumble, faint under HD")
+    assert(#plays == 1 and #plains == 1 and math.abs(plains[1].scale - 0.3) < 1e-6, "a plain entry, no switch: faint under HD")
     -- (its light fires with it: the plain bar colour)
     assert(#flashes == 1 and flashes[1][2] == 1 and flashes[1][3] == 0 and flashes[1][5] == 0.5, "the plain bar colour")
     now = now + 2
@@ -3385,7 +3389,7 @@ do
     assert(#plains == 2 and plains[2].scale == 1, "a Lab moment's plain rumble")
     V.PlayPlain, V.Play, H.Flash = playPlain, play, flash
 
-    -- mining in Full feels: each strike plays Gathering's plain rumble on the strikes' clock
+    -- mining with Gathering's entry: each strike plays Gathering's plain rumble on the strikes' clock
     V.SetCastPreset("gather", "auto")
     V.Settings().strikes = {}
     CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
@@ -3430,15 +3434,14 @@ do
     assert(edited == "levelUp", "Edit: opens it in WoW Helper")
     C.EditHD = edit
     local crit = find("r", "crit")
-    assert(crit and crit.fullName:GetText() == "Classic", "no full feel yet: Classic")
-    -- Classic again: the rows as before
-    F.SetMode("classic")
+    assert(crit and crit.pick:IsShown() and crit.default:IsShown() and not crit.fullEdit:IsShown()
+        and not crit.fullName:IsShown(), "no entry: its row as before")
+    -- (WoW Helper drops the entry: the row as before)
+    WowHelperData = nil
     page.Refresh()
     assert(row.pick:IsShown() and row.default:IsShown() and not row.fullEdit:IsShown() and not row.fullName:IsShown(), "Classic rows")
-    assert(H.DB().feelMode == nil, "Classic: nothing saved")
     assert(Today() == before, "events, lights, sounds, spells, profiles: untouched")
-    WowHelperData = nil
-    io.write("PASS: Full feels: Classic as before, plain played instead (faint under HD), inherited, lighter rows" .. string.char(10))
+    io.write("PASS: Full feels: a plain entry plays with no switch (faint under HD), inherited, lighter row; no entry: Classic, unchanged" .. string.char(10))
 end
 
 -- Learned · gathering: mining's second hit is the crack at the cast's end (not a repeat), in a

@@ -1,23 +1,17 @@
--- Full feels (Migration\full-feel-plan-2026-11-18.md, steps 5 and 6): a second mode beside
--- Classic. In Full feels, WoW Helper owns what a moment plays (a full feel: HD vibration,
--- sound, light on one timeline); the addon keeps when, and plays a plain version as a
--- backup: WowHelperData.plain[momentKey] = { name, hd = true, rumble = { { t, left, right },
--- ... } (at most 16 points, seconds, 0-1), light = { r, g, b, t } }.
+-- Full feels (Migration\full-feel-plan-2026-11-18.md, steps 5 and 6). No mode switch: a
+-- moment's active full feel decides. WoW Helper publishes a plain version only for moments
+-- with an active full feel (HD vibration, sound, light on one timeline); the addon keeps
+-- when, and plays the plain version as a backup: WowHelperData.plain[momentKey] = { name,
+-- hd = true, rumble = { { t, left, right }, ... } (at most 16 points, seconds, 0-1),
+-- light = { r, g, b, t } }. A moment without one plays exactly as before.
 --
--- Classic (the default) plays exactly as before. Only new keys are written: the mode
--- (GamepadCompanionHapticsDB.feelMode = "full"); events, lightEvents, link.sounds, spells
--- and the profiles are read, never rewritten.
+-- Nothing is written: events, lightEvents, link.sounds, spells and the profiles are read,
+-- never rewritten. (0.55's feelMode setting is left as it is and ignored.)
 local _, ns = ...
-local H = ns.Haptics
 local F = {}
 ns.FullFeel = F
 
-F.MODES = { { "classic", "Classic" }, { "full", "Full feels" } }
 F.MAX_POINTS = 16
-
-function F.Mode() return H.DB().feelMode == "full" and "full" or "classic" end
-function F.SetMode(mode) H.DB().feelMode = mode == "full" and "full" or nil end
-function F.On() return F.Mode() == "full" end
 
 -- The rumble left under WoW Helper's HD (hd = true): faint, so a crashed WoW Helper still
 -- leaves a felt tap, never a second full rumble. Recommended (Profiles.lua), one value.
@@ -27,8 +21,8 @@ function F.Faint()
     return v and math.max(0, math.min(1, v)) or 0.3
 end
 
--- A moment's plain entry as WoW Helper wrote it, in either mode (nil: none). A moment under
--- another ("gather:mining") has its parent's until it has its own.
+-- A moment's plain entry as WoW Helper wrote it (nil: none, it plays as before). A moment
+-- under another ("gather:mining") has its parent's until it has its own.
 function F.Entry(key)
     local d = WowHelperData
     local plain = type(d) == "table" and type(d.plain) == "table" and d.plain
@@ -40,11 +34,8 @@ function F.Entry(key)
     return nil
 end
 
--- The entry that plays now: Full feels only
-function F.Plain(key)
-    if not F.On() then return nil end
-    return F.Entry(key)
-end
+-- The entry that plays now: whenever there is one
+function F.Plain(key) return F.Entry(key) end
 
 -- A full feel's name (nil: none for this moment)
 function F.Name(key)
@@ -86,8 +77,8 @@ function F.Sample(points, t)
     return last[2], last[3]
 end
 
--- The plain rumble a moment plays now (Full feels): its points and its scale (faint under
--- HD), or nil (Classic, or no plain rumble for it)
+-- The plain rumble a moment plays now: its points and its scale (faint under HD), or nil
+-- (no plain rumble for it)
 function F.Rumble(key)
     local e = F.Plain(key)
     local points = e and F.Points(e)
@@ -107,7 +98,7 @@ function F.Shape(points, scale, start, loop)
     end
 end
 
--- The plain bar colour a moment plays now (Full feels): r, g, b (0-1) and seconds, or nil
+-- The plain bar colour a moment plays now: r, g, b (0-1) and seconds, or nil
 function F.Light(key)
     local e = F.Plain(key)
     local l = e and type(e.light) == "table" and e.light

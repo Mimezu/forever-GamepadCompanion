@@ -891,7 +891,7 @@ local function StartShape(fn, once, scale)
 end
 
 -- Full feels (FullFeel.lua): a moment's plain rumble from WoW Helper, and its scale (faint
--- under HD); nil in Classic or without one
+-- under HD); nil without one (it plays as before)
 local function Plain(key)
     local F = ns.FullFeel
     if F then return F.Rumble(key) end

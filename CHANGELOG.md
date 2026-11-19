@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.57.0 — 2026-11-19
+
+- **Full feels without a switch**: Lab › Mode is gone. Each moment's active full feel decides: a moment WoW Helper has a full feel for (`WowHelperData.plain`) plays its plain version (faint under HD); every other moment plays as before
+- Only those moments show the full feel's name and Edit; every other row is as before
+- The old `feelMode` setting is ignored, not rewritten
+
 ## 0.56.0 — 2026-11-19
 
 - **Every button takes every action**: bar slots now take Quick use, Halo rings, windows, typed macros and pets too, as the touchpad does (one accept set)

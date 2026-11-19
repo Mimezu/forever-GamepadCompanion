@@ -840,7 +840,7 @@ function L.Fire(key, gain, feel, absolute, stretch)
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
     local own = ns.Volume and ns.Volume.Feel(key) or 1
-    -- (Full feels: WoW Helper's plain rumble instead, when it has one: Rumble's shaper)
+    -- (a full feel: WoW Helper's plain rumble instead, when it has one: Rumble's shaper)
     local F = ns.FullFeel
     local points, scale
     if F and not feel then points, scale = F.Rumble(key) end

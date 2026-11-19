@@ -706,9 +706,9 @@ local function MakeRow(parent, y, width, kind, key)
         marks = 3,
     })
     row.kind, row.key = kind, key
-    -- Full feels (FullFeel.lua): the full feel's name and Edit (it plays and opens in WoW
-    -- Helper) where the plate and Default are; the pickers, Default, Shape and Try hidden
-    -- (kept for Classic)
+    -- Full feels (FullFeel.lua): on a moment with a full feel, its name and Edit (it plays and
+    -- opens in WoW Helper) where the plate and Default are; the pickers, Default, Shape and
+    -- Try hidden, not deleted
     if row.default then
         row.fullEdit = S.NewButton(row, "Edit", 0, 0, 60, function()
             local ok, why = false, "Needs WoW Helper"
@@ -2185,7 +2185,8 @@ Refresh = function()
     ui.soundNote:SetText((K and K.Enabled()) and "Pad speaker" or "WoW Helper · Setup › Link")
     local toHelper = ui.ToHelper()
     local FF = ns.FullFeel
-    local full = FF and FF.On() or false
+    -- (a moment with a full feel: WoW Helper's plain entry for it)
+    local function Full(key) return FF ~= nil and FF.Entry(key) ~= nil end
     if ui.soundOff then
         local blocked = kind == "sound" and not (K and K.Enabled())
         ui.soundOff:SetShown(blocked)
@@ -2208,7 +2209,8 @@ Refresh = function()
         end
         row:SetMarks(Marks(row))
         local rk = KIND_OF[row.kind]
-        -- (Full feels: no proposals, the choice is made in WoW Helper)
+        local full = row.fullEdit ~= nil and Full(row.key)
+        -- (a full feel: no proposals, the choice is made in WoW Helper)
         local p = not full and C and C.Proposal and C.Proposal(rk, row.key) or nil
         row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
             p and function() C.DismissProposal(row.key, p.id); Refresh() end)
@@ -2232,11 +2234,8 @@ Refresh = function()
             row.fullEdit:SetShown(full)
             row.fullName:SetShown(full)
             if full then
-                -- (no full feel for it yet: it plays its Classic choice)
-                local name = FF.Name(row.key)
-                row.fullName:SetText(name or "Classic")
-                local c = name and GOLD or DIM
-                row.fullName:SetTextColor(c[1], c[2], c[3])
+                row.fullName:SetText(FF.Name(row.key) or "Full feel")
+                row.fullName:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
             end
         end
     end
@@ -2254,12 +2253,11 @@ Refresh = function()
         local card = ui.cards[g.key][kind]
         if card and card.reset then
             card.reset:SetEnabled(changed > 0)
-            card.reset:SetShown(not full)
         end
         -- (a gold dot: WoW Helper proposes something in this group)
         local proposed = false
         for _, item in ipairs(items) do
-            if not full and C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
+            if not Full(item[2]) and C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
         end
         local btn = ui.browser.buttons[g.key]
         -- (WoW Helper proposes something here: "+", not the changed dot's "•": U2-17)
