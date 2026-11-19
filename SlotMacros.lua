@@ -89,11 +89,22 @@ function M.Apply()
     end
 end
 
+-- The name of the macro on a bar slot, or nil. A macro that resolves to an
+-- item or a spell (Quick use's "/use item:") reports that item's or spell's
+-- id, not the macro's index (subType "item" / "spell"): its name comes from
+-- the slot's text then
+function M.MacroAt(slot)
+    local kind, id, subType = Call(GetActionInfo, slot)
+    if kind ~= "macro" then return nil end
+    local text = Call(GetActionText, slot)
+    if type(text) == "string" and text ~= "" and Index(text) then return text end
+    if subType == "item" or subType == "spell" then return nil end
+    return (Call(GetMacroInfo, id))
+end
+
 -- The action a bar slot runs through one of ours, or nil
 function M.SlotAction(slot)
-    local kind, id = Call(GetActionInfo, slot)
-    if kind ~= "macro" then return nil end
-    return M.ActionFor((Call(GetMacroInfo, id)))
+    return M.ActionFor(M.MacroAt(slot))
 end
 
 local function LastSlot()
@@ -110,15 +121,17 @@ function M.Sweep()
     if not ready or InCombat() or (GetCursorInfo and GetCursorInfo()) then return end
     local made = Made()
     if not next(made) then return end
-    local used, any = {}, false
+    local used, any, unknown = {}, false, false
     for slot = 1, LastSlot() do
-        local kind, id = Call(GetActionInfo, slot)
+        local kind = Call(GetActionInfo, slot)
         if kind then any = true end
         if kind == "macro" then
-            local name = Call(GetMacroInfo, id)
-            if name then used[name] = true end
+            local name = M.MacroAt(slot)
+            if name then used[name] = true else unknown = true end
         end
     end
+    -- (a macro slot whose name can't be read may be ours: delete nothing)
+    if unknown then return end
     if not any then return end   -- (bars not there: never delete on that)
     for name in pairs(made) do
         if not used[name] then

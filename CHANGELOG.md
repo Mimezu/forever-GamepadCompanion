@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.61.2 — 2026-11-19
+
+- Quick use (food, drink, potions) stays on a bar slot: its macro was deleted at once, as the game reports an item macro's slot as the item
+
 ## 0.61.1 — 2026-11-19
 
 - `/gpc touch status` also shows open windows, focus and Blizzard's binding sets: why the click is zones or Blizzard's

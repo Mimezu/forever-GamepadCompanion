@@ -126,7 +126,7 @@ Constants = { GamepadActionBarConstants = { NUM_PAGEABLE_SLOTS_PER_GAMEPAD_ACTIO
 C_GamepadUI = { GetFirstGamepadActionStorageSlotIndex = function() return 100 end,
     IsValidGamepadActionStorageSlotIndex = function(i) return i >= 100 and i < 224 end }
 GamepadMainActionBarFrame = { PageUnit = { GetCurrentPage = function() return activePage end } }
-GetActionInfo = function(i) local a = actions[i]; if a then return a.kind, a.id end end
+GetActionInfo = function(i) local a = actions[i]; if a then return a.kind, a.id, a.subType end end
 GetActionTexture = function(i) return actions[i] and actions[i].texture end
 GetActionText = function(i) return actions[i] and actions[i].kind == "macro" and actions[i].name or nil end
 PickupAction = function(i)
@@ -445,6 +445,15 @@ do
     check(GetMacroIndexByName("gpc:w:map") > 0, "not ours: kept")
     check(not M.Owns("gpc:w:bags"), "forgotten")
     eq(M.SlotAction(131), "quick:food", "the other slot still runs its action")
+    -- An item macro reports the item, not the macro (subType "item"): read by name, kept
+    actions[131] = { kind = "macro", id = 3771, subType = "item", name = "gpc:q:food", texture = 134400 }
+    eq(M.SlotAction(131), "quick:food", "item macro: read by its name")
+    M.SweepSoon(); RunTimers()
+    check(GetMacroIndexByName("gpc:q:food") > 0, "item macro on a slot: kept")
+    -- (its name unreadable: nothing deleted)
+    actions[131].name = nil
+    M.SweepSoon(); RunTimers()
+    check(GetMacroIndexByName("gpc:q:food") > 0, "unreadable macro slot: nothing deleted")
     actions[131] = nil
     M.SweepSoon(); RunTimers()
     eq(GetMacroIndexByName("gpc:q:food"), 0, "the last one too")
