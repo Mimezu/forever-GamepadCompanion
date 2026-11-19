@@ -1058,7 +1058,7 @@ local function BuildLink(p)
         Refresh()
     end, 120)
     S.Tooltip(gameLights, "Game lights", "Even with WoW Helper")
-    Stepper(link, "Cell size", 12, -76, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
+    Stepper(link, "Cell size", 12, -76, { labelWidth = 110, width = 306, step = 1, min = 1, max = 8,
         format = function(v) return v .. " px" end,
         get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })
     -- (one line: only once WoW Helper says it reads it)

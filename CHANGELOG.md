@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.4 — 2026-11-19
+
+- Lab › Link: Cell size goes down to 1 px
+
 ## 0.55.3 — 2026-11-19
 
 - Triggers: the hurt rule (L2 Weight) follows **Low health**, as the heartbeat does: the game's own warning in combat, where health is secret. Since 0.50.0 it read health as a percentage, which can't be read in combat (the source of 0.55.2's errors). Your saved rule moves over once if it was still as shipped; a changed one stays yours
