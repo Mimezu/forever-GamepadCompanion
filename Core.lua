@@ -748,6 +748,7 @@ local commandHelp = {
     "/gpc gestures | setup  their tab",
     "/gpc lab  tuning and probes",
     "/gpc debug  why it vibrates",
+    "/gpc nav  bag cursor log",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
@@ -774,6 +775,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "water" and API.WaterProbe then
         API.WaterProbe(rest)
+        return
+    end
+    if command == "nav" and ns.BagGrid then
+        ns.BagGrid.Report(rest:lower() == "clear")
         return
     end
     if command == "debug" and API.ToggleHapticsDebug then

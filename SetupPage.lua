@@ -382,10 +382,26 @@ local function BuildCamera(frame)
     pg.refresh[#pg.refresh + 1] = function() check:SetChecked(AT.Enabled()) end
 end
 
+---------------------------------------------------------------------------
+-- Bags: the combined bag as a plain grid for the d-pad
+---------------------------------------------------------------------------
+local function BuildBags(frame)
+    local BG = ns.BagGrid
+    if not BG then return end
+    local card = S.Card(frame, "Bags", 0, -450, COL, 110, "Interface\\Icons\\INV_Misc_Bag_08")
+    local check = S.NewCheck(card, "Bag grid", 12, -38, function(self)
+        BG.SetEnabled(self:GetChecked() == true)
+    end, COL - 60)
+    S.Tooltip(check, "Bag grid", "D-pad moves item by item")
+    pg.bagGrid = check
+    pg.refresh[#pg.refresh + 1] = function() check:SetChecked(BG.Enabled()) end
+end
+
 local function Build(frame)
     BuildHelper(frame)
     BuildTriggers(frame)
     BuildCamera(frame)
+    BuildBags(frame)
     BuildRange(frame)
     BuildTiming(frame)
     BuildBase(frame)

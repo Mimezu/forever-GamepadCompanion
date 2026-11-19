@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.61.0 — 2026-11-19
+
+- Setup › Bags › Bag grid (on): in the gamepad bag the d-pad moves item by item, no wrap, and the cursor returns to the bag after loot. Moved from Gear Glance 2.4.2
+- `/gpc nav`: bag cursor log (`clear` to start over)
+
 ## 0.60.1 — 2026-11-19
 
 - Setup › HD shows Off, dimmed, while Link is off: no WoW Helper, the game's own rumble

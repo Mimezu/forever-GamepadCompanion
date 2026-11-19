@@ -10,6 +10,10 @@
   left, so you can drag spells, items and macros onto them. Spells and Macros open next
   to the window.
 - **Camera.** Keeps dynamic camera pitch on and character centring off in the gamepad UI.
+- **Bag grid** (on): in the gamepad UI the combined bag is a plain 10-column item grid
+  without the gamepad bag buttons, the currency line is no cursor stop, the last column
+  doesn't wrap, and the cursor returns to the bag after loot. Out of combat only.
+  `/gpc nav` logs the bag cursor. Moved from Gear Glance 2.4.2. Tests: `tests/BagGrid.lua`.
 - **Window styles** A (controller, default), B (Legacy window) and C (classic):
   `/gpc style A|B|C`.
 
