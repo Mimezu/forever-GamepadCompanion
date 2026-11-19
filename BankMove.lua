@@ -245,6 +245,9 @@ end
 function B.Hint()
     local bank = _G.BankFrame
     if not (open and bank and GamepadUI()) then holder:Hide(); return nil end
+    -- (a child of the bank, as Blizzard's legend is of its window: the bank's
+    -- scale and strata, shown and hidden with it, never behind it)
+    if Call(holder.GetParent, holder) ~= bank then Call(holder.SetParent, holder, bank) end
     local l = Bar()
     if l then
         Place(l, bank)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.59.3 — 2026-11-19
+
+- Bank: the bank's bar is a child of the bank, as Blizzard's bag bar is of the bags: the bank's scale and layer, shown the moment the bank opens, gone when it closes
+
 ## 0.59.2 — 2026-11-19
 
 - Bank: the bag bar's □ now reads **Send to bank** on every item while the bank is open, whatever Blizzard would put there (Use, Equip, Open…); their label again when it closes. It had kept Blizzard's label: the live client keeps its prompts elsewhere than the older UI code 0.58.1 was built from

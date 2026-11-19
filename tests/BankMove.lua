@@ -26,6 +26,8 @@ local function Frame(name)
     function f:ClearAllPoints() self.points = {} end
     function f:SetPoint(...) table.insert(self.points, { ... }) end
     function f:GetPoint(i) local p = self.points[i or 1]; if p then return unpack(p) end end
+    function f:SetParent(p) self.parent = p end
+    function f:GetParent() return self.parent end
     if name then _G[name] = f end
     frames[#frames + 1] = f
     return f
@@ -182,9 +184,15 @@ for k in pairs(footer) do footerKeys[k] = true end
 BankFrame:Show()
 Fire("BANKFRAME_OPENED")
 check(B.IsOpen() and B.IsBound(), "bank open: bound")
+check(bankHolder and bankHolder.shown, "bar shown on open, before any focus change")
+current = nil
+Ticker()
+check(bankHolder.shown, "bar stays with no slot focused")
+current = bankSlot
 eq(overrides.PAD3 and overrides.PAD3.action, "CLICK " .. B.BUTTON .. ":LeftButton", "PAD3 clicks ours")
 Ticker()
 check(bankBar ~= nil and bankHolder.shown, "bank bar shown")
+eq(bankHolder.parent, BankFrame, "bar on the bank: its scale and strata, never behind it")
 check(bankHolder ~= BankFrame and BankFrame.legend == nil, "on a frame of ours: nothing written into BankFrame")
 local labels, keys, dividers = {}, {}, true
 for _, key in ipairs(bankBar.promptFramesAddOrder) do
@@ -279,6 +287,7 @@ eq(usePrompt.ControlDescText.FontString.text, "Use", "their refresh: Use")
 BankFrame:Show()
 for _, fn in ipairs(BankFrame.hooks.OnShow or {}) do fn(BankFrame) end
 check(B.IsBound() and usePrompt.ControlDescText.FontString.text == "Send to bank", "OnShow hook: bound, relabelled")
+check(bankHolder.shown, "reopened: bar back")
 BankFrame:Hide()
 for _, fn in ipairs(BankFrame.hooks.OnHide or {}) do fn(BankFrame) end
 check(not B.IsBound() and overrides.PAD3 == nil and usePrompt.ControlDescText.FontString.text == "Use", "OnHide hook: all back")
