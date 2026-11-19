@@ -64,28 +64,39 @@ SmartNavigation = { GetCurrentButton = function() return current end }
 GetMouseFoci = function() return { mouse } end
 
 -- Blizzard's legend widget (our bank bar uses it)
+-- (as the live client: InputPrompts / InputLegendPromptGroup, branch forever)
 local function Prompt(text)
     local p = Frame()
     p.ControlDescText = { FontString = { text = text } }
     function p.ControlDescText.FontString:GetText() return self.text end
     function p:SetPromptText(t) self.ControlDescText.FontString.text = t end
+    function p:EnablePrompt() self.lit = true end
+    function p:DisablePrompt() self.lit = false end
     return p
+end
+local function Legend()
+    local l = Frame()
+    l.promptFrames, l.promptFramesAddOrder, l.positioned = {}, {}, 0
+    function l:GetOrCreatePromptFrameUsingTemplateAndInputs(template, keys, divider)
+        local key = template .. table.concat(keys) .. (divider or "")
+        if not self.promptFrames[key] then
+            local p = Prompt("")
+            p.keys, p.divider, p.template = keys, divider, template
+            self.promptFrames[key] = p
+            table.insert(self.promptFramesAddOrder, key)
+        end
+        return self.promptFrames[key]
+    end
+    function l:ApplyDefaultPromptPositioning() self.positioned = self.positioned + 1 end
+    return l
 end
 local bankBar, bankHolder
 InputPromptLegends = {
     PromptTemplates = { StandardOneIcon = { name = "StandardOneIcon" } },
-    CreateFrameAction = function(id, _, keys, text)
-        return { id = id, keys = keys, text = text, SetDividerType = function(self, d) self.divider = d end }
-    end,
     CreateInputLegend = function(parent, key)
-        local l = Frame()
+        local l = Legend()
         parent[key] = l
         bankHolder = parent
-        l.actions, l.enabled, l.positioned = {}, {}, 0
-        function l:AddFrameAction(a) table.insert(self.actions, a) end
-        function l:InitializePrompts() end
-        function l:SetFrameActionPromptEnabled(id, on) self.enabled[id] = on end
-        function l:ApplyDefaultPromptPositioning() self.positioned = self.positioned + 1 end
         bankBar = l
         return l
     end,
@@ -94,14 +105,23 @@ InputUtil = { IsGamepadUIEnabled = function() return true end }
 
 -- Blizzard's bag window with its footer: Select / Use / More / Close, centred
 local bags = Frame("ContainerFrameCombinedBags")
-local usePrompt = Prompt("Use")
-local bagLegend = Frame()
-bagLegend.promptMap = { ContainerFrameCombinedBagsFooterPAD3 = usePrompt }
-bagLegend.positioned = 0
-function bagLegend:ApplyDefaultPromptPositioning() self.positioned = self.positioned + 1 end
+local bagLegend = Legend()
+local usePrompt = bagLegend:GetOrCreatePromptFrameUsingTemplateAndInputs("StandardOneIcon", { "PAD3" }, "SLASH")
+usePrompt:SetPromptText("Use")
 bagLegend:SetPoint("TOP", bags, "BOTTOM", 0, -4)
 local footer = { debugName = "ContainerFrameCombinedBagsFooter", inputLegend = bagLegend }
-function footer:RefreshInputLegend() usePrompt:SetPromptText("Use") end   -- (Blizzard's refresh: its label)
+-- (Blizzard's refresh on every focus change: the □ label for the focused item)
+local itemLabel = "Use"
+function footer:RefreshInputLegend()
+    local p = self.inputLegend:GetOrCreatePromptFrameUsingTemplateAndInputs("StandardOneIcon", { "PAD3" }, "SLASH")
+    p:SetPromptText(itemLabel)
+    p:Show()
+    self.inputLegend:ApplyDefaultPromptPositioning()
+end
+-- (SmartNavigation's SelectedButtonUpdated: a closure over Refresh, which calls
+-- self:RefreshInputLegend(), as the live footer)
+function footer:Refresh() self:RefreshInputLegend() end
+local onFocusChange = function() footer.Refresh(footer) end
 bags.gamepadFooter = footer
 
 BankFrame = Frame("BankFrame")
@@ -167,22 +187,32 @@ Ticker()
 check(bankBar ~= nil and bankHolder.shown, "bank bar shown")
 check(bankHolder ~= BankFrame and BankFrame.legend == nil, "on a frame of ours: nothing written into BankFrame")
 local labels, keys, dividers = {}, {}, true
-for _, a in ipairs(bankBar.actions) do
-    labels[#labels + 1] = a.text; keys[#keys + 1] = a.keys[1]
-    dividers = dividers and a.divider == "SLASH"
+for _, key in ipairs(bankBar.promptFramesAddOrder) do
+    local a = bankBar.promptFrames[key]
+    labels[#labels + 1] = a.ControlDescText.FontString.text; keys[#keys + 1] = a.keys[1]
+    dividers = dividers and a.divider == "SLASH" and a.template == "StandardOneIcon"
 end
+check(bankBar.positioned > 0, "bank bar laid out by Blizzard's layout")
 eq(table.concat(labels, " · "), "Select · Send to bags · Close", "bank bar: as the bag bar's wording")
 eq(table.concat(keys, ","), "PAD1,PAD3,PAD2", "Blizzard's key order")
 check(dividers, "Blizzard's divider style")
 local p = bankBar.points[1]
 check(p and p[1] == "TOP" and p[2] == BankFrame and p[3] == "BOTTOM" and p[4] == 0 and p[5] == -4,
     "placed under the bank as the bag bar is under the bags")
-eq(bankBar.enabled.send, true, "bank slot: Send to bags lit")
+eq(bankBar.promptFrames.StandardOneIconPAD3SLASH.lit, true, "bank slot: Send to bags lit")
 eq(usePrompt.ControlDescText.FontString.text, "Send to bank", "bag bar: Use reads Send to bank")
 footer:RefreshInputLegend()   -- (Blizzard refreshes: its label, then our hook)
 eq(usePrompt.ControlDescText.FontString.text, "Send to bank", "after Blizzard's refresh: still Send to bank")
 check(bagLegend.positioned > 0, "their bar laid out again for the longer label")
 for k in pairs(footer) do check(footerKeys[k] or k == "RefreshInputLegend", "nothing of ours in Blizzard's footer: " .. k) end
+
+-- Every focus change: Blizzard writes the focused item's label (Use, Equip,
+-- Open...); it ends as Send to bank
+for _, label in ipairs({ "Equip", "Use", "Open", "Read", "Equip" }) do
+    itemLabel = label
+    onFocusChange()
+    eq(usePrompt.ControlDescText.FontString.text, "Send to bank", "focus on a " .. label .. " item: Send to bank")
+end
 
 -- Both ways, as the focus moves between the windows
 used = {}
@@ -192,7 +222,7 @@ for _, step in ipairs({
 }) do
     current = step[1]
     Ticker()
-    eq(bankBar.enabled.send, step[2], "bank bar's □ follows the focus: " .. step[3])
+    eq(bankBar.promptFrames.StandardOneIconPAD3SLASH.lit, step[2], "bank bar's □ follows the focus: " .. step[3])
     Press()
     eq(used[#used], step[3], "Square sends " .. step[3])
 end
@@ -223,7 +253,7 @@ combat = true
 used = {}
 check(not B.Move(), "combat: no move")
 Ticker()
-eq(bankBar.enabled.send, false, "combat: Send to bags off")
+eq(bankBar.promptFrames.StandardOneIconPAD3SLASH.lit, false, "combat: Send to bags off")
 footer:RefreshInputLegend()   -- (their refresh in combat: only widget calls of ours)
 eq(#used, 0, "combat: nothing used")
 combat = false
@@ -241,8 +271,9 @@ Fire("BANKFRAME_CLOSED")
 check(not B.IsOpen() and not B.IsBound(), "bank closed: unbound")
 eq(overrides.PAD3, nil, "PAD3 back to the game")
 check(not bankHolder.shown, "bank bar gone")
-eq(usePrompt.ControlDescText.FontString.text, "Use", "bag bar: Use again")
-footer:RefreshInputLegend()
+eq(usePrompt.ControlDescText.FontString.text, "Equip", "bag bar: Blizzard's label again (Equip, the focused item's)")
+itemLabel = "Use"
+onFocusChange()
 eq(usePrompt.ControlDescText.FontString.text, "Use", "their refresh: Use")
 -- (the frame's own show / hide hooks work without the events)
 BankFrame:Show()

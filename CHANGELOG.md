@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.59.2 — 2026-11-19
+
+- Bank: the bag bar's □ now reads **Send to bank** on every item while the bank is open, whatever Blizzard would put there (Use, Equip, Open…); their label again when it closes. It had kept Blizzard's label: the live client keeps its prompts elsewhere than the older UI code 0.58.1 was built from
+- Bank: the bank's own bar (Select · Send to bags · Close) is now built with the live client's legend calls; in 0.58.1 it never appeared
+
 ## 0.59.1 — 2026-11-19
 
 - HD off now reaches WoW Helper (light row bit 3): with HD feels off, WoW Helper leaves the pad on the game's own rumble, while sounds, lights, triggers and timing keep working. Needs WoW Helper from 2026-11-19 (HD-RELEASE)

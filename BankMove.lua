@@ -120,10 +120,20 @@ local function BagFrames()
     return list
 end
 
+-- (the legend keeps a prompt per template + keys + divider: "StandardOneIconPAD3SLASH";
+-- Blizzard re-labels it on every focus change, per item: Use, Equip, Open...)
+local function PromptKey()
+    return "StandardOneIcon" .. B.KEY .. (_G.GAMEPAD_PROMPT_DIVIDER_SLASH or "SLASH")
+end
+
 local function BagPrompt(footer)
     local legend = type(footer) == "table" and footer.inputLegend
-    local map = type(legend) == "table" and legend.promptMap
-    local prompt = type(map) == "table" and map[tostring(footer.debugName) .. B.KEY]
+    if type(legend) ~= "table" then return nil end
+    local frames = type(legend.promptFrames) == "table" and legend.promptFrames
+    local prompt = frames and frames[PromptKey()]
+    if not prompt and type(legend.promptMap) == "table" then   -- (older clients)
+        prompt = legend.promptMap[tostring(footer.debugName) .. B.KEY]
+    end
     return prompt, legend
 end
 
@@ -179,24 +189,31 @@ local function Text(name, fallback)
     return type(t) == "string" and t ~= "" and t or fallback
 end
 
+local prompts = {}   -- id -> the bank bar's prompt frame
+local sendLit
+
+-- Built as Blizzard's footer builds its legend: one prompt per key, in their
+-- key order, their template and divider, then their layout
 local function Bar()
     if bar ~= nil then return bar or nil end
     bar = false
     local L = _G.InputPromptLegends
-    if not (L and L.CreateInputLegend and L.CreateFrameAction and L.PromptTemplates) then return nil end
+    if not (L and L.CreateInputLegend) then return nil end
     local ok, made = pcall(function()
         local l = L.CreateInputLegend(holder, "legend")
-        local one = L.PromptTemplates.StandardOneIcon
+        local divider = _G.GAMEPAD_PROMPT_DIVIDER_SLASH or "SLASH"
         for _, a in ipairs({
             { "select", B.SELECT_KEY, Text("ACTION_LABEL_SELECT", "Select") },
             { "send", B.KEY, B.LABEL.bank },
             { "close", B.CLOSE_KEY, Text("FRAME_ACTION_CLOSE", "Close") },
         }) do
-            local action = L.CreateFrameAction(a[1], one, { a[2] }, a[3])
-            if action.SetDividerType and _G.GAMEPAD_PROMPT_DIVIDER_SLASH then action:SetDividerType(_G.GAMEPAD_PROMPT_DIVIDER_SLASH) end
-            l:AddFrameAction(action)
+            local prompt = l:GetOrCreatePromptFrameUsingTemplateAndInputs("StandardOneIcon", { a[2] }, divider)
+            prompt:SetPromptText(a[3])
+            prompt:EnablePrompt()
+            prompt:Show()
+            prompts[a[1]] = prompt
         end
-        l:InitializePrompts()
+        l:ApplyDefaultPromptPositioning()
         return l
     end)
     if ok and made then bar = made end
@@ -231,8 +248,12 @@ function B.Hint()
     local l = Bar()
     if l then
         Place(l, bank)
-        local kind = not InCombat() and B.Target() or nil
-        Call(l.SetFrameActionPromptEnabled, l, "send", kind == "bank")
+        local lit = (not InCombat() and B.Target() or nil) == "bank"
+        local send = prompts.send
+        if send and lit ~= sendLit then
+            if lit then Call(send.EnablePrompt, send) else Call(send.DisablePrompt, send) end
+            sendLit = lit
+        end
         holder:Show()
     end
     return not InCombat() and (B.Target()) or nil
