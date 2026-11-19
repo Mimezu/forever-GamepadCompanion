@@ -3606,3 +3606,109 @@ do
     C.SetMomentSound("craft:smelting", nil)
     io.write("PASS: Crafting's actions: moments under Crafting (Smelting too), each its own faint loop and finish, inherited, nested" .. string.char(10))
 end
+
+-- The spell row's phases at their cues (HelperCues): casting started with the cast loop's cue,
+-- released with the release cue (a channel run to its end too), stopped on an interrupt or a
+-- cancel, an instant a single released; a secret id goes as 0
+do
+    local C, K = ns.HelperCues, ns.HelperLink
+    local rf, hf
+    for _, f in ipairs(created) do
+        local e = f.events or {}
+        if e.START_AUTOREPEAT_SPELL and e.PLAYER_LEVEL_UP then rf = f end
+        if e.UNIT_SPELLCAST_DELAYED and e.PLAYER_ENTER_COMBAT and not e.PLAYER_LEVEL_UP then hf = f end
+    end
+    assert(rf and hf, "the cast frames")
+    local enabled, v2 = K.Enabled, K.V2
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    H.DB().engine = true
+    V.Settings().enabled = true
+    V.SetCastPreset("spell", "auto")
+    C.Settings().hdFeels, C.Settings().sounds = true, true
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local sent = {}
+    local spellEvent = K.SpellEvent
+    K.SpellEvent = function(phase, id)
+        local ev = spellEvent(phase, id)
+        sent[#sent + 1] = { phase = phase, id = id, ev = ev, cue = K.queue[#K.queue] }
+        return ev
+    end
+    local function both(...) rf.scripts.OnEvent(rf, ...); hf.scripts.OnEvent(hf, ...) end
+    local function last() return sent[#sent] end
+    wipe(K.queue)
+    C.SetMomentSound("release", 5)
+    -- a cast: casting started, with the cast loop's cue
+    local start = now + 5
+    now = start
+    UnitCastingInfo = function() return "Spell 133", nil, nil, start * 1000, (start + 2) * 1000 end
+    both("UNIT_SPELLCAST_START", "player", "sr1", 133)
+    assert(#sent == 1 and last().phase == K.SPELL_CASTING and last().id == 133, "casting started: 133")
+    local cue = last().cue
+    assert(cue and cue.spell == last().ev and cue.moment == C.MOMENT_N.spell, "with the cast loop's cue (moment "
+        .. tostring(cue and cue.moment) .. ")")
+    -- released, with the release cue
+    now = start + 2
+    UnitCastingInfo = function() return nil end
+    both("UNIT_SPELLCAST_SUCCEEDED", "player", "sr1", 133)
+    assert(#sent == 2 and last().phase == K.SPELL_RELEASED and last().id == 133, "released")
+    local rc = K.queue[#K.queue]
+    assert(rc and rc.moment == C.MOMENT_N.release and rc.spell == last().ev, "with the release cue")
+    local function runTimers() local list = timers; timers = {}; for _, fn in ipairs(list) do fn() end end
+    both("UNIT_SPELLCAST_STOP", "player", "sr1", 133)
+    runTimers()
+    assert(#sent == 2, "its stop after success: nothing more")
+    -- (cancelled: stopped with no success)
+    start = now + 3
+    now = start
+    UnitCastingInfo = function() return "Spell 133", nil, nil, start * 1000, (start + 2) * 1000 end
+    both("UNIT_SPELLCAST_START", "player", "sr1b", 133)
+    UnitCastingInfo = function() return nil end
+    both("UNIT_SPELLCAST_STOP", "player", "sr1b", 133)
+    runTimers()
+    assert(#sent == 4 and last().phase == K.SPELL_STOPPED and last().id == 133, "cancelled: stopped")
+    table.remove(sent); table.remove(sent)
+    -- an instant: one released
+    now = now + 3
+    both("UNIT_SPELLCAST_SUCCEEDED", "player", "sr2", 2061)
+    assert(#sent == 3 and last().phase == K.SPELL_RELEASED and last().id == 2061, "an instant: released once")
+    -- interrupted: stopped
+    start = now + 3
+    now = start
+    UnitCastingInfo = function() return "Spell 116", nil, nil, start * 1000, (start + 2) * 1000 end
+    both("UNIT_SPELLCAST_START", "player", "sr3", 116)
+    both("UNIT_SPELLCAST_INTERRUPTED", "player", "sr3", 116)
+    assert(#sent == 5 and sent[4].phase == K.SPELL_CASTING and last().phase == K.SPELL_STOPPED and last().id == 116, "interrupted: stopped")
+    -- a channel: stopped early, then run to its end
+    start = now + 3
+    now = start
+    UnitCastingInfo = function() return nil end
+    UnitChannelInfo = function() return "Spell 5143", nil, nil, start * 1000, (start + 3) * 1000 end
+    both("UNIT_SPELLCAST_CHANNEL_START", "player", "sr4", 5143)
+    both("UNIT_SPELLCAST_SUCCEEDED", "player", "sr4", 5143)
+    assert(#sent == 6 and last().phase == K.SPELL_CASTING, "a channel: casting started (its success at the start: nothing)")
+    now = start + 1
+    both("UNIT_SPELLCAST_CHANNEL_STOP", "player", "sr4", 5143)
+    assert(#sent == 7 and last().phase == K.SPELL_STOPPED, "a channel stopped early: stopped")
+    start = now + 3
+    now = start
+    both("UNIT_SPELLCAST_CHANNEL_START", "player", "sr5", 5143)
+    now = start + 3
+    UnitChannelInfo = nil
+    both("UNIT_SPELLCAST_CHANNEL_STOP", "player", "sr5", 5143)
+    assert(#sent == 9 and last().phase == K.SPELL_RELEASED and last().id == 5143, "a channel run to its end: released")
+    -- a secret id: phase only
+    issecretvalue = function(v) return v == "hidden" end
+    local secrets = C.spellSecret
+    start = now + 3
+    now = start
+    UnitCastingInfo = function() return "Spell", nil, nil, start * 1000, (start + 2) * 1000 end
+    both("UNIT_SPELLCAST_START", "player", "sr6", "hidden")
+    assert(last().phase == K.SPELL_CASTING and last().id == 0 and C.spellSecret == secrets + 1, "secret: id 0, counted")
+    both("UNIT_SPELLCAST_INTERRUPTED", "player", "sr6", "hidden")
+    assert(last().phase == K.SPELL_STOPPED and last().id == 0, "secret: stopped, id 0")
+    issecretvalue, UnitCastingInfo = nil, nil
+    C.SetMomentSound("release", nil)
+    K.SpellEvent, K.Enabled, K.V2 = spellEvent, enabled, v2
+    wipe(K.queue)
+    io.write("PASS: spell row: casting started with the cast cue, released with the release cue, stopped, instants once, secret ids 0" .. string.char(10))
+end

@@ -424,6 +424,127 @@ do
     print("PASS: the old HD switch's v1 cleared once")
 end
 
+-- The spell row (WoW Helper's reader, same contract): 13 cells, blue first, 36 bits LE: seq 0-3,
+-- phase 4-5, spell id 6-25, spare 26-27, CRC-8 (0x07, init 0) over bits 0-27 at 28-35; three rows
+-- up (stacked) or from cell 76 (one line: 89 cells); drawn only while WowHelperData.spellRow
+do
+    -- (an independent CRC: the 28 bits as bytes, LSB first, the last padded with zeros)
+    local function bxor(a, b)
+        local r, m = 0, 1
+        while a > 0 or b > 0 do
+            if a % 2 ~= b % 2 then r = r + m end
+            a, b, m = math.floor(a / 2), math.floor(b / 2), m * 2
+        end
+        return r
+    end
+    local function crc28(seq, phase, id)
+        local v = seq + phase * 16 + id * 64
+        local crc = 0
+        for _ = 1, 4 do
+            crc = bxor(crc, v % 256)
+            v = math.floor(v / 256)
+            for _ = 1, 8 do
+                if crc >= 128 then crc = bxor((crc * 2) % 256, 7) else crc = (crc * 2) % 256 end
+            end
+        end
+        return crc
+    end
+    local function bitsOf(cells)
+        local bits = {}
+        for c = 2, #cells do for k = 1, 3 do bits[#bits + 1] = cells[c][k] end end
+        return bits
+    end
+    local function num(bits, from, n)
+        local v = 0
+        for i = n - 1, 0, -1 do v = v * 2 + bits[from + i + 1] end
+        return v
+    end
+    -- a known vector, field by field
+    local cells = K.EncodeSpellRow({ seq = 5, phase = 1, id = 133 })
+    assert(#cells == 13 and cells[1][1] == 0 and cells[1][2] == 0 and cells[1][3] == 1, "13 cells, blue first")
+    local bits = bitsOf(cells)
+    assert(#bits == 36 and num(bits, 0, 4) == 5 and num(bits, 4, 2) == 1 and num(bits, 6, 20) == 133
+        and num(bits, 26, 2) == 0, "fields little-endian at 0, 4, 6, 26")
+    assert(num(bits, 28, 8) == crc28(5, 1, 133), "CRC-8 over bits 0-27: " .. num(bits, 28, 8) .. " " .. crc28(5, 1, 133))
+    -- round trips; a flipped bit rejected
+    local rejected, n = 0, 0
+    for _, id in ipairs({ 0, 1, 133, 2050, 19750, 1048575 }) do
+        for phase = 0, 3 do
+            for _, seq in ipairs({ 0, 7, 15 }) do
+                local c = K.EncodeSpellRow({ seq = seq, phase = phase, id = id })
+                local d = assert(K.DecodeSpellRow(c), "decoded")
+                assert(d.seq == seq and d.phase == phase and d.id == id, "round trip " .. id)
+                assert(num(bitsOf(c), 28, 8) == crc28(seq, phase, id), "crc " .. id)
+                n = n + 1
+                local flip = c[2 + (id + phase + seq) % 12]
+                local k = 1 + (seq % 3)
+                flip[k] = 1 - flip[k]
+                if not K.DecodeSpellRow(c) then rejected = rejected + 1 end
+            end
+        end
+    end
+    assert(n == 72 and rejected == 72, "every flip rejected: " .. rejected)
+    assert(select(2, K.DecodeSpellRow(K.EncodeTrigRow({}))) == "marker", "a trigger row is not a spell row")
+    -- (past 20 bits: phase only)
+    assert(K.DecodeSpellRow(K.EncodeSpellRow({ seq = 1, phase = 2, id = 1311676 })).id == 0, "an id past 20 bits: 0")
+
+    -- the strip: gated, stacked three rows up, one line from cell 76
+    local t = 100
+    GetTime = function() return t end
+    K.SetEnabled(true)
+    K.Layout()
+    local unit = K.frame.height
+    local st = K.spellTextures
+    assert(#st == 13 and st[1].points[1][5] == 3 * unit and st[1].points[1][4] == 0, "stacked: three rows up")
+    K.MarkDirty()
+    K.Step(0)
+    assert(not st[1]:IsShown(), "WoW Helper hasn't said it reads it: no row")
+    WowHelperData = { spellRow = true }
+    K.MarkDirty()
+    K.Step(0)
+    assert(st[1]:IsShown() and st[1].color[3] == 1, "spellRow: drawn, blue first")
+    -- (a spell event with a cue in the same frame: on screen with that cue)
+    while #K.queue > 0 do K.Step(1) end
+    for _ = 1, 10 do K.Step(1) end
+    t = t + 1
+    assert(K.Cue({ moment = 72, touch = 200 }), "a cue")
+    local ev = K.SpellEvent(K.SPELL_CASTING, 133)
+    assert(K.queue[#K.queue].spell == ev, "the spell event goes with the cue of its frame")
+    t = t + 0.02
+    K.Step(0.02)
+    local d = K.DecodeSpellRow((function() local c = {} for i = 1, 13 do c[i] = st[i].color end return c end)())
+    assert(d and d.phase == 1 and d.id == 133 and d.seq == ev.seq, "drawn with its cue")
+    -- (the event first, the cue after, same frame: still together)
+    for _ = 1, 10 do t = t + 0.1; K.Step(0.1) end
+    local ev2 = K.SpellEvent(K.SPELL_RELEASED, 133)
+    assert(K.Cue({ moment = 73, sound = 5 }) and K.queue[#K.queue].spell == ev2, "the cue after, same frame")
+    -- (no cue that frame: on its own, the next frame)
+    for _ = 1, 10 do t = t + 0.1; K.Step(0.1) end
+    local ev3 = K.SpellEvent(K.SPELL_STOPPED, 0)
+    t = t + 0.02
+    K.Step(0.02)
+    assert(K.spell == ev3 and ev3.seq == (ev2.seq + 1) % 16, "on its own, seq + 1")
+    -- one line: from cell 76, 89 cells; the trigger row's place black while it has none
+    K.SetStrip("oneline")
+    WowHelperData.stripOneLine = true
+    K.MarkDirty()
+    K.Step(0)
+    assert(K.OneLine() and math.abs(st[1].points[1][4] - 76 * unit) < 1e-6 and st[1].points[1][5] == 0, "one line: from cell 76")
+    assert(math.abs(K.frame.width - 89 * unit) < 1e-6, "89 cells")
+    local tt = K.trigTextures
+    assert(tt[1]:IsShown() and tt[1].color[1] == 0 and tt[1].color[2] == 0 and tt[1].color[3] == 0, "no trigger row: black there")
+    -- (WoW Helper drops it: no row, 76 cells)
+    WowHelperData.spellRow = nil
+    K.MarkDirty()
+    K.Step(0)
+    assert(not st[1]:IsShown() and math.abs(K.frame.width - 76 * unit) < 1e-6 and not tt[1]:IsShown(), "no spell row: 76, as before")
+    K.SetStrip("stacked")
+    WowHelperData = nil
+    K.SetEnabled(false)
+    GetTime = nil
+    print("PASS: spell row: 13 cells, CRC, round trips, stacked and one line (89), gated on spellRow, with its cue")
+end
+
 K.SetEnabled(false)
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors)")

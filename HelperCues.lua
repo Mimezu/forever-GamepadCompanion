@@ -667,6 +667,21 @@ for _, ev in ipairs({ "START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PLAYER
     pcall(frame.RegisterEvent, frame, ev)
 end
 
+-- The spell row (HelperLink: K.SpellEvent): casting started with the cast loop's cue, released
+-- with the release cue (a channel run to its end too), stopped on an interrupt or a cancel; an
+-- instant spell a single released. A spell id secret in combat goes as 0: phase only.
+local spellCast            -- { id, channel }: a cast or channel open on the spell row
+C.spellSecret = 0          -- spell events sent without their id (secret)
+local function SpellId(spellID)
+    if spellID == nil then return 0 end
+    if secret(spellID) then C.spellSecret = C.spellSecret + 1; return 0 end
+    return type(spellID) == "number" and spellID or 0
+end
+local function SpellEvent(phase, id)
+    if K and K.SpellEvent and K.Enabled() and K.V2() then K.SpellEvent(phase, id) end
+end
+C.SpellId = SpellId
+
 local function CastTimes(channel)
     local info = channel and UnitChannelInfo or UnitCastingInfo
     if not info then return nil end
@@ -703,6 +718,8 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         if s then cast.start, cast.finish, cast.channel = s, e, channel end
         cast.spell = ns.SpellOverrides and ns.SpellOverrides.NameOf(spellID) or nil
         UpdateR2()
+        spellCast = { id = SpellId(spellID), channel = channel }
+        SpellEvent(K.SPELL_CASTING, spellCast.id)
     elseif event == "UNIT_SPELLCAST_DELAYED" then
         local s, e = CastTimes(false)
         if s and cast.start then cast.start, cast.finish = s, e end
@@ -713,6 +730,13 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
             -- (Spell released: its sound, the spell's own first)
             C.Moment(Spelled("release", cast.spell), nil)
         end
+        if spellCast and not spellCast.channel then
+            SpellEvent(K.SPELL_RELEASED, spellCast.id)
+            spellCast = nil
+        elseif not spellCast and not (UnitChannelInfo and UnitChannelInfo("player")) then
+            -- (an instant: released, once)
+            SpellEvent(K.SPELL_RELEASED, SpellId(spellID))
+        end
     elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" then
         -- (a channel run to its end: released)
         local ran = event == "UNIT_SPELLCAST_CHANNEL_STOP" and cast.start and cast.channel and cast.finish
@@ -720,10 +744,21 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         cast.start = nil
         UpdateR2()
         if ran then C.Moment(Spelled("release", cast.spell), nil) end
+        if spellCast and (event == "UNIT_SPELLCAST_INTERRUPTED" or spellCast.channel) then
+            local channelRan = event == "UNIT_SPELLCAST_CHANNEL_STOP" and (ran or not cast.finish)
+            SpellEvent(channelRan and K.SPELL_RELEASED or K.SPELL_STOPPED, spellCast.id)
+            spellCast = nil
+        end
     elseif event == "UNIT_SPELLCAST_STOP" then
         -- (a cast's end: released or not, the trigger free again shortly)
+        local open = spellCast
         C_Timer.After(0.15, function()
             if cast.start and not cast.channel and not UnitCastingInfo("player") then cast.start = nil; UpdateR2() end
+            -- (stopped with no interrupt and no success: cancelled)
+            if open and spellCast == open and not open.channel and not UnitCastingInfo("player") then
+                SpellEvent(K.SPELL_STOPPED, open.id)
+                spellCast = nil
+            end
         end)
     end
 end)

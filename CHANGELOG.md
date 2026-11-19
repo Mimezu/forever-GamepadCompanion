@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.64.0 — 2026-11-19
+
+- **The spell on the strip**, for WoW Helper's per-spell feels: a spell row (13 cells, blue first: seq, phase, spell id, CRC-8), three rows up, or from cell 76 on one line (89 cells). Drawn only once WoW Helper says it reads it (`WowHelperData.spellRow`)
+- Phases: casting started with the cast's cue, released with the release cue (a channel run to its end too; an instant once), stopped on an interrupt or a cancel; each in the same frame as its cue, or alone at the next frame when no cue went
+- A spell id secret in combat (or past 20 bits) goes as 0: the phase only
+
 ## 0.63.0 — 2026-11-19
 
 - **Each craft is a moment of its own** under Crafting (`craft:cooking`…, 83-91), as Gathering's actions are: its own feel, sound and volumes, Crafting's until it has its own; nested under Crafting on Moments, sent to WoW Helper with Crafting as parent

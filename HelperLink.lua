@@ -385,6 +385,51 @@ function K.DecodeTrigRow(cells)
 end
 
 ---------------------------------------------------------------------------
+-- The spell row (WoW Helper reads it to the same contract): 13 cells, three
+-- rows inward of the v2 strip (one line: from cell 76), blue first, 36 bits
+-- little-endian: seq (4, +1 each spell event), phase (2: 0 none, 1 casting
+-- started, 2 released / landed, 3 stopped / interrupted), the spell id (20),
+-- spare (2, 0), a CRC-8 over bits 0-27. Drawn only while WowHelperData.spellRow
+-- is true. A spell id secret in combat (or past 20 bits) goes as 0: phase only.
+---------------------------------------------------------------------------
+K.SPELL_CELLS = 13
+K.SPELL_MARKER = { 0, 0, 1 }   -- blue
+K.SPELL_NONE, K.SPELL_CASTING, K.SPELL_RELEASED, K.SPELL_STOPPED = 0, 1, 2, 3
+K.SPELL_ID_MAX = 1048575
+
+-- ev = { seq, phase, id } -> 13 cells
+function K.EncodeSpellRow(ev)
+    ev = ev or {}
+    local bits = {}
+    for i = 0, 35 do bits[i] = 0 end
+    Put(bits, 0, Int(ev.seq, 15), 4)
+    Put(bits, 4, Int(ev.phase, 3), 2)
+    local id = Int(ev.id, K.SPELL_ID_MAX + 1)
+    Put(bits, 6, id > K.SPELL_ID_MAX and 0 or id, 20)
+    Put(bits, 28, CrcBits(bits, 28), 8)
+    local cells = { { 0, 0, 1 } }
+    for c = 0, K.SPELL_CELLS - 2 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    return cells
+end
+
+function K.DecodeSpellRow(cells)
+    if type(cells) ~= "table" or #cells < K.SPELL_CELLS then return nil, "length" end
+    local m = cells[1]
+    if m[1] ~= 0 or m[2] ~= 0 or m[3] ~= 1 then return nil, "marker" end
+    local bits = {}
+    for c = 0, K.SPELL_CELLS - 2 do
+        for k = 1, 3 do
+            local v = cells[c + 2][k]
+            if v ~= 0 and v ~= 1 then return nil, "value" end
+            bits[c * 3 + k - 1] = v
+        end
+    end
+    if Get(bits, 26, 2) ~= 0 then return nil, "value" end
+    if CrcBits(bits, 28) ~= Get(bits, 28, 8) then return nil, "crc" end
+    return { seq = Get(bits, 0, 4), phase = Get(bits, 4, 2), id = Get(bits, 6, 20) }
+end
+
+---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
@@ -413,6 +458,7 @@ function K.Enabled() return DB().on == true end
 -- (WowHelperData.stripOneLine); else stacked, as before.
 K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" } }
 K.LINE_LIGHT, K.LINE_TRIG, K.LINE_CELLS = 34, 57, 76
+K.LINE_SPELL, K.LINE_CELLS_SPELL = 76, 89   -- (the spell row after the trigger row: 89 cells)
 function K.Strip() return DB().strip == "oneline" and "oneline" or "stacked" end
 function K.SetStrip(v)
     DB().strip = v == "oneline" and "oneline" or nil
@@ -422,6 +468,12 @@ end
 function K.OneLine()
     local d = WowHelperData
     return K.V2() and K.Strip() == "oneline" and type(d) == "table" and d.stripOneLine == true
+end
+
+-- The spell row: only once WoW Helper says it reads it (WowHelperData.spellRow)
+function K.SpellRowOn()
+    local d = WowHelperData
+    return K.V2() and type(d) == "table" and d.spellRow == true
 end
 
 -- v2 (the wide strip) unless set back to v1 (the Helper page)
@@ -451,6 +503,31 @@ function K.SetTrigger(side, mode, start, finish, force)
     dirty = true
 end
 
+-- A spell event goes with the cue it belongs to, in the same frame: on the cue queued this
+-- frame (before or after it), on screen with it; with none, on its own at the next frame
+local lastQueued
+local function Now() return GetTime and GetTime() or 0 end
+local function Attach(item)
+    item.at = Now()
+    local p = K.spellPending
+    if p and p.at == item.at and not item.spell then item.spell, K.spellPending = p.ev, nil end
+    lastQueued = item
+end
+
+-- A spell event: phase (K.SPELL_*), its id (nil or secret: 0). Returns the event.
+function K.SpellEvent(phase, id)
+    K.spellSeq = ((K.spellSeq or 0) + 1) % 16
+    if type(id) ~= "number" or id < 0 or id > K.SPELL_ID_MAX then id = 0 end
+    local ev = { seq = K.spellSeq, phase = Int(phase, 3), id = floor(id) }
+    local now = Now()
+    if lastQueued and lastQueued.at == now and not lastQueued.started and not lastQueued.spell then
+        lastQueued.spell = ev
+    else
+        K.spellPending = { ev = ev, at = now }
+    end
+    return ev
+end
+
 local function Queue(item)
     if not K.Enabled() or #K.queue >= K.QUEUE_MAX then return false end
     -- Hush (Hush.lua): no sounds, no moment lights; a touch still goes (the Feel channel scales it)
@@ -458,6 +535,7 @@ local function Queue(item)
         item.sound, item.light = 0, nil
         if (item.touch or 0) == 0 and not item.open then return false end
     end
+    Attach(item)
     K.queue[#K.queue + 1] = item
     return true
 end
@@ -512,9 +590,11 @@ function K.Marker(item)
     -- start in one frame keep their order)
     local at = 1
     while K.queue[at] and K.queue[at].marker do at = at + 1 end
-    table.insert(K.queue, at, { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),
+    local queued = { touch = touch, sound = Int(item.sound, 4095), gain = Int(item.gain == nil and 4 or item.gain, 7),
         intensity = item.intensity and Int(item.intensity, 7) or 4, moment = m, side = Int(item.side, 15),
-        seed = Int(item.seed, 255), level = Int(item.level, 3), marker = true })
+        seed = Int(item.seed, 255), level = Int(item.level, 3), marker = true }
+    Attach(queued)
+    table.insert(K.queue, at, queued)
     while #K.queue > K.QUEUE_MAX do table.remove(K.queue) end
     return true
 end
@@ -603,6 +683,8 @@ function K.LightCue(id, tint, strength, dots, mic)
 end
 
 local function Start(item)
+    item.started = true
+    if item.spell then K.spell = item.spell end
     local s = K.state
     s.seq = (s.seq + 1) % 16
     s.touch, s.sound, s.gain = item.touch or 0, item.sound or 0, item.gain or 4
@@ -623,6 +705,9 @@ end
 -- One frame: the event queue (each event on screen >= MIN_FRAMES frames and
 -- >= MIN_TIME), then a redraw if anything changed. Returns true on redraw.
 function K.Step(elapsed)
+    -- (a spell event no cue took: on its own)
+    local p = K.spellPending
+    if p and p.at ~= Now() then K.spell, K.spellPending, dirty = p.ev, nil, true end
     if active then
         frames, age = frames + 1, age + (elapsed or 0)   -- (the last frame was drawn with it)
         if frames >= K.MIN_FRAMES and age >= K.MIN_TIME then
@@ -643,10 +728,13 @@ function K.Step(elapsed)
     if dirty then
         dirty = false
         -- (WoW Helper's word on one line arrives with its data: the layout follows)
-        if K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine() then K.Layout() end
+        if (K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine()) or (K.spellDrawn ~= nil and K.spellDrawn ~= K.SpellRowOn()) then
+            K.Layout()
+        end
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
         if K.DrawLight then K.DrawLight(K.V2() and K.LightRow() and K.EncodeLight(K.LightRow()) or nil) end
         if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
+        if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
         return true
     end
     return false
@@ -684,9 +772,9 @@ function K.Layout()
     frame:ClearAllPoints()
     frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
     local n = K.V2() and K.CELLS_V2 or K.CELLS
-    local line = K.OneLine()
-    K.lineDrawn = line
-    frame:SetSize(unit * (line and K.LINE_CELLS or n), unit)
+    local line, spell = K.OneLine(), K.SpellRowOn()
+    K.lineDrawn, K.spellDrawn = line, spell
+    frame:SetSize(unit * (line and (spell and K.LINE_CELLS_SPELL or K.LINE_CELLS) or n), unit)
     for i, tex in ipairs(textures) do
         tex:ClearAllPoints()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
@@ -713,11 +801,32 @@ function K.Layout()
         end
         tex:SetSize(unit, unit)
     end
+    -- the spell row: three rows up; one line: from cell 76
+    for i, tex in ipairs(K.spellTextures or {}) do
+        tex:ClearAllPoints()
+        if line then
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_SPELL + i - 1) * unit, 0)
+        else
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 3 * unit)
+        end
+        tex:SetSize(unit, unit)
+    end
 end
 
--- The trigger row's cells, or nil: hidden
+-- The trigger row's cells, or nil: hidden (one line with the spell row: black, so the spell
+-- row's start stays put)
 function K.DrawTrig(cells)
+    local pad = not cells and K.lineDrawn and K.spellDrawn
     for i, tex in ipairs(K.trigTextures or {}) do
+        local c = cells and cells[i] or (pad and { 0, 0, 0 }) or nil
+        if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
+        tex:SetShown(c ~= nil)
+    end
+end
+
+-- The spell row's cells, or nil: hidden
+function K.DrawSpell(cells)
+    for i, tex in ipairs(K.spellTextures or {}) do
         local c = cells and cells[i]
         if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
         tex:SetShown(c ~= nil)
@@ -772,6 +881,14 @@ local function Build()
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         tex:Hide()
         K.trigTextures[i] = tex
+    end
+    K.spellTextures = {}
+    for i = 1, K.SPELL_CELLS do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.spellTextures[i] = tex
     end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
