@@ -399,6 +399,9 @@ local function DB()
     if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
     local db = GamepadCompanionHapticsDB
     if type(db.link) ~= "table" then db.link = {} end
+    -- (0.59.4: the old strip (v1) had a Lab switch also named "HD"; it's gone, so the wide strip
+    -- comes back once: HD on or off is Setup's switch, sent on the light row)
+    if not db.link.v1Cleared then db.link.v1, db.link.v1Cleared = nil, true end
     return db.link
 end
 

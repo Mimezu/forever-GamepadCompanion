@@ -413,6 +413,17 @@ do
     print("PASS: HD off on the light row's bit 3")
 end
 
+-- 0.59.4: the old strip saved by Lab's former "HD" switch comes back to the wide one, once
+do
+    local saved = GamepadCompanionHapticsDB
+    GamepadCompanionHapticsDB = { link = { on = true, v1 = true } }
+    assert(K.V2() == true, "v1 saved by the old switch: the wide strip again")
+    K.SetV2(false)
+    assert(K.V2() == false, "after that, the strip version is kept (tests, the debug path)")
+    GamepadCompanionHapticsDB = saved
+    print("PASS: the old HD switch's v1 cleared once")
+end
+
 K.SetEnabled(false)
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors)")

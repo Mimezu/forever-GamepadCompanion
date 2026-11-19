@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.59.4 — 2026-11-19
+
+- One HD switch: Setup › HD. Lab › Link's checkbox, also named "HD", switched the strip to its old format (no light row, so WoW Helper never heard HD was off, and the rumble stayed masked); it's gone, and a strip left on the old format comes back once
+
 ## 0.59.3 — 2026-11-19
 
 - Bank: the bank's bar is a child of the bank, as Blizzard's bag bar is of the bags: the bank's scale and layer, shown the moment the bank opens, gone when it closes
