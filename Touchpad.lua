@@ -431,6 +431,79 @@ function Touch.Runs(action)
     return T.MacroText(action, lookup)
 end
 
+-- A zone's macro on the secure button. A Blizzard binding (bind:focus) runs
+-- from the key, not the button (FingerBinds): there it does nothing, rather
+-- than fall back to Base's action
+local function ZoneMacro(action)
+    if T.BindingOf(action) then return "/stopmacro" end
+    return T.MacroText(action, lookup)
+end
+
+---------------------------------------------------------------------------
+-- Blizzard bindings on zones (bind:focus). A binding runs Blizzard's code
+-- securely, but the zone is only known from the finger: so out of combat,
+-- while the finger rests on such a zone (or last did: taps come after the
+-- lift), the touchpad's key itself is bound to it. Combat starts: back to
+-- the secure button (bindings can't change in combat), where it does nothing.
+---------------------------------------------------------------------------
+local fingerZone            -- the zone under the finger, kept after a lift
+local lastPlan = {}         -- the bindings Apply made
+local hasBinds = false      -- some zone of this mode runs a Blizzard binding
+
+local function LayerOfKey(key)
+    local left, right = _G.GAMEPAD_MOD_LEFT or "SHIFT", _G.GAMEPAD_MOD_RIGHT or "CTRL"
+    return T.LayerOf(key:find(left .. "-", 1, true) ~= nil, key:find(right .. "-", 1, true) ~= nil)
+end
+
+-- A zone's action on a layer, Base's when the layer's is empty
+local function Effective(set, layer, zone)
+    local a = set and set[layer] and set[layer][zone]
+    if a == nil and layer ~= "base" then a = set and set.base and set.base[zone] end
+    if a == "none" then a = nil end
+    return a
+end
+
+-- The binding a planned click key runs with the finger on zone, or nil
+local function BindingAt(entry, zone)
+    if not (entry.click and zone) then return nil end
+    -- (Touch + click: the left button is the touch, the right the click)
+    local set = entry.mouse == "LeftButton" and settings.touchActions or settings.actions[settings.mode]
+    return T.BindingOf(Effective(set, LayerOfKey(entry.key), zone))
+end
+Touch.BindingAt = BindingAt
+
+local function FingerBinds()
+    if InCombat() or not loaded then return end
+    for _, entry in ipairs(lastPlan) do
+        if entry.click then
+            local mouse = entry.mouse or "LeftButton"
+            local want = hasBinds and BindingAt(entry, fingerZone) or nil
+            local clickCommand = "CLICK " .. click:GetName() .. ":" .. mouse
+            if want and boundKeys[entry.key] ~= want then
+                SetOverrideBinding(binds, true, entry.key, want)
+                boundKeys[entry.key] = want
+            elseif not want and boundKeys[entry.key] ~= clickCommand then
+                SetOverrideBindingClick(binds, true, entry.key, click:GetName(), mouse)
+                boundKeys[entry.key] = clickCommand
+            end
+        end
+    end
+end
+Touch.FingerBinds = FingerBinds
+function Touch.FingerZone() return fingerZone end
+function Touch.SetFingerZone(zone) fingerZone = zone; FingerBinds() end
+
+local function HasBinds()
+    for _, set in ipairs({ settings.actions[settings.mode], settings.touchActions }) do
+        for _, layer in ipairs(T.LAYERS) do
+            for _, action in pairs(set and set[layer] or {}) do
+                if T.BindingOf(action) then return true end
+            end
+        end
+    end
+    return false
+end
+
 local function Env()
     return {
         padStyle = PadStyle(),
@@ -473,7 +546,7 @@ function Touch.Apply()
     for _, layer in ipairs(T.LAYERS) do
         for zone in pairs(every) do
             local macro = settings.enabled and inUse[zone]
-                and T.MacroText(settings.actions[settings.mode][layer][zone], lookup) or nil
+                and ZoneMacro(settings.actions[settings.mode][layer][zone]) or nil
             click:SetAttribute("gpc-m-" .. layer .. "-" .. zone, macro)
         end
     end
@@ -496,7 +569,7 @@ function Touch.Apply()
     for _, layer in ipairs(T.LAYERS) do
         for _, zone in ipairs(T.ALL_ZONES.chord) do
             local macro = dual and settings.enabled and inUse[zone]
-                and T.MacroText(settings.touchActions[layer][zone], lookup) or nil
+                and ZoneMacro(settings.touchActions[layer][zone]) or nil
             click:SetAttribute("gpc-t-" .. layer .. "-" .. zone, macro)
         end
     end
@@ -516,6 +589,9 @@ function Touch.Apply()
     end
     lastOurs = env.ours
     note = splitNote or planNote
+    lastPlan = plan
+    hasBinds = settings.enabled and HasBinds()
+    FingerBinds()
     BlockTouchCursor(#plan > 0)
     TapToClick(#plan > 0 and settings.input ~= "click")
 end
@@ -540,7 +616,7 @@ local preview
 local PAD_W, PAD_H = 300, 168      -- the pad's shape on the Controller page art
 
 local function ActionLook(action)
-    if action == nil or action == "none" then return nil end
+    if type(action) ~= "string" or action == "none" then return nil end   -- (the preview: false when not Touch + click)
     local kind, value = action:match("^(%a+):(.+)$")
     if kind == "window" then
         local w = T.WINDOW_BY_KEY[value]
@@ -570,6 +646,9 @@ local function ActionLook(action)
         return ring.name or "Halo ring", ns.Shared.HaloIcon(ring)
     elseif kind == "quick" then
         if ns.Quick then return ns.Quick.Look(value) end
+    elseif kind == "bind" then
+        local b = T.BINDING_BY_KEY[value]
+        if b then return b.label, b.icon end
     elseif kind == "pet" then
         local info = C_PetJournal and C_PetJournal.GetPetInfoByPetID
         local ok, _, custom, _, _, _, _, _, name, icon = pcall(info, value)
@@ -850,6 +929,18 @@ watcher:SetScript("OnUpdate", function(_, elapsed)
             Touch.Apply()
         end
     end
+    -- (a zone runs a Blizzard binding: the touchpad's key follows the finger)
+    if hasBinds and not InCombat() then
+        local fx, fy, flen = Finger()
+        if fx and (fx ~= 0 or fy ~= 0 or (flen or 0) > 0) then
+            local zone = (settings.mode ~= "split" or fx >= 0)
+                and T.ZoneAt(settings.mode, fx, fy, T.Grid(settings, settings.mode)) or nil
+            if zone ~= fingerZone then
+                fingerZone = zone
+                FingerBinds()
+            end
+        end
+    end
     if not settings.preview or PadStyle() ~= "Shapes" then return UpdatePreview(0, 0, false) end
     local x, y = Finger()
     if not x then return UpdatePreview(0, 0, false) end
@@ -862,7 +953,7 @@ end)
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
     "CVAR_UPDATE", "GAME_PAD_ACTIVE_CHANGED", "GAME_PAD_CONNECTED", "GAME_PAD_DISCONNECTED", "UPDATE_MACROS",
-    "SPELLS_CHANGED", "PLAYER_LOGOUT" }) do
+    "SPELLS_CHANGED", "PLAYER_LOGOUT", "PLAYER_REGEN_DISABLED" }) do
     pcall(events.RegisterEvent, events, event)
 end
 events:SetScript("OnEvent", function(_, event, arg)
@@ -883,6 +974,12 @@ events:SetScript("OnEvent", function(_, event, arg)
         return
     end
     if not loaded then return end
+    if event == "PLAYER_REGEN_DISABLED" then
+        -- (the last moment bindings can change: the zone's key back to the button)
+        fingerZone = nil
+        FingerBinds()
+        return
+    end
     if event == "PLAYER_LOGOUT" then
         if chordLent or settings.chordSaved then Touch.LendChord(false) end
         BlockTouchCursor(false)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.62.0 — 2026-11-19
+
+- Choose › Gamepad › Focus UI: Blizzard's focus on a pad button, a WoW Helper gesture or a touchpad zone
+- Zones: out of combat only (the key follows the finger); buttons and gestures work in combat too. Not on bar slots or swipes
+- Fixed: a Lua error in the touchpad preview when not on Touch + click
+
 ## 0.61.2 — 2026-11-19
 
 - Quick use (food, drink, potions) stays on a bar slot: its macro was deleted at once, as the game reports an item macro's slot as the item

@@ -777,7 +777,29 @@ end
 
 -- The kinds of action every binder takes: zones, gestures, keys and bar slots
 -- (a slot runs the others through a macro, SlotMacros.lua)
-T.ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true, quick = true, pet = true }
+T.ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true, quick = true, pet = true,
+    bind = true }
+-- Bar slots run actions through macros: a Blizzard binding can't run from one
+T.SLOT_ACCEPTS = {}
+for kind, on in pairs(T.ACCEPTS) do if kind ~= "bind" then T.SLOT_ACCEPTS[kind] = on end end
+
+-- Blizzard's own gamepad functions, run as key bindings ("bind:focus"). A
+-- binding runs Blizzard's code securely; a macro or /run would taint its
+-- focus state (gamepad item use then fails). So these go on keys only: pad
+-- buttons, gestures, and touchpad zones (the zone under the finger has the
+-- touchpad's key, out of combat). Not on bar slots.
+T.BINDINGS = {
+    { key = "focus", label = "Focus UI", binding = "TOGGLEUIFOCUS", icon = "Interface\\Icons\\Spell_Holy_MindVision" },
+}
+T.BINDING_BY_KEY = {}
+for _, b in ipairs(T.BINDINGS) do T.BINDING_BY_KEY[b.key] = b end
+
+-- The Blizzard binding an action runs ("TOGGLEUIFOCUS"), or nil
+function T.BindingOf(action)
+    if type(action) ~= "string" then return nil end
+    local b = T.BINDING_BY_KEY[action:match("^bind:(.+)$") or ""]
+    return b and b.binding or nil
+end
 
 -- The name of the character macro a bar slot runs an action through (16
 -- letters at most): "gpc:q:food", or a hash of a long one ("gpc:t:1a2b3c4d").

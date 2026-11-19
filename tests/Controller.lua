@@ -320,7 +320,7 @@ eq(actions[128], nil, "slot emptied")
 ui.slots[1].scripts.OnClick(ui.slots[1])
 eq(actions[128] and actions[128].id, 133, "clicking with an action drops it")
 
--- The picker on a bar slot: every kind (one accept set)
+-- The picker on a bar slot: every kind but Blizzard bindings (they need a key)
 do
     local open, asked = ns.Picker.Open, {}
     ns.Picker.Open = function(req) asked[#asked + 1] = req.accepts; return open(req) end
@@ -329,8 +329,9 @@ do
         pick(); ui.choose.scripts.OnClick(ui.choose); ns.PickerWindow():Hide()
     end
     ns.Picker.Open = open
-    check(#asked == 2 and asked[1] == ns.TouchModel.ACCEPTS and asked[2] == ns.TouchModel.ACCEPTS,
-        "slot and button: the one accept set")
+    check(#asked == 2 and asked[1] == ns.TouchModel.SLOT_ACCEPTS and asked[2] == ns.TouchModel.ACCEPTS,
+        "slot: no bindings; button: every kind")
+    check(not ns.TouchModel.SLOT_ACCEPTS.bind and ns.TouchModel.SLOT_ACCEPTS.window, "slot set: all but bind")
     for _, file in ipairs({ "ControllerWindow.lua", "GesturesPage.lua", "Touchpad.lua", "Keys.lua" }) do
         local f = assert(io.open(root .. "/" .. file)); local src = f:read("*a"); f:close()
         check(not src:find("accepts%s*=%s*{") and not src:find("ACCEPTS%s*=%s*{"), file .. ": no accept list of its own")
@@ -470,7 +471,7 @@ ui.buttons.l3.scripts.OnClick(ui.buttons.l3)
 ui.choose.scripts.OnClick(ui.choose)
 keys = {}
 for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
-eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,text", "button: every kind")
+eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,gamepad,text", "button: every kind")
 pui.cats.halo.scripts.OnClick(pui.cats.halo)
 eq(pui.tiles[1].entry.name, "Utility", "Halo rings of this character")
 check(not pui.tiles[2]:IsShown(), "another character's ring left out")
@@ -507,6 +508,12 @@ eq(overrides["SHIFT-PADLSTICK"], nil, "binding gone after combat")
 ui.layers.base.scripts.OnClick(ui.layers.base)
 ui.buttons.ps.scripts.OnClick(ui.buttons.ps)
 eq(ui.name.text, "Empty", "PS unbound")
+-- Focus UI on a button: its key runs Blizzard's binding (in combat too)
+check(Keys.Set("PADSYSTEM", "base", "bind:focus"), "PS: Focus UI")
+eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "TOGGLEUIFOCUS", "PS bound to Blizzard's Focus UI")
+Keys.Set("PADSYSTEM", "base", nil)
+eq(overrides.PADSYSTEM, nil, "cleared")
+eq(select(2, ns.SlotMacros.Ensure("bind:focus")), "Not on bar slots", "no bar slot macro for it")
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
 check(ui.layers.lt.selected, "L2 on the art picks the L2 bar")
 check(ui.showLayer:IsShown(), "card: show layer")

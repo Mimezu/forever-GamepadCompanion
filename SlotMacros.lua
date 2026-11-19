@@ -54,6 +54,7 @@ end
 -- a few words why
 function M.Ensure(action)
     if InCombat() then return nil, "Not in combat" end
+    if T.BindingOf(action) then return nil, "Not on bar slots" end
     local name = T.SlotMacroName(action)
     if not name then return nil, "Can't place" end
     local body = Body(action)

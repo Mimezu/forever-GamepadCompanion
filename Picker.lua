@@ -142,6 +142,15 @@ local function Windows()
     return list
 end
 
+-- Blizzard's gamepad functions, run as bindings (not on bar slots)
+local function Gamepad()
+    local list = {}
+    for _, b in ipairs(T.BINDINGS) do
+        list[#list + 1] = { action = "bind:" .. b.key, name = b.label, icon = b.icon }
+    end
+    return list
+end
+
 local function QuickUse()
     local list = {}
     for _, q in ipairs(T.QUICK) do
@@ -205,6 +214,7 @@ local function Categories()
         if #pets > 0 then cats[#cats + 1] = { key = "pets", label = "Pets", list = pets, group = "More" } end
     end
     if accepts.window then cats[#cats + 1] = { key = "windows", label = "Windows", list = Windows(), group = "More" } end
+    if accepts.bind then cats[#cats + 1] = { key = "gamepad", label = "Gamepad", list = Gamepad(), group = "More" } end
     if accepts.text then cats[#cats + 1] = { key = "text", label = "Typed macro", text = true, group = "More" } end
     return cats
 end

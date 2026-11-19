@@ -13,6 +13,7 @@ PlayStation pads only. `/gpc touch` (or Touchpad in the options window) opens th
 - **Tiles**: click one to select it. Drop a spell, item or macro on it to set it.
 - **Swipes**: press, slide and let go. Zones act on release, at the finger's spot then (at the press the game still reports the last touch).
 - **Right side**: windows, a dropped spell, item or macro, or typed macro text.
+- **Focus UI** (Choose › Gamepad): Blizzard's focus on a zone. Out of combat, while the finger rests on that zone, the touchpad's key runs Blizzard's binding itself; a tap uses the last spot. In combat the zone does nothing (L1 + touchpad still focuses).
 
 ## Commands
 
@@ -52,6 +53,7 @@ Zones are `r<row>c<col>`, row 1 at the top. Swipes: `swipe-up`, `swipe-down`, `s
 
 ## Limits
 
+- Focus UI on a zone: out of combat only (bindings can't change in combat). A swipe starting on that zone focuses instead. Not on swipes or bar slots.
 - Taps reach the addon after the finger leaves the pad, which then reports no position. Out of combat Companion keeps the last spot on the secure button; in combat it can't, so taps do nothing and only clicks run zones.
 
 ## Not checked in game

@@ -57,8 +57,15 @@ function Keys.Apply()
     local n = 0
     for _, key in ipairs(Keys.KEYS) do
         for _, layer in ipairs(Sh.LAYERS) do
-            local macro = T.MacroText(Keys.Get(key, layer), Sh.lookup)
-            if macro then
+            local action = Keys.Get(key, layer)
+            local binding = T.BindingOf(action)
+            local macro = not binding and T.MacroText(action, Sh.lookup) or nil
+            if binding then
+                -- (Blizzard's own function: the key runs its binding, securely)
+                local bindKey = Sh.LayerPrefix(layer) .. key
+                SetOverrideBinding(owner, true, bindKey, binding)
+                bound[bindKey] = binding
+            elseif macro then
                 n = n + 1
                 local id = "k" .. n
                 button:SetAttribute("*type-" .. id, "macro")

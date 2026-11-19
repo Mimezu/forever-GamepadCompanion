@@ -563,5 +563,39 @@ do
     eq(cvars.GamePadTouchTapButtons, "0", "probe done: tap setting back")
 end
 
+-- Focus UI on a zone: out of combat the touchpad's key runs Blizzard's
+-- binding while the finger rests on that zone (taps: where it last was)
+do
+    Touch.Command("mode chord")
+    Touch.SetInput("click")
+    Touch.SetEnabled(true)
+    Touch.SetGrid(3, 2)
+    check(Touch.SetZone("base", "r1c1", "bind:focus"), "Focus UI on top left")
+    check(Touch.SetZone("lt", "r1c1", "text:/wave"), "L2 there: a macro")
+    eq(click:GetAttribute("gpc-m-base-r1c1"), "/stopmacro", "on the button: nothing, no Base fallback")
+    pad.x, pad.y = -0.8, 0.6; Tick()
+    eq(GetBindingAction("PADBACK"), "TOGGLEUIFOCUS", "finger on it: the key runs Focus UI")
+    eq(GetBindingAction("SHIFT-PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "L2 there has its own: the button")
+    pad.x, pad.y = 0.8, 0.6; Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "finger elsewhere: the button")
+    pad.x, pad.y = -0.8, 0.6; Tick()
+    pad.x, pad.y = 0, 0; Tick()
+    eq(GetBindingAction("PADBACK"), "TOGGLEUIFOCUS", "lifted: kept (a tap comes after the lift)")
+    Fire("PLAYER_REGEN_DISABLED")
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "combat starts: back to the button")
+    combat = true
+    pad.x, pad.y = -0.8, 0.6; Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "in combat: unchanged")
+    combat = false
+    Tick()
+    eq(GetBindingAction("PADBACK"), "TOGGLEUIFOCUS", "after combat: follows again")
+    eq(Touch.ActionLook("bind:focus"), "Focus UI", "named")
+    Touch.SetZone("base", "r1c1", "none")
+    Touch.SetZone("lt", "r1c1", "none")
+    Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "cleared: the button")
+    pad.x, pad.y = 0, 0
+end
+
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

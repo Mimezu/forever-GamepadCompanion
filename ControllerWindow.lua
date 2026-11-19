@@ -161,7 +161,7 @@ local function FromAction(action, own, inherited)
     local name, icon, atlas = Look(action)
     local kind = action:match("^(%a+):")
     local kinds = { spell = "Spell", item = "Item", macro = "Macro", window = "Window", halo = "Halo ring", text = "Typed macro",
-        quick = "Quick use", pet = "Pet" }
+        quick = "Quick use", pet = "Pet", bind = "Gamepad" }
     return { name = name, icon = icon, atlas = atlas, kind = (kinds[kind] or kind) .. (inherited and " · Base" or ""),
         own = own, inherited = inherited, action = action }
 end
@@ -500,7 +500,8 @@ local function OpenPicker()
         title = "Choose · " .. (target.kind == "zone"
             and ((T.GESTURE_LABELS[tpZone] or T.ZoneLabel(tpZone, T.Grid(TouchSettings(), TouchSettings().mode))) .. " · " .. C.LAYER_LABELS[layer])
             or (C.LAYER_LABELS[layer] .. " + " .. (selected.kind == "slot" and C.SLOTS[selected.slot].name or C.BUTTON_BY_ID[selected.id].name))),
-        accepts = T.ACCEPTS,
+        -- (a Blizzard binding needs a key: not a bar slot, nor a swipe, known only at the release)
+        accepts = (target.kind == "slot" or (target.kind == "zone" and T.GESTURE_LABELS[tpZone])) and T.SLOT_ACCEPTS or T.ACCEPTS,
         current = entry and entry.own and entry.action or nil,
         onPick = function(action)
             target.set(layer, action)

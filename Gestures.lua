@@ -57,10 +57,15 @@ function G.Apply()
     wipe(bound)
     for slot = 1, G.SLOTS do
         local id = "g" .. slot
-        local macro = T.MacroText(settings[slot], Sh.lookup)
+        local binding = T.BindingOf(settings[slot])
+        local macro = not binding and T.MacroText(settings[slot], Sh.lookup) or nil
         button:SetAttribute("*type-" .. id, macro and "macro" or nil)
         button:SetAttribute("*macrotext-" .. id, macro)
-        if macro then
+        if binding then
+            -- (Blizzard's own function: the gesture's key runs its binding)
+            SetOverrideBinding(owner, true, G.Key(slot), binding)
+            bound[G.Key(slot)] = binding
+        elseif macro then
             SetOverrideBindingClick(owner, true, G.Key(slot), G.BUTTON, id)
             bound[G.Key(slot)] = "CLICK " .. G.BUTTON .. ":" .. id
         end
