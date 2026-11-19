@@ -1099,15 +1099,17 @@ do
     cf.scripts.OnEvent(cf, "START_AUTOREPEAT_SPELL")
     assert(K.state.right.mode == K.MODES.weapon, "shooting: R2 clicks")
     cf.scripts.OnEvent(cf, "STOP_AUTOREPEAT_SPELL")
-    -- the body: Health percentage < 35 -> Weight on L2, heavier as health drops
+    -- the body: Low health (the heartbeat's, 0.55.3) -> Weight on L2, heavier as health drops
     local hp = UnitHealth
     UnitHealth = function() return 200 end   -- (20 %)
     St.ReadAll()
+    ns.Rumble.Fire("lowHp")
     C.UpdateTriggers()
     assert(K.trig and K.trig.left.shape == TS.ID.weight and math.abs(K.trig.left.value - 0.8) < 0.011, "20 % health: Weight at 0.8")
     assert(K.state.left.mode == K.MODES.resist, "the strip's own fields: a near equivalent")
     UnitHealth = function() return 900 end
     St.ReadAll()
+    ns.Rumble.EndLoop("lowHp")
     C.UpdateTriggers()
     assert(K.state.left.mode == K.MODES.off and (K.trig == nil or K.trig.left.shape == 0), "healthy again: L2 free")
     UnitHealth = hp

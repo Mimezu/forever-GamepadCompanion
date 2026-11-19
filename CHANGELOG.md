@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.3 — 2026-11-19
+
+- Triggers: the hurt rule (L2 Weight) follows **Low health**, as the heartbeat does: the game's own warning in combat, where health is secret. Since 0.50.0 it read health as a percentage, which can't be read in combat (the source of 0.55.2's errors). Your saved rule moves over once if it was still as shipped; a changed one stays yours
+
 ## 0.55.2 — 2026-11-19
 
 - Lights and triggers no longer break in combat: health and movement speed are secret values there, and the stack did math on them (BugGrabber: 6,873 + 11,196 errors in one session). A secret value now reads as unknown; Movement follows the game's start and stop events; one condition failing never stops the others

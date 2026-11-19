@@ -42,7 +42,7 @@ check(rows[1].condition == "ready:Judgement" and rows[2].condition == "ready:Ham
 check(rows[3].condition == "cast" and rows[3].R2.shape == TS.ID.tension and rows[3].R2.follows == "cast", "cast tension follows the cast")
 local body = {}
 for _, r in ipairs(rows) do if r.L2 then body[#body + 1] = r.condition end end
-check(table.concat(body, ",") == "player_health,mounted,swimming", "L2: health, mount, water: " .. table.concat(body, ","))
+check(table.concat(body, ",") == "lowHp,mounted,swimming", "L2: low health, mount, water: " .. table.concat(body, ","))
 for _, r in ipairs(rows) do check((r.R2 == nil) ~= (r.L2 == nil), r.id .. ": one trigger a row (the other passes)") end
 
 -- order: the first match wins per trigger; an event on top hands back
@@ -74,9 +74,10 @@ res = kind:Now()
 check(res.R2.row.condition == "autoAttack" and math.abs(res.R2.value.value - 0.5) < 0.011, "half a 3.6 s swing: 0.5")
 health = 200
 St.ReadAll()
-TS.Update({})
+TS.Update({ lowHp = true })
 res = kind:Now()
-check(res.L2.row and res.L2.row.condition == "player_health" and math.abs(res.L2.value.value - 0.8) < 0.011, "20 % health: Weight at 0.8")
+check(res.L2.row and res.L2.row.condition == "lowHp" and math.abs(res.L2.value.value - 0.8) < 0.011, "20 % health, Low health: Weight at 0.8")
+TS.Update({})
 health = 1000
 St.ReadAll()
 TS.Update({})
@@ -313,6 +314,24 @@ do
     ns2.TriggerStack.Update({ cast = true, progress = 0.5 })
     local K2 = ns2.HelperLink
     check(K2.trig and K2.trig.right.shape == TS.ID.tension and K2.state.right.mode ~= 0, "after a reload: the triggers drawn")
+end
+
+-- 0.55.3: hurt reads Low health (health is secret in combat: BugGrabber 2026-11-19)
+do
+    local hurt
+    for _, r in ipairs(TS.Recommended()) do if r.id == "hurt" then hurt = r end end
+    check(hurt and hurt.condition == "lowHp" and hurt.threshold == nil, "Recommended hurt: Low health, no percentage")
+    local function saved(threshold)
+        db.triggerStack = { migrated = true, repaired = true, rows = {
+            { id = "hurt", condition = "player_health", operator = "<", threshold = threshold, on = true, L2 = { shape = TS.ID.weight, follows = "hurt" } } } }
+        TS.Store()
+        return db.triggerStack.rows[1]
+    end
+    local r = saved(35)
+    check(r.condition == "lowHp" and r.operator == nil and r.threshold == nil, "the shipped hurt row saved before: Low health now")
+    r = saved(50)
+    check(r.condition == "player_health" and r.threshold == 50, "a hurt row you changed: kept as yours")
+    db.triggerStack = nil
 end
 
 print(string.format("TriggerStack: %s (%d checks)", failed == 0 and "ok" or (failed .. " failed"), n))

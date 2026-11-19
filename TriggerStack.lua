@@ -140,7 +140,9 @@ local function L2(id, condition, shape, follows, extra)
     return r
 end
 local BODY = {
-    L2("hurt", "player_health", "weight", "hurt", { operator = "<", threshold = 35 }),
+    -- (Low health: the heartbeat's own, the game's warning in combat where health is secret;
+    -- a percentage can't be read there)
+    L2("hurt", "lowHp", "weight", "hurt"),
     L2("mounted", "mounted", "gallop"),
     L2("swimming", "swimming", "drag"),
 }
@@ -187,6 +189,17 @@ local function Store()
     if type(db.triggerStack) ~= "table" then db.triggerStack = {} end
     local store = db.triggerStack
     if not store.repaired and store.migrated and TS.Repair then TS.Repair(store) end
+    -- (0.55.3: hurt as shipped before, health under 35 %, reads Low health instead: health is
+    -- secret in combat. Only the untouched shipped row, once)
+    if not store.hurtLowHp and type(store.rows) == "table" then
+        store.hurtLowHp = true
+        for _, row in ipairs(store.rows) do
+            if type(row) == "table" and row.id == "hurt" and row.condition == "player_health"
+                and row.operator == "<" and tonumber(row.threshold) == 35 then
+                row.condition, row.operator, row.threshold = "lowHp", nil, nil
+            end
+        end
+    end
     return store
 end
 TS.Store = Store
