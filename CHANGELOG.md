@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.60.0 — 2026-11-19
+
+- **Autorun turns too** (Setup › Camera, on): with Turn Player with Camera on "when moving", the camera now turns the character during autorun too (the game didn't count autorun as moving). Only while autorun is on, through a temporary value the game never saves; your choice is untouched, and changing it mid-autorun is respected. Other choices: nothing changes
+
 ## 0.59.4 — 2026-11-19
 
 - One HD switch: Setup › HD. Lab › Link's checkbox, also named "HD", switched the strip to its old format (no light row, so WoW Helper never heard HD was off, and the rumble stayed masked); it's gone, and a strip left on the old format comes back once

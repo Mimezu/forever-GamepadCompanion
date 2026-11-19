@@ -362,9 +362,25 @@ local function BuildBase(frame)
     end
 end
 
+---------------------------------------------------------------------------
+-- Camera: autorun counts as moving for Turn Player with Camera
+---------------------------------------------------------------------------
+local function BuildCamera(frame)
+    local AT = ns.AutorunTurn
+    if not AT then return end
+    local card = S.Card(frame, "Camera", 0, -330, COL, 110, "Interface\\Icons\\Ability_Rogue_Sprint")
+    local check = S.NewCheck(card, "Autorun turns too", 12, -38, function(self)
+        AT.SetEnabled(self:GetChecked() == true)
+    end, COL - 60)
+    S.Tooltip(check, "Autorun turns too", "When moving: autorun counts")
+    pg.autorun = check
+    pg.refresh[#pg.refresh + 1] = function() check:SetChecked(AT.Enabled()) end
+end
+
 local function Build(frame)
     BuildHelper(frame)
     BuildTriggers(frame)
+    BuildCamera(frame)
     BuildRange(frame)
     BuildTiming(frame)
     BuildBase(frame)
