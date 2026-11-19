@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.59.0 — 2026-11-19
+
+- **Mailbox: Open All works with the pad.** Blizzard hides the Open All button in gamepad mode, and □ clicks the hidden button: the first item came out, then nothing (its stepper only runs on a shown button). Companion now runs Blizzard's own stepper while the button is hidden: same pacing, COD and GM mail skipped as theirs
+- Stops when the mailbox closes; waits out combat; "Bags full" when the bags fill
+- Stands down by itself when the button is shown (mouse mode) or once Blizzard fixes it, so nothing opens twice
+
 ## 0.58.1 — 2026-11-19
 
 - Bank: the bank gets the bag window's legend bar, Blizzard's own, placed under the bank as theirs is under the bags: ✕ Select · □ Send to bags · ○ Close (□ lit on a bank slot holding an item)
