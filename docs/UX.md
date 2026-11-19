@@ -289,6 +289,13 @@ Its count on the left like every group's (on of all, in the kind). Not a new tab
   or sound as a link. At play: while a spell's moment fires (`V.spellNow`) its own light and
   sound replace the moment's; a spell whose feel plays nothing (quiet, Off) still plays its own
   light and sound at the cast. Crits keep the Crit moment's.
+- **Gathering's actions (0.54.0) are moments of their own** under Gathering, the same way:
+  `gather:herbalism`, `gather:mining`, `gather:skinning`, `gather:fishing`, `gather:opening`
+  (numbers 78-82, `HelperCues.MOMENTS` with the parent as `m[3]`). Each has its own feel
+  (`vibration.gatherFeels[action]`, while Gathering is on), sound and volumes, Gathering's until
+  it has its own; nested under Gathering in Feel and Sound. Each mining strike and the crack
+  send the action's cue with its sound (`V.StrikeHD`), once a strike; WoW Helper's learned
+  timing gets it in the start marker and replays it. A group with more rows than fit scrolls.
 
 Review: round 1 BLOCK (two deciders for one spell, rank keys, overrides skipped by early
 returns, timing per spell untrue, Try stand-in); round 2 **SIGN OFF** with Default = clear the

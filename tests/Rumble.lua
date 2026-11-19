@@ -533,12 +533,19 @@ do
     local Ksounds = C.Settings().sounds
     C.Settings().sounds = true
     C.SetMomentSound("spell", K.SOUNDS.chime)
+    V.castAction = nil
     for _, kind in ipairs({ "spell", "gather", "craft" }) do
         V.castKind = kind
         sent = {}
         V.Fire("cast")
         assert(sent[1] == C.MOMENT_N[kind], kind .. ": its own number, not 72: " .. tostring(sent[1]))
     end
+    -- (a gathering action: its own moment, Mining's 79)
+    V.castKind, V.castAction = "gather", "mining"
+    sent = {}
+    V.Fire("cast")
+    assert(sent[1] == C.MOMENT_N["gather:mining"] and sent[1] == 79, "mining: its own number: " .. tostring(sent[1]))
+    V.castAction = nil
     V.castKind = "spell"
     for _, k in ipairs({ "cancelled", "pushback" }) do
         sent = {}

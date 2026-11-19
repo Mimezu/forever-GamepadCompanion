@@ -57,6 +57,15 @@ local GROUPS = {
     { key = "Interface", items = { { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" }, { "l", "uiError" } } },
 }
 ui.GROUPS = GROUPS
+-- Gathering's actions under it (g: a gathering action's own moment, "gather:mining")
+for _, g in ipairs(GROUPS) do
+    for i, item in ipairs(g.items) do
+        if item[2] == "gather" then
+            for j, a in ipairs(V.GATHER_ACTIONS) do table.insert(g.items, i + j, { "g", V.GatherKey(a.key) }) end
+            break
+        end
+    end
+end
 
 local REVENT, KIND = {}, {}
 for _, e in ipairs(V.EVENTS) do REVENT[e.key] = e end
@@ -189,6 +198,54 @@ ITEM.c = {
     end,
 }
 
+-- A gathering action's own moment ("gather:mining"): its feel, Gathering's until it has its own
+local function ActionLabel(key) return V.GatherAction(V.GatherOf(key)).label end
+ITEM.g = {
+    label = ActionLabel,
+    icon = function() return KIND.gather.icon end,
+    tip = function(key) return ActionLabel(key) end,
+    show = function(key)
+        local action = V.GatherOf(key)
+        local pattern = V.ActionPattern(action)
+        if not pattern then return "Off", V.OFF_ICON, nil, true end
+        local p = V.Pattern(pattern)
+        return p and p.label or pattern, p and p.icon, V.ActionFeel(action) == nil and "As Gathering" or nil
+    end,
+    current = function(key)
+        local pattern = V.ActionPattern(V.GatherOf(key))
+        return pattern and L.FeelFor(pattern) or "off"
+    end,
+    specials = function() return { OFF } end,
+    pick = function(key, feel)
+        local action = V.GatherOf(key)
+        if feel == "off" then return V.SetActionFeel(action, "off") end
+        L.RegisterInRumble()
+        local pattern = L.PatternFor(feel)
+        V.SetActionFeel(action, pattern)
+        if V.Settings().enabled then V.Play(pattern) end
+    end,
+    isDefault = function(key) return V.ActionFeel(V.GatherOf(key)) == nil end,
+    default = function(key) V.SetActionFeel(V.GatherOf(key), nil) end,
+    feel = function(key)
+        local p = V.Pattern(V.ActionPattern(V.GatherOf(key)))
+        return p and p.feel, p and p.label
+    end,
+    assign = function(key, ownKey)
+        L.RegisterInRumble()
+        V.SetActionFeel(V.GatherOf(key), "x_" .. ownKey)
+    end,
+    try = function(key)
+        if not On() then return end
+        local pattern = V.ActionPattern(V.GatherOf(key))
+        if not pattern then return Say(ActionLabel(key) .. " is off", true) end
+        V.Play(pattern, false, V.Scaled(nil, key))
+        local HC = ns.HelperCues
+        if HC and HC.TryHD then HC.TryHD(key, L.FeelFor(pattern)) end
+        Say(ActionLabel(key))
+    end,
+    level = Volume("feel"),
+}
+
 -- The Beta engine's events: a feel of the palette, or Off
 ITEM.l = {
     label = function(key) return L.EVENT[key].label end,
@@ -267,12 +324,14 @@ end
 
 -- Any moment's name and icon, whichever list has it
 local function LabelOf(key)
+    if V.GatherOf(key) then return ITEM.g.label(key) end
     local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key] or (LT and LT.Def(key))
     if e then return e.label end
     local _, name = ns.SubMoment and ns.SubMoment(key)
     return name or key
 end
 local function IconOf(key)
+    if V.GatherOf(key) then return KIND.gather.icon end
     local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key]
     return e and e.icon or LIGHT_ICON
 end
@@ -350,14 +409,20 @@ local function Items(kind, group)
     if kind == "light" and LT then
         for _, e in ipairs(LT.EVENTS) do if LIGHT_GROUP[e.key] == group then list[#list + 1] = { "light", e.key } end end
     elseif kind == "sound" and C and C.MOMENTS then
+        -- (a moment under another, m[3]: right under it, "gather:mining" under Gathering)
         for _, m in ipairs(C.MOMENTS) do
-            if m[2] == group and not (C.LIGHT_ONLY and C.LIGHT_ONLY[m[1]]) then list[#list + 1] = { "sound", m[1] } end
+            if m[2] == group and not m[3] and not (C.LIGHT_ONLY and C.LIGHT_ONLY[m[1]]) then
+                list[#list + 1] = { "sound", m[1] }
+                for _, c in ipairs(C.MOMENTS) do
+                    if c[3] == m[1] then list[#list + 1] = { "sound", c[1] } end
+                end
+            end
         end
     end
     return list
 end
 
-local KIND_OF = { r = "feel", c = "feel", l = "feel", light = "light", sound = "sound" }
+local KIND_OF = { r = "feel", c = "feel", l = "feel", g = "feel", light = "light", sound = "sound" }
 
 -- The other kinds a moment has, as marks
 local Jump
@@ -432,8 +497,9 @@ local function VolumeDefault(kind, key, check)
         if check then return math.abs(Vol.Feel(key) - Vol.FeelDefault(key)) < 1e-6 end
         Vol.SetFeel(key, Vol.FeelDefault(key))
     elseif k == "sound" then
-        if check then return Vol.Sound(key) >= 1 end
-        Vol.SetSound(key, 1)
+        -- (a moment under another: its parent's volume until it has its own)
+        if check then return math.abs(Vol.Sound(key) - Vol.SoundDefault(key)) < 1e-6 end
+        Vol.SetSound(key, Vol.SoundDefault(key))
     end
     return true
 end
@@ -458,6 +524,10 @@ local function Snapshot(kind, key)
         local s = L.EventSettings(key)
         local on, feel = s.on, s.feel
         back = function() s.on, s.feel = on, feel end
+    elseif kind == "g" then
+        local action = V.GatherOf(key)
+        local own = V.ActionFeel(action)
+        back = function() V.Settings().gatherFeels[action] = own end
     elseif kind == "sound" then
         local id = C.MomentSound(key)
         back = function() C.SetMomentSound(key, id or false) end
@@ -718,6 +788,59 @@ end
 ListArrows = function(r)
     r.up:SetHitRectInsets(0, 0, -2, -1)
     r.down:SetHitRectInsets(0, 0, -1, -2)
+end
+
+-- A group card's rows: as many as fit (CARD_ROWS), the wheel scrolls the rest ("1–12 of 16"
+-- and a thumb); a nested row indented (INDENT). card.Reveal(row) scrolls a row into view
+ui.CARD_ROWS = floor((PH - 44) / HUI.ROW_H)
+ui.INDENT = 24
+function ui.ScrollRows(card, rows, fit)
+    card.list, card.offset = rows, 0
+    local more = #rows > fit
+    if more then
+        card.range = S.Text(card, "", 0, 0, 90, 11, DIM)
+        card.range:ClearAllPoints()
+        card.range:SetPoint("TOPRIGHT", -126, -14)
+        card.range:SetJustifyH("RIGHT")
+        card.thumb = card:CreateTexture(nil, "OVERLAY")
+        card.thumb:SetColorTexture(1, 0.78, 0.25, 0.6)
+    end
+    function card.Place()
+        card.offset = math.max(0, math.min(card.offset, #rows - fit))
+        for i, row in ipairs(rows) do
+            local j = i - card.offset
+            local shown = j >= 1 and j <= fit
+            row:SetShown(shown)
+            if shown then
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 10 + (row.indent or 0), -38 - (j - 1) * HUI.ROW_H)
+            end
+        end
+        if not more then return end
+        card.range:SetText((card.offset + 1) .. "–" .. math.min(#rows, card.offset + fit) .. " of " .. #rows)
+        local h = fit * HUI.ROW_H
+        local th = math.max(18, h * fit / #rows)
+        card.thumb:ClearAllPoints()
+        card.thumb:SetPoint("TOPRIGHT", -3, -38 - (h - th) * card.offset / (#rows - fit))
+        card.thumb:SetSize(3, th)
+    end
+    function card.Scroll(delta)
+        card.offset = card.offset - delta
+        card.Place()
+    end
+    function card.Reveal(row)
+        for i, r in ipairs(rows) do
+            if r == row then
+                if i <= card.offset then card.offset = i - 1 elseif i > card.offset + fit then card.offset = i - fit end
+            end
+        end
+        card.Place()
+    end
+    if more then
+        card:EnableMouseWheel(true)
+        card:SetScript("OnMouseWheel", function(_, d) card.Scroll(d) end)
+    end
+    card.Place()
 end
 
 -- A reactions list's chrome (lights and triggers alike): Otherwise pinned under the rows shown,
@@ -1341,6 +1464,7 @@ Jump = function(key, kind)
                     if item[2] == key then ui.browser.Select(g.key) end
                 end
             end
+            if row.card and row.card.Reveal then row.card.Reveal(row) end
             S.SetSelected(row.pick, true)
             if C_Timer and C_Timer.After then C_Timer.After(1.5, function() S.SetSelected(row.pick, false) end) end
             Say(row.label:GetText() or key)
@@ -1976,11 +2100,17 @@ local function Build(frame, header)
         for _, k in ipairs(KINDS) do
           if k[1] ~= "trigger" then
             local items = Items(k[1], g.key)
-            local card = S.Card(panel, g.key, 0, 0, cw, max(90, 44 + #items * HUI.ROW_H))
+            local fit = ui.CARD_ROWS
+            local card = S.Card(panel, g.key, 0, 0, cw, max(90, 44 + math.min(#items, fit) * HUI.ROW_H))
             if #items == 0 then S.Text(card, "None here", 14, -44, cw - 28, 12, DIM) end
+            local rows = {}
             for i, item in ipairs(items) do
-                MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw, item[1], item[2])
+                -- (a moment under another: indented under it)
+                local indent = V.GatherOf(item[2]) and ui.INDENT or 0
+                rows[i] = MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw - indent, item[1], item[2])
+                rows[i].indent, rows[i].card = indent, card
             end
+            ui.ScrollRows(card, rows, fit)
             -- (in its title band: every changed row back to Recommended, Undo for 5 s)
             if #items > 0 then
                 local kind = k[1]

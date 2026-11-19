@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.54.0 — 2026-11-18
+
+- **Mining, Herbalism, Skinning, Fishing and Opening are moments of their own** under Gathering (`gather:mining`…), as a spell is: each its own feel, sound and volumes, Gathering's until it has its own; nested under Gathering on Moments (Feel and Sound), with Try and in Search
+- Each mining strike and the crack play the action's sound with its feel, once a strike, whoever times them (before, only WoW Helper's learned timing had a sound); the gathering marker carries the action's own moment
+- WoW Helper's sound proposals for these moments: Accept / Dismiss on their Sound rows
+- A group with more moments than fit scrolls with the wheel ("1–12 of 16")
+
 ## 0.53.13 — 2026-11-18
 
 - Help › Commands lists `/gpc bars nudge` (move a bar without Edit Mode)

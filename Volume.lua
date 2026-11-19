@@ -29,7 +29,20 @@ end
 Vol.FEEL_DEFAULT = { mount = 0.5, dismount = 0.5 }
 
 -- A moment's feel / sound volume (its default unless set; full for most)
-function Vol.FeelDefault(key) return Vol.FEEL_DEFAULT[key] or 1 end
+-- (a gathering action, "gather:mining": Gathering's volumes until it has its own)
+local function Parent(key)
+    local V = ns.Rumble
+    return V and V.GatherOf and V.GatherOf(key) and "gather" or nil
+end
+function Vol.FeelDefault(key)
+    local parent = Parent(key)
+    if parent then return Vol.Feel(parent) end
+    return Vol.FEEL_DEFAULT[key] or 1
+end
+function Vol.SoundDefault(key)
+    local parent = Parent(key)
+    return parent and Vol.Sound(parent) or 1
+end
 function Vol.Feel(key)
     -- (a spell's own, "spell:instant:Frost Nova": its own volume over its
     -- parent's, as Vol.Sound reads it from its owner)
@@ -49,7 +62,9 @@ end
 function Vol.Sound(key)
     local name, O = Sub(key)
     if O then return Clamp(O.Field(name, "soundVolume") or 1) end
-    return Clamp(key and Vol.DB().sound[key] or 1)
+    local v = key and Vol.DB().sound[key]
+    if v == nil then return Vol.SoundDefault(key) end
+    return Clamp(v)
 end
 -- (only what differs from the default is saved)
 function Vol.SetFeel(key, v)
@@ -61,7 +76,7 @@ function Vol.SetSound(key, v)
     v = Clamp(v)
     local name, O = Sub(key)
     if O then return O.SetField(name, "soundVolume", v < 1 and v or nil) end
-    Vol.DB().sound[key] = v < 1 and v or nil
+    Vol.DB().sound[key] = math.abs(v - Vol.SoundDefault(key)) >= 1e-6 and v or nil
 end
 
 -- Every sound

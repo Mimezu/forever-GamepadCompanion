@@ -3164,3 +3164,146 @@ do
     T.LoadHelper()
     io.write("PASS: night 2 haptics: Lab's old timing cleared once, Learned scrolls, Try as learned, lightOnly" .. string.char(10))
 end
+
+-- Gathering's actions: moments of their own ("gather:mining"), their sound on every strike whoever
+-- times them, once; WoW Helper's sound proposals for them; nested under Gathering on Moments
+do
+    local C, K, Vol, T, page = ns.HelperCues, ns.HelperLink, ns.Volume, ns.Timing, ns.RumblePage
+    -- appended numbers (none moved), and in the export with their parent for WoW Helper
+    assert(C.MOMENT_N["gather:herbalism"] == 78 and C.MOMENT_N["gather:mining"] == 79
+        and C.MOMENT_N["gather:opening"] == 82 and C.MOMENT_N.pushback == 77, "gathering's actions: 78-82")
+    local ex = C.ExportMoments({}).moments
+    local m = ex["gather:mining"]
+    assert(m and m.n == 79 and m.parent == "gather" and m.label == "Mining" and m.group == "Abilities"
+        and ex.gather.parent == nil, "exported: Mining under Gathering")
+    -- Gathering's sound and volumes until it has its own
+    V.SetCastPreset("gather", "auto")
+    C.SetMomentSound("gather", K.SOUNDS.chime)
+    assert(C.MomentSound("gather:mining") == K.SOUNDS.chime and C.IsSoundDefault("gather:mining"), "Gathering's sound")
+    C.SetMomentSound("gather:mining", 242)
+    assert(C.MomentSound("gather:mining") == 242 and C.MomentSound("gather:herbalism") == K.SOUNDS.chime, "its own")
+    Vol.SetSound("gather", 0.5)
+    assert(Vol.Sound("gather:mining") == 0.5, "Gathering's volume")
+    Vol.SetSound("gather:mining", 0.8)
+    assert(Vol.Sound("gather:mining") == 0.8 and Vol.Sound("gather:skinning") == 0.5, "its own volume")
+    Vol.SetSound("gather:mining", 0.5)
+    assert(Vol.DB().sound["gather:mining"] == nil, "as Gathering: nothing saved")
+    Vol.SetSound("gather", 1)
+    -- its feel: its own while Gathering is on, Gathering's (Match the action: the pickaxe) until then
+    assert(V.ActionPattern("mining") == "pickaxe" and V.ActionFeel("mining") == nil, "the pickaxe, Gathering's")
+    V.SetActionFeel("skinning", "pluck")
+    V.castKind, V.castAction, V.castSet = "gather", "skinning", nil
+    assert(V.EventPattern("cast") == "pluck" and C.MomentFeel("gather:skinning") == L.FeelFor("pluck"), "skinning: its own")
+    V.SetActionFeel("skinning", "skin")
+    assert(V.ActionFeel("skinning") == nil, "Gathering's again: nothing saved")
+    V.SetActionFeel("skinning", "off")
+    assert(V.EventPattern("cast") == nil and V.ActionPattern("skinning") == nil, "skinning off")
+    V.SetActionFeel("skinning", nil)
+    V.castKind, V.castAction = "spell", nil
+
+    -- every strike and the crack: the action's moment with its sound, once each, whoever times them
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local enabled, v2, cue = K.Enabled, K.V2, K.Cue
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    C.Settings().sounds, C.Settings().hdFeels = true, true
+    local cues = {}
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local function rev(...) rf.scripts.OnEvent(rf, ...) end
+    WowHelperData = nil
+    T.LoadHelper()
+    V.Settings().strikes = {}
+    T.Store().strikes = {}
+    local start
+    UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3) * 1000 end
+    -- (the addon times them)
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "gm1", 2575)
+    assert(#cues == 0, "the cast's start: no cue (its strikes carry it): " .. #cues)
+    local shape = V.looping and V.looping.shape
+    assert(shape, "mining strikes")
+    shape(start + 1.6)
+    shape(start + 1.7)
+    shape(start + 3.05)
+    assert(#cues == 2, "a strike and the crack, once each: " .. #cues)
+    for _, q in ipairs(cues) do
+        assert(q.moment == 79 and q.sound == 242 and q.touch, "Mining's moment, its sound and feel: "
+            .. tostring(q.moment) .. " " .. tostring(q.sound))
+    end
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "gm1", 2575)
+    -- (WoW Helper times them: the start marker carries Mining's cue, nothing from here)
+    WowHelperData = { strikeTiming = { ["1-2|mining"] = { first = 0.62, period = 1.18, strikes = 30, casts = 9 } } }
+    T.LoadHelper()
+    wipe(K.queue); cues = {}
+    now = now + 5; start = now
+    rev("UNIT_SPELLCAST_START", "player", "gm2", 2575)
+    local marker = K.queue[1]
+    assert(marker and marker.moment == 100 and marker.sound == 242 and marker.touch, "the marker: Mining's sound and feel")
+    shape = V.looping and V.looping.shape
+    if shape then shape(start + 0.7); shape(start + 1.9); shape(start + 3.05) end
+    for _ = 1, 300 do now = now + 0.01; C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01) end
+    assert(#cues == 0, "WoW Helper replays them: no double from here: " .. #cues)
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "gm2", 2575)
+    -- (a herb, not timed: its cast's cue as Herbalism's moment, its sound once)
+    WowHelperData = nil
+    T.LoadHelper()
+    cues = {}
+    now = now + 5; start = now
+    UnitCastingInfo = function() return "Herb Gathering", nil, nil, start * 1000, (start + 3) * 1000 end
+    rev("UNIT_SPELLCAST_START", "player", "gh1", 2366)
+    for _ = 1, 300 do now = now + 0.01; C.loopFrame.scripts.OnUpdate(C.loopFrame, 0.01) end
+    local sounds = 0
+    for _, q in ipairs(cues) do if q.sound then sounds = sounds + 1 end end
+    assert(cues[1] and cues[1].moment == 78 and cues[1].sound == K.SOUNDS.chime and sounds == 1,
+        "Herbalism: its moment, Gathering's sound, once: " .. tostring(cues[1] and cues[1].moment) .. " x" .. sounds)
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "gh1", 2366)
+    K.Enabled, K.V2, K.Cue = enabled, v2, cue
+
+    -- Moments: nested under Gathering in Feel and Sound, Try, a proposal accepted, Search
+    ns.Shell.Open("moments")
+    page.SetKind("feel")
+    page.browser.Select("Abilities")
+    page.Refresh()
+    local function find(kind, key)
+        for _, r in ipairs(page.rows) do if r.kind == kind and r.key == key then return r end end
+    end
+    local feelRow = find("g", "gather:mining")
+    assert(feelRow and feelRow.indent == page.INDENT and feelRow.label:GetText() == "Mining", "Mining's feel row, nested")
+    local list = feelRow.card.list
+    local gi
+    for i, r in ipairs(list) do if r.key == "gather" then gi = i end end
+    assert(list[gi + 1].key == "gather:herbalism" and list[gi + 2] == feelRow, "right under Gathering")
+    page.SetKind("sound")
+    page.browser.Select("Abilities")
+    page.Refresh()
+    local soundRow = find("sound", "gather:mining")
+    assert(soundRow and soundRow.indent == page.INDENT, "Mining's sound row, nested")
+    local card = soundRow.card
+    assert(#card.list > page.CARD_ROWS and card.range:GetText() == "1–" .. page.CARD_ROWS .. " of " .. #card.list,
+        "more than fit: they scroll: " .. tostring(card.range and card.range:GetText()))
+    card.Scroll(-20)
+    assert(not soundRow:IsShown(), "scrolled past")
+    page.Jump("gather:mining", "sound")
+    assert(soundRow:IsShown(), "a jump brings it back into view")
+    -- (WoW Helper's "Use for": a sound proposed for Mining, accepted here)
+    WowHelperData = { proposals = { ["gather:mining"] = { kind = "sound", id = "77", name = "Pick on stone" } } }
+    local p = C.Proposal("sound", "gather:mining")
+    assert(p and p.name == "Pick on stone", "proposed")
+    assert(page.Accept("sound", "gather:mining", p), "accepted")
+    assert(C.MomentSound("gather:mining") == 77 and C.Proposal("sound", "gather:mining") == nil, "Mining's sound, the proposal gone")
+    local found
+    for _, e in ipairs(page.Search("mining")) do if e.where:find("Sound", 1, true) then found = e end end
+    assert(found and found.label == "Mining", "in Search")
+    page.SetKind("feel")
+
+    WowHelperData = nil
+    T.LoadHelper()
+    C.SetMomentSound("gather", nil)
+    C.SetMomentSound("gather:mining", nil)
+    H.DB().proposalsDismissed = nil
+    io.write("PASS: gathering's actions: moments of their own, their sound on each strike once, proposals, nested" .. string.char(10))
+end

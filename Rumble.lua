@@ -533,6 +533,52 @@ V.CAST_KINDS = {
 local CAST_KIND = {}
 for _, k in ipairs(V.CAST_KINDS) do CAST_KIND[k.key] = k end
 
+-- Gathering's actions, each a moment of its own under Gathering ("gather:mining",
+-- as a spell is: UX.md §9): its own feel, sound and volumes, Gathering's until it
+-- has its own. The feel: V.Settings().gatherFeels[action] = a pattern or "off"
+V.GATHER_ACTIONS = {}
+local GATHER_ACTION = {}
+for _, a in ipairs(V.CAST_ACTIONS) do
+    if a.kind == "gather" then
+        V.GATHER_ACTIONS[#V.GATHER_ACTIONS + 1] = a
+        GATHER_ACTION[a.key] = a
+    end
+end
+function V.GatherKey(action) return GATHER_ACTION[action] and ("gather:" .. action) or nil end
+-- "gather:mining" -> "mining" (nil: not a gathering action's moment)
+function V.GatherOf(key)
+    local a = type(key) == "string" and key:match("^gather:(%a+)$")
+    return a and GATHER_ACTION[a] and a or nil
+end
+function V.GatherAction(action) return GATHER_ACTION[action] end
+-- An action's own feel (a pattern, "off"), nil: Gathering's
+function V.ActionFeel(action)
+    local own = V.Settings().gatherFeels[action]
+    return type(own) == "string" and own or nil
+end
+-- What an action plays with Gathering's set (nil: nothing)
+local function InheritedPattern(action)
+    local preset = PRESET[V.CastPreset("gather")]
+    if not preset or preset.key == "off" then return nil end
+    if preset.auto then preset = PRESET[action] end
+    return preset and preset.cast or nil
+end
+-- What an action plays now (nil: nothing): its own while Gathering is on, else Gathering's
+function V.ActionPattern(action)
+    if not GATHER_ACTION[action] then return nil end
+    local inherited = InheritedPattern(action)
+    local own = V.ActionFeel(action)
+    if own == nil or V.CastPreset("gather") == "off" then return inherited end
+    if own == "off" then return nil end
+    return own
+end
+-- pattern: its own ("off": none), nil or what Gathering plays: Gathering's
+function V.SetActionFeel(action, pattern)
+    if not GATHER_ACTION[action] then return end
+    if pattern ~= nil and pattern ~= "off" and pattern == InheritedPattern(action) then pattern = nil end
+    V.Settings().gatherFeels[action] = pattern
+end
+
 -- What the Vibration tab lists: each event, and the kinds of cast (each a
 -- set for its four moments)
 V.RAIL = {}
@@ -559,6 +605,7 @@ function V.Settings()
     local s = IF.db.vibration
     if s.enabled == nil then s.enabled = true end
     s.casts = s.casts or {}
+    if type(s.gatherFeels) ~= "table" then s.gatherFeels = {} end
     for _, k in ipairs(V.CAST_KINDS) do
         if not PRESET[s.casts[k.key]] then s.casts[k.key] = k.preset end
     end
@@ -678,7 +725,13 @@ end
 function V.EventPattern(eventKey)
     if PHASE[eventKey] then
         local preset = PRESET[V.castSet or V.CastPreset(V.castKind)]
-        if preset and preset.auto then
+        -- (a gathering action's own feel, while Gathering is on: its set)
+        local own = V.castKind == "gather" and not V.castSet and V.castAction and GATHER_ACTION[V.castAction]
+            and V.ActionFeel(V.castAction)
+        if own and preset and preset.key ~= "off" then
+            if own == "off" then return nil end
+            preset = PRESET[V.FeelSet(own)]
+        elseif preset and preset.auto then
             local kind = CAST_KIND[V.castKind]
             preset = PRESET[V.castAction] or PRESET[kind and kind.fallback or "subtle"]
         end
@@ -1155,14 +1208,15 @@ local function Strikes(now)
     return e, e
 end
 
--- A strike's HD feel (the pickaxe's), sent with the rumble's strike: the
--- strikes' own clock, not the loop's (each cycle from the cast's start was
--- out of step with the swings)
+-- A strike's HD feel (the pickaxe's) and the action's sound ("gather:mining"),
+-- sent with the rumble's strike, the crack too: once a strike (the cast's start
+-- sends none: V.cueTimed). The strikes' own clock, not the loop's (each cycle
+-- from the cast's start was out of step with the swings)
 function V.StrikeHD(action)
     local C, L = ns.HelperCues, ns.HapticsLab
     if not (C and C.Moment and L) then return end
     local p = V.EventPattern("cast")
-    if p then C.Moment("gather", L.FeelFor(p), { noSound = true }) end
+    if p then C.Moment(V.GatherKey(action) or "gather", L.FeelFor(p)) end
 end
 
 -- The ore breaks loose: a longer crack, then crumbling taps left and right
@@ -1955,7 +2009,8 @@ function V.GatherMarker(action, phase)
     if phase == "start" and source == "learned" and C and C.MomentItem then
         local pattern = V.EventPattern("cast")
         local L = ns.HapticsLab
-        item = pattern and L and C.MomentItem("gather", L.FeelFor(pattern))
+        -- (the action's own moment: its sound, which WoW Helper replays on each strike)
+        item = pattern and L and C.MomentItem(V.GatherKey(action) or "gather", L.FeelFor(pattern))
         if type(item) ~= "table" then item = nil end
     end
     local carries = item ~= nil and ((item.touch or 0) > 0 or (item.sound or 0) > 0)

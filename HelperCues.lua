@@ -48,6 +48,10 @@ C.MOMENTS = {
     { "release", "Abilities" }, { "interrupted", "Abilities" }, { "halo", "Interface" },
     -- a cast's other ends (they went with no number, 0), 76-77
     { "cancelled", "Abilities" }, { "pushback", "Abilities" },
+    -- Gathering's actions, moments of their own under it (m[3]: the parent), 78-82
+    { "gather:herbalism", "Abilities", "gather" }, { "gather:mining", "Abilities", "gather" },
+    { "gather:skinning", "Abilities", "gather" }, { "gather:fishing", "Abilities", "gather" },
+    { "gather:opening", "Abilities", "gather" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
@@ -58,6 +62,9 @@ function C.CueKey(key)
     if key ~= "cast" then return key end
     local V = ns.Rumble
     local kind = V and V.castKind
+    -- (gathering: the action's own moment, "gather:mining")
+    local action = kind == "gather" and V.GatherKey and V.GatherKey(V.castAction)
+    if action then return action end
     return kind and C.MOMENT_N[kind] and kind or "spell"
 end
 
@@ -208,6 +215,9 @@ function C.MomentSound(key)
     local v = SoundDB()[key]
     if v == false then return nil end
     if type(v) == "number" then return v end
+    -- (a gathering action, "gather:mining": Gathering's until it has its own)
+    local Parent = ns.Rumble and ns.Rumble.GatherOf
+    if Parent and Parent(key) then return C.MomentSound("gather") end
     local name = C.DEFAULT_SOUND[key]
     return name and K.SOUNDS[name] or nil
 end
@@ -240,6 +250,12 @@ local function IsRumbleEvent(key)
     return false
 end
 function C.MomentFeel(key)
+    local V = ns.Rumble
+    local action = V and V.GatherOf and V.GatherOf(key)
+    if action then
+        local pattern = V.ActionPattern(action)
+        return pattern and L.FeelFor(pattern) or nil
+    end
     if IsRumbleEvent(key) then
         local choice = ns.Rumble.EventChoice(key)
         if choice == "off" then return nil end
@@ -255,6 +271,13 @@ end
 
 -- Set a moment's feel (a library key) as the Rumble tab would
 function C.SetMomentFeel(key, feelKey)
+    local V = ns.Rumble
+    local action = V and V.GatherOf and V.GatherOf(key)
+    if action then
+        L.RegisterInRumble()
+        V.SetActionFeel(action, L.PatternFor(feelKey))
+        return true
+    end
     if IsRumbleEvent(key) then
         L.RegisterInRumble()
         ns.Rumble.SetEventPattern(key, L.PatternFor(feelKey))
@@ -445,6 +468,9 @@ function C.MomentLabel(key)
     if L.EVENT and L.EVENT[key] then label = L.EVENT[key].label end
     for _, e in ipairs(ns.Rumble and ns.Rumble.EVENTS or {}) do if e.key == key then label = e.label end end
     for _, e in ipairs(ns.Rumble and ns.Rumble.CAST_KINDS or {}) do if e.key == key then label = e.label end end
+    local V = ns.Rumble
+    local action = V and V.GatherOf and V.GatherOf(key)
+    if action then label = V.GatherAction(action).label end
     return label
 end
 
@@ -486,7 +512,8 @@ local function ExportMoments(export)
         local label = C.MomentLabel(key)
         if C.LIGHT_ONLY[key] then label = label .. " (light)" end
         -- (lightOnly: WoW Helper offers no feel or sound for it)
-        moments[key] = { n = n, group = m[2], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
+        -- (parent: a moment under another, "gather:mining" under "gather")
+        moments[key] = { n = n, group = m[2], parent = m[3], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
             feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
     end
