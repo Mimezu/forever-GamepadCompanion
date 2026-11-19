@@ -3376,9 +3376,37 @@ do
     H.DB().feelMode = nil
     now = now + 2
     V.Fire("levelUp")
-    assert(#plays == 1 and #plains == 1 and math.abs(plains[1].scale - 0.3) < 1e-6, "a plain entry, no switch: faint under HD")
+    assert(#plays == 1 and #plains == 1 and plains[1].scale == 1, "a plain entry, no switch (link off: at full)")
     -- (its light fires with it: the plain bar colour)
     assert(#flashes == 1 and flashes[1][2] == 1 and flashes[1][3] == 0 and flashes[1][5] == 0.5, "the plain bar colour")
+    -- faint under HD only on a PlayStation pad with the link on; an Xbox pad: at full (WoW
+    -- Helper plays nothing there)
+    local K = ns.HelperLink
+    local enabled, mapped = K.Enabled, C_GamePad.GetDeviceMappedState
+    local function Style(style)
+        C_GamePad.GetDeviceMappedState = function() return { axes = {}, buttons = {}, labelStyle = style } end
+    end
+    K.Enabled = function() return true end
+    Style("Shapes")
+    local _, sc = F.Rumble("levelUp")
+    assert(F.PlayStation() and F.HelperPlaysHD() and math.abs(sc - 0.3) < 1e-6, "Shapes style, link on: faint under HD")
+    now = now + 2
+    V.Fire("levelUp")
+    assert(#plains == 2 and math.abs(plains[2].scale - 0.3) < 1e-6, "Shapes style: played faint")
+    Style("Letters")
+    _, sc = F.Rumble("levelUp")
+    assert(not F.PlayStation() and not F.HelperPlaysHD() and sc == 1, "Xbox style, link on: at full")
+    now = now + 2
+    V.Fire("levelUp")
+    assert(#plains == 3 and plains[3].scale == 1, "Xbox style: played at full")
+    C_GamePad.GetDeviceMappedState = function() error("no pad") end
+    assert(not F.PlayStation() and select(2, F.Rumble("levelUp")) == 1, "no pad read: at full")
+    Style("Shapes")
+    K.Enabled = function() return false end
+    assert(select(2, F.Rumble("levelUp")) == 1, "Shapes style, link off: at full")
+    K.Enabled, C_GamePad.GetDeviceMappedState = enabled, mapped
+    for i = #plains, 2, -1 do plains[i] = nil end
+    plays = { plays[1] }
     now = now + 2
     V.Fire("crit")
     assert(#plays == 2 and #plains == 1, "no plain for it: its Classic feel")
@@ -3441,7 +3469,7 @@ do
     page.Refresh()
     assert(row.pick:IsShown() and row.default:IsShown() and not row.fullEdit:IsShown() and not row.fullName:IsShown(), "Classic rows")
     assert(Today() == before, "events, lights, sounds, spells, profiles: untouched")
-    io.write("PASS: Full feels: a plain entry plays with no switch (faint under HD), inherited, lighter row; no entry: Classic, unchanged" .. string.char(10))
+    io.write("PASS: Full feels: a plain entry plays with no switch (faint under HD), inherited, lighter row; no entry: Classic, unchanged; faint only on a PlayStation pad, Xbox at full" .. string.char(10))
 end
 
 -- Learned · gathering: mining's second hit is the crack at the cast's end (not a repeat), in a

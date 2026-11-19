@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.57.1 — 2026-11-19
+
+- Full feels on an Xbox pad: the plain rumble plays at full. It is faint under HD only on a PlayStation pad with the link on, since WoW Helper plays HD only on a DualSense
+
 ## 0.57.0 — 2026-11-19
 
 - **Full feels without a switch**: Lab › Mode is gone. Each moment's active full feel decides: a moment WoW Helper has a full feel for (`WowHelperData.plain`) plays its plain version (faint under HD); every other moment plays as before

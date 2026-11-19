@@ -41,6 +41,7 @@ doesn't match yet, the audit's migration plan says when it will.)
   - with WoW Helper: its basic HD feels;
   - a full feel made in WoW Helper: that moment plays it (the addon plays its plain version
     faintly underneath). The rest stay as they were.
+  - WoW Helper plays only on a DualSense: on an Xbox pad the game's rumble stays at full.
 
 ## Finding things
 - **Just felt**: the last moments, in both programs; click one to open it, right-click: **Again**.

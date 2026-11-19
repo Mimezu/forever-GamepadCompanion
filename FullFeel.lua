@@ -21,6 +21,19 @@ function F.Faint()
     return v and math.max(0, math.min(1, v)) or 0.3
 end
 
+-- WoW Helper can play HD now: a PlayStation pad (HD, speaker, lights and triggers are
+-- DualSense only) and the link on. An Xbox pad: the game's rumble at full.
+function F.PlayStation()
+    local G = C_GamePad
+    if not (G and G.GetDeviceMappedState) then return false end
+    local ok, state = pcall(G.GetDeviceMappedState, G.GetActiveDeviceID and G.GetActiveDeviceID() or nil)
+    return ok and type(state) == "table" and state.labelStyle == "Shapes" or false
+end
+function F.HelperPlaysHD()
+    local K = ns.HelperLink
+    return F.PlayStation() and K ~= nil and K.Enabled ~= nil and K.Enabled() and true or false
+end
+
 -- A moment's plain entry as WoW Helper wrote it (nil: none, it plays as before). A moment
 -- under another ("gather:mining") has its parent's until it has its own.
 function F.Entry(key)
@@ -77,13 +90,13 @@ function F.Sample(points, t)
     return last[2], last[3]
 end
 
--- The plain rumble a moment plays now: its points and its scale (faint under HD), or nil
--- (no plain rumble for it)
+-- The plain rumble a moment plays now: its points and its scale (faint under HD, only while
+-- WoW Helper can play it: F.HelperPlaysHD), or nil (no plain rumble for it)
 function F.Rumble(key)
     local e = F.Plain(key)
     local points = e and F.Points(e)
     if not points then return nil end
-    return points, e.hd == true and F.Faint() or 1
+    return points, e.hd == true and F.HelperPlaysHD() and F.Faint() or 1
 end
 
 -- A shape for Rumble's shaper: the points once from `start` (loop: over and over), scaled
