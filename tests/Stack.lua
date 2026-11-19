@@ -293,4 +293,28 @@ event("PLAYER_REGEN_ENABLED")
 -- L2-13: Hush is offered only where it can show (Feel); everything else everywhere
 ok(St.Offered("hush", "feel") and not St.Offered("hush", "triggers") and not St.Offered("hush", "lights"), "L2-13: Hush: Feel only")
 ok(St.Offered("combat", "triggers") and St.Offered("combat", "feel") and not St.Offered("nope", "feel"), "the others: everywhere")
+-- Secret values (health, speed in combat, BugGrabber 2026-11-19: Stack.lua:78 x6873, :86 x11196):
+-- arithmetic or tonumber on one errors in the game; here a table that errors the same way
+local SECRET = setmetatable({}, { __arith = function() error("arithmetic on a secret") end,
+    __lt = function() error("compare a secret") end, __le = function() error("compare a secret") end })
+local mt = getmetatable(SECRET)
+mt.__add, mt.__sub, mt.__mul, mt.__div = mt.__arith, mt.__arith, mt.__arith, mt.__arith
+issecretvalue = function(v) return v == SECRET end
+local realTonumber = tonumber
+tonumber = function(v, ...) if v == SECRET then error("numeric conversion on a secret") end return realTonumber(v, ...) end
+UnitHealth = function() return SECRET end
+GetUnitSpeed = function() return SECRET end
+world.combat = true
+local fine = pcall(function() event("UNIT_HEALTH", "player"); event("PLAYER_STARTED_MOVING") end)
+ok(fine, "secret health and speed: no error")
+ok(St.Value("player_health") == nil, "secret health: unknown, not a number")
+ok(St.Is("moving") == true, "secret speed: moving from the game's event")
+event("PLAYER_STOPPED_MOVING")
+ok(St.Is("moving") == false, "secret speed: stopped from the game's event")
+ok(St.Is("combat") == true, "the other conditions still read")
+tonumber, issecretvalue = realTonumber, nil
+UnitHealth = function() return world.hp end
+GetUnitSpeed = function() return world.speed end
+world.combat = false
+event("PLAYER_REGEN_ENABLED")
 print("Stack: ok (" .. checks .. " checks)")

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.55.2 — 2026-11-19
+
+- Lights and triggers no longer break in combat: health and movement speed are secret values there, and the stack did math on them (BugGrabber: 6,873 + 11,196 errors in one session). A secret value now reads as unknown; Movement follows the game's start and stop events; one condition failing never stops the others
+- The Hush key no longer loads the key-binding header twice
+
 ## 0.55.1 — 2026-11-18
 
 - Learned · gathering: Mining reads "1.49 s · then crack" (its second hit is the crack at the cast's end, not a repeat); the timing plate is wider, so it fits

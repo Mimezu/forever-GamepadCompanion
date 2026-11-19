@@ -17,10 +17,26 @@ ns.Stack = St
 
 local floor, min, max = math.floor, math.min, math.max
 
+-- A value the game keeps from addons (health, speed... in combat): never compared or counted
+local function secret(v) return issecretvalue ~= nil and issecretvalue(v) == true end
+St.Secret = secret
+
+-- A game call: its results, a secret one as nil (unknown, never an error)
 local function call(fn, ...)
     if type(fn) ~= "function" then return nil end
     local ok, a, b = pcall(fn, ...)
-    if ok then return a, b end
+    if not ok then return nil end
+    if secret(a) then a = nil end
+    if secret(b) then b = nil end
+    return a, b
+end
+
+-- Moving, from the game's own events when the speed is secret (set in the event handler below)
+local movingByEvent = false
+local function Moving()
+    local speed = call(GetUnitSpeed, "player")
+    if speed == nil then return movingByEvent end
+    return (tonumber(speed) or 0) > 0
 end
 local function Now() return GetTime and GetTime() or 0 end
 
@@ -83,7 +99,7 @@ St.Condition("combat", { label = "In combat", category = "player", test = functi
     events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" } })
 St.Condition("out_of_combat", { label = "Out of combat", category = "player", test = function() return call(UnitAffectingCombat, "player") ~= true end,
     events = { "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" } })
-St.Condition("moving", { label = "Movement", category = "player", test = function() return (tonumber(call(GetUnitSpeed, "player")) or 0) > 0 end,
+St.Condition("moving", { label = "Movement", category = "player", test = Moving,
     events = { "PLAYER_STARTED_MOVING", "PLAYER_STOPPED_MOVING" } })
 St.Condition("cast", { label = "Casting", category = "player" })
 St.Condition("dead", { label = "Dead or ghost", category = "player", test = function() return call(UnitIsDeadOrGhost, "player") == true end,
@@ -272,8 +288,15 @@ local function ReadAll(all)
     local need = not all and Needed() or nil
     for _, c in ipairs(condList) do
         if not need or need[c.key] then
-            if c.test then flags[c.key] = c.test() and true or false end
-            if c.value then values[c.key] = c.value() end
+            -- (one condition failing never stops the others, nor the refresh after)
+            if c.test then
+                local ok, v = pcall(c.test)
+                flags[c.key] = (ok and not secret(v) and v) and true or false
+            end
+            if c.value then
+                local ok, v = pcall(c.value)
+                values[c.key] = ok and type(v) == "number" and not secret(v) and v or nil
+            end
         end
     end
 end
@@ -649,6 +672,8 @@ if frame then
         if (event == "UNIT_AURA" or event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_POWER_UPDATE"
             or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" or event == "UNIT_FACTION")
             and unit and unit ~= "player" and unit ~= "target" then return end
+        if event == "PLAYER_STARTED_MOVING" then movingByEvent = true
+        elseif event == "PLAYER_STOPPED_MOVING" then movingByEvent = false end
         for _, key in ipairs(momentOf[event] or {}) do moments[key] = Now() end
         ReadAll()
         St.Refresh()

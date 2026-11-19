@@ -2,7 +2,7 @@
 	<Binding name="GAMEPADCOMPANION_TOGGLE" header="GAMEPADCOMPANION" category="BINDING_CATEGORY_GAMEPADCOMPANION">
 		GamepadCompanion_Toggle()
 	</Binding>
-	<Binding name="GAMEPADCOMPANION_HUSH" header="GAMEPADCOMPANION" category="BINDING_CATEGORY_GAMEPADCOMPANION">
+	<Binding name="GAMEPADCOMPANION_HUSH" category="BINDING_CATEGORY_GAMEPADCOMPANION">
 		GamepadCompanion_Hush()
 	</Binding>
 </Bindings>
