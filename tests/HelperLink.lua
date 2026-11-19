@@ -388,6 +388,31 @@ do
     print("PASS: one-line strip: 34 + 23 + 19 = 76 cells, only when WoW Helper reads it")
 end
 
+-- HD off on light row bit 3 (WoW Helper's HD-RELEASE.md): in the CRC, both versions; a row
+-- drawn even without lights while HD is off
+do
+    for _, v in ipairs({ 0, 1 }) do
+        local row = K.DecodeLight(K.EncodeLight({ version = v, hold = 3, hdOff = true }))
+        assert(row and row.hdOff == true and row.hold == 3, "hdOff round trip, version " .. v)
+        row = K.DecodeLight(K.EncodeLight({ version = v, hold = 3 }))
+        assert(row and row.hdOff == false, "HD on: bit 3 clear, version " .. v)
+    end
+    local light = K.light
+    K.light = nil
+    local hd = true
+    ns.HelperCues = { HDMode = function() return hd and "auto" or "off" end }
+    assert(K.LightRow() == nil, "HD on, no lights: no row")
+    hd = false
+    local r = K.LightRow()
+    assert(r and r.hdOff == true and K.DecodeLight(K.EncodeLight(r)).hdOff == true, "HD off, no lights: a bare row says so")
+    K.light = { version = 1, hold = 5 }
+    assert(K.LightRow().hdOff == true and K.LightRow().hold == 5, "HD off with lights: their row, bit 3 set")
+    hd = true
+    assert(K.LightRow().hdOff == nil, "HD back on: bit clear")
+    K.light, ns.HelperCues = light, nil
+    print("PASS: HD off on the light row's bit 3")
+end
+
 K.SetEnabled(false)
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors)")

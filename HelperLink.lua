@@ -246,6 +246,23 @@ local function CrcBits(bits, n)
     return K.Crc8(bytes)
 end
 
+-- The light row as drawn: the lights' own (K.light) with the HD switch on bit 3; while HD
+-- is off, a row is drawn even without lights, so WoW Helper knows (HD-RELEASE.md)
+function K.HDOff()
+    local C = ns.HelperCues
+    return C ~= nil and C.HDMode ~= nil and C.HDMode() == "off"
+end
+local bare = {}
+function K.LightRow()
+    local off = K.HDOff()
+    local row = K.light
+    if not row then
+        if not off then return nil end
+        row = bare
+    end
+    row.hdOff = off or nil
+    return row
+end
 -- row = { version, resting, hold, holdTint, holdStrength, progress, cue, cueTint, cueStrength,
 --   (version 1:) holdDots, holdMic, cueDots, cueMic }: 17 cells (version 0) or 23 (version 1)
 function K.EncodeLight(row)
@@ -255,6 +272,9 @@ function K.EncodeLight(row)
     for i = 0, 65 do bits[i] = 0 end
     Put(bits, 0, v1 and 1 or 0, 2)
     Put(bits, 2, row.resting and 1 or 0, 1)
+    -- (bit 3: the addon's HD feels off: WoW Helper then leaves the game's rumble alone;
+    -- WowHelper docs/HD-RELEASE.md)
+    Put(bits, 3, row.hdOff and 1 or 0, 1)
     Put(bits, 4, Int(row.hold, 255), 8)
     Put(bits, 12, Int(row.holdTint, 31), 5)
     Put(bits, 17, Int(row.holdStrength, 7), 3)
@@ -295,7 +315,7 @@ function K.DecodeLight(cells)
     end
     local at = v1 and 58 or 40
     if CrcBits(bits, at) ~= Get(bits, at, 8) then return nil, "crc" end
-    local row = { version = Get(bits, 0, 2), resting = Get(bits, 2, 1) == 1, hold = Get(bits, 4, 8),
+    local row = { version = Get(bits, 0, 2), resting = Get(bits, 2, 1) == 1, hdOff = Get(bits, 3, 1) == 1, hold = Get(bits, 4, 8),
         holdTint = Get(bits, 12, 5), holdStrength = Get(bits, 17, 3), progress = Get(bits, 20, 4),
         cue = Get(bits, 24, 8), cueTint = Get(bits, 32, 5), cueStrength = Get(bits, 37, 3) }
     if v1 then
@@ -622,7 +642,7 @@ function K.Step(elapsed)
         -- (WoW Helper's word on one line arrives with its data: the layout follows)
         if K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine() then K.Layout() end
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
-        if K.DrawLight then K.DrawLight(K.V2() and K.light and K.EncodeLight(K.light) or nil) end
+        if K.DrawLight then K.DrawLight(K.V2() and K.LightRow() and K.EncodeLight(K.LightRow()) or nil) end
         if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
         return true
     end

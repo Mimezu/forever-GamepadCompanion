@@ -301,7 +301,11 @@ end
 
 -- HD: "auto" (HD while the link is on) or "off" (the Setup tab's WoW Helper card)
 function C.HDMode() return C.Settings().hdFeels == false and "off" or "auto" end
-function C.SetHDMode(v) C.Settings().hdFeels = v ~= "off" end
+function C.SetHDMode(v)
+    C.Settings().hdFeels = v ~= "off"
+    -- (the strip's light row carries it: WoW Helper lets the game's rumble through)
+    if K and K.MarkDirty then K.MarkDirty() end
+end
 
 -- A gesture slot as WoW Helper recorded it: { name, mode, desc, path } (nil
 -- without data). Older data gives the name alone (a string).

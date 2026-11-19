@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.59.1 — 2026-11-19
+
+- HD off now reaches WoW Helper (light row bit 3): with HD feels off, WoW Helper leaves the pad on the game's own rumble, while sounds, lights, triggers and timing keep working. Needs WoW Helper from 2026-11-19 (HD-RELEASE)
+
 ## 0.59.0 — 2026-11-19
 
 - **Mailbox: Open All works with the pad.** Blizzard hides the Open All button in gamepad mode, and □ clicks the hidden button: the first item came out, then nothing (its stepper only runs on a shown button). Companion now runs Blizzard's own stepper while the button is hidden: same pacing, COD and GM mail skipped as theirs
