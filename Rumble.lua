@@ -802,6 +802,9 @@ local function motors(low, high)
     if H then return H.Set("rumble", low, high) end
     -- (the Feel channel: Hush, Resting 30 %… Hush.lua; the mixer applies it itself)
     local scale = ns.FeelScale and ns.FeelScale() or 1
+    -- (under WoW Helper's HD: Setup › Under HD, as the mixer does)
+    local Hp = ns.Haptics
+    if Hp and Hp.UnderHD then scale = scale * Hp.UnderHD() end
     low, high = low * scale, high * scale
     if high > 0 then high = HIGH_FLOOR + (1 - HIGH_FLOOR) * high end
     C_GamePad.SetVibration("Low", low)

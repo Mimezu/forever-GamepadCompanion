@@ -13,13 +13,6 @@ ns.FullFeel = F
 
 F.MAX_POINTS = 16
 
--- The rumble left under WoW Helper's HD (hd = true): faint, so a crashed WoW Helper still
--- leaves a felt tap, never a second full rumble. Recommended (Profiles.lua), one value.
-function F.Faint()
-    local P = ns.Profiles
-    local v = P and P.RECOMMENDED and tonumber(P.RECOMMENDED.plainUnderHD)
-    return v and math.max(0, math.min(1, v)) or 0.3
-end
 
 -- WoW Helper can play HD now: a PlayStation pad (HD, speaker, lights and triggers are
 -- DualSense only) and the link on. An Xbox pad: the game's rumble at full.
@@ -96,7 +89,8 @@ function F.Rumble(key)
     local e = F.Plain(key)
     local points = e and F.Points(e)
     if not points then return nil end
-    return points, e.hd == true and F.HelperPlaysHD() and F.Faint() or 1
+    -- (under HD: Setup › Under HD scales every game rumble, this one too: one setting)
+    return points, 1
 end
 
 -- A shape for Rumble's shaper: the points once from `start` (loop: over and over), scaled

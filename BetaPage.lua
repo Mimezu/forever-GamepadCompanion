@@ -1064,8 +1064,13 @@ local function BuildLink(p)
     -- (one line: only once WoW Helper says it reads it)
     Stepper(link, "Strip", 12, -110, { labelWidth = 110, width = 306, list = K.STRIPS,
         get = function() return K.Strip() end, set = function(v) K.SetStrip(v); Refresh() end })
-    local state = S.Note(link, 12, -146, 306, 3, 11, DIM)
-    local dbg = S.NewButton(link, "Debug", 12, -204, 306, function()
+    -- (the game's rumble under WoW Helper's HD: PlayStation pads only)
+    Stepper(link, "Under HD", 12, -144, { labelWidth = 110, width = 306, step = 10, min = 0, max = 100,
+        format = function(v) return v .. "%" end,
+        get = function() return math.floor(H.UnderHDSetting() * 100 + 0.5) end,
+        set = function(v) H.SetUnderHD(v / 100) end })
+    local state = S.Note(link, 12, -180, 306, 3, 11, DIM)
+    local dbg = S.NewButton(link, "Debug", 12, -238, 306, function()
         if ns.HapticsDebug then ns.HapticsDebug.Show() end
     end, nil, 12, 30)
     S.Tooltip(dbg, "Debug", "What plays and why, while you play")

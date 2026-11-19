@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.57.2 — 2026-11-19
+
+- **Lab › Link › Under HD** (0-100 %, as shipped 100 %): how much of the game's own rumble plays while WoW Helper plays HD, for every moment. Only on a PlayStation pad with the link and HD on; any other pad keeps the rumble at full. The triggers' rumble is never touched
+- One setting: the full feels' separate faint rule (30 %) is gone; Under HD covers them too
+
 ## 0.57.1 — 2026-11-19
 
 - Full feels on an Xbox pad: the plain rumble plays at full. It is faint under HD only on a PlayStation pad with the link on, since WoW Helper plays HD only on a DualSense

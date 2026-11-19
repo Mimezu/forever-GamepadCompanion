@@ -306,7 +306,28 @@ function H.BatteryFactor()
     return battery.factor
 end
 
+-- The game's rumble while WoW Helper plays HD (Setup › Under HD, 0-1; 1 = both, as before):
+-- only on a PlayStation pad with the link and HD on. Any other pad: the rumble at full.
+function H.UnderHD()
+    local v = tonumber(H.DB().underHD)
+    if not v or v >= 1 then return 1 end
+    local F, C, K = ns.FullFeel, ns.HelperCues, ns.HelperLink
+    if not (F and F.HelperPlaysHD and F.HelperPlaysHD()) then return 1 end
+    if not (K and K.V2 and K.V2()) then return 1 end
+    if C and C.HDMode and C.HDMode() == "off" then return 1 end
+    return math.max(0, v)
+end
+function H.UnderHDSetting()
+    local v = tonumber(H.DB().underHD)
+    return v and math.max(0, math.min(1, v)) or 1
+end
+function H.SetUnderHD(v)
+    v = tonumber(v)
+    H.DB().underHD = (v and v < 1) and math.max(0, v) or nil
+end
+
 local function Send(kind, v)
+    if kind == "Low" or kind == "High" then v = v * H.UnderHD() end
     if C_GamePad and C_GamePad.SetVibration then pcall(C_GamePad.SetVibration, kind, v) end
 end
 local function Silence()
