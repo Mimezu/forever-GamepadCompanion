@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.58.0 — 2026-11-19
+
+- **Bank: Square moves the slot under the pad cursor**: a bank slot to the bags, a bag slot to the bank, as a right-click does. The hovered slot works too
+- A hint under the bank in Blizzard's own legend: the pad's Square glyph + "Move to bags" / "Move to bank", only on a slot holding an item
+- Square (the game's PAD3) is Companion's only while the bank is open and out of combat; it goes back to the game on close and as combat starts
+
 ## 0.57.3 — 2026-11-19
 
 - Under HD removed: tested in game, the DualSense plays only WoW Helper's HD while it runs, whatever the game's rumble says; with WoW Helper closed the game's rumble is the backup and should play in full. So the game's rumble always plays at full (full feels' backups too), and nothing doubles

@@ -169,3 +169,4 @@ DeleteMacro
 GetMacroBody
 GetMacroIndexByName
 MAX_CHARACTER_MACROS
+GetMouseFoci
