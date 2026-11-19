@@ -169,7 +169,7 @@ UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
 for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "FullFeel.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -3306,4 +3306,135 @@ do
     C.SetMomentSound("gather:mining", nil)
     H.DB().proposalsDismissed = nil
     io.write("PASS: gathering's actions: moments of their own, their sound on each strike once, proposals, nested" .. string.char(10))
+end
+
+-- Full feels (FullFeel.lua, the full-feel plan steps 5 and 6): Lab › Mode, Classic by default and
+-- as before; WoW Helper's plain version played instead (faint under HD), inherited by Gathering's
+-- actions; lighter moment rows; today's settings never rewritten
+do
+    local F, C, LT, page, P = ns.FullFeel, ns.HelperCues, ns.Lights, ns.RumblePage, ns.Profiles
+    local function Dump(v, out)
+        out = out or {}
+        if type(v) ~= "table" then out[#out + 1] = tostring(v); return out end
+        local list = {}
+        for k, x in pairs(v) do list[#list + 1] = { tostring(k), x } end
+        table.sort(list, function(p, q) return p[1] < q[1] end)
+        for _, p in ipairs(list) do
+            out[#out + 1] = p[1] .. "="
+            Dump(p[2], out)
+        end
+        return out
+    end
+    local function Today()
+        local db = H.DB()
+        return table.concat(Dump({ db.events, db.lightEvents, db.link and db.link.sounds, db.spells, db.profiles,
+            V.Settings().events, V.Settings().casts }), ",")
+    end
+    H.DB().engine = true
+    L.SetEngine(true)
+    V.Settings().enabled = true
+    H.DB().light = true
+    local before = Today()
+    assert(F.Mode() == "classic" and not F.On() and H.DB().feelMode == nil, "Classic by default")
+    assert(P.RECOMMENDED.plainUnderHD == 0.3 and F.Faint() == 0.3, "faint under HD: one Recommended value")
+    WowHelperData = { plain = {
+        levelUp = { name = "Rise up", hd = true, rumble = { { 0, 0, 0 }, { 0.1, 1, 0.5 }, { 0.3, 0, 0 } }, light = { 1, 0, 0, 0.5 } },
+        gather = { name = "Dig", rumble = { { 0.05, 0.37, 0.37 }, { 0.2, 0, 0 } } },
+        loot = { name = "Coins", rumble = { { 0.1, 0.5, 0.5 } } },
+    } }
+    -- the plain points: straight lines, from silence, nil once past the last
+    local pts = F.Points(WowHelperData.plain.levelUp)
+    local l, r = F.Sample(pts, 0.05)
+    assert(math.abs(l - 0.5) < 1e-6 and math.abs(r - 0.25) < 1e-6 and F.Sample(pts, 0.31) == nil, "sampled")
+    assert(F.Points({ rumble = { { 0.2, 1, 1 }, { 0.1, 1, 1 } } }) == nil, "out of order: none")
+    local many = {}
+    for i = 1, 20 do many[i] = { i * 0.01, 1, 1 } end
+    assert(#F.Points({ rumble = many }) == 16, "at most 16 points")
+    -- (inherited: a gathering action has Gathering's until it has its own)
+    assert(F.Entry("gather:mining") == WowHelperData.plain.gather and F.Name("gather:skinning") == "Dig", "Gathering's")
+
+    local playPlain, play, flash, edit = V.PlayPlain, V.Play, H.Flash, C.EditHD
+    local plains, plays, flashes = {}, {}, {}
+    V.PlayPlain = function(p, s) plains[#plains + 1] = { points = p, scale = s } end
+    V.Play = function(k) plays[#plays + 1] = k end
+    H.Flash = function(id, r, g, b, t) flashes[#flashes + 1] = { id, r, g, b, t } end
+    -- Classic: as before, plain or not
+    assert(F.Plain("levelUp") == nil and F.Rumble("levelUp") == nil, "Classic: nothing plain")
+    now = now + 2
+    V.Fire("levelUp")
+    assert(#plays == 1 and #plains == 0, "Classic: its own feel")
+    LT.Fire("levelUp")
+    assert(#flashes == 0, "Classic: its own light")
+    -- Full feels
+    F.SetMode("full")
+    assert(H.DB().feelMode == "full" and F.On(), "Full feels: one new key")
+    now = now + 2
+    V.Fire("levelUp")
+    assert(#plays == 1 and #plains == 1 and math.abs(plains[1].scale - 0.3) < 1e-6, "the plain rumble, faint under HD")
+    -- (its light fires with it: the plain bar colour)
+    assert(#flashes == 1 and flashes[1][2] == 1 and flashes[1][3] == 0 and flashes[1][5] == 0.5, "the plain bar colour")
+    now = now + 2
+    V.Fire("crit")
+    assert(#plays == 2 and #plains == 1, "no plain for it: its Classic feel")
+    -- (a Lab moment: plain at full, no hd)
+    L.EventSettings("loot").on = true
+    now = now + 2
+    L.Fire("loot")
+    assert(#plains == 2 and plains[2].scale == 1, "a Lab moment's plain rumble")
+    V.PlayPlain, V.Play, H.Flash = playPlain, play, flash
+
+    -- mining in Full feels: each strike plays Gathering's plain rumble on the strikes' clock
+    V.SetCastPreset("gather", "auto")
+    V.Settings().strikes = {}
+    CraftFrame, TradeSkillFrame, ProfessionsFrame = false, false, false
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local start = now + 5
+    now = start
+    UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "ffm", 2575)
+    local shape = V.looping and V.looping.shape
+    assert(shape, "mining: strikes")
+    shape(start + 1.6)
+    local sl, sr = shape(start + 1.65)
+    assert(math.abs(sl - 0.37) < 1e-6 and math.abs(sr - 0.37) < 1e-6, "the strike: the plain rumble: " .. tostring(sl))
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "ffm", 2575)
+    -- a herb: the plain rumble over and over while it lasts
+    start = now + 5
+    now = start
+    UnitCastingInfo = function() return "Herb Gathering", nil, nil, start * 1000, (start + 3) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "ffh", 2366)
+    shape = V.looping and V.looping.shape
+    local a = shape and shape(start + 0.05)
+    local b = shape and shape(start + 0.25)
+    assert(a and b and math.abs(a - 0.37) < 1e-6 and math.abs(b - 0.37) < 1e-6, "herbalism: Gathering's plain, looped")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "ffh", 2366)
+
+    -- the lighter rows: the full feel's name and Edit; the pickers, Default, Shape, Try hidden
+    ns.Shell.Open("moments")
+    page.SetKind("feel")
+    page.browser.Select("Progress")
+    page.Refresh()
+    local function find(kind, key)
+        for _, row in ipairs(page.rows) do if row.kind == kind and row.key == key then return row end end
+    end
+    local row = find("r", "levelUp")
+    assert(row and not row.pick:IsShown() and not row.default:IsShown() and not row.try:IsShown()
+        and row.fullEdit:IsShown() and row.fullName:GetText() == "Rise up", "Level up: Rise up, Edit")
+    assert(row.level == nil or row.level:IsShown(), "its volume stays")
+    local edited
+    C.EditHD = function(key) edited = key; return true end
+    row.fullEdit.scripts.OnClick(row.fullEdit)
+    assert(edited == "levelUp", "Edit: opens it in WoW Helper")
+    C.EditHD = edit
+    local crit = find("r", "crit")
+    assert(crit and crit.fullName:GetText() == "Classic", "no full feel yet: Classic")
+    -- Classic again: the rows as before
+    F.SetMode("classic")
+    page.Refresh()
+    assert(row.pick:IsShown() and row.default:IsShown() and not row.fullEdit:IsShown() and not row.fullName:IsShown(), "Classic rows")
+    assert(H.DB().feelMode == nil, "Classic: nothing saved")
+    assert(Today() == before, "events, lights, sounds, spells, profiles: untouched")
+    WowHelperData = nil
+    io.write("PASS: Full feels: Classic as before, plain played instead (faint under HD), inherited, lighter rows" .. string.char(10))
 end

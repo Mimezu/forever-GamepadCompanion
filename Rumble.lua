@@ -890,6 +890,19 @@ local function StartShape(fn, once, scale)
     shaper:Show()
 end
 
+-- Full feels (FullFeel.lua): a moment's plain rumble from WoW Helper, and its scale (faint
+-- under HD); nil in Classic or without one
+local function Plain(key)
+    local F = ns.FullFeel
+    if F then return F.Rumble(key) end
+end
+-- A plain rumble once, at `scale` (the moment's volume, faint under HD)
+function V.PlayPlain(points, scale)
+    local F = ns.FullFeel
+    if not (F and C_GamePad and C_GamePad.SetVibration) then return end
+    StartShape(F.Shape(points, 1, GetTime()), true, scale)
+end
+
 shaper:SetScript("OnUpdate", function()
     if not shapeFn then return shaper:Hide() end
     local now = GetTime()
@@ -1198,6 +1211,13 @@ local function Strikes(now)
         if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes) end
     end
     if not t.strikeAt then return 0, 0 end
+    -- (Full feels: each strike and the crack play the action's plain rumble, on the strikes' clock)
+    local points, scale = Plain(V.GatherKey(t.strikes) or "gather")
+    if points then
+        local l, r = ns.FullFeel.Sample(points, now - t.strikeAt)
+        if not l then return 0, 0 end
+        return l * scale, r * scale
+    end
     -- (the last: the ore cracking loose, on the cast's end)
     if t.crackNow then
         local l, r = V.CrackAt(now - t.strikeAt)
@@ -1433,6 +1453,11 @@ function V.Fire(eventKey)
         V.EndLoop(eventKey)
         local shape
         if eventKey == "cast" then shape = CastShape() else shape = RestShape(eventKey, pattern) end
+        -- (Full feels: the plain rumble over and over; mining's strikes keep their clock)
+        local key = eventKey
+        if eventKey == "cast" then key = V.castKind == "gather" and V.GatherKey(V.castAction) or V.castKind end
+        local points, scale = Plain(key)
+        if points and shape ~= Strikes then shape = ns.FullFeel.Shape(points, scale, GetTime(), true) end
         -- (a loop keeps its shape: its volume as a gain, a spell's own on top)
         local gain = (ns.Volume and ns.Volume.Feel(eventKey) or 1) * (V.fireGain or 1)
         V.looping = { key = eventKey, pattern = pattern, shape = shape, gain = gain < 1 and gain or nil }
@@ -1446,6 +1471,11 @@ function V.Fire(eventKey)
     local since = last[eventKey] and now - last[eventKey]
     if since and since < (EVENT[eventKey].gap or (combo and 0.15 or 0.4)) then return end
     last[eventKey] = now
+    -- (Full feels: WoW Helper's plain rumble instead, when it has one)
+    local points, scale = Plain(eventKey)
+    if points then
+        return V.PlayPlain(points, (ns.Volume and ns.Volume.Feel(eventKey) or 1) * (V.fireGain or 1) * scale)
+    end
     local shape = combo and ComboShape(eventKey, since ~= nil and since < COMBO_WINDOW) or nil
     if eventKey == "autoAttack" and V.swingShape then shape = V.swingShape end
     V.Play(pattern, false, V.Scaled(shape, eventKey, V.fireGain))

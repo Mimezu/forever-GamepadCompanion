@@ -384,6 +384,23 @@ end
 
 function K.Enabled() return DB().on == true end
 
+-- The strip's rows: stacked (the main strip, the light row one up, the trigger row two up) or
+-- one line (main 34 cells, the light row from cell 34 padded to 23, the trigger row from 57:
+-- 76 cells). One line only when Lab › Strip says so and WoW Helper says it reads it
+-- (WowHelperData.stripOneLine); else stacked, as before.
+K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" } }
+K.LINE_LIGHT, K.LINE_TRIG, K.LINE_CELLS = 34, 57, 76
+function K.Strip() return DB().strip == "oneline" and "oneline" or "stacked" end
+function K.SetStrip(v)
+    DB().strip = v == "oneline" and "oneline" or nil
+    K.Layout()
+    dirty = true
+end
+function K.OneLine()
+    local d = WowHelperData
+    return K.V2() and K.Strip() == "oneline" and type(d) == "table" and d.stripOneLine == true
+end
+
 -- v2 (the wide strip) unless set back to v1 (the Helper page)
 function K.V2() return DB().v1 ~= true end
 function K.SetV2(on)
@@ -602,6 +619,8 @@ function K.Step(elapsed)
     end
     if dirty then
         dirty = false
+        -- (WoW Helper's word on one line arrives with its data: the layout follows)
+        if K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine() then K.Layout() end
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
         if K.DrawLight then K.DrawLight(K.V2() and K.light and K.EncodeLight(K.light) or nil) end
         if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
@@ -642,23 +661,33 @@ function K.Layout()
     frame:ClearAllPoints()
     frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
     local n = K.V2() and K.CELLS_V2 or K.CELLS
-    frame:SetSize(unit * n, unit)
+    local line = K.OneLine()
+    K.lineDrawn = line
+    frame:SetSize(unit * (line and K.LINE_CELLS or n), unit)
     for i, tex in ipairs(textures) do
         tex:ClearAllPoints()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
         tex:SetSize(unit, unit)
         tex:SetShown(i <= n)
     end
-    -- the light row: one row up (inward from the bottom-left corner)
+    -- the light row: one row up (inward from the bottom-left corner); one line: from cell 34
     for i, tex in ipairs(K.lightTextures or {}) do
         tex:ClearAllPoints()
-        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, unit)
+        if line then
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_LIGHT + i - 1) * unit, 0)
+        else
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, unit)
+        end
         tex:SetSize(unit, unit)
     end
-    -- the trigger row: two rows up
+    -- the trigger row: two rows up; one line: from cell 57
     for i, tex in ipairs(K.trigTextures or {}) do
         tex:ClearAllPoints()
-        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 2 * unit)
+        if line then
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_TRIG + i - 1) * unit, 0)
+        else
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 2 * unit)
+        end
         tex:SetSize(unit, unit)
     end
 end
@@ -672,10 +701,12 @@ function K.DrawTrig(cells)
     end
 end
 
--- The light row's cells, or nil: hidden (no row: the game's lights)
+-- The light row's cells, or nil: hidden (no row: the game's lights). One line: a shorter
+-- row (17 cells) padded to 23 with black, so the trigger row's start stays put
 function K.DrawLight(cells)
     for i, tex in ipairs(K.lightTextures or {}) do
         local c = cells and cells[i]
+        if cells and not c and K.lineDrawn then c = { 0, 0, 0 } end
         if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
         tex:SetShown(c ~= nil)
     end

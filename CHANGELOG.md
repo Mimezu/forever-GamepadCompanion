@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.55.0 — 2026-11-18
+
+- **Full feels** (Lab › Mode: Classic | Full feels; Classic by default, as before): WoW Helper owns what a moment plays, the game keeps when. A moment with WoW Helper's plain version (`WowHelperData.plain`) plays its rumble and bar colour instead of its Classic feel and light; faint (30 %, Recommended) under WoW Helper's HD, so a crashed WoW Helper still leaves a tap. Gathering's actions have Gathering's until they have their own; each mining strike plays it. The strip's moment, touch and sound stay as today, so an older WoW Helper still works
+- Full feels: moment rows show the full feel's name and Edit (opens it in WoW Helper); the pickers, Default, Shape, Try and proposals are hidden, not deleted
+- Lab › Strip: Stacked | One line (34 + 23 + 19 = 76 cells on one row), one line only once WoW Helper says it reads it (`WowHelperData.stripOneLine`)
+- Only new settings are written (`feelMode`, `link.strip`): events, lights, sounds, spells and profiles stay as they are
+
 ## 0.54.0 — 2026-11-18
 
 - **Mining, Herbalism, Skinning, Fishing and Opening are moments of their own** under Gathering (`gather:mining`…), as a spell is: each its own feel, sound and volumes, Gathering's until it has its own; nested under Gathering on Moments (Feel and Sound), with Try and in Search

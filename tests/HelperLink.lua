@@ -26,6 +26,7 @@ function methods:SetSize(w, h) self.width, self.height = w, h end
 function methods:Show() self.shown = true end
 function methods:Hide() self.shown = false end
 function methods:IsShown() return self.shown end
+function methods:SetShown(v) self.shown = v and true or false end
 function methods:SetFrameStrata(s) self.strata = s end
 function methods:SetScale(s) self.scale = s end
 function methods:GetEffectiveScale() return self.scale or 1 end
@@ -344,6 +345,48 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-trigger-vectors.txt") do
     end
 end
 assert(trigcount == 61, "61 trigger vectors: " .. trigcount)
+
+-- One line (Lab › Strip, full-feel plan 4b): main 34, the light row from 34 (padded to 23,
+-- yellow first), the trigger row from 57: 76 cells; only when WoW Helper says it reads it
+do
+    K.SetEnabled(true)
+    assert(K.Strip() == "stacked" and not K.OneLine(), "stacked by default")
+    K.Layout()
+    local unit = K.frame.height
+    local lt, tt = K.lightTextures, K.trigTextures
+    assert(lt[1].points[1][4] == 0 and lt[1].points[1][5] == unit and tt[1].points[1][5] == 2 * unit, "stacked: rows above")
+    K.SetStrip("oneline")
+    assert(GamepadCompanionHapticsDB.link.strip == "oneline", "saved")
+    assert(not K.OneLine() and lt[1].points[1][5] == unit, "WoW Helper hasn't said it reads one line: stacked")
+    WowHelperData = { stripOneLine = true }
+    K.MarkDirty()
+    K.Step(0)
+    assert(K.OneLine(), "one line")
+    local function x(tex) return tex.points[1][4] end
+    assert(math.abs(x(lt[1]) - 34 * unit) < 1e-6 and lt[1].points[1][5] == 0, "the light row from cell 34")
+    assert(math.abs(x(tt[1]) - 57 * unit) < 1e-6 and tt[1].points[1][5] == 0, "the trigger row from cell 57")
+    assert(math.abs(K.frame.width - 76 * unit) < 1e-6, "76 cells")
+    K.DrawLight(K.EncodeLight({ version = 0, hold = 3 }))
+    assert(lt[1].color[1] == 1 and lt[1].color[2] == 1 and lt[1].color[3] == 0, "yellow marker first")
+    for i = 18, 23 do
+        local c = lt[i].color
+        assert(lt[i]:IsShown() and c[1] == 0 and c[2] == 0 and c[3] == 0, "padded to 23 with black: " .. i)
+    end
+    K.DrawLight(nil)
+    assert(not lt[1]:IsShown() and not lt[20]:IsShown(), "no light row: hidden")
+    -- (WoW Helper says no more: back to stacked at the next draw)
+    WowHelperData.stripOneLine = false
+    K.MarkDirty()
+    K.Step(0)
+    assert(not K.OneLine() and lt[1].points[1][5] == unit, "stacked again")
+    K.DrawLight(K.EncodeLight({ version = 0, hold = 3 }))
+    assert(not lt[18]:IsShown(), "stacked: no padding")
+    K.SetStrip("stacked")
+    assert(GamepadCompanionHapticsDB.link.strip == nil, "Stacked: nothing saved")
+    WowHelperData = nil
+    K.SetEnabled(false)
+    print("PASS: one-line strip: 34 + 23 + 19 = 76 cells, only when WoW Helper reads it")
+end
 
 K.SetEnabled(false)
 

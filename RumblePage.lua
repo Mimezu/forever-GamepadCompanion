@@ -706,6 +706,26 @@ local function MakeRow(parent, y, width, kind, key)
         marks = 3,
     })
     row.kind, row.key = kind, key
+    -- Full feels (FullFeel.lua): the full feel's name and Edit (it plays and opens in WoW
+    -- Helper) where the plate and Default are; the pickers, Default, Shape and Try hidden
+    -- (kept for Classic)
+    if row.default then
+        row.fullEdit = S.NewButton(row, "Edit", 0, 0, 60, function()
+            local ok, why = false, "Needs WoW Helper"
+            if C and C.EditHD then ok, why = C.EditHD(key) end
+            if ok then Say(label .. ": in WoW Helper") else Say(why or "Not sent", true) end
+        end, nil, 11, 30)
+        row.fullEdit:ClearAllPoints()
+        row.fullEdit:SetPoint("TOPLEFT", row.default, "TOPLEFT", 0, 0)
+        S.Tooltip(row.fullEdit, "Edit", "In WoW Helper")
+        local w = row.pick.GetWidth and row.pick:GetWidth()
+        row.fullName = S.Text(row, "", 0, 0, (type(w) == "number" and w > 0) and w - 12 or 124, 12, GOLD)
+        row.fullName:ClearAllPoints()
+        row.fullName:SetPoint("LEFT", row.pick, "LEFT", 6, 0)
+        row.fullName:SetWordWrap(false)
+        row.fullEdit:Hide()
+        row.fullName:Hide()
+    end
     -- its When (a threshold it waits for): a chip under its name, a click opens a stepper. On the
     -- feel row only: one setting, one place (U2-11)
     if ns.When and ns.When.Has(key) and KIND_OF[kind] == "feel" then
@@ -2164,6 +2184,8 @@ Refresh = function()
     S.Tooltip(ui.enable, "On", ENABLE[kind].tip)
     ui.soundNote:SetText((K and K.Enabled()) and "Pad speaker" or "WoW Helper · Setup › Link")
     local toHelper = ui.ToHelper()
+    local FF = ns.FullFeel
+    local full = FF and FF.On() or false
     if ui.soundOff then
         local blocked = kind == "sound" and not (K and K.Enabled())
         ui.soundOff:SetShown(blocked)
@@ -2186,7 +2208,8 @@ Refresh = function()
         end
         row:SetMarks(Marks(row))
         local rk = KIND_OF[row.kind]
-        local p = C and C.Proposal and C.Proposal(rk, row.key)
+        -- (Full feels: no proposals, the choice is made in WoW Helper)
+        local p = not full and C and C.Proposal and C.Proposal(rk, row.key) or nil
         row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
             p and function() C.DismissProposal(row.key, p.id); Refresh() end)
         -- (the When chip after the sub line, as wide as its words; a proposal's line wins: U2-9, U2-10)
@@ -2201,6 +2224,21 @@ Refresh = function()
         end
         local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
         row:SetAlpha(live and 1 or 0.55)
+        if row.fullEdit then
+            row.pick:SetShown(not full)
+            row.default:SetShown(not full)
+            if row.edit then row.edit:SetShown(not full) end
+            if full and row.try then row.try:Hide() end
+            row.fullEdit:SetShown(full)
+            row.fullName:SetShown(full)
+            if full then
+                -- (no full feel for it yet: it plays its Classic choice)
+                local name = FF.Name(row.key)
+                row.fullName:SetText(name or "Classic")
+                local c = name and GOLD or DIM
+                row.fullName:SetTextColor(c[1], c[2], c[3])
+            end
+        end
     end
     if ui.states then ui.RefreshStates(kind) end
     if ui.trigStack then ui.RefreshTriggerStack(kind) end
@@ -2214,11 +2252,14 @@ Refresh = function()
             if not IsRecommended(item[1], item[2]) then changed = changed + 1 end
         end
         local card = ui.cards[g.key][kind]
-        if card and card.reset then card.reset:SetEnabled(changed > 0) end
+        if card and card.reset then
+            card.reset:SetEnabled(changed > 0)
+            card.reset:SetShown(not full)
+        end
         -- (a gold dot: WoW Helper proposes something in this group)
         local proposed = false
         for _, item in ipairs(items) do
-            if C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
+            if not full and C and C.Proposal and C.Proposal(KIND_OF[item[1]], item[2]) then proposed = true end
         end
         local btn = ui.browser.buttons[g.key]
         -- (WoW Helper proposes something here: "+", not the changed dot's "•": U2-17)

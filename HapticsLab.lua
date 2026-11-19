@@ -840,8 +840,16 @@ function L.Fire(key, gain, feel, absolute, stretch)
     if lastFire[key] and now - lastFire[key] < 0.12 then return end
     lastFire[key] = now
     local own = ns.Volume and ns.Volume.Feel(key) or 1
-    H.Play(feel or s.feel, { voice = "ev_" .. key, gain = own * (absolute and (gain or 1) or Strength() * (gain or 1)),
-        stretch = stretch })
+    -- (Full feels: WoW Helper's plain rumble instead, when it has one: Rumble's shaper)
+    local F = ns.FullFeel
+    local points, scale
+    if F and not feel then points, scale = F.Rumble(key) end
+    if points and V and V.PlayPlain then
+        V.PlayPlain(points, own * (gain or 1) * scale)
+    else
+        H.Play(feel or s.feel, { voice = "ev_" .. key, gain = own * (absolute and (gain or 1) or Strength() * (gain or 1)),
+            stretch = stretch })
+    end
     if L.onFire then L.onFire(key) end
 end
 

@@ -1061,8 +1061,21 @@ local function BuildLink(p)
     Stepper(link, "Cell size", 12, -76, { labelWidth = 110, width = 306, step = 1, min = 2, max = 8,
         format = function(v) return v .. " px" end,
         get = function() return K.CellSize() end, set = function(v) K.SetCellSize(v) end })
-    local state = S.Note(link, 12, -112, 306, 3, 11, DIM)
-    local dbg = S.NewButton(link, "Debug", 12, -170, 306, function()
+    -- (one line: only once WoW Helper says it reads it)
+    Stepper(link, "Strip", 12, -110, { labelWidth = 110, width = 306, list = K.STRIPS,
+        get = function() return K.Strip() end, set = function(v) K.SetStrip(v); Refresh() end })
+    -- Full feels (FullFeel.lua): WoW Helper owns what plays, the game a plain backup
+    local FF = ns.FullFeel
+    if FF then
+        Stepper(link, "Mode", 12, -144, { labelWidth = 110, width = 306, list = FF.MODES,
+            get = function() return FF.Mode() end, set = function(v)
+                FF.SetMode(v)
+                if ns.RumblePage and ns.RumblePage.Refresh then ns.RumblePage.Refresh() end
+                Refresh()
+            end })
+    end
+    local state = S.Note(link, 12, -180, 306, 3, 11, DIM)
+    local dbg = S.NewButton(link, "Debug", 12, -238, 306, function()
         if ns.HapticsDebug then ns.HapticsDebug.Show() end
     end, nil, 12, 30)
     S.Tooltip(dbg, "Debug", "What plays and why, while you play")

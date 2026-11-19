@@ -37,6 +37,8 @@ P.RECOMMENDED = {
     events = { hit = false, miss = false, targetDodge = false, targetParry = false, targetBlock = false, dodge = false,
         parry = false, missedYou = false, hitTaken = false, aggro = false, targetCast = false, gcd = false,
         combo = false, full = false, tension = false, heartbeat = false, rested = false, riding = false, oom = false },
+    -- Full feels: a plain rumble under WoW Helper's HD plays at this much (a felt tap if it crashed)
+    plainUnderHD = 0.3,
 }
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
