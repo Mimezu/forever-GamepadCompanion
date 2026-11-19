@@ -9,7 +9,7 @@ Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddO
 ## Use
 
 - `/gpc` opens the window. Side tabs: Controller, Moments, Gestures, Setup, Bars, Tools, Help (Lab: Tools › Lab).
-- Controller: click a button on the drawing, then Choose what it runs: spells, items, macros, Halo rings, windows, typed macros. Or drop one on it.
+- Controller: click a button on the drawing, then Choose what it runs: spells, items, macros, Quick use, Halo rings, windows, pets, typed macros. Every button takes them all. Or drop one on it.
 - Hold L2 / R2 to see their layer. The touchpad's zones and settings are on the same page.
 - Moments: what the pad does when, as Feel, Light or Sound; each moment Try, Default, Edit. Patterns from Improved Forever: Vibration (MIT; licenses/).
 - Gestures: what each WoW Helper gesture runs. Setup: WoW Helper link, range, base colour, triggers, timing. See [UX](docs/UX.md), [Haptics](docs/HAPTICS.md).

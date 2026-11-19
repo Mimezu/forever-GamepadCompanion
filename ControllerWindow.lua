@@ -116,19 +116,26 @@ end
 -- What the card edits: a bar slot, a button, or a touchpad zone. Each gives,
 -- per layer, { name, icon, atlas, kind, own } and sets / clears an action.
 
-local ALL = T.ACCEPTS
-local BAR = { spell = true, item = true, macro = true }
+local notice   -- (a few words for the status line: "Macros full")
 
+-- A spell, item or macro goes on the slot as it is; any other action as the
+-- macro Companion makes for it (SlotMacros.lua)
 local function PlaceOnSlot(storage, action)
     if not storage or not (ns.GamepadSlotEditable and ns.GamepadSlotEditable(storage)) then return end
     local kind, value = action:match("^(%a+):(.+)$")
     Call(ClearCursor)
     if kind == "spell" then Call(C_Spell and C_Spell.PickupSpell or PickupSpell, tonumber(value))
     elseif kind == "item" then Call(C_Item and C_Item.PickupItem or PickupItem, tonumber(value))
-    elseif kind == "macro" then Call(PickupMacro, value) end
+    elseif kind == "macro" then Call(PickupMacro, value)
+    else
+        local name, why = ns.SlotMacros.Ensure(action)
+        if not name then notice = why; return end
+        Call(PickupMacro, name)
+    end
     if not (GetCursorInfo and GetCursorInfo()) then return end
     ns.GamepadSlotDrop({ slot = storage })
     Call(ClearCursor)   -- (the action it replaced)
+    ns.SlotMacros.SweepSoon()
 end
 
 local function TpSlot(zone)
@@ -164,12 +171,15 @@ local function Target()
     if selected.kind == "slot" then
         local info = C.SLOTS[selected.slot]
         return {
-            kind = "slot", glyph = info.glyph, accepts = BAR,
+            kind = "slot", glyph = info.glyph,
             title = C.Combo(layer, info.glyph, 18) .. "   " .. (layer == "base" and "" or (C.LAYER_LABELS[layer] .. " + ")) .. info.name,
             entry = function(l)
                 local fixed = C.Fixed(l, selected.slot)
                 if fixed then return { name = fixed.name, icon = fixed.atlas or fixed.icon, atlas = fixed.atlas ~= nil, kind = "Blizzard", fixed = true } end
-                local name, texture, kind = ActionOf(Storage(l, selected.slot))
+                local storage = Storage(l, selected.slot)
+                local action = storage and ns.SlotMacros.SlotAction(storage)
+                if action then return FromAction(action, true) end
+                local name, texture, kind = ActionOf(storage)
                 if not name then return nil end
                 return { name = name, icon = texture, kind = kind, own = true }
             end,
@@ -179,6 +189,7 @@ local function Target()
                 if storage and ns.GamepadSlotEditable(storage) and not (GetCursorInfo and GetCursorInfo()) then
                     Call(PickupAction, storage)
                     Call(ClearCursor)
+                    ns.SlotMacros.SweepSoon()
                 end
             end,
             drop = function(l) local storage = Storage(l, selected.slot); if storage then ns.GamepadSlotDrop({ slot = storage }) end end,
@@ -189,7 +200,7 @@ local function Target()
     if info.role == "touchpad" then
         local zone = tpZone
         return {
-            kind = "zone", accepts = ALL,
+            kind = "zone",
             entry = function(l)
                 local action, own = ZoneAction(zone, l, TpSlot(zone))
                 return FromAction(action, own, action ~= nil and not own)
@@ -206,7 +217,7 @@ local function Target()
     if info.role == "binding" then
         local key = info.key
         return {
-            kind = "key", glyph = info.glyph, accepts = ALL,
+            kind = "key", glyph = info.glyph,
             title = C.Combo(layer, info.glyph, 18) .. "   " .. (layer == "base" and "" or (C.LAYER_LABELS[layer] .. " + ")) .. info.name,
             entry = function(l)
                 local action = ns.Keys.Get(key, l)
@@ -489,7 +500,7 @@ local function OpenPicker()
         title = "Choose · " .. (target.kind == "zone"
             and ((T.GESTURE_LABELS[tpZone] or T.ZoneLabel(tpZone, T.Grid(TouchSettings(), TouchSettings().mode))) .. " · " .. C.LAYER_LABELS[layer])
             or (C.LAYER_LABELS[layer] .. " + " .. (selected.kind == "slot" and C.SLOTS[selected.slot].name or C.BUTTON_BY_ID[selected.id].name))),
-        accepts = target.accepts,
+        accepts = T.ACCEPTS,
         current = entry and entry.own and entry.action or nil,
         onPick = function(action)
             target.set(layer, action)
@@ -837,7 +848,8 @@ Refresh = function()
     end
     LayoutZones(layer)
     RefreshCard()
-    local note = InCombat() and "Not in combat" or (ns.Keys.IsPending() and "Applies after combat" or "")
+    local note = InCombat() and "Not in combat" or notice or (ns.Keys.IsPending() and "Applies after combat" or "")
+    notice = nil
     ui.status:SetText(note)
 end
 

@@ -962,6 +962,8 @@ local function FromCursor()
         return "item:" .. a
     elseif kind == "macro" and a then
         local name = GetMacroInfo(a)
+        local own = ns.SlotMacros and ns.SlotMacros.ActionFor(name)
+        if own then return own end   -- (a slot's macro: the action it runs)
         if name then return "macro:" .. name end
     end
 end

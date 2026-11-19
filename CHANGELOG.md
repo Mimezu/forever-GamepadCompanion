@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.56.0 — 2026-11-19
+
+- **Every button takes every action**: bar slots now take Quick use, Halo rings, windows, typed macros and pets too, as the touchpad does (one accept set)
+- Such a slot runs a character macro Companion makes (`gpc:q:food`…), with the touchpad's macro text; Quick use bodies follow the picks; the slot shows the action (Quick use · Food), not the macro
+- A macro no slot holds any more is deleted; macros Companion didn't make are never touched; "Macros full" leaves the slot as it was. Out of combat only
+- The picker's Macros list leaves Companion's own macros out
+
 ## 0.55.4 — 2026-11-19
 
 - Lab › Link: Cell size goes down to 1 px

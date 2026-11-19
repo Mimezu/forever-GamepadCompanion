@@ -163,3 +163,9 @@ UnitSex
 UnitThreatSituation
 WowHelperData
 DEFAULT_CHAT_FRAME
+CreateMacro
+EditMacro
+DeleteMacro
+GetMacroBody
+GetMacroIndexByName
+MAX_CHARACTER_MACROS

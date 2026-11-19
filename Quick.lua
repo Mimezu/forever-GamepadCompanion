@@ -76,7 +76,7 @@ function Q.Refresh()
     end
     scanned = true
     if changed then
-        for _, m in ipairs({ ns.Keys, ns.Touch, ns.Gestures }) do
+        for _, m in ipairs({ ns.Keys, ns.Touch, ns.Gestures, ns.SlotMacros }) do
             if m and m.Apply then pcall(m.Apply) end
         end
         if ns.Touch and ns.Touch.RefreshPreview then pcall(ns.Touch.RefreshPreview) end

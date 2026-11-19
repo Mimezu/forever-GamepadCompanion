@@ -102,7 +102,10 @@ C_Texture = { GetAtlasInfo = function() return { file = 1, width = 64, height = 
     topTexCoord = 0, bottomTexCoord = 1 } end }
 C_Spell = { GetSpellName = function(id) return id == 133 and "Fireball" or nil end, GetSpellTexture = function() return 135812 end }
 GetMacroInfo = function() end
-GetCursorInfo = function() if cursor then return "spell", 1, "spell", cursor end end
+GetCursorInfo = function()
+    if type(cursor) == "table" then return "macro", cursor.id end
+    if cursor then return "spell", 1, "spell", cursor end
+end
 ClearCursor = function() cursor = nil end
 CharacterMicroButton = { Click = function() end }
 WorldMapMicroButton = { Click = function() end }
@@ -129,10 +132,11 @@ GetActionText = function(i) return actions[i] and actions[i].kind == "macro" and
 PickupAction = function(i)
     local a = actions[i]
     actions[i] = nil
-    cursor = a and a.id or nil
+    cursor = a and (a.kind == "macro" and { id = a.id } or a.id) or nil
 end
 PlaceAction = function(i)
-    if cursor then actions[i] = { kind = "spell", id = cursor, texture = 135812 }; cursor = nil end
+    if type(cursor) == "table" then actions[i] = { kind = "macro", id = cursor.id, texture = 134400 }; cursor = nil
+    elseif cursor then actions[i] = { kind = "spell", id = cursor, texture = 135812 }; cursor = nil end
 end
 PickupSpell = function(id) cursor = id end
 C_Spell.PickupSpell = PickupSpell
@@ -179,8 +183,32 @@ C_Container = { GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 
 C_Item = { GetItemSpell = function(id) return id == 6948 and "Hearthstone" or nil end,
     GetItemNameByID = function(id) return ({ [6948] = "Hearthstone", [2589] = "Linen Cloth" })[id] end,
     PickupItem = function(id) cursor = id end }
-GetNumMacros = function() return 1, 0 end
-GetMacroInfo = function(x) if x == 1 or x == "Mount" then return "Mount", 3, "/cast Summon Charger" end end
+-- Macros: one account macro; the character's from 121 (as the game)
+local charMacros = {}   -- { name, icon, body }
+local function MacroAt(x)
+    if x == 1 or x == "Mount" then return { name = "Mount", icon = 3, body = "/cast Summon Charger" }, 1 end
+    for i, m in ipairs(charMacros) do if x == 120 + i or x == m.name then return m, 120 + i end end
+end
+GetNumMacros = function() return 1, #charMacros end
+GetMacroInfo = function(x) local m = MacroAt(x); if m then return m.name, m.icon, m.body end end
+GetMacroIndexByName = function(name) local _, i = MacroAt(name); return i or 0 end
+GetMacroBody = function(x) local m = MacroAt(x); return m and m.body end
+CreateMacro = function(name, icon, body, perCharacter)
+    assert(perCharacter, "a character macro")
+    charMacros[#charMacros + 1] = { name = name, icon = icon, body = body }
+    return 120 + #charMacros
+end
+EditMacro = function(x, name, icon, body)
+    local m = MacroAt(x); m.name, m.icon, m.body = name or m.name, icon or m.icon, body or m.body
+end
+-- (as the game: slots holding a later macro follow its new index)
+DeleteMacro = function(x)
+    local _, i = MacroAt(x)
+    if not (i and i > 120) then return end
+    table.remove(charMacros, i - 120)
+    for _, a in pairs(actions) do if a.kind == "macro" and a.id > i then a.id = a.id - 1 end end
+end
+PickupMacro = function(x) local _, i = MacroAt(x); if i then cursor = { id = i } end end
 Halo = { db = { rings = { { id = 1, name = "Utility", slices = {} }, { id = 2, name = "Alt only", owner = "alt" } } },
     RingActiveHere = function(ring) return ring.owner == nil end, RingIcon = function() return 4 end }
 GAMEPAD_MOD_LEFT, GAMEPAD_MOD_RIGHT, GAMEPAD_MOD_LEFT_AND_RIGHT = "SHIFT", "CTRL", "CTRL-SHIFT"
@@ -189,7 +217,7 @@ GamepadCompanionCharDB = nil
 GamepadCompanionTouchDB = { enabled = false, split = { device = "pad" }, actions = { chord = { base = { r1c1 = "window:bags" } } } }
 
 local ns = {}
-for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "Touchpad.lua", "Keys.lua", "Gestures.lua", "ControllerModel.lua",
+for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "SlotMacros.lua", "Touchpad.lua", "Keys.lua", "Gestures.lua", "ControllerModel.lua",
     "SpreadOverview.lua", "OptionsSkin.lua", "Window.lua", "Picker.lua", "ControllerWindow.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
@@ -292,7 +320,22 @@ eq(actions[128], nil, "slot emptied")
 ui.slots[1].scripts.OnClick(ui.slots[1])
 eq(actions[128] and actions[128].id, 133, "clicking with an action drops it")
 
--- The picker on a bar slot: spells, items, macros only
+-- The picker on a bar slot: every kind (one accept set)
+do
+    local open, asked = ns.Picker.Open, {}
+    ns.Picker.Open = function(req) asked[#asked + 1] = req.accepts; return open(req) end
+    for _, pick in ipairs({ function() ui.slots[2].scripts.OnClick(ui.slots[2]) end,
+        function() ui.buttons.l3.scripts.OnClick(ui.buttons.l3) end }) do
+        pick(); ui.choose.scripts.OnClick(ui.choose); ns.PickerWindow():Hide()
+    end
+    ns.Picker.Open = open
+    check(#asked == 2 and asked[1] == ns.TouchModel.ACCEPTS and asked[2] == ns.TouchModel.ACCEPTS,
+        "slot and button: the one accept set")
+    for _, file in ipairs({ "ControllerWindow.lua", "GesturesPage.lua", "Touchpad.lua", "Keys.lua" }) do
+        local f = assert(io.open(root .. "/" .. file)); local src = f:read("*a"); f:close()
+        check(not src:find("accepts%s*=%s*{") and not src:find("ACCEPTS%s*=%s*{"), file .. ": no accept list of its own")
+    end
+end
 local picker, pui
 ui.slots[2].scripts.OnClick(ui.slots[2])
 ui.choose.scripts.OnClick(ui.choose)
@@ -300,7 +343,7 @@ picker, pui = ns.PickerWindow()
 check(picker and picker:IsShown(), "choose opens the picker")
 local keys = {}
 for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
-eq(table.concat(keys, ","), "spells:Holy,items,macros", "bar slot: spells, items, macros")
+eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,text", "bar slot: every kind")
 eq(pui.tiles[1].entry.name, "Fireball", "first spell")
 eq(#pui.categories[1].list, 2, "passive spells left out")
 pui.cats.items.scripts.OnClick(pui.cats.items)
@@ -314,6 +357,100 @@ check(not picker:IsShown(), "picking closes the picker")
 eq(actions[129] and actions[129].id, 635, "picked spell placed on the slot")
 eq(cursor, nil, "cursor left empty")
 eq(ui.name.text, "Holy Light", "card shows it")
+
+-- A slot given a window, Quick use, a typed macro: a character macro of ours
+do
+    local M, T = ns.SlotMacros, ns.TouchModel
+    Fire("PLAYER_ENTERING_WORLD"); RunTimers()   -- (the bars are in)
+    local function Pick(action)
+        ui.choose.scripts.OnClick(ui.choose)
+        for _, cat in ipairs(pui.categories) do
+            for _, e in ipairs(cat.list or {}) do
+                if e.action == action then pui.cats[cat.key].scripts.OnClick(pui.cats[cat.key]) end
+            end
+        end
+        for _, tile in ipairs(pui.tiles) do
+            if tile:IsShown() and tile.entry and tile.entry.action == action then tile.scripts.OnClick(tile); return true end
+        end
+        return false
+    end
+    ui.slots[3].scripts.OnClick(ui.slots[3])
+    eq(ui.slots[3].storage, 130, "page 2 base right")
+    check(Pick("window:bags"), "a window from the picker")
+    eq(#charMacros, 1, "one macro made")
+    eq(charMacros[1].name, "gpc:w:bags", "named for the action")
+    eq(charMacros[1].body, T.MacroText("window:bags", ns.Shared.lookup), "the touchpad's body")
+    eq(actions[130] and actions[130].kind, "macro", "the macro on the slot")
+    eq(actions[130] and actions[130].id, 121, "our macro")
+    eq(ui.kind.text, "Window", "card: the action's kind, not Macro")
+    eq(ui.name.text, (Touch.ActionLook("window:bags")), "card: the action's name")
+    check(ui.clear:IsEnabled(), "ours to clear")
+    eq(cursor, nil, "cursor left empty")
+    check(Pick("window:bags"), "the same again")
+    eq(#charMacros, 1, "reused, not made twice")
+    -- (the picker's macros: not ours)
+    ui.choose.scripts.OnClick(ui.choose)
+    for _, cat in ipairs(pui.categories) do
+        if cat.key == "macros" then
+            for _, e in ipairs(cat.list) do check(e.name ~= "gpc:w:bags", "our macro hidden from Macros") end
+        end
+    end
+    picker:Hide()
+    -- (our macro on the cursor: the action)
+    cursor = { id = 121 }
+    eq(Touch.TakeCursor(), "window:bags", "our macro off the cursor: the action")
+    cursor = nil
+
+    -- Quick use: the body follows the pick
+    local food = "item:1114"
+    ns.Shared.lookup.quick = function(key) return key == "food" and ("/use " .. food) or nil end
+    ui.slots[4].scripts.OnClick(ui.slots[4])
+    check(Pick("quick:food"), "Quick use · Food")
+    eq(charMacros[2] and charMacros[2].name, "gpc:q:food", "quick macro named")
+    eq(charMacros[2] and charMacros[2].body, "/use item:1114", "the pick's body")
+    eq(charMacros[2] and charMacros[2].icon, 134400, "an item macro: the item's icon")
+    eq(ui.kind.text, "Quick use", "card: Quick use")
+    food = "item:3771"
+    M.Apply()
+    eq(charMacros[2] and charMacros[2].body, "/use item:3771", "body updated with the pick")
+    eq(M.SlotAction(131), "quick:food", "slot reads back as the action")
+
+    -- A long typed macro: a hashed name, 16 letters at most
+    local long = T.SlotMacroName("text:/say a long typed macro here")
+    check(long and #long <= 16 and long:find("^gpc:t:") ~= nil, "long action: short name")
+    eq(T.SlotMacroName("text:/say a long typed macro here"), long, "the same name each time")
+    check(T.SlotMacroName("text:/say another one") ~= long, "another action: another name")
+    eq(T.SlotMacroName("spell:133"), nil, "a spell goes on as it is")
+
+    -- Full: a few words, the slot unchanged
+    Constants.MacroConsts = { MAX_CHARACTER_MACROS = 2 }   -- (Forever: 30)
+    ui.slots[2].scripts.OnClick(ui.slots[2])
+    check(Pick("window:spellbook"), "picked")
+    eq(#charMacros, 2, "no macro made")
+    eq(actions[129] and actions[129].id, 635, "slot unchanged")
+    eq(ui.status.text, "Macros full", "said so")
+    Constants.MacroConsts = nil
+
+    -- A macro of the same name we didn't make: never touched
+    charMacros[3] = { name = "gpc:w:map", icon = 1, body = "/mine" }
+    eq(select(2, M.Ensure("window:map")), "Name taken", "someone else's name")
+    eq(charMacros[3].body, "/mine", "left alone")
+
+    -- Cleanup: a slot moved off our macro deletes it; others stay
+    ui.slots[3].scripts.OnClick(ui.slots[3])
+    ui.clear.scripts.OnClick(ui.clear)
+    RunTimers()
+    eq(GetMacroIndexByName("gpc:w:bags"), 0, "unused: deleted")
+    check(GetMacroIndexByName("gpc:q:food") > 0, "still on a slot: kept")
+    check(GetMacroIndexByName("gpc:w:map") > 0, "not ours: kept")
+    check(not M.Owns("gpc:w:bags"), "forgotten")
+    eq(M.SlotAction(131), "quick:food", "the other slot still runs its action")
+    actions[131] = nil
+    M.SweepSoon(); RunTimers()
+    eq(GetMacroIndexByName("gpc:q:food"), 0, "the last one too")
+    check(GetMacroIndexByName("gpc:w:map") > 0, "not ours: still kept")
+    charMacros = {}
+end
 
 -- Buttons: Blizzard's defaults, then Companion's bindings per layer
 ui.buttons.l1.scripts.OnClick(ui.buttons.l1)

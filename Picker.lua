@@ -123,7 +123,8 @@ local function Macros()
     local global, char = Call(GetNumMacros)
     local function Add(index)
         local name, icon = Call(GetMacroInfo, index)
-        if name then list[#list + 1] = { action = "macro:" .. name, name = name, icon = icon, macro = index } end
+        -- (not the macros bar slots run actions through: those show as the action)
+        if name and not (ns.SlotMacros and ns.SlotMacros.Owns(name)) then list[#list + 1] = { action = "macro:" .. name, name = name, icon = icon, macro = index } end
     end
     for i = 1, global or 0 do Add(i) end
     local first = (_G.MAX_ACCOUNT_MACROS or 120) + 1

@@ -775,8 +775,25 @@ function T.QuickMacro(key, ids)
     return table.concat(lines, "\n")
 end
 
--- The kinds of action every binder takes (bar slots take spell, item, macro)
+-- The kinds of action every binder takes: zones, gestures, keys and bar slots
+-- (a slot runs the others through a macro, SlotMacros.lua)
 T.ACCEPTS = { spell = true, item = true, macro = true, halo = true, window = true, text = true, quick = true, pet = true }
+
+-- The name of the character macro a bar slot runs an action through (16
+-- letters at most): "gpc:q:food", or a hash of a long one ("gpc:t:1a2b3c4d").
+-- Spells, items and macros go on a slot as they are: nil.
+local SHORT = { quick = "q", window = "w", halo = "h", text = "t", pet = "p" }
+function T.SlotMacroName(action)
+    if not ValidAction(action) then return nil end
+    local kind, value = action:match("^(%a+):(.+)$")
+    local short = SHORT[kind]
+    if not short then return nil end
+    local name = "gpc:" .. short .. ":" .. value
+    if #name <= 16 and not name:find("%c") then return name end
+    local h = 5381
+    for i = 1, #action do h = (h * 33 + action:byte(i)) % 2147483648 end
+    return ("gpc:%s:%08x"):format(short, h)
+end
 
 --[[ A zone's macro text, or nil. lookup has the game calls:
   button(name)   true when that global button exists
