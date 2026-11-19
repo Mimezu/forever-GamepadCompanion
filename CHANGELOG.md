@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.58.1 — 2026-11-19
+
+- Bank: the bank gets the bag window's legend bar, Blizzard's own, placed under the bank as theirs is under the bags: ✕ Select · □ Send to bags · ○ Close (□ lit on a bank slot holding an item)
+- While the bank is open, the bag bar's □ reads **Send to bank**; Use again once it closes (set after their refresh, nothing written into Blizzard's tables)
+- Square sends any bag item, cloth and reagents too (Blizzard's own □ only acts on items it can Use, Equip, Open or Read)
+- The 0.58.0 single hint under the bank is gone (the bar replaces it)
+
 ## 0.58.0 — 2026-11-19
 
 - **Bank: Square moves the slot under the pad cursor**: a bank slot to the bags, a bag slot to the bank, as a right-click does. The hovered slot works too

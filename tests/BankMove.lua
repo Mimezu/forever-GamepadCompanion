@@ -1,5 +1,6 @@
 -- The bank's Square: which frames are slots, PAD3 bound only while the bank is
--- open and out of combat, the move, and the hint under the bank.
+-- open and out of combat, sending both ways, the bank's legend bar (as the
+-- bag bar), and the bag bar's □ reading "Send to bank" while the bank is open.
 -- lua5.1 tests/BankMove.lua <addon folder>
 local root = arg[1] or "."
 local failures, checks = 0, 0
@@ -24,6 +25,7 @@ local function Frame(name)
     function f:RegisterForClicks() end
     function f:ClearAllPoints() self.points = {} end
     function f:SetPoint(...) table.insert(self.points, { ... }) end
+    function f:GetPoint(i) local p = self.points[i or 1]; if p then return unpack(p) end end
     if name then _G[name] = f end
     frames[#frames + 1] = f
     return f
@@ -42,39 +44,66 @@ SetOverrideBindingClick = function(owner, _, key, name, mouse)
     overrides[key] = { owner = owner, action = "CLICK " .. name .. ":" .. mouse }
 end
 GetBindingAction = function(key) return overrides[key] and overrides[key].action or "" end
-hooksecurefunc = function() end
-GAMEPAD_FACE_LEFT = "PAD3"
+-- (as the game: the hook runs after the original, the original's result kept)
+hooksecurefunc = function(t, key, fn)
+    if type(t) ~= "table" then return end
+    local original = t[key]
+    t[key] = function(...) local r = original(...); fn(...); return r end
+end
+GAMEPAD_FACE_LEFT, GAMEPAD_FACE_BOTTOM, GAMEPAD_FACE_RIGHT = "PAD3", "PAD1", "PAD2"
+GAMEPAD_PROMPT_DIVIDER_SLASH = "SLASH"
+ACTION_LABEL_SELECT, FRAME_ACTION_CLOSE = "Select", "Close"
 NUM_TOTAL_EQUIPPED_BAG_SLOTS = 5
-local items = { ["6:3"] = true, ["0:1"] = true }   -- bank tab 6 slot 3, backpack slot 1
+local items = { ["6:3"] = true, ["0:1"] = true, ["3:7"] = true, ["5:2"] = true, ["7:1"] = true, ["1:4"] = true }
 C_Container = {
     GetContainerItemInfo = function(bag, slot) return items[bag .. ":" .. slot] and { itemID = 1 } or nil end,
     UseContainerItem = function(bag, slot) used[#used + 1] = bag .. ":" .. slot end,
 }
--- The pad cursor
-local current
+local current, mouse
 SmartNavigation = { GetCurrentButton = function() return current end }
-local mouse
 GetMouseFoci = function() return { mouse } end
--- Blizzard's legend (display only)
-local legendMade, legendText, hint
+
+-- Blizzard's legend widget (our bank bar uses it)
+local function Prompt(text)
+    local p = Frame()
+    p.ControlDescText = { FontString = { text = text } }
+    function p.ControlDescText.FontString:GetText() return self.text end
+    function p:SetPromptText(t) self.ControlDescText.FontString.text = t end
+    return p
+end
+local bankBar, bankHolder
 InputPromptLegends = {
     PromptTemplates = { StandardOneIcon = { name = "StandardOneIcon" } },
-    CreateFrameAction = function(id, _, keys, text) return { id = id, keys = keys, text = text } end,
+    CreateFrameAction = function(id, _, keys, text)
+        return { id = id, keys = keys, text = text, SetDividerType = function(self, d) self.divider = d end }
+    end,
     CreateInputLegend = function(parent, key)
         local l = Frame()
         parent[key] = l
-        hint = parent
-        l.actions = {}
+        bankHolder = parent
+        l.actions, l.enabled, l.positioned = {}, {}, 0
         function l:AddFrameAction(a) table.insert(self.actions, a) end
-        function l:InitializePrompts() legendText = self.actions[1].text end
-        function l:ChangePromptTextToFrameAction(id)
-            for _, a in ipairs(self.actions) do if a.id == id then legendText = a.text end end
-        end
-        function l:ApplyDefaultPromptPositioning() end
-        legendMade = l
+        function l:InitializePrompts() end
+        function l:SetFrameActionPromptEnabled(id, on) self.enabled[id] = on end
+        function l:ApplyDefaultPromptPositioning() self.positioned = self.positioned + 1 end
+        bankBar = l
         return l
     end,
 }
+InputUtil = { IsGamepadUIEnabled = function() return true end }
+
+-- Blizzard's bag window with its footer: Select / Use / More / Close, centred
+local bags = Frame("ContainerFrameCombinedBags")
+local usePrompt = Prompt("Use")
+local bagLegend = Frame()
+bagLegend.promptMap = { ContainerFrameCombinedBagsFooterPAD3 = usePrompt }
+bagLegend.positioned = 0
+function bagLegend:ApplyDefaultPromptPositioning() self.positioned = self.positioned + 1 end
+bagLegend:SetPoint("TOP", bags, "BOTTOM", 0, -4)
+local footer = { debugName = "ContainerFrameCombinedBagsFooter", inputLegend = bagLegend }
+function footer:RefreshInputLegend() usePrompt:SetPromptText("Use") end   -- (Blizzard's refresh: its label)
+bags.gamepadFooter = footer
+
 BankFrame = Frame("BankFrame")
 BankFrame.shown = false
 
@@ -87,115 +116,147 @@ for _, f in ipairs(frames) do if f.events.BANKFRAME_OPENED then events = f end e
 local function Fire(event) events.scripts.OnEvent(events, event); RunTimers() end
 local function Ticker() for _, f in ipairs(frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 1) end end end
 local button = _G[B.BUTTON]
+local function Press() button.scripts.OnClick(button, "LeftButton", true); button.scripts.OnClick(button, "LeftButton", false) end
 
 -- Slots
-local bankSlot = Frame()
-function bankSlot:GetBankTabID() return 6 end
-function bankSlot:GetContainerSlotID() return 3 end
-local bagSlot = Frame()
-function bagSlot:GetBagID() return 0 end
-function bagSlot:GetID() return 1 end
-local emptyBag = Frame()
-function emptyBag:GetBagID() return 2 end
-function emptyBag:GetID() return 4 end
-local tab = Frame()                       -- a bank tab: has an ID, no bag
-function tab:GetID() return 2 end
-local bagBar = Frame()                    -- something with a bag of -2 (keyring, not ours)
-function bagBar:GetBagID() return -2 end
-function bagBar:GetID() return 1 end
+local function BagSlot(bag, slot)
+    local f = Frame()
+    function f:GetBagID() return bag end
+    function f:GetID() return slot end
+    return f
+end
+local function BankSlot(tab, slot)
+    local f = Frame()
+    function f:GetBankTabID() return tab end
+    function f:GetContainerSlotID() return slot end
+    return f
+end
+local bankSlot, bagSlot = BankSlot(6, 3), BagSlot(0, 1)
+local tabButton = Frame(); function tabButton:GetID() return 2 end
+local keyring = BagSlot(-2, 1)
 
 eq(B.KEY, "PAD3", "the game's Square")
 eq((B.SlotOf(bankSlot)), "bank", "bank slot")
 eq(select(2, B.SlotOf(bankSlot)), 6, "its tab")
 eq(select(3, B.SlotOf(bankSlot)), 3, "its slot")
-eq((B.SlotOf(bagSlot)), "bags", "bag slot")
-eq(B.SlotOf(tab), nil, "a tab: not a slot")
-eq(B.SlotOf(bagBar), nil, "not a bag of ours")
+eq((B.SlotOf(bagSlot)), "bags", "backpack slot")
+eq((B.SlotOf(BagSlot(3, 7))), "bags", "a separate bag")
+eq((B.SlotOf(BagSlot(5, 2))), "bags", "the reagent bag")
+eq(B.SlotOf(tabButton), nil, "a tab: not a slot")
+eq(B.SlotOf(keyring), nil, "not a bag of ours")
 eq(B.SlotOf(nil), nil, "nothing")
 eq(B.SlotOf("x"), nil, "not a frame")
 
--- Closed: PAD3 is never ours
+-- Closed: PAD3 never ours, Blizzard's label untouched
 Fire("PLAYER_LOGIN")
 eq(overrides.PAD3, nil, "bank closed: PAD3 left alone")
 current = bankSlot
 check(not B.Move(), "bank closed: no move")
 eq(#used, 0, "nothing used")
+footer:RefreshInputLegend()
+eq(usePrompt.ControlDescText.FontString.text, "Use", "bank closed: Use")
 
--- Open: bound; the hint follows the cursor
+-- Open: bound, the bank bar, the bag bar's □ relabelled
+local footerKeys = {}
+for k in pairs(footer) do footerKeys[k] = true end
 BankFrame:Show()
 Fire("BANKFRAME_OPENED")
 check(B.IsOpen() and B.IsBound(), "bank open: bound")
 eq(overrides.PAD3 and overrides.PAD3.action, "CLICK " .. B.BUTTON .. ":LeftButton", "PAD3 clicks ours")
 Ticker()
-check(legendMade ~= nil and legendMade.shown ~= false, "hint made")
-check(hint ~= BankFrame and hint.shown, "legend on our frame, shown")
-eq(legendText, "Move to bags", "bank slot: Move to bags")
-check(BankFrame.legend == nil, "nothing written into BankFrame")
-local point = legendMade.points[1]
-check(point and point[2] == BankFrame and point[1] == "TOPLEFT" and point[3] == "BOTTOMLEFT", "under the bank")
+check(bankBar ~= nil and bankHolder.shown, "bank bar shown")
+check(bankHolder ~= BankFrame and BankFrame.legend == nil, "on a frame of ours: nothing written into BankFrame")
+local labels, keys, dividers = {}, {}, true
+for _, a in ipairs(bankBar.actions) do
+    labels[#labels + 1] = a.text; keys[#keys + 1] = a.keys[1]
+    dividers = dividers and a.divider == "SLASH"
+end
+eq(table.concat(labels, " · "), "Select · Send to bags · Close", "bank bar: as the bag bar's wording")
+eq(table.concat(keys, ","), "PAD1,PAD3,PAD2", "Blizzard's key order")
+check(dividers, "Blizzard's divider style")
+local p = bankBar.points[1]
+check(p and p[1] == "TOP" and p[2] == BankFrame and p[3] == "BOTTOM" and p[4] == 0 and p[5] == -4,
+    "placed under the bank as the bag bar is under the bags")
+eq(bankBar.enabled.send, true, "bank slot: Send to bags lit")
+eq(usePrompt.ControlDescText.FontString.text, "Send to bank", "bag bar: Use reads Send to bank")
+footer:RefreshInputLegend()   -- (Blizzard refreshes: its label, then our hook)
+eq(usePrompt.ControlDescText.FontString.text, "Send to bank", "after Blizzard's refresh: still Send to bank")
+check(bagLegend.positioned > 0, "their bar laid out again for the longer label")
+for k in pairs(footer) do check(footerKeys[k] or k == "RefreshInputLegend", "nothing of ours in Blizzard's footer: " .. k) end
 
--- Square: down moves once (up after it does nothing)
-button.scripts.OnClick(button, "LeftButton", true)
-button.scripts.OnClick(button, "LeftButton", false)
-eq(table.concat(used, ","), "6:3", "bank slot moved to the bags, once")
-current = bagSlot
-Ticker()
-eq(legendText, "Move to bank", "bag slot: Move to bank")
-button.scripts.OnClick(button, "LeftButton", false)   -- (a client sending only up)
-eq(used[2], "0:1", "bag slot moved to the bank")
--- Not on a slot holding an item: nothing
+-- Both ways, as the focus moves between the windows
 used = {}
-for _, f in ipairs({ tab, emptyBag, bagBar }) do
+for _, step in ipairs({
+    { bankSlot, true, "6:3" }, { bagSlot, false, "0:1" }, { BagSlot(3, 7), false, "3:7" },
+    { BankSlot(7, 1), true, "7:1" }, { BagSlot(5, 2), false, "5:2" }, { BagSlot(1, 4), false, "1:4" },
+}) do
+    current = step[1]
+    Ticker()
+    eq(bankBar.enabled.send, step[2], "bank bar's □ follows the focus: " .. step[3])
+    Press()
+    eq(used[#used], step[3], "Square sends " .. step[3])
+end
+eq(#used, 6, "one move a press, both ways (cloth too: 1:4)")
+-- (a client sending only up)
+current = bagSlot; used = {}
+button.scripts.OnClick(button, "LeftButton", false)
+eq(used[1], "0:1", "up only: moved once")
+-- Off a slot holding an item: nothing
+used = {}
+for _, f in ipairs({ tabButton, BagSlot(2, 4), keyring }) do
     current = f
     check(not B.Move(), "no move off a slot")
-    Ticker()
-    check(not hint.shown, "no hint off a slot")
 end
 eq(#used, 0, "nothing used off a slot")
--- The mouse when the pad cursor is elsewhere
+-- The mouse when the pad cursor is elsewhere; a hidden slot never counts
 current, mouse = nil, bankSlot
 check(B.Move(), "hovered slot moves")
-eq(used[1], "6:3", "the hovered one")
 mouse = nil
--- A hidden slot frame (released to its pool) never counts
 current = bankSlot; bankSlot.shown = false
 check(not B.Move(), "hidden slot: nothing")
 bankSlot.shown = true
 
--- Combat: unbound before lockdown, back after
+-- Combat: unbound before lockdown, back after; the bar stays, □ off
 Fire("PLAYER_REGEN_DISABLED")
 eq(overrides.PAD3, nil, "combat: PAD3 back to the game")
 combat = true
 used = {}
 check(not B.Move(), "combat: no move")
 Ticker()
-check(not hint.shown, "combat: no hint")
+eq(bankBar.enabled.send, false, "combat: Send to bags off")
+footer:RefreshInputLegend()   -- (their refresh in combat: only widget calls of ours)
 eq(#used, 0, "combat: nothing used")
 combat = false
 Fire("PLAYER_REGEN_ENABLED")
 check(overrides.PAD3 ~= nil and B.IsBound(), "after combat: bound again")
 
--- Blizzard takes PAD3 (its binding sets): Shared puts ours back
+-- Blizzard takes PAD3: ours put back
 overrides.PAD3 = { owner = UIParent, action = "" }
--- (Shared's Check runs on the hook; here, call the claim directly)
 B.Bind()
 check(overrides.PAD3 and overrides.PAD3.action:find(B.BUTTON, 1, true), "ours again")
 
--- Closed: unbound, hint gone
+-- Closed: unbound, bars back as Blizzard's
 BankFrame:Hide()
 Fire("BANKFRAME_CLOSED")
 check(not B.IsOpen() and not B.IsBound(), "bank closed: unbound")
 eq(overrides.PAD3, nil, "PAD3 back to the game")
-check(not B.Move(), "closed: no move")
-Ticker()
-check(not hint.shown, "closed: no hint")
--- (the frame's own hide hook works without the event too)
+check(not bankHolder.shown, "bank bar gone")
+eq(usePrompt.ControlDescText.FontString.text, "Use", "bag bar: Use again")
+footer:RefreshInputLegend()
+eq(usePrompt.ControlDescText.FontString.text, "Use", "their refresh: Use")
+-- (the frame's own show / hide hooks work without the events)
 BankFrame:Show()
 for _, fn in ipairs(BankFrame.hooks.OnShow or {}) do fn(BankFrame) end
-check(B.IsBound(), "OnShow hook binds")
+check(B.IsBound() and usePrompt.ControlDescText.FontString.text == "Send to bank", "OnShow hook: bound, relabelled")
 BankFrame:Hide()
 for _, fn in ipairs(BankFrame.hooks.OnHide or {}) do fn(BankFrame) end
-check(not B.IsBound() and overrides.PAD3 == nil, "OnHide hook unbinds")
+check(not B.IsBound() and overrides.PAD3 == nil and usePrompt.ControlDescText.FontString.text == "Use", "OnHide hook: all back")
+
+-- Keyboard UI: no bar
+InputUtil.IsGamepadUIEnabled = function() return false end
+BankFrame:Show(); B.Refresh(); Ticker()
+check(not bankHolder.shown, "keyboard UI: no bank bar")
+BankFrame:Hide(); B.Refresh()
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

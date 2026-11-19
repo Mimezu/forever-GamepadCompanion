@@ -1,21 +1,30 @@
--- At the bank, Square (the game's PAD3) moves the slot under the pad cursor:
--- a bank slot to the bags, a bag slot to the bank, as a right-click does
--- (C_Container.UseContainerItem). PAD3 is ours only while the bank is open and
--- out of combat; a hint under the bank shows it in Blizzard's own legend
--- (InputPromptLegends, display only, on a frame of ours).
+-- At the bank, Square (the game's PAD3) sends the slot under the pad cursor
+-- across: a bank slot to the bags, a bag slot to the bank, as a right-click
+-- does (C_Container.UseContainerItem). PAD3 is ours only while the bank is open
+-- and out of combat. (Blizzard's own □ on a bag slot is that right-click too,
+-- but only for items it can Use / Equip / Open / Read: ours also sends cloth,
+-- reagents and the rest.)
+--
+-- The bank gets the bag window's legend bar: Blizzard's own legend widget
+-- (InputPromptLegends) on a frame of ours, placed under the bank as theirs is
+-- under the bags: ✕ Select · □ Send to bags · ○ Close. While the bank is open,
+-- the bag bar's □ reads "Send to bank" (set after their refresh, through a
+-- secure hook and widget calls: nothing written into Blizzard's tables).
 local _, ns = ...
 local Sh = ns.Shared
 local B = {}
 ns.BankMove = B
 
 B.KEY = _G.GAMEPAD_FACE_LEFT or "PAD3"
+B.SELECT_KEY = _G.GAMEPAD_FACE_BOTTOM or "PAD1"
+B.CLOSE_KEY = _G.GAMEPAD_FACE_RIGHT or "PAD2"
 B.BUTTON = "GamepadCompanionBankMove"
-B.LABEL = { bank = "Move to bags", bags = "Move to bank" }
+B.LABEL = { bank = "Send to bags", bags = "Send to bank" }
 
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, a, b, c = pcall(fn, ...)
-    if ok then return a, b, c end
+    local ok, a, b, c, d, e = pcall(fn, ...)
+    if ok then return a, b, c, d, e end
 end
 
 local function InCombat() return InCombatLockdown and InCombatLockdown() end
@@ -69,8 +78,6 @@ local ACTION = "CLICK " .. B.BUTTON .. ":LeftButton"
 function B.IsOpen() return open end
 function B.IsBound() return bound end
 
-local Hint
-
 function B.Bind()
     if InCombat() then return false end
     ClearOverrideBindings(owner)
@@ -85,7 +92,7 @@ function B.Bind()
 end
 Sh.Claim(claim, function() B.Bind() end)
 
--- Moves the focused stack; false when there is none
+-- Sends the focused stack across; false when there is none
 function B.Move()
     if not open or InCombat() then return false end
     local _, bag, slot = B.Target()
@@ -104,47 +111,132 @@ button:SetScript("OnClick", function(_, _, down)
     else B.Move() end
 end)
 
--- Hint ---------------------------------------------------------------------------
+-- The bag bar's □ -----------------------------------------------------------------
+-- Blizzard's bag footers (PromptedBindingFooter): their legend's PAD3 prompt.
 
-local hint = CreateFrame("Frame", nil, UIParent)
-hint:Hide()
-local legend, shown
+local function BagFrames()
+    local list = { _G.ContainerFrameCombinedBags }
+    for i = 1, (_G.NUM_CONTAINER_FRAMES or 13) do list[#list + 1] = _G["ContainerFrame" .. i] end
+    return list
+end
 
-local function Legend()
-    if legend ~= nil then return legend or nil end
-    legend = false
+local function BagPrompt(footer)
+    local legend = type(footer) == "table" and footer.inputLegend
+    local map = type(legend) == "table" and legend.promptMap
+    local prompt = type(map) == "table" and map[tostring(footer.debugName) .. B.KEY]
+    return prompt, legend
+end
+
+local originals = setmetatable({}, { __mode = "k" })   -- prompt -> Blizzard's text we covered
+
+local function SetPrompt(prompt, legend, text)
+    Call(prompt.SetPromptText, prompt, text)
+    Call(legend.ApplyDefaultPromptPositioning, legend)
+end
+
+local function PromptText(prompt)
+    local desc = prompt.ControlDescText
+    local fs = type(desc) == "table" and desc.FontString
+    return fs and Call(fs.GetText, fs)
+end
+
+-- After Blizzard's refresh: "Send to bank" while the bank is open
+local function Relabel(footer)
+    local prompt, legend = BagPrompt(footer)
+    if not (prompt and legend) then return end
+    local text = PromptText(prompt)
+    if open then
+        if text ~= B.LABEL.bags then originals[prompt] = text end
+        if Call(prompt.IsShown, prompt) and text ~= B.LABEL.bags then SetPrompt(prompt, legend, B.LABEL.bags) end
+    elseif originals[prompt] then
+        if text == B.LABEL.bags then SetPrompt(prompt, legend, originals[prompt]) end
+        originals[prompt] = nil
+    end
+end
+B.Relabel = Relabel
+
+local hookedFooters = setmetatable({}, { __mode = "k" })
+local function HookBagBars()
+    for _, frame in ipairs(BagFrames()) do
+        local footer = type(frame) == "table" and frame.gamepadFooter
+        if type(footer) == "table" and not hookedFooters[footer] and type(footer.RefreshInputLegend) == "function" then
+            hookedFooters[footer] = true
+            -- (Refresh's closures call self:RefreshInputLegend(): a hook there runs after each)
+            hooksecurefunc(footer, "RefreshInputLegend", Relabel)
+        end
+        if type(footer) == "table" then Relabel(footer) end
+    end
+end
+
+-- The bank's bar -------------------------------------------------------------------
+
+local holder = CreateFrame("Frame", nil, UIParent)
+holder:Hide()
+local bar   -- Blizzard's legend, or false when this client has none
+
+local function Text(name, fallback)
+    local t = _G[name]
+    return type(t) == "string" and t ~= "" and t or fallback
+end
+
+local function Bar()
+    if bar ~= nil then return bar or nil end
+    bar = false
     local L = _G.InputPromptLegends
     if not (L and L.CreateInputLegend and L.CreateFrameAction and L.PromptTemplates) then return nil end
     local ok, made = pcall(function()
-        local l = L.CreateInputLegend(hint, "legend")
+        local l = L.CreateInputLegend(holder, "legend")
         local one = L.PromptTemplates.StandardOneIcon
-        l:AddFrameAction(L.CreateFrameAction("bank", one, { B.KEY }, B.LABEL.bank))
-        l:AddFrameAction(L.CreateFrameAction("bags", one, { B.KEY }, B.LABEL.bags))
+        for _, a in ipairs({
+            { "select", B.SELECT_KEY, Text("ACTION_LABEL_SELECT", "Select") },
+            { "send", B.KEY, B.LABEL.bank },
+            { "close", B.CLOSE_KEY, Text("FRAME_ACTION_CLOSE", "Close") },
+        }) do
+            local action = L.CreateFrameAction(a[1], one, { a[2] }, a[3])
+            if action.SetDividerType and _G.GAMEPAD_PROMPT_DIVIDER_SLASH then action:SetDividerType(_G.GAMEPAD_PROMPT_DIVIDER_SLASH) end
+            l:AddFrameAction(action)
+        end
         l:InitializePrompts()
         return l
     end)
-    if ok and made then legend = made end
-    return legend or nil
+    if ok and made then bar = made end
+    return bar or nil
 end
 
--- Shows the hint for what Square does now, or hides it
-function Hint()
-    local kind = open and not InCombat() and B.Target() or nil
-    local bank = _G.BankFrame
-    if not kind or not bank then hint:Hide(); shown = nil; return nil end
-    local l = Legend()
-    if not l then return kind end
-    if shown ~= kind then
-        pcall(l.ChangePromptTextToFrameAction, l, kind)
-        pcall(l.ApplyDefaultPromptPositioning, l)
-        l:ClearAllPoints()
-        l:SetPoint("TOPLEFT", bank, "BOTTOMLEFT", 0, 0)
-        shown = kind
+-- Where Blizzard put the bag bar under the bags: the same under the bank
+local function Place(l, bank)
+    local point, relPoint, x, y = "TOPLEFT", "BOTTOMLEFT", 0, 0
+    for _, frame in ipairs(BagFrames()) do
+        local footer = type(frame) == "table" and frame.gamepadFooter
+        local legend = type(footer) == "table" and footer.inputLegend
+        if type(legend) == "table" and legend.GetPoint then
+            local p, rel, rp, px, py = Call(legend.GetPoint, legend, 1)
+            if p and rel == frame then point, relPoint, x, y = p, rp, px or 0, py or 0; break end
+        end
     end
-    hint:Show()
-    return kind
+    l:ClearAllPoints()
+    l:SetPoint(point, bank, relPoint, x, y)
 end
-B.Hint = Hint
+
+local function GamepadUI()
+    local util = _G.InputUtil
+    if util and util.IsGamepadUIEnabled then return Call(util.IsGamepadUIEnabled) and true or false end
+    return true
+end
+
+-- The bank bar for what's focused now; returns what □ does ("bank" / "bags") or nil
+function B.Hint()
+    local bank = _G.BankFrame
+    if not (open and bank and GamepadUI()) then holder:Hide(); return nil end
+    local l = Bar()
+    if l then
+        Place(l, bank)
+        local kind = not InCombat() and B.Target() or nil
+        Call(l.SetFrameActionPromptEnabled, l, "send", kind == "bank")
+        holder:Show()
+    end
+    return not InCombat() and (B.Target()) or nil
+end
 
 local wait = 0
 local ticker = CreateFrame("Frame")
@@ -153,7 +245,7 @@ ticker:SetScript("OnUpdate", function(_, elapsed)
     wait = wait - (elapsed or 0)
     if wait > 0 then return end
     wait = 0.1
-    Hint()
+    B.Hint()
 end)
 
 -- Events -------------------------------------------------------------------------
@@ -163,7 +255,8 @@ function B.Refresh()
     open = frame and Call(frame.IsShown, frame) and true or false
     B.Bind()
     ticker:SetShown(open)
-    Hint()
+    B.Hint()
+    HookBagBars()
 end
 
 local hooked = false
@@ -187,7 +280,6 @@ events:SetScript("OnEvent", function(_, event)
         ClearOverrideBindings(owner)
         claim[B.KEY] = nil
         bound = false
-        hint:Hide(); shown = nil
         return
     end
     -- (the bank frame shows after the event: a frame later)
