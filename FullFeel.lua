@@ -28,7 +28,7 @@ function F.HelperPlaysHD()
 end
 
 -- A moment's plain entry as WoW Helper wrote it (nil: none, it plays as before). A moment
--- under another ("gather:mining") has its parent's until it has its own.
+-- under another ("gather:mining", "craft:cooking") has its parent's until it has its own.
 function F.Entry(key)
     local d = WowHelperData
     local plain = type(d) == "table" and type(d.plain) == "table" and d.plain
@@ -36,7 +36,8 @@ function F.Entry(key)
     local e = plain[key]
     if type(e) == "table" then return e end
     local V = ns.Rumble
-    if V and V.GatherOf and V.GatherOf(key) then return F.Entry("gather") end
+    local parent = V and V.ActionOf and select(2, V.ActionOf(key))
+    if parent then return F.Entry(parent) end
     return nil
 end
 

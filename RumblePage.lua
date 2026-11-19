@@ -57,12 +57,15 @@ local GROUPS = {
     { key = "Interface", items = { { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" }, { "l", "uiError" } } },
 }
 ui.GROUPS = GROUPS
--- Gathering's actions under it (g: a gathering action's own moment, "gather:mining")
+-- Gathering's and Crafting's actions under them (g: an action's own moment, "gather:mining",
+-- "craft:cooking")
 for _, g in ipairs(GROUPS) do
-    for i, item in ipairs(g.items) do
-        if item[2] == "gather" then
-            for j, a in ipairs(V.GATHER_ACTIONS) do table.insert(g.items, i + j, { "g", V.GatherKey(a.key) }) end
-            break
+    for _, kind in ipairs({ "gather", "craft" }) do
+        for i, item in ipairs(g.items) do
+            if item[2] == kind then
+                for j, a in ipairs(V.KindActions(kind)) do table.insert(g.items, i + j, { "g", V.ActionKey(a.key) }) end
+                break
+            end
         end
     end
 end
@@ -198,45 +201,46 @@ ITEM.c = {
     end,
 }
 
--- A gathering action's own moment ("gather:mining"): its feel, Gathering's until it has its own
-local function ActionLabel(key) return V.GatherAction(V.GatherOf(key)).label end
+-- An action's own moment ("gather:mining", "craft:cooking"): its feel, its kind's until it has its own
+local function ActionLabel(key) return V.GatherAction(V.ActionOf(key)).label end
+local function KindOf(key) return KIND[select(2, V.ActionOf(key))] end
 ITEM.g = {
     label = ActionLabel,
-    icon = function() return KIND.gather.icon end,
+    icon = function(key) return KindOf(key).icon end,
     tip = function(key) return ActionLabel(key) end,
     show = function(key)
-        local action = V.GatherOf(key)
+        local action = V.ActionOf(key)
         local pattern = V.ActionPattern(action)
         if not pattern then return "Off", V.OFF_ICON, nil, true end
         local p = V.Pattern(pattern)
-        return p and p.label or pattern, p and p.icon, V.ActionFeel(action) == nil and "As Gathering" or nil
+        return p and p.label or pattern, p and p.icon, V.ActionFeel(action) == nil and ("As " .. KindOf(key).label) or nil
     end,
     current = function(key)
-        local pattern = V.ActionPattern(V.GatherOf(key))
+        local pattern = V.ActionPattern(V.ActionOf(key))
         return pattern and L.FeelFor(pattern) or "off"
     end,
     specials = function() return { OFF } end,
     pick = function(key, feel)
-        local action = V.GatherOf(key)
+        local action = V.ActionOf(key)
         if feel == "off" then return V.SetActionFeel(action, "off") end
         L.RegisterInRumble()
         local pattern = L.PatternFor(feel)
         V.SetActionFeel(action, pattern)
         if V.Settings().enabled then V.Play(pattern) end
     end,
-    isDefault = function(key) return V.ActionFeel(V.GatherOf(key)) == nil end,
-    default = function(key) V.SetActionFeel(V.GatherOf(key), nil) end,
+    isDefault = function(key) return V.ActionFeel(V.ActionOf(key)) == nil end,
+    default = function(key) V.SetActionFeel(V.ActionOf(key), nil) end,
     feel = function(key)
-        local p = V.Pattern(V.ActionPattern(V.GatherOf(key)))
+        local p = V.Pattern(V.ActionPattern(V.ActionOf(key)))
         return p and p.feel, p and p.label
     end,
     assign = function(key, ownKey)
         L.RegisterInRumble()
-        V.SetActionFeel(V.GatherOf(key), "x_" .. ownKey)
+        V.SetActionFeel(V.ActionOf(key), "x_" .. ownKey)
     end,
     try = function(key)
         if not On() then return end
-        local pattern = V.ActionPattern(V.GatherOf(key))
+        local pattern = V.ActionPattern(V.ActionOf(key))
         if not pattern then return Say(ActionLabel(key) .. " is off", true) end
         V.Play(pattern, false, V.Scaled(nil, key))
         local HC = ns.HelperCues
@@ -324,14 +328,14 @@ end
 
 -- Any moment's name and icon, whichever list has it
 local function LabelOf(key)
-    if V.GatherOf(key) then return ITEM.g.label(key) end
+    if V.ActionOf(key) then return ITEM.g.label(key) end
     local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key] or (LT and LT.Def(key))
     if e then return e.label end
     local _, name = ns.SubMoment and ns.SubMoment(key)
     return name or key
 end
 local function IconOf(key)
-    if V.GatherOf(key) then return KIND.gather.icon end
+    if V.ActionOf(key) then return ITEM.g.icon(key) end
     local e = REVENT[key] or (L.EVENT and L.EVENT[key]) or KIND[key]
     return e and e.icon or LIGHT_ICON
 end
@@ -525,7 +529,7 @@ local function Snapshot(kind, key)
         local on, feel = s.on, s.feel
         back = function() s.on, s.feel = on, feel end
     elseif kind == "g" then
-        local action = V.GatherOf(key)
+        local action = V.ActionOf(key)
         local own = V.ActionFeel(action)
         back = function() V.Settings().gatherFeels[action] = own end
     elseif kind == "sound" then
@@ -2126,7 +2130,7 @@ local function Build(frame, header)
             local rows = {}
             for i, item in ipairs(items) do
                 -- (a moment under another: indented under it)
-                local indent = V.GatherOf(item[2]) and ui.INDENT or 0
+                local indent = V.ActionOf(item[2]) and ui.INDENT or 0
                 rows[i] = MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw - indent, item[1], item[2])
                 rows[i].indent, rows[i].card = indent, card
             end

@@ -29,10 +29,12 @@ end
 Vol.FEEL_DEFAULT = { mount = 0.5, dismount = 0.5 }
 
 -- A moment's feel / sound volume (its default unless set; full for most)
--- (a gathering action, "gather:mining": Gathering's volumes until it has its own)
+-- (an action, "gather:mining", "craft:cooking": its kind's volumes until it has its own)
 local function Parent(key)
     local V = ns.Rumble
-    return V and V.GatherOf and V.GatherOf(key) and "gather" or nil
+    if not (V and V.ActionOf) then return nil end
+    local _, kind = V.ActionOf(key)
+    return kind
 end
 function Vol.FeelDefault(key)
     local parent = Parent(key)

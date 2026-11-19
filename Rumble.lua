@@ -82,12 +82,12 @@ V.PATTERNS = {
     { key = "click", label = "Tumbler", action = true,     -- opening, a lock: small clicks, then give
         steps = { { 0.3, 0.3, 0.1 }, { 0, 0, 0.2 }, { 0.35, 0.35, 0.1 }, { 0, 0, 0.35 } } },
     { key = "hammer", label = "Anvil", action = true,      -- blacksmithing: hammer and its rebound
-        steps = { { 0.9, 1, 0.1 }, { 0, 0, 0.15 }, { 0.45, 0.55, 0.1 }, { 0, 0, 0.45 } } },
-    { key = "sew", label = "Stitch", action = true,        -- tailoring, first aid: quick small stitches
+        steps = { { 0.55, 0.6, 0.1 }, { 0, 0, 0.15 }, { 0.2, 0.25, 0.1 }, { 0, 0, 0.45 } } },
+    { key = "sew", label = "Stitch", action = true,        -- tailoring: quick small stitches
         steps = { { 0.3, 0.2, 0.1 }, { 0, 0, 0.1 }, { 0.3, 0.2, 0.1 }, { 0, 0, 0.1 }, { 0.3, 0.2, 0.1 },
             { 0, 0, 0.3 } } },
     { key = "punch", label = "Punch", action = true,       -- leatherworking: the awl through hide
-        steps = { { 0.6, 0.35, 0.12 }, { 0.15, 0.1, 0.1 }, { 0, 0, 0.35 } } },
+        steps = { { 0.4, 0.25, 0.12 }, { 0.12, 0.08, 0.1 }, { 0, 0, 0.35 } } },
     { key = "bubble", label = "Bubbles", action = true,    -- alchemy: a brew, bubbling here and there
         steps = { { 0.2, 0, 0.1 }, { 0, 0, 0.15 }, { 0, 0.3, 0.1 }, { 0, 0, 0.1 }, { 0.25, 0.25, 0.1 },
             { 0, 0, 0.25 } } },
@@ -98,6 +98,29 @@ V.PATTERNS = {
     { key = "shimmer", label = "Shimmer", action = true,   -- enchanting: magic swelling and fading
         steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.5, 0.5, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.1, 0.1, 0.1 },
             { 0, 0, 0.1 } } },
+    { key = "wrap", label = "Wrap", art = "sew", action = true,     -- first aid: cloth wound round, pulled taut
+        steps = { { 0.15, 0.05, 0.2 }, { 0.05, 0.15, 0.2 }, { 0.3, 0.3, 0.1 }, { 0, 0, 0.5 } } },
+    { key = "bellows", label = "Bellows", art = "heart", action = true, -- smelting: the bellows heave, ore glowing
+        steps = { { 0.35, 0.1, 0.35 }, { 0.15, 0.05, 0.25 }, { 0, 0, 0.2 }, { 0.05, 0.12, 0.1 }, { 0, 0, 0.5 } } },
+    -- A craft's finish, once as it's made (V.CraftFinish): small, of its material
+    { key = "quench", label = "Quench", art = "fade",      -- blacksmithing: hot steel in water, a hiss
+        steps = { { 0.35, 0.35, 0.1 }, { 0.12, 0.2, 0.15 }, { 0.05, 0.1, 0.2 } } },
+    { key = "snip", label = "Snip", art = "double",        -- tailoring: the thread cut
+        steps = { { 0.15, 0.25, 0.1 }, { 0, 0, 0.1 }, { 0.1, 0.15, 0.1 } } },
+    { key = "cinch", label = "Cinch", art = "punch",       -- leatherworking: a strap drawn tight
+        steps = { { 0.3, 0.25, 0.12 }, { 0.08, 0.08, 0.1 } } },
+    { key = "cork", label = "Cork", art = "bubble",        -- alchemy: the stopper in, a soft pop
+        steps = { { 0.12, 0.12, 0.1 }, { 0.3, 0.3, 0.1 } } },
+    { key = "plate", label = "Plated", art = "sizzle",     -- cooking: off the pan onto the plate
+        steps = { { 0.2, 0.2, 0.1 }, { 0, 0, 0.1 }, { 0.08, 0.06, 0.1 } } },
+    { key = "clunk", label = "Clunk", art = "gears",       -- engineering: the last part seats
+        steps = { { 0.15, 0.05, 0.1 }, { 0.35, 0.35, 0.12 } } },
+    { key = "chime", label = "Chime", art = "shimmer",     -- enchanting: the glow settles, ringing out
+        steps = { { 0.2, 0.2, 0.1 }, { 0.1, 0.1, 0.15 }, { 0.05, 0.05, 0.15 } } },
+    { key = "tie", label = "Tied off", art = "sew",        -- first aid: the knot pulled snug
+        steps = { { 0.2, 0.2, 0.12 }, { 0, 0, 0.1 }, { 0.08, 0.08, 0.1 } } },
+    { key = "pour", label = "Pour", art = "fade",          -- smelting: the bar poured, settling
+        steps = { { 0.25, 0.1, 0.25 }, { 0.1, 0.05, 0.2 }, { 0.12, 0.12, 0.1 } } },
     -- Eating and drinking (their loop, while you sit with it), in time with
     -- the hand going to the mouth (V.RestMotion); these steps only where it
     -- can't be (a race we have no motion for)
@@ -283,9 +306,10 @@ local PULSES = {
     skin = { cycle = 0.45, Pu(0, 0.05, 0.15, -0.8), Pu(0.15, 0.05, 0.15, 0.8) },
     reel = { cycle = 1.2, Pu(0, 0.05, 0.05), Pu(0.6, 0.05, 0.05), Pu(0.75, 0.1, 0.25) },
     click = { cycle = 0.9, Pu(0, 0.05, 0.1), Pu(0.3, 0.05, 0.1), Pu(0.5, 0.12, 0.3) },
-    hammer = { cycle = 0.8, Pu(0, 0.12, 0.9), Pu(0.25, 0.05, 0.25) },
-    sew = { cycle = 0.6, Pu(0, 0.05, 0.1), Pu(0.1, 0.05, 0.1), Pu(0.2, 0.05, 0.1) },
-    punch = { cycle = 0.6, Pu(0, 0.12, 0.6), Pu(0.2, 0.05, 0.1) },
+    -- (crafts last long and repeat: faint, each its own rhythm and material)
+    hammer = { cycle = 0.8, Pu(0, 0.08, 0.4), Pu(0.25, 0.05, 0.1) },
+    sew = { cycle = 0.6, Pu(0, 0.05, 0.08, -0.3), Pu(0.1, 0.05, 0.06, 0.3), Pu(0.2, 0.05, 0.08, -0.3) },
+    punch = { cycle = 0.6, Pu(0, 0.08, 0.3), Pu(0.2, 0.05, 0.08) },
     bubble = { cycle = 0.7, Pu(0, 0.05, 0.08, -0.6), Pu(0.17, 0.05, 0.12, 0.5), Pu(0.3, 0.05, 0.06, -0.1),
         Pu(0.5, 0.05, 0.1, 0.7) },
     sizzle = { cycle = 0.4, Pu(0, 0.05, 0.06, -0.5), Pu(0.1, 0.05, 0.08, 0.5), Pu(0.2, 0.05, 0.05, -0.2),
@@ -293,6 +317,20 @@ local PULSES = {
     gears = { cycle = 0.4, Pu(0, 0.05, 0.12, -0.6), Pu(0.2, 0.05, 0.12, 0.6) },
     shimmer = { cycle = 0.84, Pu(0, 0.05, 0.05), Pu(0.12, 0.05, 0.1), Pu(0.24, 0.05, 0.16), Pu(0.36, 0.05, 0.1),
         Pu(0.48, 0.05, 0.05) },
+    -- (first aid: cloth wound round, side to side, then pulled taut)
+    wrap = { cycle = 1.2, Pu(0, 0.18, 0.06, -0.6), Pu(0.3, 0.18, 0.08, 0.6), Pu(0.62, 0.08, 0.2) },
+    -- (smelting: a deep slow heave of the bellows, the coals answering faintly)
+    bellows = { cycle = 1.4, Pu(0, 0.35, 0.25, -0.5), Pu(0.45, 0.25, 0.1, -0.3), Pu(0.95, 0.05, 0.05, 0.5) },
+    -- (a craft's finish, once)
+    quench = { Pu(0, 0.05, 0.3), Pu(0.08, 0.15, 0.1, 0.4), Pu(0.26, 0.2, 0.04, 0.6) },
+    snip = { Pu(0, 0.05, 0.15, 0.3), Pu(0.09, 0.05, 0.1, 0.3) },
+    cinch = { Pu(0, 0.1, 0.25), Pu(0.16, 0.05, 0.06) },
+    cork = { Pu(0, 0.05, 0.08), Pu(0.07, 0.06, 0.25) },
+    plate = { Pu(0, 0.06, 0.18), Pu(0.14, 0.05, 0.06) },
+    clunk = { Pu(0, 0.05, 0.1, -0.4), Pu(0.1, 0.1, 0.3, 0.2) },
+    chime = { Pu(0, 0.05, 0.18), Pu(0.15, 0.05, 0.09), Pu(0.3, 0.05, 0.04) },
+    tie = { Pu(0, 0.12, 0.15), Pu(0.2, 0.05, 0.07) },
+    pour = { Pu(0, 0.3, 0.2, -0.3), Pu(0.38, 0.05, 0.1) },
     chew = { cycle = 1.9, Pu(0, 0.1, 0.3), Pu(0.25, 0.05, 0.08), Pu(0.55, 0.05, 0.08) },
     gulp = { cycle = 1.9, Pu(0, 0.05, 0.1), Pu(0.2, 0.1, 0.3) },
     -- Spell families (a cast's taps follow them, faint, building up)
@@ -462,14 +500,17 @@ V.CAST_ACTIONS = {
     { key = "skinning", label = "Skinning", kind = "gather", pattern = "skin", spell = 8613 },
     { key = "fishing", label = "Fishing", kind = "gather", pattern = "reel", spell = 7620 },
     { key = "opening", label = "Opening", kind = "gather", pattern = "click", spell = 3365 },
-    { key = "blacksmithing", label = "Blacksmithing", kind = "craft", pattern = "hammer", spell = 2018 },
-    { key = "tailoring", label = "Tailoring", kind = "craft", pattern = "sew", spell = 3908 },
-    { key = "leatherworking", label = "Leatherworking", kind = "craft", pattern = "punch", spell = 2108 },
-    { key = "alchemy", label = "Alchemy", kind = "craft", pattern = "bubble", spell = 2259 },
-    { key = "cooking", label = "Cooking", kind = "craft", pattern = "sizzle", spell = 2550 },
-    { key = "engineering", label = "Engineering", kind = "craft", pattern = "gears", spell = 4036 },
-    { key = "enchanting", label = "Enchanting", kind = "craft", pattern = "shimmer", spell = 7411 },
-    { key = "firstaid", label = "First Aid", kind = "craft", pattern = "sew", spell = 3273 },
+    -- (a craft: its loop while making, its finish once as it's made)
+    { key = "blacksmithing", label = "Blacksmithing", kind = "craft", pattern = "hammer", finish = "quench", spell = 2018 },
+    { key = "tailoring", label = "Tailoring", kind = "craft", pattern = "sew", finish = "snip", spell = 3908 },
+    { key = "leatherworking", label = "Leatherworking", kind = "craft", pattern = "punch", finish = "cinch", spell = 2108 },
+    { key = "alchemy", label = "Alchemy", kind = "craft", pattern = "bubble", finish = "cork", spell = 2259 },
+    { key = "cooking", label = "Cooking", kind = "craft", pattern = "sizzle", finish = "plate", spell = 2550 },
+    { key = "engineering", label = "Engineering", kind = "craft", pattern = "gears", finish = "clunk", spell = 4036 },
+    { key = "enchanting", label = "Enchanting", kind = "craft", pattern = "shimmer", finish = "chime", spell = 7411 },
+    { key = "firstaid", label = "First Aid", kind = "craft", pattern = "wrap", finish = "tie", spell = 3273 },
+    -- (Mining's smelting: its window is Smelting's, its casts Smelt Copper... below)
+    { key = "smelting", label = "Smelting", kind = "craft", pattern = "bellows", finish = "pour", spell = 2656 },
     -- Spells, by family (every rank shares its name: the first's ID names them)
     { key = "fire", label = "Fire", kind = "spell", pattern = "kindle",
         spells = { 133, 11366, 2120, 2948, 348, 6353, 1949, 5740, 5676 } },
@@ -533,50 +574,78 @@ V.CAST_KINDS = {
 local CAST_KIND = {}
 for _, k in ipairs(V.CAST_KINDS) do CAST_KIND[k.key] = k end
 
--- Gathering's actions, each a moment of its own under Gathering ("gather:mining",
--- as a spell is: UX.md §9): its own feel, sound and volumes, Gathering's until it
--- has its own. The feel: V.Settings().gatherFeels[action] = a pattern or "off"
-V.GATHER_ACTIONS = {}
-local GATHER_ACTION = {}
+-- Gathering's and Crafting's actions, each a moment of its own under its kind
+-- ("gather:mining", "craft:cooking", as a spell is: UX.md §9): its own feel, sound and
+-- volumes, its kind's until it has its own. The feel: V.Settings().gatherFeels[action] =
+-- a pattern or "off" (crafts too: one table, the action keys never meet)
+V.GATHER_ACTIONS, V.CRAFT_ACTIONS = {}, {}
+local GATHER_ACTION, ACTION_KIND, ACTION = {}, {}, {}
 for _, a in ipairs(V.CAST_ACTIONS) do
     if a.kind == "gather" then
         V.GATHER_ACTIONS[#V.GATHER_ACTIONS + 1] = a
         GATHER_ACTION[a.key] = a
+    elseif a.kind == "craft" then
+        V.CRAFT_ACTIONS[#V.CRAFT_ACTIONS + 1] = a
     end
+    if a.kind == "gather" or a.kind == "craft" then ACTION_KIND[a.key], ACTION[a.key] = a.kind, a end
+end
+-- The actions under a kind ("gather", "craft"), in order
+function V.KindActions(kind)
+    return kind == "gather" and V.GATHER_ACTIONS or kind == "craft" and V.CRAFT_ACTIONS or nil
 end
 function V.GatherKey(action) return GATHER_ACTION[action] and ("gather:" .. action) or nil end
--- "gather:mining" -> "mining" (nil: not a gathering action's moment)
-function V.GatherOf(key)
-    local a = type(key) == "string" and key:match("^gather:(%a+)$")
-    return a and GATHER_ACTION[a] and a or nil
+-- An action's own moment ("craft:cooking"; nil: none)
+function V.ActionKey(action) return ACTION_KIND[action] and (ACTION_KIND[action] .. ":" .. action) or nil end
+-- "craft:cooking" -> "cooking", "craft" (nil: not an action's moment)
+function V.ActionOf(key)
+    local kind, a = (type(key) == "string" and key or ""):match("^(%a+):(%a+)$")
+    if a and ACTION_KIND[a] == kind then return a, kind end
+    return nil
 end
-function V.GatherAction(action) return GATHER_ACTION[action] end
--- An action's own feel (a pattern, "off"), nil: Gathering's
+-- (gathering's only)
+function V.GatherOf(key)
+    local a, kind = V.ActionOf(key)
+    return kind == "gather" and a or nil
+end
+function V.GatherAction(action) return ACTION[action] end
+-- The moment a cast's cue goes as now: its action's own, else its kind
+function V.CastMomentKey()
+    local own = V.castAction and ACTION_KIND[V.castAction] == V.castKind and V.ActionKey(V.castAction)
+    return own or V.castKind
+end
+-- An action's own feel (a pattern, "off"), nil: its kind's
 function V.ActionFeel(action)
     local own = V.Settings().gatherFeels[action]
     return type(own) == "string" and own or nil
 end
--- What an action plays with Gathering's set (nil: nothing)
+-- What an action plays with its kind's set (nil: nothing)
 local function InheritedPattern(action)
-    local preset = PRESET[V.CastPreset("gather")]
+    local preset = PRESET[V.CastPreset(ACTION_KIND[action])]
     if not preset or preset.key == "off" then return nil end
     if preset.auto then preset = PRESET[action] end
     return preset and preset.cast or nil
 end
--- What an action plays now (nil: nothing): its own while Gathering is on, else Gathering's
+-- What an action plays now (nil: nothing): its own while its kind is on, else its kind's
 function V.ActionPattern(action)
-    if not GATHER_ACTION[action] then return nil end
+    if not ACTION_KIND[action] then return nil end
     local inherited = InheritedPattern(action)
     local own = V.ActionFeel(action)
-    if own == nil or V.CastPreset("gather") == "off" then return inherited end
+    if own == nil or V.CastPreset(ACTION_KIND[action]) == "off" then return inherited end
     if own == "off" then return nil end
     return own
 end
--- pattern: its own ("off": none), nil or what Gathering plays: Gathering's
+-- pattern: its own ("off": none), nil or what its kind plays: its kind's
 function V.SetActionFeel(action, pattern)
-    if not GATHER_ACTION[action] then return end
+    if not ACTION_KIND[action] then return end
     if pattern ~= nil and pattern ~= "off" and pattern == InheritedPattern(action) then pattern = nil end
     V.Settings().gatherFeels[action] = pattern
+end
+-- A craft's finish, once as it's made (nil: none; not while it's off)
+function V.CraftFinish(action)
+    local a = ACTION[action]
+    if not (a and a.kind == "craft" and a.finish) then return nil end
+    if not V.ActionPattern(action) then return nil end
+    return a.finish
 end
 
 -- What the Vibration tab lists: each event, and the kinds of cast (each a
@@ -726,7 +795,7 @@ function V.EventPattern(eventKey)
     if PHASE[eventKey] then
         local preset = PRESET[V.castSet or V.CastPreset(V.castKind)]
         -- (a gathering action's own feel, while Gathering is on: its set)
-        local own = V.castKind == "gather" and not V.castSet and V.castAction and GATHER_ACTION[V.castAction]
+        local own = not V.castSet and V.castAction and ACTION_KIND[V.castAction] == V.castKind
             and V.ActionFeel(V.castAction)
         if own and preset and preset.key ~= "off" then
             if own == "off" then return nil end
@@ -1455,7 +1524,7 @@ function V.Fire(eventKey)
         if eventKey == "cast" then shape = CastShape() else shape = RestShape(eventKey, pattern) end
         -- (Full feels: the plain rumble over and over; mining's strikes keep their clock)
         local key = eventKey
-        if eventKey == "cast" then key = V.castKind == "gather" and V.GatherKey(V.castAction) or V.castKind end
+        if eventKey == "cast" then key = V.CastMomentKey() end
         local points, scale = Plain(key)
         if points and shape ~= Strikes then shape = ns.FullFeel.Shape(points, scale, GetTime(), true) end
         -- (a loop keeps its shape: its volume as a gain, a spell's own on top)
@@ -1835,6 +1904,9 @@ local GATHER_IDS = {
     fishing = { 7620, 7731, 7732, 18248 },
     opening = { 3365, 6247, 6477, 6478, 21651, 1804 },
 }
+-- Smelting's casts (Smelt Copper, Tin, Bronze, Silver, Iron, Gold, Steel, Mithril,
+-- Truesilver, Dark Iron, Thorium, Elementium): smelting, whatever the window says
+local SMELT_IDS = { 2657, 3304, 2659, 2658, 3307, 3308, 3569, 10097, 10098, 14891, 16153, 22967 }
 -- Channels that fire a missile or tick every so many seconds (a swell
 -- each): Arcane Missiles, Mind Flay, Drain Life, Drain Mana, Drain Soul,
 -- Health Funnel, Blizzard, Hurricane, Tranquility, Rain of Fire, Hellfire,
@@ -1857,6 +1929,7 @@ local REST_SPELLS = {
     drink = { 430, 18140, 23698 },
     both = { 167152, 25990, 26263, 29055, 1312719, 1269354 },
 }
+local smeltByName = {}
 local gatherByName, craftByName, spellByName, ticksByName, shotByName, moveByName, restByName
 -- (built again until every gathering spell has its name: a name not loaded
 -- yet at login would leave mining a plain spell all session)
@@ -1892,9 +1965,18 @@ local function Names()
         end
     end
     spellByName = {}
+    for _, id in ipairs(SMELT_IDS) do
+        local name = SpellName(id)
+        if name then smeltByName[name] = true end
+    end
     for _, a in ipairs(V.CAST_ACTIONS) do
         local name = a.kind == "craft" and SpellName(a.spell)
         if name then craftByName[name] = a.key end
+        -- (Smelting's window may name itself Mining: only smelting has a window there)
+        if a.key == "smelting" then
+            local mining = SpellName(2575)
+            if mining then craftByName[mining] = "smelting" end
+        end
         for _, id in ipairs(a.spells or {}) do
             name = SpellName(id)
             if name and not spellByName[name] then spellByName[name] = a.key end
@@ -1919,6 +2001,11 @@ end
 -- A cast's kind and action
 local function CastKind(spellID)
     Names()
+    -- (a smelt: Smelting's, by the spell)
+    if spellID and not secret(spellID) then
+        local name = SpellName(spellID)
+        if name and not secret(name) and smeltByName[name] then return "craft", "smelting" end
+    end
     local profession = OpenProfession()
     if profession then
         if secret(profession) then return "craft", nil end
@@ -2121,6 +2208,9 @@ local function CastReleased()
     if cast.shaped and not cast.timing.fishing then
         if cast.timing.strikes then V.Crack(cast.timing.cracked) else V.Release() end
     end
+    -- (a craft made: its finish, once, at the craft's volume)
+    local finish = V.castKind == "craft" and not V.castSet and V.CraftFinish(V.castAction)
+    if finish and V.Active() then V.Play(finish, false, V.Scaled(nil, V.ActionKey(V.castAction))) end
 end
 
 ---------------------------------------------------------------------------

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.63.0 — 2026-11-19
+
+- **Each craft is a moment of its own** under Crafting (`craft:cooking`…, 83-91), as Gathering's actions are: its own feel, sound and volumes, Crafting's until it has its own; nested under Crafting on Moments, sent to WoW Helper with Crafting as parent
+- **Smelting** is a craft of its own, known by its smelt casts (Smelt Copper… Elementium) or Mining's window: Bellows, a deep slow heave
+- Recommended craft feels, faint and each its own: First Aid has Wrap (cloth wound round, pulled taut), no longer Tailoring's Stitch; Anvil and Punch are softer; every craft has a finish, once as it's made (Quench, Snip, Cinch, Cork, Plated, Clunk, Chime, Tied off, Pour)
+
 ## 0.62.0 — 2026-11-19
 
 - Choose › Gamepad › Focus UI: Blizzard's focus on a pad button, a WoW Helper gesture or a touchpad zone

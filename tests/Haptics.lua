@@ -3498,3 +3498,111 @@ do
     T.LoadHelper()
     io.write("PASS: Learned · gathering: mining reads then crack, and fits" .. string.char(10))
 end
+
+-- Crafting's actions: moments of their own under Crafting ("craft:cooking", 83-91), Smelting
+-- among them (by its smelt casts); each its own Recommended loop and finish, faint and
+-- distinct; Crafting's choices until it has its own; nested under Crafting on Moments
+do
+    local C, Vol, page = ns.HelperCues, ns.Volume, ns.RumblePage
+    local CRAFTS = { "blacksmithing", "tailoring", "leatherworking", "alchemy", "cooking", "engineering",
+        "enchanting", "firstaid", "smelting" }
+    for i, a in ipairs(CRAFTS) do
+        assert(C.MOMENT_N["craft:" .. a] == 82 + i, "appended: craft:" .. a .. " " .. tostring(C.MOMENT_N["craft:" .. a]))
+    end
+    assert(C.MOMENT_N["gather:opening"] == 82, "none moved")
+    local ex = C.ExportMoments({}).moments
+    assert(ex["craft:smelting"] and ex["craft:smelting"].parent == "craft" and ex["craft:smelting"].label == "Smelting"
+        and ex["craft:firstaid"].label == "First Aid", "exported: under Crafting")
+    -- Recommended: each its own loop and finish, faint, of its material
+    V.SetCastPreset("craft", "auto")
+    local loops, finishes = {}, {}
+    for _, a in ipairs(CRAFTS) do
+        local loop, finish = V.ActionPattern(a), V.CraftFinish(a)
+        assert(loop and finish and not loops[loop] and not finishes[finish] and not loops[finish] and not finishes[loop],
+            a .. ": its own loop and finish: " .. tostring(loop) .. " " .. tostring(finish))
+        loops[loop], finishes[finish] = true, true
+        for _, key in ipairs({ loop, finish }) do
+            local p = V.Pattern(key)
+            assert(p and p.feel and #p.feel.pulses > 0, key .. ": as pulses")
+            for _, pu in ipairs(p.feel.pulses) do
+                assert(pu[3] <= (key == loop and 0.4 or 0.35), key .. ": faint (" .. pu[3] .. ")")
+            end
+            for _, st in ipairs(p.steps) do assert(st[3] >= 0.1, key .. ": steps of 0.1 s or more") end
+        end
+        assert(V.Pattern(loop).feel.length, a .. ": its loop loops")
+        assert(not V.Pattern(finish).feel.length, a .. ": its finish once")
+    end
+    assert(V.ActionPattern("firstaid") == "wrap" and V.ActionPattern("smelting") == "bellows", "First Aid's wrap, Smelting's bellows")
+    -- Crafting's choices until it has its own: feel, sound, volumes
+    assert(C.MomentFeel("craft:cooking") == L.FeelFor("sizzle"), "cooking: the sizzle")
+    V.SetActionFeel("cooking", "hammer")
+    assert(V.ActionFeel("cooking") == "hammer" and C.MomentFeel("craft:cooking") == L.FeelFor("hammer"), "its own")
+    V.SetActionFeel("cooking", "sizzle")
+    assert(V.ActionFeel("cooking") == nil, "as Crafting again: nothing saved")
+    C.SetMomentSound("craft", 300)
+    assert(C.MomentSound("craft:smelting") == 300 and C.IsSoundDefault("craft:smelting"), "Crafting's sound")
+    C.SetMomentSound("craft:smelting", 301)
+    assert(C.MomentSound("craft:smelting") == 301 and C.MomentSound("craft:cooking") == 300, "its own sound")
+    Vol.SetSound("craft", 0.5)
+    assert(Vol.Sound("craft:alchemy") == 0.5, "Crafting's volume")
+    Vol.SetSound("craft", 1)
+    -- (Crafting off: they are off too, their finish with them)
+    V.SetCastPreset("craft", "off")
+    assert(V.ActionPattern("cooking") == nil and V.CraftFinish("cooking") == nil, "Crafting off: off")
+    V.SetCastPreset("craft", "auto")
+
+    -- a real craft: the window says which, its loop while making, its finish once it's made;
+    -- a smelt is Smelting's by its spell
+    H.DB().engine = true
+    V.Settings().enabled = true
+    local rf
+    for _, f in ipairs(created) do if f.events and f.events.START_AUTOREPEAT_SPELL and f.events.PLAYER_LEVEL_UP then rf = f end end
+    local tsf, line = TradeSkillFrame, GetTradeSkillLine
+    TradeSkillFrame = { IsShown = function() return true end }
+    GetTradeSkillLine = function() return "Spell 2550" end
+    local play, played = V.Play, {}
+    V.Play = function(k, ...) played[#played + 1] = k; return play(k, ...) end
+    local start = now + 5
+    now = start
+    UnitCastingInfo = function() return "Cooked", nil, nil, start * 1000, (start + 2) * 1000 end
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "ck1", 6412)
+    assert(V.castKind == "craft" and V.castAction == "cooking" and C.CueKey("cast") == "craft:cooking",
+        "cooking: its moment: " .. tostring(V.castAction))
+    assert(V.looping and V.looping.pattern == "sizzle", "the sizzle while cooking")
+    now = start + 2
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "ck1", 6412)
+    assert(played[#played] == "plate", "made: plated, once: " .. tostring(played[#played]))
+    -- (a smelt, whatever the window calls itself)
+    GetTradeSkillLine = function() return "Spell 2575" end
+    start = now + 5
+    now = start
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "sm1", 2657)
+    assert(V.castKind == "craft" and V.castAction == "smelting" and C.CueKey("cast") == "craft:smelting", "a smelt: Smelting")
+    assert(V.looping and V.looping.pattern == "bellows", "the bellows")
+    now = start + 2
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_SUCCEEDED", "player", "sm1", 2657)
+    assert(played[#played] == "pour", "the bar poured")
+    -- (Smelting's window named Mining: still smelting)
+    start = now + 5
+    now = start
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "sm2", 99999)
+    assert(V.castAction == "smelting", "Mining's window: Smelting")
+    rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "sm2", 99999)
+    V.Play, TradeSkillFrame, GetTradeSkillLine = play, tsf, line
+
+    -- Moments: nested under Crafting, "As Crafting"
+    ns.Shell.Open("moments")
+    page.SetKind("feel")
+    page.browser.Select("Abilities")
+    page.Refresh()
+    local row
+    for _, r in ipairs(page.rows) do if r.kind == "g" and r.key == "craft:firstaid" then row = r end end
+    assert(row and row.indent == page.INDENT and row.label:GetText() == "First Aid", "First Aid's row, nested")
+    local list, ci = row.card.list
+    for i, r in ipairs(list) do if r.key == "craft" then ci = i end end
+    assert(ci and list[ci + 1].key == "craft:blacksmithing" and list[ci + 9].key == "craft:smelting", "right under Crafting")
+    assert(row.sub:GetText() == "As Crafting", "As Crafting: " .. tostring(row.sub:GetText()))
+    C.SetMomentSound("craft", nil)
+    C.SetMomentSound("craft:smelting", nil)
+    io.write("PASS: Crafting's actions: moments under Crafting (Smelting too), each its own faint loop and finish, inherited, nested" .. string.char(10))
+end

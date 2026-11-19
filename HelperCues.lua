@@ -52,6 +52,12 @@ C.MOMENTS = {
     { "gather:herbalism", "Abilities", "gather" }, { "gather:mining", "Abilities", "gather" },
     { "gather:skinning", "Abilities", "gather" }, { "gather:fishing", "Abilities", "gather" },
     { "gather:opening", "Abilities", "gather" },
+    -- Crafting's actions, under it, 83-91
+    { "craft:blacksmithing", "Abilities", "craft" }, { "craft:tailoring", "Abilities", "craft" },
+    { "craft:leatherworking", "Abilities", "craft" }, { "craft:alchemy", "Abilities", "craft" },
+    { "craft:cooking", "Abilities", "craft" }, { "craft:engineering", "Abilities", "craft" },
+    { "craft:enchanting", "Abilities", "craft" }, { "craft:firstaid", "Abilities", "craft" },
+    { "craft:smelting", "Abilities", "craft" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
@@ -62,9 +68,9 @@ function C.CueKey(key)
     if key ~= "cast" then return key end
     local V = ns.Rumble
     local kind = V and V.castKind
-    -- (gathering: the action's own moment, "gather:mining")
-    local action = kind == "gather" and V.GatherKey and V.GatherKey(V.castAction)
-    if action then return action end
+    -- (gathering, crafting: the action's own moment, "gather:mining", "craft:cooking")
+    local own = V and V.CastMomentKey and V.CastMomentKey()
+    if own and C.MOMENT_N[own] then return own end
     return kind and C.MOMENT_N[kind] and kind or "spell"
 end
 
@@ -215,9 +221,10 @@ function C.MomentSound(key)
     local v = SoundDB()[key]
     if v == false then return nil end
     if type(v) == "number" then return v end
-    -- (a gathering action, "gather:mining": Gathering's until it has its own)
-    local Parent = ns.Rumble and ns.Rumble.GatherOf
-    if Parent and Parent(key) then return C.MomentSound("gather") end
+    -- (an action, "gather:mining", "craft:cooking": its kind's until it has its own)
+    local Of = ns.Rumble and ns.Rumble.ActionOf
+    local parent = Of and select(2, Of(key))
+    if parent then return C.MomentSound(parent) end
     local name = C.DEFAULT_SOUND[key]
     return name and K.SOUNDS[name] or nil
 end
@@ -251,7 +258,7 @@ local function IsRumbleEvent(key)
 end
 function C.MomentFeel(key)
     local V = ns.Rumble
-    local action = V and V.GatherOf and V.GatherOf(key)
+    local action = V and V.ActionOf and V.ActionOf(key)
     if action then
         local pattern = V.ActionPattern(action)
         return pattern and L.FeelFor(pattern) or nil
@@ -272,7 +279,7 @@ end
 -- Set a moment's feel (a library key) as the Rumble tab would
 function C.SetMomentFeel(key, feelKey)
     local V = ns.Rumble
-    local action = V and V.GatherOf and V.GatherOf(key)
+    local action = V and V.ActionOf and V.ActionOf(key)
     if action then
         L.RegisterInRumble()
         V.SetActionFeel(action, L.PatternFor(feelKey))
@@ -473,7 +480,7 @@ function C.MomentLabel(key)
     for _, e in ipairs(ns.Rumble and ns.Rumble.EVENTS or {}) do if e.key == key then label = e.label end end
     for _, e in ipairs(ns.Rumble and ns.Rumble.CAST_KINDS or {}) do if e.key == key then label = e.label end end
     local V = ns.Rumble
-    local action = V and V.GatherOf and V.GatherOf(key)
+    local action = V and V.ActionOf and V.ActionOf(key)
     if action then label = V.GatherAction(action).label end
     return label
 end
