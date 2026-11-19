@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.61.1 — 2026-11-19
+
+- `/gpc touch status` also shows open windows, focus and Blizzard's binding sets: why the click is zones or Blizzard's
+
 ## 0.61.0 — 2026-11-19
 
 - Setup › Bags › Bag grid (on): in the gamepad bag the d-pad moves item by item, no wrap, and the cursor returns to the bag after loot. Moved from Gear Glance 2.4.2

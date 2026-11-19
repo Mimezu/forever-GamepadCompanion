@@ -918,6 +918,7 @@ function Touch.Status()
         input = settings.input,
         padStyle = env.padStyle, ours = env.ours, conflict = env.conflict, note = note, pending = pending,
         bound = T.Copy(boundKeys),
+        windows = WindowsShown(), uiFocused = UIFocused(), coreOnly = CoreOnly(), lastOurs = lastOurs,
     }
 end
 
@@ -932,6 +933,9 @@ local function PrintStatus()
     Say("bound: " .. (#keys > 0 and table.concat(keys, " ") or "nothing")
         .. (s.mode == "chord" and s.enabled and ("; plain click is " .. (s.ours and "zones" or "Blizzard's")) or ""))
     if s.note then Say("note: " .. s.note) end
+    -- (why the click is whose: what WorldHasPad reads)
+    Say(("windows %d, focus %s, core set only %s, applied as %s"):format(s.windows,
+        s.uiFocused and "on" or "off", tostring(s.coreOnly), s.lastOurs == nil and "-" or (s.lastOurs and "zones" or "Blizzard's")))
 end
 
 local function PrintList()
