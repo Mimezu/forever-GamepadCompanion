@@ -3438,3 +3438,27 @@ do
     WowHelperData = nil
     io.write("PASS: Full feels: Classic as before, plain played instead (faint under HD), inherited, lighter rows" .. string.char(10))
 end
+
+-- Learned · gathering: mining's second hit is the crack at the cast's end (not a repeat), in a
+-- few words that fit the plate
+do
+    local LP, T = ns.LearnedPage, ns.Timing
+    assert(LP.When({ action = "mining", first = 1.49, period = 1.4 }) == "1.49 s · then crack", "mining: then crack")
+    assert(LP.When({ action = "herbalism", first = 1.2, period = 0.9 }) == "1.20 s · every 0.90 s", "a herb: its rhythm")
+    WowHelperData = { strikeTiming = { ["1-2|mining"] = { first = 1.49, period = 1.4, strikes = 30, casts = 9 } } }
+    T.LoadHelper()
+    ns.Shell.Open("moments")
+    ns.RumblePage.Refresh()
+    LP.nodes.Fill()
+    local row
+    for _, r in ipairs(LP.nodes.rows) do
+        if r.item and r.item.action == "mining" and not r.item.node then row = r end
+    end
+    assert(row, "the Mining row")
+    assert(row.pick.label:GetText() == "1.49 s · then crack", tostring(row.pick.label:GetText()))
+    local w = row.pick:GetWidth()
+    assert(w == LP.PLATE_W and w - 16 >= 6 * #"1.49 s · then crack", "the plate fits it: " .. tostring(w))
+    WowHelperData = nil
+    T.LoadHelper()
+    io.write("PASS: Learned · gathering: mining reads then crack, and fits" .. string.char(10))
+end

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.55.1 — 2026-11-18
+
+- Learned · gathering: Mining reads "1.49 s · then crack" (its second hit is the crack at the cast's end, not a repeat); the timing plate is wider, so it fits
+
 ## 0.55.0 — 2026-11-18
 
 - **Full feels** (Lab › Mode: Classic | Full feels; Classic by default, as before): WoW Helper owns what a moment plays, the game keeps when. A moment with WoW Helper's plain version (`WowHelperData.plain`) plays its rumble and bar colour instead of its Classic feel and light; faint (30 %, Recommended) under WoW Helper's HD, so a crashed WoW Helper still leaves a tap. Gathering's actions have Gathering's until they have their own; each mining strike plays it. The strip's moment, touch and sound stay as today, so an older WoW Helper still works

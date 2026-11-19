@@ -83,6 +83,16 @@ function P.Window(n, offset)
     return offset, n > ROWS and ((offset + 1) .. "–" .. math.min(n, offset + ROWS) .. " of " .. n) or ""
 end
 
+-- A node's or an action's timing in a few words: its first strike, then the crack (mining:
+-- the second hit is the ore cracking loose at the cast's end, not a repeat) or its rhythm
+P.PLATE_W = 200
+function P.When(n)
+    local when = n.first and string.format("%.2f s", n.first) or "?"
+    if V.STRIKES and V.STRIKES[n.action] then return when .. " · then crack" end
+    if n.period and n.period > 0 then when = when .. string.format(" · every %.2f s", n.period) end
+    return when
+end
+
 -- A card of ROWS read-only rows, filled from list() on each refresh; the wheel scrolls the rest
 -- ("1–9 of 24" and a thumb when more than fit)
 local function Card(panel, cw, pg, title, list, fill)
@@ -94,12 +104,19 @@ local function Card(panel, cw, pg, title, list, fill)
     range:SetJustifyH("RIGHT")
     local thumb = card:CreateTexture(nil, "OVERLAY")
     thumb:SetColorTexture(1, 0.78, 0.25, 0.6)
-    card.range = range
+    card.range, card.rows = range, rows
     for i = 1, ROWS do
         local row
         row = HUI.MomentRow(card, -38 - (i - 1) * HUI.ROW_H, cw, nil, "", function() end,
             function() if row.item then row.try_(row.item) end end)
         row.pick:SetEnabled(false)
+        -- (a read-only plate, no icon: wider, its text from the left, so a timing fits)
+        row.pick:ClearAllPoints()
+        row.pick:SetPoint("TOPRIGHT", row.try, "TOPLEFT", -4, 0)
+        row.pick:SetWidth(P.PLATE_W)
+        row.pick.label:ClearAllPoints()
+        row.pick.label:SetPoint("LEFT", 10, 0)
+        row.pick.label:SetPoint("RIGHT", -6, 0)
         row:Hide()
         rows[i] = row
     end
@@ -150,9 +167,7 @@ page.AddPanel({ after = "Abilities", key = "learnedNodes", label = "Learned · g
         local p = V.Pattern(GATHER[n.action] or "pickaxe")
         row.icon:SetTexture(p and p.icon)
         row.label:SetText(n.node and ("  " .. n.name) or n.name)
-        local when = n.first and string.format("%.2f s", n.first) or "?"
-        if n.period and n.period > 0 then when = when .. string.format(" · every %.2f s", n.period) end
-        row:SetChoice(when, nil, Status(n.ready, n.count, n.what), false, nil, true)
+        row:SetChoice(P.When(n), nil, Status(n.ready, n.count, n.what), false, nil, true)
         row.try_ = function(it) P.TryStrikes(it.action, it.first, it.period) end
     end)
 end })
