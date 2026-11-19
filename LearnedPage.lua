@@ -18,7 +18,7 @@ local SWING = { dagger = "swDagger", oneHand = "swSword", twoHand = "swSword2", 
     fist = "swFist", unarmed = "swFist", form = "swFist", ranged = "string" }
 
 local function Status(ready, n, what)
-    if ready then return "Learned ✓" .. (n and n > 0 and (" · " .. n .. " " .. what) or "") end
+    if ready then return "Learned |TInterface\\RaidFrame\\ReadyCheck-Ready:0|t" .. (n and n > 0 and (" · " .. n .. " " .. what) or "") end
     return "Learning…" .. (n and n > 0 and (" · " .. n .. " " .. what) or "")
 end
 

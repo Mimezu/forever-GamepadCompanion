@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.60.1 — 2026-11-19
+
+- Setup › HD shows Off, dimmed, while Link is off: no WoW Helper, the game's own rumble
+- ✓ and ✗ (Learned, Help's checks) drawn with the game's ready-check icons: its font has no such glyphs, they showed as boxes
+
 ## 0.60.0 — 2026-11-19
 
 - **Autorun turns too** (Setup › Camera, on): with Turn Player with Camera on "when moving", the camera now turns the character during autorun too (the game didn't count autorun as moving). Only while autorun is on, through a temporary value the game never saves; your choice is untouched, and changing it mid-autorun is respected. Other choices: nothing changes

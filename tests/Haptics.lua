@@ -3093,7 +3093,7 @@ do
     local w = LP.Weapons()
     local two
     for _, x in ipairs(w) do if x.kind == "twoHand" then two = x end end
-    assert(two and two.ready and two.hits == 40 and math.abs(two.delay - 0.17) < 1e-9, "Two-hand · main hand: Learned ✓ · 40")
+    assert(two and two.ready and two.hits == 40 and math.abs(two.delay - 0.17) < 1e-9, "Two-hand · main hand: Learned · 40")
     local list = LP.Nodes()
     assert(list[1].name == "Mining" and list[2].name == "Copper Vein" and list[2].ready and list[3].name == "Tin Vein", "Mining, then its nodes")
     ns.Shell.Open("moments")

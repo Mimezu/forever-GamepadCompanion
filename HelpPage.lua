@@ -377,7 +377,7 @@ local function RefreshFix()
             for _, c in ipairs(f[3]) do
                 local good = c[2]() and true or false
                 ok = ok and good
-                parts[#parts + 1] = (good and "|cff5ad966✓|r " or "|cffff7a5c✗|r ") .. c[1]
+                parts[#parts + 1] = (good and "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t " or "|TInterface\\RaidFrame\\ReadyCheck-NotReady:0|t ") .. c[1]
             end
             row.checks:SetText(table.concat(parts, "    "))
             row.state:SetText(ok and "|cff5ad966All good|r" or "")
@@ -482,7 +482,7 @@ local function Build(frame)
         Tex(tile, Glyph(step[1]), (tw - 64) / 2, -22, 64, 64)
         Label(tile, step[2], 10, -100, tw - 20, 14, S.YELLOW, "CENTER")
         tile.state = Label(tile, "", 10, -126, tw - 20, 12, S.GREY, "CENTER")
-        tile.tick = Label(tile, "✓", tw - 34, -12, 24, 18, { 0.35, 0.85, 0.4 }, "CENTER")
+        tile.tick = Label(tile, "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t", tw - 34, -12, 24, 18, { 0.35, 0.85, 0.4 }, "CENTER")
         help.start.tiles[i] = tile
     end
     help.start:Hide()

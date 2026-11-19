@@ -54,11 +54,16 @@ local function BuildHelper(frame)
         C.Settings().hdFeels = v == "auto"
         C.Refresh()
     end
-    Choice(card, "HD", 12, -112, { { "auto", "On" }, { "off", "Off" } }, HD, SetHD)
+    -- (Link off: no HD, the game's own rumble; the switch shows Off, dimmed, until Link is on)
+    local hdRow = Choice(card, "HD", 12, -112, { { "auto", "On" }, { "off", "Off" } },
+        function() return K.Enabled() and HD() or "off" end,
+        function(v) if K.Enabled() then SetHD(v) end end)
     S.Text(card, "Bluetooth only", 124, -142, COL - 136, 11, DIM)
     local data = S.Note(card, 12, -166, COL - 24, 1, 11, DIM)
     pg.refresh[#pg.refresh + 1] = function()
         link:SetChecked(K.Enabled())
+        hdRow:SetAlpha(K.Enabled() and 1 or 0.45)
+        for _, b in ipairs(hdRow.buttons) do if b.EnableMouse then b:EnableMouse(K.Enabled()) end end
         local l = ns.Timing and ns.Timing.Link and ns.Timing.Link()
         via:SetText(l == "usb" and "USB" or l == "bt" and "Bluetooth" or "")
         -- (the footer chip's words: what the addon knows, read at login)
@@ -244,7 +249,7 @@ local function BuildTiming(frame)
     end
     -- (the same words as WoW Helper's Timing card)
     local function word(source, n)
-        if source == "learned" then return "Learned ✓" .. (n and (" · " .. n) or "") end
+        if source == "learned" then return "Learned |TInterface\\RaidFrame\\ReadyCheck-Ready:0|t" .. (n and (" · " .. n) or "") end
         return "Learning…"
     end
     -- (hits and mining: Moments › Learned, one place, U2-14; Landing: its row's When chip)

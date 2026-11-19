@@ -761,7 +761,7 @@ local function ConditionEntries(skip, row, kind)
                 if not bad then
                     local have = false
                     for _, r in ipairs(row and row.requirements or {}) do if r == c.key then have = true end end
-                    list[#list + 1] = { key = c.key, label = (have and "✓ " or "") .. cat.label .. " · " .. c.label }
+                    list[#list + 1] = { key = c.key, label = (have and "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t " or "") .. cat.label .. " · " .. c.label }
                 end
             end
         end

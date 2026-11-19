@@ -323,7 +323,7 @@ ns.Shell.RefreshLink()
 -- Fix it: four problems, their checks now, Go there; the tour on Start here
 for i, t in ipairs(HP.TOPICS) do if t.fix then HP.ShowTopic(i) end end
 assert(HP.fix:IsShown() and #HP.fixRows == 4, "Fix it: four rows")
-assert(HP.fixRows[2].checks.text:find("Link on", 1, true) and HP.fixRows[2].checks.text:find("✗", 1, true), "WoW Helper not read: Link on unticked")
+assert(HP.fixRows[2].checks.text:find("Link on", 1, true) and HP.fixRows[2].checks.text:find("ReadyCheck-NotReady", 1, true), "WoW Helper not read: Link on unticked")
 HP.ShowTopic(1)
 assert(HP.tour:IsShown() and not HP.fix:IsShown(), "Start here: Play the tour")
 -- Start here's 4th tile: Feel it, three moments
