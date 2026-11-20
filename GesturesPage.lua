@@ -1,9 +1,9 @@
 -- The Gestures tab: what each gesture runs, as a grid of cards that fills the
 -- page, and a status column. Only the gestures that exist show: recorded in
--- WoW Helper (its data addon names them, and may describe them: a few words
--- and a motion path) or already given an action here. A card: the motion
--- (its path drawn, else the Gestures glyph), its name, what it is, and the
--- action on a plate (Choose); a quiet × on hover. The last card points to
+-- WoW Helper (its data addon names them, and may describe them in a few
+-- words) or already given an action here. A card: what it does
+-- (the action's icon, large), its name, the motion in words, and
+-- the action on a plate (Choose); a quiet × on hover. The last card points to
 -- WoW Helper to record one more. The status column: the link, how many, the
 -- helper's mode, and the last gesture that ran (on the gesture's own click,
 -- no polling). The key chord WoW Helper presses stays in the tooltip.
@@ -18,8 +18,7 @@ local GAP, STATUS_W, COLS = 14, 250, 3
 local GRID_W = W - STATUS_W - GAP
 local CARD_W = math.floor((GRID_W - (COLS - 1) * GAP) / COLS)
 local CARD_H = 140              -- (the cards share the page's height: Place)
-local TALL = 190                -- taller than this: the motion large, above the name
-local PATH_SEGMENTS = 24
+local TALL = 190                -- taller than this: the icon large, above the name
 
 -- "wave" -> "Wave", "sit down" -> "Sit Down"
 local function Title(s)
@@ -27,7 +26,7 @@ local function Title(s)
 end
 ui.Title = Title
 
--- What WoW Helper says of a slot: { name, mode, desc, path } (nil: nothing)
+-- What WoW Helper says of a slot: { name, mode, desc } (nil: nothing)
 local function Recorded(slot)
     local C = ns.HelperCues
     return C and type(C.Gesture) == "function" and C.Gesture(slot) or nil
@@ -46,70 +45,6 @@ function ui.Shown()
     return list
 end
 
--- A motion path, drawn as lines in its box (points 0-1, y down); false when
--- the client can't draw lines or there is no path
-local function DrawPath(card, path)
-    local box = card.glyphBox
-    for _, l in ipairs(card.lines) do l:Hide() end
-    for _, l in ipairs(card.arrow) do l:Hide() end
-    card.start:Hide()
-    if type(path) ~= "table" or #path < 2 or type(box.CreateLine) ~= "function" then return false end
-    -- (a long path: every n-th point, so it fits the pool)
-    local step = math.max(1, math.ceil((#path - 1) / PATH_SEGMENTS))
-    local pts = {}
-    for i = 1, #path, step do pts[#pts + 1] = path[i] end
-    if pts[#pts] ~= path[#path] then pts[#pts + 1] = path[#path] end
-    local size, pad = box:GetWidth() or 56, 6
-    local function At(p)
-        local x, y = tonumber(p[1] or p.x) or 0, tonumber(p[2] or p.y) or 0
-        return pad + math.max(0, math.min(1, x)) * (size - 2 * pad), -(pad + math.max(0, math.min(1, y)) * (size - 2 * pad))
-    end
-    for i = 1, #pts - 1 do
-        local l = card.lines[i]
-        if not l then
-            l = box:CreateLine(nil, "ARTWORK")
-            if type(l) ~= "table" then return false end
-            l:SetThickness(2.5)
-            l:SetColorTexture(1, 1, 0.75, 0.95)
-            card.lines[i] = l
-        end
-        local x0, y0 = At(pts[i])
-        local x1, y1 = At(pts[i + 1])
-        l:SetStartPoint("TOPLEFT", box, x0, y0)
-        l:SetEndPoint("TOPLEFT", box, x1, y1)
-        l:Show()
-    end
-    -- (an arrow at the end: two short strokes back along the last segment)
-    local ex, ey = At(pts[#pts])
-    local px, py = At(pts[#pts - 1])
-    local dx, dy = ex - px, ey - py
-    local len = math.sqrt(dx * dx + dy * dy)
-    if len > 0.01 then
-        dx, dy = dx / len, dy / len
-        local head = math.max(6, size / 10)
-        for k, a in ipairs({ 0.5, -0.5 }) do
-            local l = card.arrow[k]
-            if not l then
-                l = box:CreateLine(nil, "ARTWORK")
-                if type(l) ~= "table" then break end
-                l:SetThickness(2.5)
-                l:SetColorTexture(1, 1, 0.75, 0.95)
-                card.arrow[k] = l
-            end
-            local c, s = math.cos(math.pi - a), math.sin(math.pi - a)
-            local bx, by = dx * c - dy * s, dx * s + dy * c
-            l:SetStartPoint("TOPLEFT", box, ex, ey)
-            l:SetEndPoint("TOPLEFT", box, ex + bx * head, ey + by * head)
-            l:Show()
-        end
-    end
-    local sx, sy = At(pts[1])
-    card.start:ClearAllPoints()
-    card.start:SetPoint("CENTER", box, "TOPLEFT", sx, sy)
-    card.start:Show()
-    return true
-end
-
 local function Pick(card)
     local G = ns.Gestures
     local slot = card.slot
@@ -120,25 +55,11 @@ end
 local function Card(parent, i)
     local card = S.Card(parent, nil, 0, 0, CARD_W, CARD_H)
     card:EnableMouse(true)
-    -- the motion: a box, its path or the glyph
+    -- what it does, large: the action's icon (none yet: the Gestures glyph, dim)
     card.glyphBox = CreateFrame("Frame", nil, card)
     card.glyphBox:SetSize(56, 56)
-    local well = card.glyphBox:CreateTexture(nil, "BACKGROUND")
-    well:SetAllPoints()
-    well:SetColorTexture(0, 0, 0, 0.25)
     card.glyph = card.glyphBox:CreateTexture(nil, "ARTWORK")
-    -- (no path: a quiet dot, the motion's start)
-    card.glyph:SetPoint("CENTER")
-    card.glyph:SetSize(12, 12)
-    card.glyph:SetColorTexture(1, 1, 0.75, 0.4)
-    if card.glyphBox.CreateMaskTexture and card.glyph.AddMaskTexture then
-        local mask = card.glyphBox:CreateMaskTexture()
-        if mask then mask:SetAtlas("CircleMask"); mask:SetAllPoints(card.glyph); card.glyph:AddMaskTexture(mask) end
-    end
-    card.lines, card.arrow = {}, {}
-    card.start = card.glyphBox:CreateTexture(nil, "OVERLAY")
-    card.start:SetSize(7, 7)
-    card.start:SetColorTexture(0.43, 0.78, 0.55, 1)
+    card.glyph:SetAllPoints()
     -- its name and what it is
     card.name = S.Text(card, "", 0, 0, CARD_W - 82 - 34, 14, S.YELLOW)
     card.name:SetWordWrap(false)
@@ -281,6 +202,8 @@ local function Refresh()
             local command = action and action:match("^text:/([%a]+)%s*$")
             if command then name = Title(command) end
             card.pick:SetAlpha(action and 1 or 0.7)
+            card.glyph:SetTexture(icon or GLYPH)
+            card.glyph:SetAlpha(action and 1 or 0.35)
             card.pick.icon:SetTexture(icon or "Interface\\AddOns\\GamepadCompanion\\Media\\tab-controller")
             card.pick.icon:SetDesaturated(action == nil)
             card.pick.icon:SetAlpha(action and 1 or 0.5)
@@ -300,10 +223,6 @@ local function Refresh()
     for i = 1, n do placed[i] = ui.cards[i] end
     if free and n > 0 then placed[#placed + 1] = ui.record end
     ui.cardH = Place(placed)
-    for i = 1, n do
-        local g = list[i]
-        ui.cards[i].glyph:SetShown(not DrawPath(ui.cards[i], (g.rec or {}).path))
-    end
     ui.empty:SetShown(n == 0)
     -- status
     local s = ui.status

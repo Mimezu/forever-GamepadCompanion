@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.64.1 — 2026-11-20
+
+- Gesture cards: the action's icon, large, in place of the motion drawing (hard to read). The motion stays in words under the name
+
 ## 0.64.0 — 2026-11-19
 
 - **The spell on the strip**, for WoW Helper's per-spell feels: a spell row (13 cells, blue first: seq, phase, spell id, CRC-8), three rows up, or from cell 76 on one line (89 cells). Drawn only once WoW Helper says it reads it (`WowHelperData.spellRow`)
