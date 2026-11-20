@@ -150,18 +150,24 @@ end)
 
 -- L2 / R2 held, out of combat: the bare keys follow the layer (only the keys
 -- with a layer action; nothing changes when none has one)
-local function HasLayers()
+-- (a layer some key has an action on: only those rebind. Rebinding while a
+-- trigger is held makes the game reload its gamepad bindings, which can drop
+-- Blizzard's own R2 / L2 bar mid-press: never for a layer with nothing on it)
+local function Used(layer)
+    if layer == "base" then return false end
     for _, layers in pairs(settings) do
-        if layers.lt or layers.rt or layers.both then return true end
+        if layers[layer] then return true end
     end
     return false
 end
+Keys.Used = Used
 local since = 0
 events:SetScript("OnUpdate", function(_, elapsed)
     since = since + elapsed
     if since < 0.02 or not loaded then return end
     since = 0
     if InCombatLockdown and InCombatLockdown() then return end
-    local layer = HasLayers() and Keys.HeldLayer() or "base"
+    local layer = Keys.HeldLayer()
+    if not Used(layer) then layer = "base" end
     if layer ~= Keys.active then Keys.Apply(layer) end
 end)

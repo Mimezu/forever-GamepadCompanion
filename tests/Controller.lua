@@ -528,6 +528,7 @@ eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "TOGGLEUIFOCUS", "a key w
 ns.Model.Held = function() return false end
 Keys.Apply(Keys.HeldLayer())
 eq(overrides.PADFORWARD, nil, "released: Options is Blizzard's again")
+check(Keys.Used("lt") and not Keys.Used("rt") and not Keys.Used("base"), "only a layer with an action rebinds (R2 empty: Blizzard's R2 bar untouched)")
 ns.Model.Held = held
 Keys.Set("PADFORWARD", "lt", nil)
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
