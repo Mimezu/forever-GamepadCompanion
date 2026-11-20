@@ -53,7 +53,7 @@ local GROUPS = {
     { key = "Weather", items = { { "l", "rain" }, { "l", "thunder" }, { "l", "snow" }, { "l", "sand" }, { "l", "embers" } } },
     { key = "Progress", items = { { "r", "levelUp" }, { "l", "loot" }, { "l", "money" }, { "l", "questAccepted" },
         { "l", "questDone" }, { "l", "skillUp" } } },
-    { key = "Social", items = { { "l", "whisper" }, { "l", "readyCheck" }, { "l", "invite" }, { "l", "summon" } } },
+    { key = "Social", items = { { "l", "whisper" }, { "l", "readyCheck" }, { "l", "invite" }, { "l", "summon" }, { "l", "emoteVoice" } } },
     -- (the game's own interface: the Halo ring, the error buzz)
     { key = "Interface", items = { { "r", "haloOpen" }, { "r", "wheelTick" }, { "r", "haloUse" }, { "r", "haloClose" }, { "l", "uiError" } } },
 }

@@ -5,6 +5,7 @@ C_ActionBar
 C_AddOns
 C_CVar
 C_Container
+C_CreatureInfo
 C_EditMode
 C_EventUtils
 C_GamePad
@@ -67,6 +68,7 @@ GetNumMacros
 GetNumShapeshiftForms
 GetNumSpellTabs
 GetPhysicalScreenSize
+GetPlayerInfoByGUID
 GetRealZoneText
 GetRealmName
 GetShapeshiftFormID

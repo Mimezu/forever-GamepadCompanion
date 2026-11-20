@@ -3842,3 +3842,48 @@ do
     IsFalling, IsFlying, IsSwimming, IsSubmerged, UnitOnTaxi, L.IsWading = saved[1], saved[2], saved[3], saved[4], saved[5], saved[6]
     io.write("PASS: fall damage: held for its wound, in place of the landing and Hit taken; moment 92 with the race and sex" .. string.char(10))
 end
+
+-- Emote voices (HelperCues): a voiced chat line by you or a player the client knows: marker 99
+-- with the emote id and their race and sex; unknown, off, hushed, not voiced: nothing
+do
+    local C, K = ns.HelperCues, ns.HelperLink
+    local savedData, savedGuid, savedRace, savedSex, savedInfo, savedCI = WowHelperData, UnitGUID, UnitRace, UnitSex, GetPlayerInfoByGUID, C_CreatureInfo
+    local marker, enabled, v2 = K.Marker, K.Enabled, K.V2
+    local sent = {}
+    K.Marker = function(item) sent[#sent + 1] = item; return true end
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    WowHelperData = { at = "x", emoteVoices = { [60] = { "LAUGH", "%s laughs.", "You laugh.", "%s laughs at %s." }, [21] = { "CHEER", "%s cheers!" } } }
+    local units = { player = "P-1", target = "P-2" }
+    UnitGUID = function(u) return units[u] end
+    UnitRace = function(u) if u == "player" then return "Undead", "Scourge", 5 elseif u == "target" then return "Troll", "Troll", 8 end end
+    UnitSex = function(u) return u == "player" and 3 or 2 end
+    GetPlayerInfoByGUID = function(g) if g == "P-3" then return "Mage", "MAGE", "Gnome", "Gnome", 3, "Gnomey" end end
+    C_CreatureInfo = { GetRaceInfo = function(id) local f = ({ [1] = "Human", [7] = "Gnome", [5] = "Scourge" })[id]; return f and { clientFileString = f } end }
+    assert(L.EVENT.emoteVoice and L.EventSettings("emoteVoice").on, "Emote voices: a moment, on")
+    C.Settings().sounds = true
+    local ok, token = C.OnTextEmote("You laugh.", "P-1")
+    assert(ok and token == "LAUGH", "yours: " .. tostring(token))
+    local m = sent[#sent]
+    assert(m.moment == 99 and m.touch == 0 and m.sound == 0 and K.EmoteOf(m.side, m.gain, m.intensity, m.level) == 60 and m.seed == 133, "marker 99, LAUGH, Undead female")
+    assert(C.OnTextEmote("Zul laughs at you.", "P-2") == true and sent[#sent].seed == 8, "a target's: Troll male")
+    assert(C.OnTextEmote("Gnomey cheers!", "P-3") == true and sent[#sent].seed == 128 + 7 and K.EmoteOf(sent[#sent].side, sent[#sent].gain, sent[#sent].intensity, sent[#sent].level) == 21, "the player cache's: Gnome female")
+    local n = #sent
+    local ok2, why = C.OnTextEmote("Stranger laughs.", "P-9")
+    assert(not ok2 and why == "race or sex unknown" and #sent == n, "unknown: nothing: " .. tostring(why))
+    assert(not C.OnTextEmote("Bob waves.", "P-2") and #sent == n, "not voiced: nothing")
+    L.EventSettings("emoteVoice").on = false
+    assert(not C.OnTextEmote("You laugh.", "P-1") and #sent == n, "off: nothing")
+    L.EventSettings("emoteVoice").on = true
+    C.Settings().sounds = false
+    assert(not C.OnTextEmote("You laugh.", "P-1") and #sent == n, "the speaker off: nothing")
+    C.Settings().sounds = true
+    -- Try: your laugh, as a preview
+    assert(C.TryEmoteVoice() == "LAUGH" and sent[#sent].seed == 133, "Try: your laugh")
+    assert(C.TryHD("emoteVoice", "notch") == "voice", "Try sends no feel")
+    -- the export: its marker's number, for WoW Helper's full feels
+    local ex = C.ExportMoments({})
+    assert(ex.moments.emoteVoice and ex.moments.emoteVoice.n == 99, "exported as 99")
+    K.Marker, K.Enabled, K.V2 = marker, enabled, v2
+    WowHelperData, UnitGUID, UnitRace, UnitSex, GetPlayerInfoByGUID, C_CreatureInfo = savedData, savedGuid, savedRace, savedSex, savedInfo, savedCI
+    io.write("PASS: emote voices: a voiced line, yours or a known player's, as marker 99 with the race and sex" .. string.char(10))
+end

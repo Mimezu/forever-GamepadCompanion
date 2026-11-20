@@ -583,8 +583,8 @@ K.MARKER_FIRST, K.MARKER_LAST = 100, 126
 function K.Marker(item)
     if not (K.Enabled() and K.V2()) then return false end
     local m = Int(item.moment, 127)
-    -- (96-98 footsteps, 100-108 gathering, 109 its node, 110-126 swings)
-    if not ((m >= 96 and m <= 98) or (m >= 100 and m <= 109) or (m >= 110 and m <= 126)) then return false end
+    -- (96-98 footsteps, 99 an emote's voice, 100-108 gathering, 109 its node, 110-126 swings)
+    if not ((m >= 96 and m <= 99) or (m >= 100 and m <= 109) or (m >= 110 and m <= 126)) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     -- (ahead of the cues, behind the markers already waiting: a stop and a
@@ -625,6 +625,61 @@ end
 function K.RaceSexOf(seed)
     seed = Int(seed, 255)
     return seed % 128, seed >= 128 and 3 or 2
+end
+
+-- Emote voices (WoW Helper's src/emote_voice.rs): a voiced emote by a character the game shows,
+-- for WoW Helper to play the game's own voice for its race and sex. Marker moment 99, touch 0 and
+-- sound 0 (an older WoW Helper plays nothing: no cue to it); the emote id (EmotesText, 1-4095; 0:
+-- "the player's race and sex", sent at login so their voices are made ready ahead) in side (bits
+-- 0-3), gain (4-6), intensity (7-9) and level (10-11); the seed: race + 128 if female
+-- (K.RaceSexSeed). Vectors: tests/fixtures/helperlink-emote-vectors.txt
+K.EMOTE_MARKER = 99
+function K.EmoteFields(id)
+    id = Int(id, 4095)
+    return id % 16, floor(id / 16) % 8, floor(id / 128) % 8, floor(id / 1024) % 4
+end
+function K.EmoteOf(side, gain, intensity, level)
+    return Int(side, 15) + Int(gain, 7) * 16 + Int(intensity, 7) * 128 + Int(level, 3) * 1024
+end
+function K.EmoteVoice(id, race, sex)
+    -- (Hush: no sounds, so no voice)
+    if ns.Stack and ns.Stack.Is("hush") and not K.previewing then return false end
+    local side, gain, intensity, level = K.EmoteFields(id)
+    return K.Marker({ moment = K.EMOTE_MARKER, touch = 0, sound = 0, side = side, gain = gain, intensity = intensity,
+        level = level, seed = K.RaceSexSeed(race, sex) })
+end
+
+-- The voiced emotes' chat lines (WowHelperData.emoteVoices: { [id] = { "TOKEN", "%s laughs.",
+-- "You laugh.", ... } }, the client's language, read by WoW Helper from the game's tables) as
+-- patterns, the longest wording first ("%s laughs at %s." before "%s laughs.")
+function K.EmoteLines(src)
+    local list = {}
+    if type(src) ~= "table" then return list end
+    for id, lines in pairs(src) do
+        if type(id) == "number" and type(lines) == "table" then
+            for i = 2, #lines do
+                local line = lines[i]
+                if type(line) == "string" and line:find("%S") then
+                    local words = (line:gsub("%%s", ""))
+                    local p = (line:gsub("%%s", "\1")):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+                    p = "^" .. (p:gsub("\1", "(.-)")) .. "$"
+                    list[#list + 1] = { p, id, #words, lines[1] }
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a[3] ~= b[3] then return a[3] > b[3] end
+        return a[1] < b[1]
+    end)
+    return list
+end
+-- A chat line's emote: its id and token, or nil (not a voiced one)
+function K.EmoteOfLine(list, text)
+    if type(text) ~= "string" then return nil end
+    for _, e in ipairs(list) do
+        if text:find(e[1]) then return e[2], e[4] end
+    end
 end
 
 -- The mic LED (v2): "leave", "off", "on", "pulse"

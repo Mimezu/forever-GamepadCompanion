@@ -796,6 +796,9 @@ L.EVENTS = {
     { key = "readyCheck", icon = ART .. "vibe_judge", group = "Social", label = "Ready check", feel = "ratchet", on = true },
     { key = "invite", icon = ART .. "vibe_double", group = "Social", label = "Invites, duels", feel = "chime", on = true },
     { key = "summon", icon = ART .. "vibe_ritual", group = "Social", label = "Summon", feel = "swell", on = true },
+    -- (a voice, no rumble: WoW Helper plays it; HelperCues.lua)
+    { key = "emoteVoice", icon = ART .. "vibe_double", group = "Social", label = "Emote voices", feel = "notch", on = true,
+        voiceOnly = true, tip = "/laugh, /cheer, /flirt...: the game's own voice on the pad's speaker, as the game plays it. Yours and players nearby, for their race and sex. A voice only: no rumble. Needs WoW Helper" },
     { key = "uiError", icon = ART .. "event_interrupted", group = "Social", label = "Error", feel = "deny", on = true,
         tip = "Not enough mana, out of range..." },
 }
@@ -882,6 +885,12 @@ end
 function L.Try(key)
     local s = L.EventSettings(key)
     local e = EVENT[key]
+    -- (a voice only: your character's, on the pad)
+    if e.voiceOnly then
+        local HC = ns.HelperCues
+        if HC and HC.TryEmoteVoice then HC.TryEmoteVoice() end
+        return
+    end
     local feel = H.Feel(s.feel)
     if not feel then return end
     local opts = { voice = "ev_" .. key, gain = Strength() * (ns.Volume and ns.Volume.Feel(key) or 1) }

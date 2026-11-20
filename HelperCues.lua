@@ -70,7 +70,8 @@ C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
 -- Moments on the Rumble tab with no number (their cue goes as 0, its touch and sound as sent):
 -- 95 is the last number, 96-127 are WoW Helper's markers
-C.UNNUMBERED = { fishNibble = true }
+-- (Emote voices: its voice goes on WoW Helper's marker 99, HelperLink K.EmoteVoice)
+C.UNNUMBERED = { fishNibble = true, emoteVoice = true }
 -- Light-only moments: no cue goes with their number (no sound row for them). A cast's cue goes
 -- as its kind's moment (Spell casting, Gathering, Crafting: 22-24), not as "cast" (72)
 C.LIGHT_ONLY = { critTaken = true, avoid = true, combat = true, cast = true, halo = true }
@@ -453,6 +454,8 @@ end
 -- sent: the cue already went (a simulation fires the moment). Returns what played, in few words.
 function C.TryHD(key, feelKey, sent)
     if not feelKey then return nil end
+    -- (a voice only, no feel: Emote voices' Try sent your character's voice)
+    if L.EVENT and L.EVENT[key] and L.EVENT[key].voiceOnly then return "voice" end
     if not (K and K.Enabled()) then return "rumble (link off)" end
     if not K.V2() then return "rumble (HD link off)" end
     if C.HDMode() == "off" then return "rumble (HD off)" end
@@ -548,6 +551,12 @@ local function ExportMoments(export)
         moments[key] = { n = n, group = m[2], parent = m[3], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
             feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
+    end
+    -- (Emote voices: no cue number, its marker's, 99: WoW Helper offers a full feel for it)
+    local ev = L.EVENT and L.EVENT.emoteVoice
+    if ev then
+        moments.emoteVoice = { n = K.EMOTE_MARKER, group = ev.group, label = ev.label, feel = false, sound = false, light = false,
+            feelVol = 1, soundVol = ns.Volume and ns.Volume.SoundLevel("emoteVoice") or 1 }
     end
     export.moments = moments
     local d = Data()
@@ -802,3 +811,132 @@ end)
 function C.Refresh()
     UpdateTriggers()
 end
+
+---------------------------------------------------------------------------
+-- Emote voices: a voiced emote (/laugh, /cheer, /flirt...) by you or a player the game shows:
+-- WoW Helper plays the game's own voice for their race and sex on the pad's speaker
+-- (src/emote_voice.rs). Sent the frame the chat line comes in: the game plays the voice then.
+-- Which emote: its line, matched against the voiced ones WoW Helper read from the game
+-- (WowHelperData.emoteVoices). Who: the sender's GUID, through a unit the client has for them
+-- (you, target, focus, mouseover, party, raid, nameplates), else the client's player cache
+-- (GetPlayerInfoByGUID). Race or sex unknown: nothing (no guess)
+---------------------------------------------------------------------------
+local emoteLines, emoteSrc
+local function EmoteLines()
+    local d = Data()
+    local src = d and d.emoteVoices
+    if src ~= emoteSrc then emoteSrc, emoteLines = src, K.EmoteLines(src) end
+    return emoteLines or {}
+end
+
+-- clientFileString ("Scourge") -> race id, from the game's own list
+local raceIds
+local function RaceIdOf(file)
+    if type(file) ~= "string" or secret(file) then return nil end
+    if not raceIds then
+        raceIds = {}
+        local get = C_CreatureInfo and C_CreatureInfo.GetRaceInfo
+        for id = 1, 127 do
+            local ok, info = pcall(get or function() end, id)
+            if ok and type(info) == "table" and type(info.clientFileString) == "string" then
+                raceIds[info.clientFileString] = raceIds[info.clientFileString] or id
+            end
+        end
+    end
+    return raceIds[file]
+end
+
+local EMOTE_UNITS = { "player", "target", "focus", "mouseover", "softenemy", "softfriend" }
+for i = 1, 4 do EMOTE_UNITS[#EMOTE_UNITS + 1] = "party" .. i end
+for i = 1, 40 do EMOTE_UNITS[#EMOTE_UNITS + 1] = "raid" .. i end
+for i = 1, 40 do EMOTE_UNITS[#EMOTE_UNITS + 1] = "nameplate" .. i end
+
+local function Known(race, sex)
+    if secret(race) or secret(sex) or type(race) ~= "number" or (sex ~= 2 and sex ~= 3) then return nil end
+    if race < 1 or race > 127 then return nil end
+    return race, sex
+end
+
+-- A sender's race id and sex (2, 3), or nil and why
+function C.EmoterRaceSex(guid)
+    if type(guid) ~= "string" or secret(guid) or guid == "" then return nil, "no GUID" end
+    if not UnitGUID then return nil, "no UnitGUID" end
+    for _, u in ipairs(EMOTE_UNITS) do
+        local ok, g = pcall(UnitGUID, u)
+        if ok and g == guid and not secret(g) then
+            local race, sex = Known(UnitRace and select(3, UnitRace(u)), UnitSex and UnitSex(u))
+            if race then return race, sex end
+        end
+    end
+    if GetPlayerInfoByGUID then
+        local ok, _, _, _, file, sex = pcall(GetPlayerInfoByGUID, guid)
+        if ok then
+            local race
+            race, sex = Known(RaceIdOf(file), sex)
+            if race then return race, sex end
+        end
+    end
+    return nil, "race or sex unknown"
+end
+
+-- The moment's switch (Rumble › Social › Emote voices) and the speaker's
+local function EmoteVoicesOn()
+    if not (K and K.Enabled() and K.V2() and On("sounds")) then return false end
+    local ok, s = pcall(L.EventSettings, "emoteVoice")
+    return ok and s and s.on and true or false
+end
+
+C.emoteLog = {}
+function C.OnTextEmote(text, guid)
+    if not EmoteVoicesOn() then return false, "off" end
+    if secret(text) then return false, "secret" end
+    local id, token = K.EmoteOfLine(EmoteLines(), text)
+    if not id then return false, "not voiced" end
+    local race, sex = C.EmoterRaceSex(guid)
+    local log = C.emoteLog
+    log[#log + 1] = { token = token, id = id, race = race or sex, sex = race and sex or nil }
+    if #log > 20 then table.remove(log, 1) end
+    if not race then return false, sex end
+    return K.EmoteVoice(id, race, sex), token
+end
+
+-- Try: your character's laugh (or the first voiced emote) on the pad, as play sends it
+function C.TryEmoteVoice()
+    if not (K and K.Enabled()) then return nil, "Link is off: Setup" end
+    if not K.V2() then return nil, "HD link is off" end
+    local src = Data() and Data().emoteVoices
+    if type(src) ~= "table" then return nil, "Needs WoW Helper" end
+    local id
+    for k, v in pairs(src) do
+        if type(k) == "number" and type(v) == "table" then
+            if v[1] == "LAUGH" then id = k; break end
+            if not id or k < id then id = k end
+        end
+    end
+    if not id then return nil, "no voiced emote" end
+    local race, sex = C.EmoterRaceSex(UnitGUID and UnitGUID("player"))
+    if not race then return nil, sex end
+    if not K.Preview(K.EmoteVoice, id, race, sex) then return nil, "not sent" end
+    return src[id][1]
+end
+
+local emoteFrame = CreateFrame("Frame")
+emoteFrame:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
+emoteFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+local emoteWarmed
+emoteFrame:SetScript("OnEvent", function(_, event, ...)
+    if event == "CHAT_MSG_TEXT_EMOTE" then
+        local text, _, _, _, _, _, _, _, _, _, _, guid = ...
+        C.OnTextEmote(text, guid)
+    elseif not emoteWarmed then
+        -- your voices made ready ahead in WoW Helper (emote 0), once the link is up
+        emoteWarmed = true
+        if C_Timer then
+            C_Timer.After(3, function()
+                if not (EmoteVoicesOn() and Data() and Data().emoteVoices) then return end
+                local race, sex = C.EmoterRaceSex(UnitGUID and UnitGUID("player"))
+                if race then K.EmoteVoice(0, race, sex) end
+            end)
+        end
+    end
+end)

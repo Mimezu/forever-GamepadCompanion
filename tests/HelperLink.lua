@@ -184,6 +184,47 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-fall-vectors.txt") do
 end
 assert(fallcount == 26, "26 fall vectors: " .. fallcount)
 
+-- Emote voices (marker 99): the emote id in side/gain/intensity/level, race and sex in the seed
+local emotecount = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-emote-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local id, race, sex, head, digits = row:match("^(%d+) (%d+) (%d+) : (.-)%s*:%s*(%d+)%s*$")
+        id, race, sex = tonumber(id), tonumber(race), tonumber(sex)
+        local n, i = {}, 0
+        for num in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(num) end
+        assert(i == 19 and #digits == 34 and n.moment == K.EMOTE_MARKER and n.touch == 0 and n.sound == 0, "emote vector line: " .. row)
+        local side, gain, intensity, level = K.EmoteFields(id)
+        assert(side == n.side and gain == n.gain and intensity == n.intensity and level == n.level, "emote vector fields: " .. row)
+        assert(K.EmoteOf(n.side, n.gain, n.intensity, n.level) == id, "emote vector read back: " .. row)
+        assert(K.RaceSexSeed(race, sex) == n.seed, "emote vector seed: " .. row)
+        local s = { seq = n.seq, left = {}, right = {}, touch = 0, sound = 0, side = side, gain = gain, intensity = intensity,
+            level = level, seed = K.RaceSexSeed(race, sex), moment = K.EMOTE_MARKER }
+        local cells, out = K.EncodeV2(s), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        assert(table.concat(out) == digits, "emote vector: " .. row .. " got " .. table.concat(out))
+        emotecount = emotecount + 1
+    end
+end
+assert(emotecount == 8, "8 emote vectors: " .. emotecount)
+
+-- Emote voices: a chat line to its emote, the longest wording first
+do
+    local list = K.EmoteLines({
+        [60] = { "LAUGH", "%s laughs at %s.", "%s laughs at you.", "You laugh at %s.", "%s laughs.", "You laugh." },
+        [31] = { "CRY", "%s cries on %s's shoulder.", "%s cries." },
+        [97] = { "THANK", "%s thanks %s.", "%s thanks you.", "You thank %s.", "%s thanks everyone around %s.", "You thank everyone around you." },
+        [1] = "not a list", x = { "BAD", "%s." },
+    })
+    local function of(t) return (K.EmoteOfLine(list, t)) end
+    assert(of("Bob laughs.") == 60 and of("You laugh.") == 60 and of("Bob laughs at you.") == 60, "laugh lines")
+    assert(of("Bob laughs at Alice.") == 60 and select(2, K.EmoteOfLine(list, "You laugh at Alice.")) == "LAUGH", "laugh at someone")
+    assert(of("Bob cries on Alice's shoulder.") == 31 and of("Bob-Realm cries.") == 31, "a name with a realm, a possessive")
+    assert(of("Bob thanks everyone around him.") == 97 and of("You thank everyone around you.") == 97, "thank")
+    assert(of("Bob waves.") == nil and of(nil) == nil and of("(Bob laughs.)") == nil, "not a voiced line")
+    assert(of("Bob.") == nil, "a non-number key is skipped")
+    assert(of("100% laughs.") == 60, "magic characters in a name")
+end
+
 -- Live (v1 switch): switch, layout, queue -----------------------------------------------------
 K.SetV2(false)
 assert(not K.V2() and GamepadCompanionHapticsDB.link.v1 == true, "v1 switch")
@@ -624,4 +665,4 @@ end
 
 K.SetEnabled(false)
 
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors)")
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors)")
