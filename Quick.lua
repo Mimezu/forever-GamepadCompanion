@@ -20,14 +20,19 @@ end
 
 local function InCombat() return InCombatLockdown and InCombatLockdown() end
 
--- Well Fed food, from its tooltip
+-- Well Fed food, from its tooltip (kept once read: an item not loaded yet is read again)
+local buffFood = {}
 local function BuffFood(id)
+    local known = buffFood[id]
+    if known ~= nil then return known end
     local info = C_TooltipInfo and Call(C_TooltipInfo.GetItemByID, id)
+    local result = false
     for _, line in ipairs(info and info.lines or {}) do
         local text = type(line.leftText) == "string" and line.leftText:lower() or ""
-        if text:find("well fed", 1, true) then return true end
+        if text:find("well fed", 1, true) then result = true; break end
     end
-    return false
+    if id ~= nil and info and info.lines then buffFood[id] = result end
+    return result
 end
 
 -- The bags' items, as QuickOrder wants them (one entry per item)
