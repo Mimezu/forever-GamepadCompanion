@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.69.1 — 2026-11-20
+
+- **Fishing never leaves R2's modifier changed** (it could break Blizzard's R2 bar). While a pole is in hand R2 stops being the gamepad's Ctrl so it can cast; what it was is now kept for the whole account (it was per character: another character, or a reload while fishing, could leave R2 as None), and put back when the pole comes off, when R2 fishing is off, on every logout and /reload, and at login before anything else. Login fishes again only if a pole is in hand. A record left by 0.68.0 heals at login. If you changed R2 yourself meanwhile, yours stays. Interact's reach goes back the same way
+
 ## 0.69.0 — 2026-11-20
 
 - **Emote voices** (Rumble › Social, on): a voiced emote (/laugh, /cheer, /flirt, /joke, /bye, /no, /chicken... 48 in WoW Forever) by you or a player nearby plays the game's own voice on the pad's speaker, for that character's race and sex, the moment the game plays it. A voice only, no rumble; its Try plays your character's laugh. WoW Helper overrides it with a full feel, as any moment

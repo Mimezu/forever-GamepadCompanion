@@ -214,6 +214,98 @@ eq(R2(), nil, "after combat: R2 is yours")
 eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "R2 is Ctrl again")
 eq(notes[#notes], "R2 is back", "a word as R2 comes back")
 
+-- R2's modifier is never left changed (the user's R2 bar needs GamePadEmulateCtrl) -----------
+-- A /reload: Fishing.lua loads again (new frames), the saved settings and the game's CVars stay
+local function Reload(charDB)
+    for _, f in ipairs(frames) do f.handler = nil end
+    frames, overrides = {}, {}
+    local ns2 = { Shared = { CharDB = function() return charDB end, Claim = function() end },
+        HapticsLab = { Fire = function() end } }
+    assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", ns2)
+    for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
+    binds = _G.GamepadCompanionFishingBinds
+    return ns2.Fishing
+end
+local function Fresh()
+    cvars.GamePadEmulateCtrl, cvars.SoftTargetInteractRange = "PADRTRIGGER", "10"
+    GamepadCompanionDB = {}
+end
+
+-- 1. a reload (or a crash) while fishing, the pole off by the next login
+Fresh()
+hands, bags = { [16] = 6367 }, {}
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "NONE", "fishing: R2 freed")
+events.handler(events, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
+eq(cvars.SoftTargetInteractRange, "30", "fishing: the reach longer")
+-- (no logout ran: a crash, or the game closed hard)
+hands = { [16] = 2488, [17] = 1201 }
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "after a reload while fishing, the pole off: R2 is Ctrl again")
+eq(cvars.SoftTargetInteractRange, "10", "and the reach as it was")
+eq(R2(), nil, "and R2 has no binding of ours")
+eq(next(GamepadCompanionDB.fishingCVars), nil, "the record emptied")
+
+-- 2. the same on another character (the CVar is the account's, so is the record)
+Fresh()
+hands = { [16] = 6367 }
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "NONE", "fishing on one character")
+hands = {}
+Reload({})
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "another character logs in: R2 is Ctrl again")
+
+-- 3. logout or /reload with the pole in hand: put back at once; the next login fishes again
+Fresh()
+hands = { [16] = 6367 }
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+events.handler(events, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
+events.handler(events, "PLAYER_LOGOUT")
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "logout while fishing: R2 is Ctrl again")
+eq(cvars.SoftTargetInteractRange, "10", "logout with the line out: the reach as it was")
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "NONE", "login with the pole still in hand: fishing again")
+eq(GamepadCompanionDB.fishingCVars.GamePadEmulateCtrl, "PADRTRIGGER", "what to put back: Ctrl on R2, never NONE")
+-- the pole off: back
+hands = { [16] = 2488 }
+events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "the pole off: R2 is Ctrl again")
+
+-- 4. 0.68.0's per-character record (the user's case): healed at login
+Fresh()
+cvars.GamePadEmulateCtrl = "NONE"
+local old = { fishing = { r2 = true, mods = { GamePadEmulateCtrl = "PADRTRIGGER" } } }
+hands = { [16] = 2488 }
+Reload(old)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "0.68.0's record: R2 is Ctrl again at login")
+eq(old.fishing.mods, nil, "the old per-character record gone")
+
+-- 5. R2 fishing turned off with the pole in hand: back at once
+Fresh()
+hands = { [16] = 6367 }
+local Fx = Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+eq(cvars.GamePadEmulateCtrl, "NONE", "fishing")
+char.fishing.r2 = false
+Fx.Apply()
+eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "R2 fishing off: R2 is Ctrl again")
+eq(R2(), nil, "R2 fishing off: no binding")
+char.fishing.r2 = true
+-- 6. you set R2 yourself while fishing: yours stays
+Fx.Apply()
+cvars.GamePadEmulateCtrl = "PADLTRIGGER"
+hands = { [16] = 2488 }
+events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+eq(cvars.GamePadEmulateCtrl, "PADLTRIGGER", "a setting you changed since stays yours")
+hands = {}
+
 -- Quick use: quick:fish runs the swap's macro, shows the pole or the weapons
 ns.Shared.lookup = {}
 assert(loadfile(root .. "/TouchModel.lua"))("GamepadCompanion", ns)

@@ -78,37 +78,76 @@ function F.Want(enabled, poleOn, lineOut)
 end
 
 -- R2's modifiers off while it fishes (each kept, to put back)
-local function FreeR2(s)
-    s.mods = type(s.mods) == "table" and s.mods or {}
-    for _, cvar in ipairs(F.MODS) do
-        if Call(GetCVar, cvar) == F.KEY then
-            s.mods[cvar] = F.KEY
-            Call(SetCVar, cvar, "NONE")
+---------------------------------------------------------------------------
+-- The game's settings fishing changes (R2's modifier, Interact's reach) are
+-- account-wide, so what they were is kept account-wide too
+-- (GamepadCompanionDB.fishingCVars, cvar -> the value to put back), and put
+-- back: when the pole comes off, the line comes in, R2 fishing is turned off,
+-- on every logout and /reload, and at login before anything else (a record
+-- left by a crash, or by 0.68.0's per-character one, heals there). Fishing
+-- mode is entered again only while a pole is in hand. Never stashed elsewhere.
+---------------------------------------------------------------------------
+local function Record()
+    if type(GamepadCompanionDB) ~= "table" then GamepadCompanionDB = {} end
+    local db = GamepadCompanionDB
+    if type(db.fishingCVars) ~= "table" then db.fishingCVars = {} end
+    return db.fishingCVars
+end
+
+-- Change a setting, its old value kept (the first one: never a value fishing set)
+local function Change(cvar, value)
+    local rec = Record()
+    local now = Call(GetCVar, cvar)
+    if now == nil or tostring(now) == tostring(value) then return end
+    if rec[cvar] == nil then rec[cvar] = tostring(now) end
+    Call(SetCVar, cvar, value)
+end
+
+-- Put settings back (nil: all of them). A setting changed since by you stays yours.
+local function Restore(which)
+    local rec = Record()
+    for cvar, old in pairs(rec) do
+        if which == nil or which[cvar] then
+            local now = Call(GetCVar, cvar)
+            local ours = (cvar == "SoftTargetInteractRange") and tonumber(now) == F.REACH or now == "NONE"
+            if ours then Call(SetCVar, cvar, old) end
+            rec[cvar] = nil
         end
     end
 end
+F.Restore = Restore
 
-local function RestoreR2(s)
-    if type(s.mods) ~= "table" then return end
-    for cvar, value in pairs(s.mods) do
-        if Call(GetCVar, cvar) == "NONE" then Call(SetCVar, cvar, value) end
+local MODS = {}
+for _, cvar in ipairs(F.MODS) do MODS[cvar] = true end
+
+-- R2's modifiers off while it fishes
+local function FreeR2()
+    for _, cvar in ipairs(F.MODS) do
+        if Call(GetCVar, cvar) == F.KEY then Change(cvar, "NONE") end
     end
-    s.mods = nil
 end
+local function RestoreR2() Restore(MODS) end
 
 -- Interact's reach, longer while the line is out
+local REACH = { SoftTargetInteractRange = true }
 local function Reach(out)
-    local s = F.Settings()
     if out then
         local now = tonumber((Call(GetCVar, "SoftTargetInteractRange")))
-        if now and now < F.REACH then
-            s.reach = s.reach or now
-            Call(SetCVar, "SoftTargetInteractRange", F.REACH)
-        end
-    elseif s.reach then
-        Call(SetCVar, "SoftTargetInteractRange", s.reach)
-        s.reach = nil
+        if now and now < F.REACH then Change("SoftTargetInteractRange", F.REACH) end
+    else
+        Restore(REACH)
     end
+end
+
+-- 0.68.0 kept them per character: into the account's record, once
+local function Adopt()
+    local s = F.Settings()
+    local rec = Record()
+    if type(s.mods) == "table" then
+        for cvar, value in pairs(s.mods) do if rec[cvar] == nil then rec[cvar] = value end end
+    end
+    if s.reach and rec.SoftTargetInteractRange == nil then rec.SoftTargetInteractRange = tostring(s.reach) end
+    s.mods, s.reach = nil, nil
 end
 
 function F.Apply()
@@ -119,7 +158,7 @@ function F.Apply()
     ClearOverrideBindings(owner)
     wipe(bound)
     if want then
-        FreeR2(s)
+        FreeR2()
         if want == "catch" then
             SetOverrideBinding(owner, true, F.KEY, "INTERACTTARGET")
             bound[F.KEY] = "INTERACTTARGET"
@@ -129,7 +168,7 @@ function F.Apply()
             bound[F.KEY] = "CLICK " .. F.BUTTON .. ":LeftButton"
         end
     else
-        RestoreR2(s)
+        RestoreR2()
     end
     local was = mode
     mode = want ~= nil
@@ -193,7 +232,7 @@ end
 -- Events
 ---------------------------------------------------------------------------
 local events = CreateFrame("Frame")
-for _, ev in ipairs({ "PLAYER_LOGIN", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_REGEN_ENABLED", "LOOT_OPENED" }) do
+for _, ev in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_REGEN_ENABLED", "LOOT_OPENED" }) do
     pcall(events.RegisterEvent, events, ev)
 end
 for _, ev in ipairs({ "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
@@ -203,8 +242,14 @@ events:SetScript("OnEvent", function(_, event, unit, _, spellID)
     if event == "PLAYER_LOGIN" then
         lib.Attach(Sh.CharDB())
         lib.Remember()
-        Reach(false)      -- (a reload with the line out: the game's reach back)
+        -- (the game's settings as they were before any fishing, whatever happened since; then
+        -- fishing again only if a pole is in hand)
+        Adopt()
+        Restore()
         F.Apply()
+    elseif event == "PLAYER_LOGOUT" then
+        -- (logout, /reload: never leave R2's modifier or the reach changed; login decides again)
+        Restore()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
         lib.Remember()
         if not InCombat() then F.Apply() else pending = true end
