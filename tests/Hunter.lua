@@ -497,6 +497,16 @@ fired = {}
 now = now + 5
 check(HN.ClaimsResult("WOUND", "CRITICAL", 1), "a physical crit on the target, your pet fighting it, no shot of yours: the pet's")
 check(Has("lab:petCrit"), "its crit: Pet crit")
+-- (a pet's plain blows: no feel at all, for any class: only its crit, faint (Nip), is felt)
+fired = {}
+now = now + 3
+check(HN.ClaimsResult("WOUND", nil, 1), "a pet's plain hit: the pet's")
+check(HN.ClaimsResult("DODGE", nil, 1) and HN.ClaimsResult("PARRY", nil, 1), "its dodged and parried blows: the pet's")
+eq(#fired, 0, "a pet's plain hits, dodges, parries: nothing plays")
+check(L.EVENT.petHit == nil, "no Pet hit moment")
+check(L.EVENT.petCrit.on == false and L.EVENT.petHurt.on == false, "Pet crit, Pet hurt: off by default, any class")
+check(ns.Profiles.RecommendedOn("events", "petCrit") == nil, "no class turns them on")
+fired = {}
 check(HN.ClaimsResult("WOUND", "CRITICAL", 1, true), "the Lab asking after Rumble for the same event: the same answer")
 local crits = 0
 for _, f in ipairs(fired) do if f == "lab:petCrit" then crits = crits + 1 end end

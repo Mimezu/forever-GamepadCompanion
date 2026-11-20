@@ -794,8 +794,9 @@ L.EVENTS = {
     { key = "petTamed", icon = ART .. "vibe_rise", group = "Pet", label = "Beast tamed", feel = "bond", on = true },
     { key = "petAttack", icon = ART .. "vibe_charge", group = "Pet", label = "Pet attacks", feel = "sic", on = true },
     { key = "petCommand", icon = ART .. "vibe_micro", group = "Pet", label = "Follow, stay", feel = "heel", on = true },
-    { key = "petCrit", icon = ART .. "vibe_stab", group = "Pet", label = "Pet crit", feel = "nip", on = true },
-    { key = "petHurt", icon = ART .. "vibe_bash", group = "Pet", label = "Pet hurt", feel = "bruise", on = true,
+    -- (the pet's blows and the blows on it: off for every class with a pet, too much noise in a fight)
+    { key = "petCrit", icon = ART .. "vibe_stab", group = "Pet", label = "Pet crit", feel = "nip", on = false },
+    { key = "petHurt", icon = ART .. "vibe_bash", group = "Pet", label = "Pet hurt", feel = "bruise", on = false,
         tip = "A heavy blow" },
     { key = "petDeath", icon = ART .. "vibe_shadow", group = "Pet", label = "Pet dies", feel = "petFall", on = true },
     { key = "petFeed", icon = ART .. "vibe_chew", group = "Pet", label = "Pet eats", feel = "crunch", on = true },
