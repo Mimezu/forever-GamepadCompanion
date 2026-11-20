@@ -1651,6 +1651,9 @@ function L.Climate()
 end
 
 local random = math.random
+-- (under water and still: gaps 1.8x and taps at 0.55 of the designed level;
+-- swimming keeps its own, closer and stronger the faster)
+L.BUBBLES_STILL_LEVEL, L.BUBBLES_STILL_SPACING = 0.55, 1.8
 -- Sparse taps: one every gap0..gap1 s, lo..hi strong, anywhere left to right
 -- (sometimes a second right after it: chance2)
 local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
@@ -1662,14 +1665,20 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
         -- (4.7 yd/s) ~0.7 of still's gaps, a fast one (6.6) ~0.45)
         local k = live.weatherIntensity or 0.5
         local level, spacing = 0.7 + 0.5 * k, 1.6 - 0.6 * k
+        local double = chance2 or 0
         if key == "underwater" then
             local v = live.swimming and (live.speed or 0) or 0
-            level = min(1.6, 0.85 + 0.14 * v)
-            spacing = max(0.4, min(1, 1.3 - 0.13 * v))
+            if v < 0.5 then
+                -- (still: fewer and softer, a bubble now and then, never two at once)
+                level, spacing, double = L.BUBBLES_STILL_LEVEL, L.BUBBLES_STILL_SPACING, 0
+            else
+                level = min(1.6, 0.85 + 0.14 * v)
+                spacing = max(0.4, min(1, 1.3 - 0.13 * v))
+            end
         end
         if now >= v.next then
             v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * level, random() * 2 - 1
-            v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
+            v.second = random() < double and now + 0.09 + random() * 0.05 or nil
             v.next = now + (gap0 + random() * (gap1 - gap0)) * spacing
             -- (each tap to WoW Helper too: its HD plays while it drives the pad)
             if L.onSprinkle then pcall(L.onSprinkle, key, level) end
