@@ -1216,8 +1216,8 @@ end
 
 ---------------------------------------------------------------------------
 -- Triggers: the same list on the triggers' stack (TriggerStack.lua). A row:
--- On, Up/Down and drag, the condition's words (a percentage's operator on a
--- click), + requirements, then each trigger's shape (R2 the hand, L2 the
+-- drag, On, + requirements, the condition's words (a percentage's operator on
+-- a click), then each trigger's shape (R2 the hand, L2 the
 -- body; Pass leaves it to the next match), Try, Default, x. The teal row
 -- holds a trigger now.
 ---------------------------------------------------------------------------
@@ -1273,10 +1273,170 @@ local function PickTriggerPercent(anchor, row)
     end, 3, 120)
 end
 
+-- A row, left to right: the grip (drag: FrameGambit's cards), On, + requirements, the
+-- condition's words; then L2, R2, Try, Default, x. Every control on the row's middle line.
+local TG = { GRIP = 4, ON = 16, REQ = 54, WORDS = 92, PLATE = 170 }
+-- (the plates' x: Try, Default and x take the row's last 136 px, as MomentRow puts them)
+local function PlateX(cw)
+    local r2 = cw - 20 - 136 - TG.PLATE
+    return r2 - 4 - TG.PLATE, r2
+end
+
+-- The drag (FrameGambit's reaction cards): a copy of the row follows the cursor, the row
+-- itself leaves its slot empty, the others close up around the slot it would land in; let go:
+-- the stack takes the new order, saved at once. Otherwise stays last.
+local drag = {}
+
+local function RowY(slot) return -38 - (slot - 1) * STATE_STEP end
+
+local function DragShown() return math.min(TG_ROWS, #TK():Rows() - tgs.offset) end
+
+-- Every row but the dragged one in the order the drop would leave, the slot kept free
+local function DragLayout()
+    local n, src, slot = DragShown(), drag.src, drag.slot
+    local j = 1
+    for i = 1, n do
+        if i ~= src then
+            if j == slot then j = j + 1 end
+            local r = tgs.pool[i]
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", 10, RowY(j))
+            j = j + 1
+        end
+    end
+    drag.hole:ClearAllPoints()
+    drag.hole:SetPoint("TOPLEFT", 10, RowY(slot))
+end
+
+local function DragRestore()
+    for i, r in ipairs(tgs.pool) do
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 10, RowY(i))
+        r:SetAlpha(1)
+    end
+end
+
+local function DragCursor()
+    local x, y = GetCursorPosition()
+    local s = drag.card:GetEffectiveScale() or 1
+    return x / s, y / s
+end
+
+local function DragUpdate()
+    if not drag.row then return end
+    if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then return ui.TriggerDrop() end
+    local x, y = DragCursor()
+    drag.ghost:ClearAllPoints()
+    drag.ghost:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x - drag.grabX, y + drag.grabY)
+    local top = drag.card:GetTop() or 0
+    local slot = ns.Stack.DropSlot((top - 38) - y, STATE_STEP, TG_ROWS, tgs.offset, #TK():Rows())
+    if slot ~= drag.slot then
+        drag.slot = slot
+        DragLayout()
+    end
+end
+
+local function DragBuild(card, cw)
+    drag.card = card
+    local w = cw - 20
+    local g = CreateFrame("Frame", nil, card)
+    g:SetSize(w, STATE_STEP - 4)
+    g:SetFrameStrata("TOOLTIP")
+    g:EnableMouse(false)
+    local bg = g:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.16, 0.12, 0.07, 0.96)
+    local function Edge(a, b, horizontal)
+        local t = g:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.9)
+        t:SetPoint(a); t:SetPoint(b)
+        if horizontal then t:SetHeight(1) else t:SetWidth(1) end
+    end
+    Edge("TOPLEFT", "TOPRIGHT", true); Edge("BOTTOMLEFT", "BOTTOMRIGHT", true)
+    Edge("TOPLEFT", "BOTTOMLEFT"); Edge("TOPRIGHT", "BOTTOMRIGHT")
+    S.Text(g, "::", TG.GRIP + 1, -12, 12, 13, DIM)
+    g.label = S.Text(g, "", TG.WORDS, -12, 200, 13, GOLD)
+    g.label:SetWordWrap(false)
+    local l2, r2 = PlateX(cw)
+    g.label:SetWidth(l2 - 8 - TG.WORDS)
+    g.l2 = S.Text(g, "", l2 + 8, -13, TG.PLATE - 14, 11, GOLD)
+    g.r2 = S.Text(g, "", r2 + 8, -13, TG.PLATE - 14, 11, GOLD)
+    g.l2:SetWordWrap(false); g.r2:SetWordWrap(false)
+    g:Hide()
+    drag.ghost = g
+    -- (the slot it lands in)
+    local hole = CreateFrame("Frame", nil, card)
+    hole:SetSize(w, STATE_STEP - 4)
+    local t = hole:CreateTexture(nil, "BACKGROUND", nil, 3)
+    t:SetAllPoints()
+    t:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.1)
+    hole:Hide()
+    drag.hole = hole
+    drag.ticker = CreateFrame("Frame", nil, card)
+    drag.ticker:Hide()
+    drag.ticker:SetScript("OnUpdate", DragUpdate)
+    -- (the card gone mid-drag: the order stays as it was)
+    card:HookScript("OnHide", function() ui.TriggerDrop(true) end)
+end
+
+function ui.TriggerDrag(r)
+    if drag.row or not r.key or not drag.card then return end
+    local _, src = TK():Row(r.key)
+    if not src then return end
+    HUI.HidePopup()
+    drag.row, drag.id, drag.src = r, r.key, src - tgs.offset
+    drag.slot = drag.src
+    local x, y = DragCursor()
+    drag.grabX = x - (r:GetLeft() or x)
+    drag.grabY = (r:GetTop() or y) - y
+    local g = drag.ghost
+    g.label:SetText(r.label:GetText() or "")
+    g.l2:SetText(r.pick2.label:GetText() or "")
+    g.r2:SetText(r.pick.label:GetText() or "")
+    r:SetAlpha(0)
+    g:Show()
+    drag.hole:Show()
+    drag.ticker:Show()
+    DragLayout()
+    DragUpdate()
+end
+
+-- Let go (cancel: back as it was)
+function ui.TriggerDrop(cancel)
+    if not drag.row then return end
+    local id, src, slot = drag.id, drag.src, drag.slot
+    drag.row = nil
+    drag.ticker:Hide()
+    drag.ghost:Hide()
+    drag.hole:Hide()
+    DragRestore()
+    if not cancel and slot ~= src and TK():MoveTo(id, tgs.offset + slot) then
+        Say(ns.Stack.Words(TK():Row(id)) .. ": moved")
+    end
+    Refresh()
+end
+ui.triggerDrag = drag
+
+-- A row's words: one line on the middle, or two (a line under: Now, Matches, Old rule)
+local function PlaceWords(r, two)
+    r.label:ClearAllPoints()
+    r.sub:ClearAllPoints()
+    if two then r.label:SetPoint("TOPLEFT", TG.WORDS, -4) else r.label:SetPoint("LEFT", TG.WORDS, 0) end
+    r.sub:SetPoint("TOPLEFT", TG.WORDS, -22)
+    if r.words then
+        r.words:ClearAllPoints()
+        r.words:SetPoint("LEFT", r.label, "LEFT", -2, 0)
+    end
+    if r.changed then
+        r.changed:ClearAllPoints()
+        r.changed:SetPoint("RIGHT", r.label, "LEFT", -1, 0)
+    end
+end
+
 local function TriggerRow(card, cw, i)
     local r
     local function key() return r.key end
-    r = HUI.MomentRow(card, -38 - (i - 1) * STATE_STEP, cw, nil, "", function(anchor) PickShape(anchor, key(), "R2") end,
+    r = HUI.MomentRow(card, RowY(i), cw, nil, "", function(anchor) PickShape(anchor, key(), "R2") end,
         function()
             if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
             if ns.TriggerStack.Try(key()) then Say("Squeeze the trigger") end
@@ -1293,48 +1453,34 @@ local function TriggerRow(card, cw, i)
     })
     r.kind = "trigger"
     r.icon:Hide()
-    -- the second plate: L2, left of R2's
-    local px = select(4, r.pick:GetPoint(1)) or (cw - 300)
-    r.pick2 = S.NewButton(r, "", px - 140, -5, 136, function(self) PickShape(self, key(), "L2") end, nil, 11, 30)
-    r.pick2.label:SetJustifyH("LEFT")
-    r.label:SetWidth(math.max(80, px - 140 - 120))
-    r.sub:SetWidth(math.max(80, px - 140 - 120))
+    -- the plates: L2 (the body), then R2 (the hand), their words from the left edge
+    local l2, r2 = PlateX(cw)
+    r.pick:ClearAllPoints()
+    r.pick:SetPoint("TOPLEFT", r2, -5)
+    r.pick:SetWidth(TG.PLATE)
+    r.pick2 = S.NewButton(r, "", l2, -5, TG.PLATE, function(self) PickShape(self, key(), "L2") end, nil, 11, 30)
+    for _, p in ipairs({ r.pick, r.pick2 }) do
+        p.label:ClearAllPoints()
+        p.label:SetPoint("LEFT", 8, 0)
+        p.label:SetPoint("RIGHT", -6, 0)
+        p.label:SetJustifyH("LEFT")
+    end
     S.Tooltip(r.pick, "R2", "The hand")
     S.Tooltip(r.pick2, "L2", "The body")
     r.teal = r:CreateTexture(nil, "BACKGROUND", nil, 2)
     r.teal:SetAllPoints()
     r.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
     r.teal:Hide()
-    r.on = S.NewCheck(r, "", 2, -6, function(self) TK():SetOn(key(), self:GetChecked() == true); Refresh() end, 0)
-    S.Tooltip(r.on, "On")
-    r.up = S.NewButton(r, "▲", 28, -1, 28, function() TK():Move(key(), -1); Refresh() end, nil, 10, 18)
-    r.down = S.NewButton(r, "▼", 28, -20, 28, function() TK():Move(key(), 1); Refresh() end, nil, 10, 18)
-    ListArrows(r)
-    S.Tooltip(r.up, "Up")
-    S.Tooltip(r.down, "Down")
+    -- the grip: the whole row drags, from anywhere but its buttons
+    r.grip = S.Text(r, "::", TG.GRIP + 1, -12, 12, 13, DIM)
     r:RegisterForDrag("LeftButton")
-    r:SetScript("OnDragStart", function(self) self:SetAlpha(0.6) end)
-    r:SetScript("OnDragStop", function(self)
-        self:SetAlpha(1)
-        local _, y = GetCursorPosition()
-        local scale = card:GetEffectiveScale() or 1
-        local top = card:GetTop() or 0
-        local n = math.floor(((top - 38) - y / scale) / STATE_STEP) + 1 + tgs.offset
-        if TK():MoveTo(key(), n) then Refresh() end
-    end)
-    S.Tooltip(r, "Reorder reaction", "First match wins")
-    r.label:ClearAllPoints()
-    r.label:SetPoint("TOPLEFT", 58, -4)
-    r.sub:ClearAllPoints()
-    r.sub:SetPoint("TOPLEFT", 58, -22)
-    r.words = CreateFrame("Button", nil, r)
-    r.words:SetPoint("TOPLEFT", 56, -2)
-    r.words:SetSize(180, 18)
-    r.words:SetScript("OnClick", function(self)
-        local row = TK():Row(key())
-        if row and ns.Stack.IsPercentage(row.condition) then PickTriggerPercent(self, row) end
-    end)
-    r.req = S.NewButton(r, "+", px - 140 - 40, -8, 34, function(self)
+    r:SetScript("OnDragStart", function(self) ui.TriggerDrag(self) end)
+    r:SetScript("OnDragStop", function() ui.TriggerDrop() end)
+    r:HookScript("OnEnter", function() r.grip:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end)
+    r:HookScript("OnLeave", function() r.grip:SetTextColor(DIM[1], DIM[2], DIM[3]) end)
+    r.on = S.NewCheck(r, "", TG.ON, -7, function(self) TK():SetOn(key(), self:GetChecked() == true); Refresh() end, 0)
+    S.Tooltip(r.on, "On")
+    r.req = S.NewButton(r, "+", TG.REQ, -5, 30, function(self)
         local row = TK():Row(key())
         if not row then return end
         HUI.Popup(self, "Add requirements · All must be true", ConditionEntries(row.condition, row), nil, function(c)
@@ -1344,8 +1490,21 @@ local function TriggerRow(card, cw, i)
             end
             Refresh()
         end, 3, 200)
-    end, nil, 11, 24)
-    S.Tooltip(r.req, "Add requirements", "All must be true")
+    end, nil, 11, 30)
+    S.Tooltip(r.req, "Requirements", "All must be true")
+    local words = l2 - 8 - TG.WORDS
+    r.label:SetWidth(words)
+    r.sub:SetWidth(words)
+    r.words = CreateFrame("Button", nil, r)
+    r.words:SetSize(math.min(200, words), 18)
+    r.words:SetScript("OnClick", function(self)
+        local row = TK():Row(key())
+        if row and ns.Stack.IsPercentage(row.condition) then PickTriggerPercent(self, row) end
+    end)
+    r.words:RegisterForDrag("LeftButton")
+    r.words:SetScript("OnDragStart", function() ui.TriggerDrag(r) end)
+    r.words:SetScript("OnDragStop", function() ui.TriggerDrop() end)
+    PlaceWords(r, false)
     return r
 end
 
@@ -1364,27 +1523,39 @@ function ui.BuildTriggerStack(panel, cw)
     ui.trigDefault = S.NewButton(card, "Default", cw - 84, -8, 72, function() ui.ListDefault(TK(), "Triggers") end, nil, 11, 24)
     S.Tooltip(ui.trigDefault, "Default", "The Recommended reactions for your class")
     for i = 1, TG_ROWS do tgs.pool[i] = TriggerRow(card, cw, i) end
+    DragBuild(card, cw)
     card:EnableMouseWheel(true)
     card:SetScript("OnMouseWheel", function(_, d)
+        if drag.row then return end
         tgs.offset = math.max(0, tgs.offset - d)
         Refresh()
     end)
-    -- Otherwise: free
-    local o = HUI.MomentRow(card, -38 - TG_ROWS * STATE_STEP, cw, nil, "Otherwise", function() end, nil, "Free")
+    -- Otherwise: Free, one plate across the L2 and R2 columns; never dragged
+    local o = HUI.MomentRow(card, RowY(TG_ROWS + 1), cw, nil, "Otherwise", function() end, nil, "Free")
     o.icon:Hide()
     o.pick:SetEnabled(false)
+    local l2 = PlateX(cw)
+    o.pick:ClearAllPoints()
+    o.pick:SetPoint("TOPLEFT", l2, -5)
+    o.pick:SetWidth(TG.PLATE * 2 + 4)
+    o.pick.label:ClearAllPoints()
+    o.pick.label:SetPoint("LEFT", 8, 0)
+    o.pick.label:SetPoint("RIGHT", -6, 0)
+    o.label:SetWidth(l2 - 8 - TG.WORDS)
+    o.sub:SetWidth(l2 - 8 - TG.WORDS)
+    PlaceWords(o, false)
     o.teal = o:CreateTexture(nil, "BACKGROUND", nil, 2)
     o.teal:SetAllPoints()
     o.teal:SetColorTexture(TEAL[1], TEAL[2], TEAL[3], 0.16)
     ui.trigOtherwise = o
-    ui.trigShapes = S.Text(card, "Shapes: WoW Helper › Triggers", 12, -38 - (TG_ROWS + 1) * STATE_STEP - 8, cw - 24, 11, DIM)
+    ui.trigShapes = S.Text(card, "Shapes: WoW Helper › Triggers", 12, RowY(TG_ROWS + 2) - 8, cw - 24, 11, DIM)
     -- the teal rows follow the game while the list is open
     local acc = 0
     card:SetScript("OnUpdate", function(_, e)
         acc = acc + (e or 0)
         if acc < 0.25 then return end
         acc = 0
-        if ui.kind == "trigger" then ui.RefreshTriggerStack("trigger") end
+        if ui.kind == "trigger" and not drag.row then ui.RefreshTriggerStack("trigger") end
     end)
 end
 
@@ -1413,17 +1584,18 @@ function ui.RefreshTriggerStack(kind)
             local off = row.on == false
             r:SetChoice("R2 · " .. TS.Words(row.R2, true), nil, nil, off, nil, stack:IsDefault(row.id) or stack:Recommended(row.id) == nil)
             r.pick2.label:SetText("L2 · " .. TS.Words(row.L2, true))
+            r.pick2.label:SetTextColor(r.pick.label:GetTextColor())
             r.label:SetText(St.Words(row))
             local chs = driving[row.id]
             local tail = chs and ("Now: " .. table.concat(chs, ", ")) or (St.Matches(row) and "Matches" or "")
             if TS.Trying() == row.id then tail = "Trying" end
+            -- (a rule moved from Setup's old list: told apart from the Recommended one)
+            if tail == "" and TS.IsOld(row) then tail = "Old rule" end
             r.sub:SetText(tail)
+            PlaceWords(r, tail ~= "")
             r.teal:SetShown(chs ~= nil)
             r.on:SetChecked(not off)
-            r.up:SetEnabled(n > 1)
-            r.down:SetEnabled(n < #rows)
             r.req.label:SetText(row.requirements and ("+" .. #row.requirements) or "+")
-            r.default:SetShown(stack:Recommended(row.id) ~= nil)
         end
     end
     ui.PlaceList(ui.trigStack, rows, tgs.offset, TG_ROWS, ui.trigOtherwise, ui.trigShapes)
@@ -1432,6 +1604,7 @@ function ui.RefreshTriggerStack(kind)
     for _, ch in ipairs(TS.CHANNELS) do if not now[ch].row then free[#free + 1] = ch end end
     ui.trigOtherwise:SetChoice("Free", nil, #free > 0 and ("Now: " .. table.concat(free, ", ")) or nil, false, nil, true)
     ui.trigOtherwise.teal:SetShown(#free > 0)
+    PlaceWords(ui.trigOtherwise, #free > 0)
     ui.trigDefault:SetEnabled(not stack:IsDefault())
     if btn then btn.count:SetText(count .. "/" .. #rows) end
     if ui.trigNow then
@@ -1441,7 +1614,8 @@ function ui.RefreshTriggerStack(kind)
             local sh = TS.Shape(v.effect)
             return (sh and sh.label or "?") .. (v.value and (" " .. math.floor(v.value * 100 + 0.5) .. "%") or "") .. (v.count and (" x" .. v.count) or "")
         end
-        ui.trigNow:SetText("R2  " .. word("R2") .. "\n" .. "L2  " .. word("L2"))
+        ui.trigNow.R2:SetText(word("R2"))
+        ui.trigNow.L2:SetText(word("L2"))
     end
 end
 
@@ -2088,8 +2262,14 @@ local function Build(frame, header)
     tb:SetPoint("TOPLEFT", 0, 0)
     tb:SetSize(LEFT_W, 136)
     ui.box.trigger = tb
-    S.Text(tb, "Now", 14, -46, 100, 13, GOLD)
-    ui.trigNow = S.Note(tb, 70, -46, LEFT_W - 84, 2, 12, GREY)
+    -- (as Strength and the light's Now: the name at 14, the value at 120)
+    ui.trigNow = {}
+    for i, ch in ipairs({ "R2", "L2" }) do
+        local y = -46 - (i - 1) * 22
+        S.Text(tb, "Now " .. ch, 14, y, 100, 13, GOLD)
+        ui.trigNow[ch] = S.Text(tb, "", 120, y, LEFT_W - 134, 12, GREY)
+        ui.trigNow[ch]:SetWordWrap(false)
+    end
     -- Stop, for every kind
     ui.stop = S.NewButton(left, "Stop", 200, -96, 86, function()
         V.StopSimulation(); V.Stop(); if H then H.Stop(); H.LightStop() end
@@ -2181,6 +2361,9 @@ Refresh = function()
     for k, btn in pairs(ui.seg) do S.SetSelected(btn, k == kind) end
     if ui.recent then ui.recent.Update() end
     for k, box in pairs(ui.box) do box:SetShown(k == kind) end
+    -- (Stop: last of the box's buttons; alone with Triggers, under the names)
+    ui.stop:ClearAllPoints()
+    ui.stop:SetPoint("TOPLEFT", kind == "trigger" and 14 or 200, -96)
     if ui.left.title then ui.left.title:SetText(kind == "feel" and "Feel" or kind == "light" and "Light" or kind == "trigger" and "Triggers" or "Sound") end
     local enabled = ENABLE[kind].get()
     ui.enable:SetChecked(enabled)

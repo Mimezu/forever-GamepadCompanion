@@ -106,7 +106,11 @@ function Shell.LinkWords()
     local K, C = ns.HelperLink, ns.HelperCues
     if not (K and K.Enabled()) then return "off", "off" end
     local data = C and type(C.HelperData) == "function" and C.HelperData()
-    if data then return "read " .. tostring(data.at or "?"), "read" end
+    -- (the time alone: the date is the login's, and the chip holds one line)
+    if data then
+        local at = tostring(data.at or "?")
+        return "read " .. (at:match("^%d+%-%d+%-%d+ (%d+:%d+)") or at), "read", at
+    end
     return "not read", "unread"
 end
 
@@ -122,12 +126,12 @@ end
 function Shell.RefreshLink()
     local chip = window and window.link
     if not chip then return end
-    local words, state = Shell.LinkWords()
+    local words, state, at = Shell.LinkWords()
     if state == "read" then chip.dot:SetColorTexture(0.35, 0.85, 0.4, 1)
     elseif state == "unread" then chip.dot:SetColorTexture(1, 0.62, 0.25, 1)
     else chip.dot:SetColorTexture(0.5, 0.5, 0.5, 1) end
     chip.text:SetText("WoW Helper · " .. words)
-    S.Tooltip(chip, "WoW Helper", "Setup")
+    S.Tooltip(chip, "WoW Helper", at and ("Read " .. at) or "Setup")
     if window.noPad then window.noPad:SetShown(Shell.PadPresent() == false) end
 end
 
@@ -379,6 +383,7 @@ local function Build()
     link.dot:SetSize(7, 7); link.dot:SetPoint("LEFT", 4, 0)
     link.text = S.Text(link, "WoW Helper", 0, 0, 156, 11, S.GREY)
     link.text:SetJustifyH("LEFT")
+    link.text:SetWordWrap(false)
     link.text:ClearAllPoints(); link.text:SetPoint("LEFT", link.dot, "RIGHT", 5, 0)
     link:SetScript("OnClick", function() Shell.Open("setup") end)
     link:SetScript("OnEnter", S.ShowTooltip)

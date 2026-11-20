@@ -234,6 +234,8 @@ local function OldRow(i, r)
     return row
 end
 TS.OldRow = OldRow
+-- (a rule moved from Setup's old list: its row id "old" .. n)
+function TS.IsOld(row) return type(row) == "table" and type(row.id) == "string" and row.id:match("^old%d+$") ~= nil end
 
 -- The old list read: which rules move (by place), which Recommended ids go off
 local function Plan(old)

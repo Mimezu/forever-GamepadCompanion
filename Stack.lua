@@ -468,6 +468,15 @@ function Kind:MoveTo(id, n)
     return true
 end
 
+-- A drag's drop: the cursor dy px under the list's first row, rows step px apart, `shown`
+-- on screen from `offset` (scrolled), `count` in all -> the slot on screen (1..shown) and the
+-- place it lands (MoveTo's n)
+function St.DropSlot(dy, step, shown, offset, count)
+    shown = max(1, min(shown, count - offset))
+    local slot = max(1, min(shown, floor(dy / step) + 1))
+    return slot, max(1, min(count, offset + slot))
+end
+
 function Kind:SetOn(id, on)
     local row = self:Row(id)
     if row then row.on = on and true or false; Changed(self) end

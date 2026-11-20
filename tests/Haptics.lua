@@ -1068,6 +1068,35 @@ do
         if r:IsShown() and r.pick.label.text == "R2 · Detents · Combo points" and r.pick2.label.text == "L2 · Pass" then seen = true end
     end
     assert(seen, "a row shows each trigger's shape")
+    -- the drag (FrameGambit's cards): the third row picked up, a copy follows, dropped on top
+    do
+        local cursorY = 0
+        GetCursorPosition = function() return 0, cursorY end
+        local mouseDown = IsMouseButtonDown
+        IsMouseButtonDown = function() return true end   -- (held while dragging)
+        local third = M.trigRows[3]
+        local id = third.key
+        assert(not third.up and not third.down, "no Up / Down: drag")
+        third.scripts.OnDragStart(third)
+        local drag = M.triggerDrag
+        assert(drag.row == third and drag.ghost:IsShown() and drag.hole:IsShown(), "picked up: a copy follows, its slot held")
+
+        cursorY = -40   -- (the card's top at 0: the first row)
+        drag.ticker.scripts.OnUpdate(drag.ticker, 0)
+        assert(drag.slot == 1, "over the first row: the slot moves there")
+        third.scripts.OnDragStop(third)
+        assert(not drag.row and not drag.ghost:IsShown(), "let go")
+        assert(TS.kind:Rows()[1].id == id and TS.Store().rows[1].id == id, "dropped on top, saved")
+        assert(M.trigRows[1].key == id, "the list shows the new order")
+        third = M.trigRows[2]
+        third.scripts.OnDragStart(third)
+        M.TriggerDrop(true)
+        assert(TS.kind:Rows()[1].id == id, "cancelled: the order as it was")
+        TS.kind:Default()
+        GetCursorPosition = nil
+        IsMouseButtonDown = mouseDown
+        ns.Shell.Refresh()
+    end
     assert(M.trigOtherwise.pick.label.text == "Free", "Otherwise: free")
     M.SetKind("feel")
     assert(M.browser.current ~= "triggers", "back to the moments")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.66.0 — 2026-11-20
+
+- **Triggers: drag to reorder**, as FrameGambit's cards: pick a row up anywhere but its buttons (the `::` grip lights on hover), a copy follows the cursor, the rows close up around the slot it will land in, and the new order is saved on release. Otherwise stays last. The ▲▼ buttons (drawn as empty squares) are gone
+- Each row reads left to right on one middle line: grip, On, **+** requirements, the name, then **L2** and **R2** (wider, no longer cut short), Try, Default, ×. Default is on every row, greyed where there is nothing to go back to, so the columns line up
+- The name sits on the middle line; a second line (Now, Matches) only when there is one. A rule moved from the old Setup list says **Old rule**
+- Otherwise: one **Free** plate across the L2 and R2 columns
+- Triggers' left column: **Now R2** and **Now L2** on two lines (names at 14, values at 120, as Strength), Stop under them
+- Footer: **WoW Helper · read 00:16** (the time alone, on one line; the full date in its tooltip)
+
 ## 0.65.0 — 2026-11-20
 
 - **Gestures: always 12 slots**, one per number (the F key WoW Helper presses). The action stays on its number, so the gesture in WoW Helper and the action here can each change alone
