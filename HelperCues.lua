@@ -112,14 +112,16 @@ local cast = {}
 local low, shooting, attacking = false, false, false
 local swingAt, shotAt          -- the last swing and shot (the swing and shot timers)
 
+local state = {}   -- (one table, filled each tick: TS.Update only reads it)
 local function State()
     local p
     if cast.start then
         local span = cast.finish - cast.start
         p = span > 0 and min(1, max(0, (Now() - cast.start) / span)) or 1
     end
-    return { cast = cast.start ~= nil, progress = p, autoShot = shooting, autoAttack = attacking, lowHp = low,
-        swingAt = swingAt, shotAt = shotAt }
+    state.cast, state.progress, state.autoShot, state.autoAttack = cast.start ~= nil, p, shooting, attacking
+    state.lowHp, state.swingAt, state.shotAt = low, swingAt, shotAt
+    return state
 end
 
 local function UpdateTriggers()
@@ -127,7 +129,6 @@ local function UpdateTriggers()
     if TS then TS.Update(State()) end
 end
 C.UpdateTriggers = UpdateTriggers
-local UpdateR2, UpdateL2 = UpdateTriggers, UpdateTriggers
 
 local ticker = CreateFrame("Frame")
 local acc = 0
@@ -650,13 +651,13 @@ local function Wrap()
             C.Moment(Spelled(C.CueKey(key)), pattern and L.FeelFor(pattern) or nil, { intensity = C.LoopIntensity(key) })
             -- (a looping moment: its HD cue again each cycle while it lasts)
             if V.looping and V.looping.key == key then C.LoopBegan(V.looping) end
-            if key == "lowHp" then low = true; UpdateL2() end
+            if key == "lowHp" then low = true; UpdateTriggers() end
         end
         V.EndLoop = function(key, ...)
             endLoop(key, ...)
             -- (none left: the HD cycles stop now; another under it: picked up)
             if not V.looping then C.LoopStop() end
-            if key == "lowHp" then low = false; UpdateL2() end
+            if key == "lowHp" then low = false; UpdateTriggers() end
         end
     end
     if L and not L.cuesWrapped then
@@ -744,7 +745,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
     end
     if event == "START_AUTOREPEAT_SPELL" or event == "STOP_AUTOREPEAT_SPELL" then
         shooting = event == "START_AUTOREPEAT_SPELL"
-        return UpdateR2()
+        return UpdateTriggers()
     end
     if event == "PLAYER_ENTER_COMBAT" or event == "PLAYER_LEAVE_COMBAT" then
         attacking = event == "PLAYER_ENTER_COMBAT"
@@ -752,7 +753,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
     end
     if event == "PLAYER_DEAD" then
         cast.start, low, shooting, attacking = nil, false, false, false
-        UpdateR2(); UpdateL2()
+        UpdateTriggers()
         return
     end
     if unit and unit ~= "player" then return end
@@ -761,7 +762,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         local s, e = CastTimes(channel)
         if s then cast.start, cast.finish, cast.channel = s, e, channel end
         cast.spell = ns.SpellOverrides and ns.SpellOverrides.NameOf(spellID) or nil
-        UpdateR2()
+        UpdateTriggers()
         spellCast = { id = SpellId(spellID), channel = channel }
         SpellEvent(K.SPELL_CASTING, spellCast.id)
     elseif event == "UNIT_SPELLCAST_DELAYED" then
@@ -770,7 +771,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         if cast.start and not cast.channel then
             cast.start = nil
-            UpdateR2()
+            UpdateTriggers()
             -- (Spell released: its sound, the spell's own first)
             C.Moment(Spelled("release", cast.spell), nil)
         end
@@ -786,7 +787,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         local ran = event == "UNIT_SPELLCAST_CHANNEL_STOP" and cast.start and cast.channel and cast.finish
             and Now() >= cast.finish - 0.3
         cast.start = nil
-        UpdateR2()
+        UpdateTriggers()
         if ran then C.Moment(Spelled("release", cast.spell), nil) end
         if spellCast and (event == "UNIT_SPELLCAST_INTERRUPTED" or spellCast.channel) then
             local channelRan = event == "UNIT_SPELLCAST_CHANNEL_STOP" and (ran or not cast.finish)
@@ -797,7 +798,7 @@ frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
         -- (a cast's end: released or not, the trigger free again shortly)
         local open = spellCast
         C_Timer.After(0.15, function()
-            if cast.start and not cast.channel and not UnitCastingInfo("player") then cast.start = nil; UpdateR2() end
+            if cast.start and not cast.channel and not UnitCastingInfo("player") then cast.start = nil; UpdateTriggers() end
             -- (stopped with no interrupt and no success: cancelled)
             if open and spellCast == open and not open.channel and not UnitCastingInfo("player") then
                 SpellEvent(K.SPELL_STOPPED, open.id)
