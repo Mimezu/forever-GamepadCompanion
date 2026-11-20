@@ -579,3 +579,42 @@ do
     end
     io.write("PASS: the Undead female's steps (her stride), her swings (the measured defaults); a mage's Recommended; a spell's crit lands as itself\n")
 end
+
+---------------------------------------------------------------------------
+-- 5. Mining's crack (2026-11-20, the user: "the crack no longer plays"): a cast the server ends
+-- a touch before its time still cracks, and the crack is the strike firmer, not one more strike
+---------------------------------------------------------------------------
+do
+    V.SetCastPreset("gather", "auto")
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    local cues = {}
+    local cm = C.Moment
+    C.Moment = function(key, feel, opts)
+        if key == "gather:mining" then cues[#cues + 1] = { t = now, intensity = opts and opts.intensity } end
+        return cm(key, feel, opts)
+    end
+    local function mine(ends)
+        cues = {}
+        now = now + 5
+        local t0 = now
+        casting = { now, now + 3.2 }
+        rev("UNIT_SPELLCAST_START", "player", "mine", 2575)
+        run(ends)
+        casting = nil
+        rev("UNIT_SPELLCAST_SUCCEEDED", "player", "mine", 2575)
+        rev("UNIT_SPELLCAST_STOP", "player", "mine", 2575)
+        run(0.3)
+        RunTimers()
+        return cues, t0
+    end
+    local c = mine(3.2)
+    assert(#c == 2 and c[1].intensity == nil and c[2].intensity == 6, "a strike, then the crack firmer: " .. #c)
+    c = mine(3.1)
+    assert(#c == 2 and c[2].intensity == 6, "ended 0.1 s early: the crack all the same, at the end: " .. #c)
+    c = mine(2.0)
+    assert(#c == 2, "even a short one: its strike and its crack")
+    C.Moment, K.Enabled = cm, enabled
+    io.write("PASS: mining: the crack plays firmer than a strike, even when the cast ends before its time\n")
+end

@@ -41,6 +41,7 @@
 - Skinning: the hide pulled free as it succeeds. Tailoring: bolts of cloth wound and patted down
 - Undead female: her own steps (a longer stride) until WoW Helper learns them
 - Mage Recommended: Low mana, Enemy casts at you, Aggro on
+- Mining: the ore cracking loose is felt firmer than a strike, and plays even when the cast ends a moment early
 
 ## 0.69.2 — 2026-11-20
 

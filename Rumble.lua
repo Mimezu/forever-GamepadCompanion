@@ -1601,7 +1601,7 @@ local function Strikes(now)
         t.strikeN, t.strikeAt, t.crackNow = k, now, isCrack
         if isCrack then t.cracked = now end
         -- (its HD with it, one per strike: unless WoW Helper plays them)
-        if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes) end
+        if not cast.helperTimed and V.StrikeHD then V.StrikeHD(t.strikes, isCrack) end
     end
     if not t.strikeAt then return 0, 0 end
     -- (Full feels: each strike and the crack play the action's plain rumble, on the strikes' clock)
@@ -1624,12 +1624,13 @@ end
 -- A strike's HD feel (the pickaxe's) and the action's sound ("gather:mining"),
 -- sent with the rumble's strike, the crack too: once a strike (the cast's start
 -- sends none: V.cueTimed). The strikes' own clock, not the loop's (each cycle
--- from the cast's start was out of step with the swings)
-function V.StrikeHD(action)
+-- from the cast's start was out of step with the swings). The crack: the strike firmer
+-- (intensity 6, as WoW Helper's own finish), so the ore breaking loose isn't one more strike
+function V.StrikeHD(action, crack)
     local C, L = ns.HelperCues, ns.HapticsLab
     if not (C and C.Moment and L) then return end
     local p = V.EventPattern("cast")
-    if p then C.Moment(V.GatherKey(action) or "gather", L.FeelFor(p)) end
+    if p then C.Moment(V.GatherKey(action) or "gather", L.FeelFor(p), crack and { intensity = 6 } or nil) end
 end
 
 -- The ore breaks loose: a longer crack, then crumbling taps left and right
@@ -2579,6 +2580,13 @@ local function CastReleased()
     -- (a damaging spell, its family's set: felt as it lands; a mage's bolt, its own impact)
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
         and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact) then return end
+    -- (the cast done before the crack's time (the server's end a touch early: 3.14 s against
+    -- 3.2): the crack's HD now, as the ore breaks loose; else it never went)
+    local tm = cast.timing
+    if tm and tm.strikes and not tm.cracked and not cast.helperTimed and V.StrikeHD then
+        tm.cracked = GetTime()
+        V.StrikeHD(tm.strikes, true)
+    end
     if cast.shaped and not cast.timing.fishing then
         if cast.timing.strikes then V.Crack(cast.timing.cracked) else V.Release() end
     end
