@@ -220,6 +220,14 @@ assert(table.concat(played, ",") == "tick,micro,pulse", "open, slot, fire; close
 V.SetEventPattern("haloClose", "fade")
 now = now + 1; HaloFire("close", 1, nil)
 assert(played[4] == "fade", "close the ring")
+-- Your abilities: the gap is per ability (a Judgement 0.05 s after a seal plays; the same twice doesn't)
+played = {}
+GetTime = function() return now end
+now = now + 1; V.instantMove = "seal"; V.Fire("instant")
+now = now + 0.05; V.instantMove = "judge"; V.Fire("instant")
+now = now + 0.05; V.instantMove = "judge"; V.Fire("instant")
+V.instantMove, GetTime = nil, nil
+assert(#played == 2, "seal then Judgement both felt, the repeat dropped: " .. table.concat(played, ","))
 V.Play = realPlay
 io.write("PASS: engine ported: profile settings, defaults, events, off beside the original, Halo rings\n")
 

@@ -2,6 +2,7 @@
 
 ## Unreleased (0.69.3)
 
+- Fixed: a Judgement right after a seal was sometimes not felt. Your abilities' 0.15 s gap is now per ability, not shared
 - Fixed: a blank realm at login made your character a new one, with fresh default profiles ("Alberich 2"). Now it finds your character by name; the stray one is dropped and its profiles stay in the list
 - L1 and R1 locked: Blizzard's target bars, on every layer (L1, R1, both together, with L2 / R2). Nothing of ours goes there; saved actions on them drop
 - Fixed: Focus UI on a touchpad zone stuck the whole pad on Focus UI. Blizzard functions (Focus UI, Radial) now go on buttons only, where their binding never moves; zones that had one are cleared, with a word in chat

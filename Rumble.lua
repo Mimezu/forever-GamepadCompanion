@@ -1553,8 +1553,11 @@ function V.Fire(eventKey)
     local now = GetTime()
     local combo = EVENT[eventKey].combo
     local since = last[eventKey] and now - last[eventKey]
-    if since and since < (EVENT[eventKey].gap or (combo and 0.15 or 0.4)) then return end
-    last[eventKey] = now
+    -- (Your abilities: the gap is per ability, a Judgement right after a seal is not a repeat)
+    local gapKey = eventKey == "instant" and V.instantMove and ("instant:" .. V.instantMove) or eventKey
+    local sinceSame = last[gapKey] and now - last[gapKey]
+    if sinceSame and sinceSame < (EVENT[eventKey].gap or (combo and 0.15 or 0.4)) then return end
+    last[eventKey], last[gapKey] = now, now
     -- (Full feels: WoW Helper's plain rumble instead, when it has one)
     local points, scale = Plain(eventKey)
     if points then
