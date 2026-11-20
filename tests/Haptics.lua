@@ -461,14 +461,15 @@ for _, key in ipairs({ "feels", "editor", "tune", "timing", "link", "probes" }) 
     ui.Select(key)
     assert(ui.panels[key]:IsShown(), key .. " shown")
 end
--- Gestures: a grid of cards, only those that exist; none yet: the empty state; WoW Helper's words and path; the last one
+-- Gestures: always 12 slots; WoW Helper's gesture at each number apart from the action here
 do
     local G = ns.Gestures
     local page = ns.GesturesPage
     for slot = 1, G.SLOTS do G.Set(slot, nil) end
     ns.Shell.Open("gestures")
     local function visible() local n = 0 for _, r in ipairs(page.cards) do if r:IsShown() then n = n + 1 end end return n end
-    assert(visible() == 0 and page.empty:IsShown() and not page.record:IsShown(), "no gestures: the empty state, no cards")
+    assert(visible() == 12 and page.cards[1].name.text == "Empty" and page.cards[1].hint:IsShown(),
+        "no gestures: still 12 slots, each with the reminder")
     G.Set(2, "text:/dance")
     -- (WoW Helper's data: the names, and gestureInfo with the motion, mode, ready and a path in -1..1, y up)
     WowHelperData = { at = "18:02", gesturesEnabled = true, gestures = { [5] = "flick up", [7] = "Shake" },
@@ -478,25 +479,25 @@ do
     local pts = ns.HelperCues.GesturePath({ -1, 1, 1, -1 })
     assert(pts[1][1] == 0 and pts[1][2] == 0 and pts[2][1] == 1 and pts[2][2] == 1, "the path: -1..1 y up to the box's 0..1 y down")
     ns.Shell.Refresh()
-    assert(visible() == 4 and not page.empty:IsShown(), "recorded ones and the one with an action: " .. visible())
-    local dance, flick, shake, spin = page.cards[1], page.cards[2], page.cards[3], page.cards[4]
-    assert(dance.slot == 2 and dance.pick.label.text == "Dance" and dance.action, "slot 2: /dance, by its name: " .. tostring(dance.pick.label.text))
-    assert(flick.slot == 5 and flick.name.text == "Flick Up" and flick.pick.label.text == "Choose" and not flick.action,
-        "recorded, unassigned: its name in title case, Choose")
+    assert(visible() == 12, "always 12: " .. visible())
+    local dance, flick, shake, spin = page.cards[2], page.cards[5], page.cards[7], page.cards[9]
+    assert(dance.slot == 2 and dance.pick.label.text == "Dance" and dance.action and dance.hint:IsShown(),
+        "slot 2: /dance kept with no gesture there, and the reminder: " .. tostring(dance.pick.label.text))
+    assert(flick.name.text == "Flick Up" and flick.pick.label.text == "Choose" and not flick.action and not flick.hint:IsShown(),
+        "recorded, unassigned: its name in title case, Choose, no reminder")
     assert(shake.desc.text == "Shake twice  ·  Standard" and flick.desc.text == "", "what it is: its motion and mode, else nothing")
     assert(spin.name.text == "Spin" and spin.desc.text == "Not ready", "not ready: calmly")
     assert(flick.pick.tipBody == "Ctrl Shift Alt F5", "the chord only in the tooltip")
-    assert(page.record:IsShown() and page.status.count.text == "4 of 12" and page.status.mode.text == "On",
-        "the record card last; the status: how many, recognition on")
+    assert(page.status.count.text == "3 of 12" and page.status.mode.text == "On", "the status: how many recorded, recognition on")
     -- the last gesture, as it runs
     GamepadCompanionGestures.scripts.OnClick(GamepadCompanionGestures, "g5", true)
     assert(G.last.slot == 5 and page.status.lastName.text == "Flick Up", "Last gesture: " .. tostring(page.status.lastName.text))
     dance.clear.scripts.OnClick(dance.clear)
-    assert(G.Get(2) == nil and visible() == 3, "× takes it off; not recorded: it goes")
+    assert(G.Get(2) == nil and visible() == 12 and dance.pick.label.text == "Choose", "× takes the action off; the slot stays")
     WowHelperData = nil
     G.last = nil
     ns.Shell.Open("lab")
-    io.write("PASS: gestures page: cards, title case, WoW Helper's words, the record card, the status, the last gesture" .. string.char(10))
+    io.write("PASS: gestures page: 12 slots, the reminder, WoW Helper's words, the status, the last gesture" .. string.char(10))
 end
 local function button(label)
     for _, f in ipairs(created) do

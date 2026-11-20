@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.65.0 — 2026-11-20
+
+- **Gestures: always 12 slots**, one per number (the F key WoW Helper presses). The action stays on its number, so the gesture in WoW Helper and the action here can each change alone
+- Each card: its number engraved large, the gesture's name and motion, the action's icon in a round gold socket, the action plate. No gesture at that number in WoW Helper: a small amber reminder, "Record in WoW Helper"
+- The record card and the empty state are gone (the 12 slots say it)
+
 ## 0.64.1 — 2026-11-20
 
 - Gesture cards: the action's icon, large, in place of the motion drawing (hard to read). The motion stays in words under the name

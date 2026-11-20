@@ -1,10 +1,10 @@
 -- The Gestures tab: what each gesture runs, as a grid of cards that fills the
--- page, and a status column. Only the gestures that exist show: recorded in
--- WoW Helper (its data addon names them, and may describe them in a few
--- words) or already given an action here. A card: what it does
+-- page, and a status column. Always 12 slots, one per number (the key WoW
+-- Helper presses): the gesture recorded there in WoW Helper (named and
+-- described by its data addon; none: a small reminder) and, apart from it,
+-- the action given here, so either can change alone. A card: what it does
 -- (the action's icon, large), its name, the motion in words, and
--- the action on a plate (Choose); a quiet × on hover. The last card points to
--- WoW Helper to record one more. The status column: the link, how many, the
+-- the action on a plate (Choose); a quiet × on hover. The status column: the link, how many, the
 -- helper's mode, and the last gesture that ran (on the gesture's own click,
 -- no polling). The key chord WoW Helper presses stays in the tooltip.
 local _, ns = ...
@@ -14,11 +14,11 @@ local W, PH = Shell.W, Shell.H
 local ui = { cards = {} }
 local ACCEPTS = ns.TouchModel.ACCEPTS
 local GLYPH = "Interface\\AddOns\\GamepadCompanion\\Media\\tab-gestures"
-local GAP, STATUS_W, COLS = 14, 250, 3
+local GAP, STATUS_W, COLS = 14, 250, 4
 local GRID_W = W - STATUS_W - GAP
 local CARD_W = math.floor((GRID_W - (COLS - 1) * GAP) / COLS)
-local CARD_H = 140              -- (the cards share the page's height: Place)
-local TALL = 190                -- taller than this: the icon large, above the name
+local ROWS = 3                  -- 12 slots: 4 x 3, always
+local CARD_H = math.floor((PH - (ROWS - 1) * GAP) / ROWS)
 
 -- "wave" -> "Wave", "sit down" -> "Sit Down"
 local function Title(s)
@@ -32,17 +32,22 @@ local function Recorded(slot)
     return C and type(C.Gesture) == "function" and C.Gesture(slot) or nil
 end
 
--- The gestures to show, in slot order: recorded, or with an action
+-- The 12 slots, in order: each with WoW Helper's gesture there (or none)
 function ui.Shown()
     local G = ns.Gestures
     local list = {}
     for slot = 1, G.SLOTS do
         local rec = Recorded(slot)
-        if rec or G.Get(slot) then
-            list[#list + 1] = { slot = slot, name = Title(rec and rec.name or G.Label(slot)), rec = rec }
-        end
+        list[slot] = { slot = slot, name = rec and Title(rec.name or G.Label(slot)) or "Empty", rec = rec }
     end
     return list
+end
+
+-- A texture cut round (the client's circle mask, when it has one)
+local function Round(frame, tex)
+    if not (frame.CreateMaskTexture and tex.AddMaskTexture) then return end
+    local mask = frame:CreateMaskTexture()
+    if mask then mask:SetAtlas("CircleMask"); mask:SetAllPoints(tex); tex:AddMaskTexture(mask) end
 end
 
 local function Pick(card)
@@ -55,18 +60,53 @@ end
 local function Card(parent, i)
     local card = S.Card(parent, nil, 0, 0, CARD_W, CARD_H)
     card:EnableMouse(true)
-    -- what it does, large: the action's icon (none yet: the Gestures glyph, dim)
-    card.glyphBox = CreateFrame("Frame", nil, card)
-    card.glyphBox:SetSize(56, 56)
-    card.glyph = card.glyphBox:CreateTexture(nil, "ARTWORK")
-    card.glyph:SetAllPoints()
-    -- its name and what it is
-    card.name = S.Text(card, "", 0, 0, CARD_W - 82 - 34, 14, S.YELLOW)
+    card.slot = i
+    local col, row = (i - 1) % COLS, math.floor((i - 1) / COLS)
+    card:SetPoint("TOPLEFT", col * (CARD_W + GAP), -row * (CARD_H + GAP))
+    -- the slot's number, large and engraved, behind everything
+    card.num = card:CreateFontString(nil, "BACKGROUND")
+    card.num:SetFont(STANDARD_TEXT_FONT, 72, "")
+    card.num:SetPoint("TOPRIGHT", -12, -6)
+    card.num:SetText(tostring(i))
+    card.num:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3], 0.13)
+    -- the gesture there and its motion in words
+    card.name = S.Text(card, "", 16, -16, CARD_W - 32 - 50, 14, S.YELLOW)
     card.name:SetWordWrap(false)
-    card.desc = S.Text(card, "", 0, 0, CARD_W - 82 - 14, 11, S.GREY)
+    card.desc = S.Text(card, "", 16, -36, CARD_W - 32 - 50, 11, S.GREY)
     card.desc:SetWordWrap(false)
+    -- no gesture in WoW Helper at this number: a small reminder
+    card.hint = CreateFrame("Frame", nil, card)
+    card.hint:SetSize(CARD_W - 32, 16)
+    card.hint:SetPoint("TOPLEFT", 14, -34)
+    card.hint:EnableMouse(true)
+    local dot = card.hint:CreateTexture(nil, "ARTWORK")
+    dot:SetSize(7, 7)
+    dot:SetPoint("LEFT", 2, 0)
+    dot:SetColorTexture(1, 0.66, 0.2, 0.9)
+    Round(card.hint, dot)
+    card.hint.text = S.Text(card.hint, "Record in WoW Helper", 14, -2, CARD_W - 50, 11, S.GREY)
+    S.Tooltip(card.hint, "No gesture", "WoW Helper › Gestures › " .. i)
+    -- what it does, large: the action's icon in a round gold socket
+    card.glyphBox = CreateFrame("Frame", nil, card)
+    card.glyphBox:SetSize(64, 64)
+    card.glyphBox:SetPoint("CENTER", 0, 2)
+    card.ring = card.glyphBox:CreateTexture(nil, "BORDER")
+    card.ring:SetAllPoints()
+    card.ring:SetColorTexture(S.GOLD[1], S.GOLD[2], S.GOLD[3], 0.55)
+    Round(card.glyphBox, card.ring)
+    card.well = card.glyphBox:CreateTexture(nil, "ARTWORK", nil, -1)
+    card.well:SetPoint("CENTER")
+    card.well:SetSize(60, 60)
+    card.well:SetColorTexture(0, 0, 0, 0.85)
+    Round(card.glyphBox, card.well)
+    card.glyph = card.glyphBox:CreateTexture(nil, "ARTWORK")
+    card.glyph:SetPoint("CENTER")
+    card.glyph:SetSize(56, 56)
+    Round(card.glyphBox, card.glyph)
     -- the action, on its plate, at the foot
     card.pick = S.NewButton(card, "", 14, 0, CARD_W - 28, function() Pick(card) end, nil, 12, 40)
+    card.pick:ClearAllPoints()
+    card.pick:SetPoint("BOTTOMLEFT", 14, 14)
 
     card.pick.icon = card.pick:CreateTexture(nil, "OVERLAY")
     card.pick.icon:SetSize(26, 26)
@@ -88,57 +128,6 @@ local function Card(parent, i)
         f:HookScript("OnEnter", function() Hover(true) end)
         f:HookScript("OnLeave", function() Hover(card:IsMouseOver()) end)
     end
-    card:Hide()
-    return card
-end
-
--- A card's parts for its height: short, the motion beside the name; tall,
--- the motion large and the name under it, the block centred above the plate
-local function Layout(card, h)
-    local box, name, desc, pick = card.glyphBox, card.name, card.desc, card.pick
-    box:ClearAllPoints(); name:ClearAllPoints(); desc:ClearAllPoints(); pick:ClearAllPoints()
-    if h <= TALL then
-        pick:SetPoint("BOTTOMLEFT", 14, 14)
-        box:SetSize(56, 56)
-        box:SetPoint("TOPLEFT", 14, -14)
-        name:SetPoint("TOPLEFT", 82, -20); name:SetWidth(CARD_W - 82 - 34); name:SetJustifyH("LEFT")
-        desc:SetPoint("TOPLEFT", 82, -42); desc:SetWidth(CARD_W - 82 - 14); desc:SetJustifyH("LEFT")
-        return
-    end
-    -- (the motion, the name, what it is and the plate: one block, centred)
-    local g = math.max(56, math.min(200, h - 230))
-    local block = g + 14 + 18 + 6 + 14 + 22 + 40
-    local top = math.floor((h - block) / 2)
-    box:SetSize(g, g)
-    box:SetPoint("TOP", 0, -math.max(20, top))
-    name:SetPoint("TOP", box, "BOTTOM", 0, -14); name:SetWidth(CARD_W - 40); name:SetJustifyH("CENTER")
-    desc:SetPoint("TOP", name, "BOTTOM", 0, -6); desc:SetWidth(CARD_W - 28); desc:SetJustifyH("CENTER")
-    pick:SetPoint("TOP", desc, "BOTTOM", 0, -22)
-end
-
--- Every shown card (the record card too) sharing the grid's height
-local function Place(cards)
-    local rows = math.max(1, math.ceil(#cards / COLS))
-    local h = math.floor((PH - (rows - 1) * GAP) / rows)
-    for i, card in ipairs(cards) do
-        local col, row = (i - 1) % COLS, math.floor((i - 1) / COLS)
-        card:ClearAllPoints()
-        card:SetPoint("TOPLEFT", col * (CARD_W + GAP), -row * (h + GAP))
-        card:SetSize(CARD_W, h)
-        if card.glyphBox then Layout(card, h) end
-    end
-    return h
-end
-ui.Place = Place
-
--- One more: where gestures are recorded
-local function RecordCard(parent)
-    local card = S.Card(parent, nil, 0, 0, CARD_W, CARD_H)
-    local plus = S.Text(card, "+", 0, 0, CARD_W, 28, S.GOLD)
-    plus:ClearAllPoints(); plus:SetPoint("CENTER", 0, 16); plus:SetJustifyH("CENTER")
-    local t = S.Text(card, "Record in WoW Helper", 0, 0, CARD_W - 20, 13, S.GOLD)
-    t:ClearAllPoints(); t:SetPoint("TOP", plus, "BOTTOM", 0, -6); t:SetJustifyH("CENTER")
-    card:SetAlpha(0.6)
     return card
 end
 
@@ -180,50 +169,44 @@ local function Refresh()
     local G = ns.Gestures
     if not (G and ui.grid) then return end
     local list = ui.Shown()
+    local n = 0
     for i, card in ipairs(ui.cards) do
         local g = list[i]
-        card:SetShown(g ~= nil)
-        if g then
-            card.slot = g.slot
-            local action = G.Get(g.slot)
-            card.action = action
-            local name, icon
-            if action and ns.Touch then name, icon = ns.Touch.ActionLook(action) end
-            card.name:SetText(g.name)
-            local rec = g.rec or {}
-            -- (what it is: WoW Helper's words and its mode; Not ready, calmly)
-            local desc = rec.desc or ""
-            if rec.mode then desc = desc ~= "" and (desc .. "  ·  " .. Title(rec.mode)) or Title(rec.mode) end
-            if rec.ready == false then desc = "Not ready" end
-            -- (words that only repeat the name say nothing)
-            if desc:lower() == g.name:lower() then desc = "" end
-            card.desc:SetText(desc)
-            -- (a lone typed command by its name: /sit -> Sit)
-            local command = action and action:match("^text:/([%a]+)%s*$")
-            if command then name = Title(command) end
-            card.pick:SetAlpha(action and 1 or 0.7)
-            card.glyph:SetTexture(icon or GLYPH)
-            card.glyph:SetAlpha(action and 1 or 0.35)
-            card.pick.icon:SetTexture(icon or "Interface\\AddOns\\GamepadCompanion\\Media\\tab-controller")
-            card.pick.icon:SetDesaturated(action == nil)
-            card.pick.icon:SetAlpha(action and 1 or 0.5)
-            card.pick.label:SetText(action and (name or action) or "Choose")
-            if action then card.pick.label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
-            else card.pick.label:SetTextColor(S.GREY[1], S.GREY[2], S.GREY[3]) end
-            S.Tooltip(card.pick, g.name, (G.IsPending() and "After combat · " or "") .. "Ctrl Shift Alt F" .. g.slot)
-            card.clear:SetAlpha(action and card:IsMouseOver() and 1 or 0)
-        end
+        local action = G.Get(g.slot)
+        card.action = action
+        local name, icon
+        if action and ns.Touch then name, icon = ns.Touch.ActionLook(action) end
+        local rec = g.rec
+        if rec then n = n + 1 end
+        card.name:SetText(g.name)
+        card.name:SetTextColor(unpack(rec and S.YELLOW or S.DIM))
+        -- (what it is: WoW Helper's words and its mode; Not ready, calmly)
+        local desc = rec and rec.desc or ""
+        if rec and rec.mode then desc = desc ~= "" and (desc .. "  ·  " .. Title(rec.mode)) or Title(rec.mode) end
+        if rec and rec.ready == false then desc = "Not ready" end
+        -- (words that only repeat the name say nothing)
+        if desc:lower() == g.name:lower() then desc = "" end
+        card.desc:SetText(desc)
+        card.desc:SetShown(rec ~= nil)
+        card.hint:SetShown(rec == nil)
+        -- (a lone typed command by its name: /sit -> Sit)
+        local command = action and action:match("^text:/([%a]+)%s*$")
+        if command then name = Title(command) end
+        card.glyph:SetTexture(icon or GLYPH)
+        card.glyph:SetDesaturated(rec == nil)
+        card.glyph:SetAlpha(action and (rec and 1 or 0.6) or 0.25)
+        card.ring:SetAlpha(action and rec and 1 or 0.35)
+        card.num:SetAlpha(rec and 1 or 0.6)
+        card.pick:SetAlpha(action and 1 or 0.7)
+        card.pick.icon:SetTexture(icon or "Interface\AddOns\GamepadCompanion\Media\tab-controller")
+        card.pick.icon:SetDesaturated(action == nil)
+        card.pick.icon:SetAlpha(action and 1 or 0.5)
+        card.pick.label:SetText(action and (name or action) or "Choose")
+        if action then card.pick.label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
+        else card.pick.label:SetTextColor(S.GREY[1], S.GREY[2], S.GREY[3]) end
+        S.Tooltip(card.pick, rec and g.name or ("Gesture " .. g.slot), (G.IsPending() and "After combat · " or "") .. "Ctrl Shift Alt F" .. g.slot)
+        card.clear:SetAlpha(action and card:IsMouseOver() and 1 or 0)
     end
-    local n = #list
-    -- the record card after the last (none when every slot is taken); the
-    -- cards share the page's height, so the grid is never half empty
-    local free = n < G.SLOTS
-    ui.record:SetShown(free and n > 0)
-    local placed = {}
-    for i = 1, n do placed[i] = ui.cards[i] end
-    if free and n > 0 then placed[#placed + 1] = ui.record end
-    ui.cardH = Place(placed)
-    ui.empty:SetShown(n == 0)
     -- status
     local s = ui.status
     local K, C = ns.HelperLink, ns.HelperCues
@@ -244,19 +227,6 @@ local function Build(frame)
     ui.grid:SetPoint("TOPLEFT", 0, 0)
     ui.grid:SetSize(GRID_W, PH)
     for i = 1, G.SLOTS do ui.cards[i] = Card(ui.grid, i) end
-    ui.record = RecordCard(ui.grid)
-    -- the empty state: the whole grid, calm
-    ui.empty = S.Card(ui.grid, nil, 0, 0, GRID_W, PH)
-    local glyph = ui.empty:CreateTexture(nil, "ARTWORK")
-    glyph:SetTexture(GLYPH)
-    glyph:SetSize(72, 72)
-    glyph:SetPoint("CENTER", 0, 40)
-    glyph:SetAlpha(0.7)
-    local title = S.Text(ui.empty, "No gestures yet", 0, 0, GRID_W, 15, S.GOLD)
-    title:ClearAllPoints(); title:SetPoint("TOP", glyph, "BOTTOM", 0, -14); title:SetJustifyH("CENTER")
-    local hint = S.Text(ui.empty, "Record them in WoW Helper › Gestures", 0, 0, GRID_W, 12, S.GREY)
-    hint:ClearAllPoints(); hint:SetPoint("TOP", title, "BOTTOM", 0, -8); hint:SetJustifyH("CENTER")
-    ui.empty:Hide()
     -- the status column
     local s = S.Card(frame, "WoW Helper", GRID_W + GAP, 0, STATUS_W, PH)
     ui.status = s
