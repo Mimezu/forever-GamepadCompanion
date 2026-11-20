@@ -165,6 +165,20 @@ check(text and text:find("^GPC1:feel:") and not text:find("hitTiming", 1, true),
 local name, kind = P.Import(text, "From Alberich")
 check(kind == "feel" and Same(P.DB().feel[name].events, P.DB().feel.Melee.events), "import: the same")
 check(P.Import("GPC1:feel:{os.exit()}") == nil, "import: data only")
+-- a typed macro's parentheses are data: it round-trips; a call outside a string stays refused
+do
+    local macro = "text:/cast Frostbolt(Rank 1)\n/run print(\"a\\\"b\")"
+    local c = P.New("controls", "Macros")
+    P.DB().controls[c].char = { version = 1, keys = { PAD1 = { base = macro } } }
+    local ctext = P.Export("controls", c)
+    local cname, ckind = P.Import(ctext, "Macros shared")
+    check(ckind == "controls" and P.DB().controls[cname].char.keys.PAD1.base == macro, "import: a rank macro round-trips")
+    check(P.Delete("controls", cname) and P.Delete("controls", c), "the macro copies deleted")
+end
+check(P.Import('GPC1:feel:{a=("x"):rep(9)}') == nil, "import: a method call still refused")
+check(P.Import("GPC1:feel:{a='\"',b=(\"x\"):rep(9),c='\"'}") == nil, "import: a quote in another quote hides nothing")
+check(P.Import('GPC1:feel:{a=1 --"\n,b=("x"):rep(9) --"\n}') == nil, "import: no comments")
+check(P.Import('GPC1:feel:{a=[["]],b=("x"):rep(9),c=[["]]}') == nil, "import: no long strings")
 Logout()
 
 -- 6b. A logout that never ran (a crash after a save): duplicates only, never another's settings

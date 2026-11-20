@@ -422,11 +422,37 @@ function P.Export(kind, name)
 end
 
 -- A shared text -> a new profile (its name), or nil, why
+-- The body with its quoted strings blanked (a macro's "(Rank 1)" is data, not a call).
+-- Comments and long brackets are never written by Serialize: refused (they could hide a quote).
+local function Code(body)
+    local out, i, n = {}, 1, #body
+    while i <= n do
+        local c = body:sub(i, i)
+        if c == '"' or c == "'" then
+            out[#out + 1] = '""'
+            i = i + 1
+            while i <= n do
+                local d = body:sub(i, i)
+                if d == "\\" then i = i + 2
+                elseif d == c then i = i + 1; break
+                else i = i + 1 end
+            end
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    return table.concat(out)
+end
+
 function P.Import(text, name)
     if type(text) ~= "string" then return nil, "Not a profile" end
     local kind, body = text:match("^%s*GPC1:(%a+):(.+)$")
     if not (kind == "feel" or kind == "controls") then return nil, "Not a profile" end
-    if body:find("function") or body:find("[%a_]+%s*%(") then return nil, "Not a profile" end
+    local code = Code(body)
+    if code:find("function") or code:find("[%a_]+%s*%(") or code:find("--", 1, true) or code:find("%[=*%[") then
+        return nil, "Not a profile"
+    end
     local load = loadstring or load
     local fn = load and load("return " .. body)
     if not fn then return nil, "Not a profile" end
