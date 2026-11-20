@@ -42,6 +42,9 @@ P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
     DRUID = { events = { combo = true, comboFull = true } },
     HUNTER = { vibration = { shot = true } },
+    -- (a mage: low mana, an enemy's cast (Counterspell's moment) and aggro matter to cloth;
+    -- the wand's shots on; melee swings stay off)
+    MAGE = { events = { oom = true, targetCast = true, aggro = true }, vibration = { shot = true, autoAttack = false } },
 }
 
 -- A Feel profile as shipped for a class

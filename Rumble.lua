@@ -351,6 +351,17 @@ local MAGE_PATTERNS = {
     { key = "conjure", label = "Conjure", art = "shimmer",
         steps = { { 0.05, 0, 0.1 }, { 0, 0, 0.1 }, { 0, 0.07, 0.1 }, { 0, 0, 0.1 }, { 0.1, 0.1, 0.1 }, { 0, 0, 0.25 } },
         pulses = { cycle = 0.75, MPu(0, 0.05, 0.05, -0.4), MPu(0.18, 0.05, 0.07, 0.4), MPu(0.4, 0.05, 0.1) } },
+    -- (her professions: skinning's finish, the hide pulled free; Tailoring's bolts of cloth, wound
+    -- round and patted down: cloth, not a needle)
+    { key = "peel", label = "Peeled", art = "skin", group = "Crafts",
+        steps = { { 0.12, 0.08, 0.25 }, { 0.2, 0.3, 0.1 }, { 0.1, 0.1, 0.1 } },
+        pulses = { MPu(0, 0.25, 0.12, -0.3), MPu(0.28, 0.08, 0.3, 0.3), MPu(0.45, 0.1, 0.1) } },
+    { key = "roll", label = "Bolt", art = "sew", group = "Crafts",
+        steps = { { 0.06, 0, 0.15 }, { 0, 0, 0.15 }, { 0, 0.06, 0.15 }, { 0, 0, 0.15 }, { 0.14, 0.14, 0.1 }, { 0, 0, 0.2 } },
+        pulses = { cycle = 0.9, MPu(0, 0.15, 0.06, -0.5), MPu(0.3, 0.15, 0.06, 0.5), MPu(0.62, 0.08, 0.14) } },
+    { key = "bolt", label = "Bolted", art = "sew", group = "Crafts",
+        steps = { { 0.22, 0.22, 0.1 }, { 0, 0, 0.06 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.1, 0.22), MPu(0.16, 0.05, 0.08) } },
 }
 for _, p in ipairs(MAGE_PATTERNS) do
     p.action, p.mage = true, true
@@ -358,6 +369,12 @@ for _, p in ipairs(MAGE_PATTERNS) do
     V.PATTERNS[#V.PATTERNS + 1] = p
 end
 V.MAGE_PATTERNS = MAGE_PATTERNS
+-- A gathering's finish, once as it succeeds (mining has its crack)
+V.GATHER_FINISH = { skinning = "peel" }
+-- Tailoring's bolts of cloth (Linen, Wool, Silk, Mageweave, Runecloth; Forever's Qiraji Silk): the
+-- cloth wound onto the bolt, then patted down
+V.BOLT_IDS = { [2963] = true, [2964] = true, [3839] = true, [3865] = true, [18401] = true, [1214173] = true }
+V.BOLT_LOOP, V.BOLT_FINISH = "roll", "bolt"
 
 -- What each mage spell plays (first rank's ID: every rank shares its name).
 -- move, when: an instant's feel, at the "cast" or as it lands ("hit"); impact: a
@@ -1001,6 +1018,10 @@ function V.EventPattern(eventKey)
         elseif preset and preset.auto then
             local kind = CAST_KIND[V.castKind]
             preset = PRESET[V.castAction] or PRESET[kind and kind.fallback or "subtle"]
+        end
+        -- (a bolt of cloth: wound, not stitched)
+        if eventKey == "cast" and V.castBolt and not V.castSet and preset and preset.cast == (PRESET.tailoring or {}).cast then
+            return V.BOLT_LOOP
         end
         return preset and preset[PHASE[eventKey]] or nil
     end
@@ -2389,6 +2410,12 @@ function V.GatherMarker(action, phase)
         item = pattern and L and C.MomentItem(V.GatherKey(action) or "gather", L.FeelFor(pattern))
         if type(item) ~= "table" then item = nil end
     end
+    -- (a gathering's finish, the hide pulled free: WoW Helper plays it at once)
+    if phase == "succeeded" and V.GATHER_FINISH[action] and V.ActionPattern(action) and C and C.MomentItem then
+        local L = ns.HapticsLab
+        item = L and C.MomentItem(V.GatherKey(action) or "gather", L.FeelFor(V.GATHER_FINISH[action]), { noSound = true })
+        if type(item) ~= "table" then item = nil end
+    end
     local carries = item ~= nil and ((item.touch or 0) > 0 or (item.sound or 0) > 0)
     item = item or {}
     item.moment, item.side, item.seed, item.level, item.open = base + GATHER_PHASE[phase], race, sexBit + steps, 0, nil
@@ -2409,6 +2436,7 @@ local function CastStarted(event, _, guid, spellID)
     -- (a gathering cast still open: it stopped)
     GatherEnd(false)
     V.castKind, V.castAction = CastKind(spellID)
+    V.castBolt = V.castKind == "craft" and V.castAction == "tailoring" and not secret(spellID) and V.BOLT_IDS[spellID] or nil
     -- (the spell's own choice: off, its set, its volume; Your spells)
     local rule = V.castKind == "spell" and V.SpellRule(spellID, 1) or nil
     V.castSet = rule and rule.own and rule.set or nil
@@ -2493,6 +2521,11 @@ local function CastReleased()
     end
     -- (a craft made: its finish, once, at the craft's volume)
     local finish = V.castKind == "craft" and not V.castSet and V.CraftFinish(V.castAction)
+    if finish and V.castBolt then finish = V.BOLT_FINISH end
+    -- (a gathering's own finish: the hide pulled free)
+    if V.castKind == "gather" and not V.castSet and V.GATHER_FINISH[V.castAction] and V.ActionPattern(V.castAction) then
+        finish = V.GATHER_FINISH[V.castAction]
+    end
     if finish and V.Active() then V.Play(finish, false, V.Scaled(nil, V.ActionKey(V.castAction))) end
 end
 
@@ -3529,6 +3562,12 @@ end
 
 function V.AbilityImpact(move, result, far, gain)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+    -- (a mage's spell crits: its own impact at full, then the crit as you set it; Critical hit:
+    -- ranged is off by default, and a spell's crit would else play nothing)
+    if result == "crit" and far and PATTERN[move] and PATTERN[move].mage then
+        V.instantMove = move
+        V.Fire("instant")
+    end
     if result == "crit" then return YourCrit(far and true or false) end
     if result ~= "hit" then
         local lab = LAB_RESULT[result]

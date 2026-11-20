@@ -20,6 +20,11 @@ for line in io.lines(root .. "/tests/fixtures/mage-spells.txt") do
 end
 -- (the ranks no skill line lists, cast all the same: Arcane Missiles' top rank)
 byId[25345] = byId[25345] or { id = 25345, name = "Arcane Missiles", cast = 0, channel = true }
+-- (her professions)
+for id, n in pairs({ [8613] = { "Skinning", 2000 }, [2575] = { "Mining", 3000 }, [3908] = { "Tailoring", 0 },
+    [2963] = { "Bolt of Linen Cloth", 3000 }, [3915] = { "Brown Linen Shirt", 5125 }, [2366] = { "Herb Gathering", 1500 } }) do
+    byId[id] = { id = id, name = n[1], cast = n[2] }
+end
 function MageSpellInfo(id)
     local s = byId[id]
     if s then return s.name, nil, nil, s.cast end
@@ -459,3 +464,106 @@ for _, k in ipairs({ "frostNova", "arcaneExplosion", "blastWave" }) do
 end
 C.Feel, C.Moment = cFeel, cMoment
 io.write("PASS: casts land as themselves after their flight (school-checked); Flamestrike and Polymorph at the release; instants at the cast, both hands for area spells\n")
+
+---------------------------------------------------------------------------
+-- 3. Her professions: Skinning (a knife, then the hide pulled free; nothing of mining's) and
+-- Tailoring (stitches, a snip; a bolt of cloth wound and patted down)
+---------------------------------------------------------------------------
+do
+    V.SetCastPreset("gather", "auto")
+    V.SetCastPreset("craft", "auto")
+    local enabled = K.Enabled
+    K.Enabled = function() return true end
+    C.Settings().hdFeels = true
+    wipe(K.queue)
+    local loops, playedNow = {}, {}
+    local vplay2 = V.Play
+    V.Play = function(key, loop, ...) playedNow[#playedNow + 1] = key; return vplay2(key, loop, ...) end
+    local function castOf(id, seconds)
+        playedNow = {}
+        wipe(K.queue)
+        now = now + 5
+        casting = { now, now + seconds }
+        rev("UNIT_SPELLCAST_START", "player", "p" .. id, id)
+        loops[#loops + 1] = V.looping and V.looping.pattern
+        run(seconds)
+        casting = nil
+        rev("UNIT_SPELLCAST_SUCCEEDED", "player", "p" .. id, id)
+        rev("UNIT_SPELLCAST_STOP", "player", "p" .. id, id)
+        run(0.3)
+        RunTimers()
+    end
+    -- Skinning: the knife's loop, the hide's peel at the end, its marker carrying it for WoW Helper
+    castOf(8613, 2)
+    assert(loops[#loops] == "skin", "skinning: the knife, not the pickaxe: " .. tostring(loops[#loops]))
+    assert(playedNow[#playedNow] == "peel", "skinning succeeds: the hide pulled free: " .. tostring(playedNow[#playedNow]))
+    local start, done
+    for _, q in ipairs(K.queue) do
+        if q.moment == 106 then start = q elseif q.moment == 107 then done = q end
+    end
+    assert(start and done, "its markers: 106 start, 107 succeeded")
+    assert(done.touch == L.HdId("r_peel"), "the succeeded marker carries the peel's HD")
+    assert(start.side == 5 and start.seed >= 128, "an Undead female's markers")
+    for _, q in ipairs(K.queue) do
+        assert(q.touch ~= L.HdId("r_pickaxe") and q.moment ~= 100 and q.moment ~= 101, "nothing of mining's")
+    end
+    assert(C.MomentSound("gather:skinning") == C.MomentSound("gather"), "its sound: Gathering's, never Mining's own")
+    -- Tailoring: stitches, a snip; a bolt of cloth wound onto the bolt, then patted down
+    TradeSkillFrame = { IsShown = function() return true end }
+    GetTradeSkillLine = function() return "Tailoring" end
+    castOf(3915, 2)
+    assert(loops[#loops] == "sew" and playedNow[#playedNow] == "snip", "a shirt: stitches, a snip")
+    castOf(2963, 3)
+    assert(loops[#loops] == "roll" and playedNow[#playedNow] == "bolt", "a bolt of cloth: wound and patted: "
+        .. tostring(loops[#loops]) .. " " .. tostring(playedNow[#playedNow]))
+    TradeSkillFrame, GetTradeSkillLine = false, nil
+    V.Play, K.Enabled = vplay2, enabled
+    io.write("PASS: Skinning: the knife, the hide pulled free (its marker carries it), nothing of mining's; Tailoring: stitches, a snip; bolts wound and patted down\n")
+end
+
+---------------------------------------------------------------------------
+-- 4. Her model and her class: the Undead female's steps; a mage's defaults; a spell's crit
+---------------------------------------------------------------------------
+do
+    local saved = WowHelperData
+    WowHelperData = nil
+    local rate = L.StepTiming(7)
+    near(rate, 2.906, 1e-6, "her run: her own stride (666 ms), not the default 2.4")
+    near((L.StepTiming(2.5)), 1.919, 1e-6, "her walk")
+    WowHelperData = { timingDefaults = { run = { rate = 2.4, offset = 0.1, speed = 7 }, models = { ["5-3"] = { run = 2.95, walk = 1.9 } } } }
+    near((L.StepTiming(7)), 2.95, 1e-6, "WoW Helper's published table first")
+    UnitRace = function() return "Undead", "Scourge", 5 end
+    UnitSex = function() return 2 end
+    near((L.StepTiming(7)), 2.4, 1e-6, "the Undead male: the default (his is learned)")
+    UnitSex = function() return 3 end
+    -- (her swings: her one-hand and staff animations are the Undead male's lengths: the kinds' defaults)
+    local T = ns.Timing
+    for _, k in ipairs({ "staff", "dagger", "oneHand" }) do
+        local d, src = T.Offset(k, "main")
+        assert(src == "guess" and d == T.KIND[k].delay, k .. ": the measured default")
+    end
+    WowHelperData = saved
+    -- a mage's Recommended: low mana, an enemy's cast, aggro; the wand's shots; no melee swings
+    local P = ns.Profiles
+    local feel = P.Recommended("MAGE")
+    assert(feel.events.oom.on and feel.events.targetCast.on and feel.events.aggro.on, "a mage's warnings on")
+    assert(feel.events.gcd.on == false and feel.events.combo.on == false, "and the rest as Recommended")
+    assert(feel.vibration.events.shot.on == true and feel.vibration.events.autoAttack.on == false, "the wand, no swings")
+    -- a Fireball's crit: its own impact at full (Critical hit: ranged is off by default)
+    fired = {}
+    V.Fire = function(key, ...) if key == "instant" or key == "critRanged" then fired[#fired + 1] = key .. ":" .. tostring(V.instantMove) end; return vfire(key, ...) end
+    now = now + 5
+    casting = { now, now + 3.5 }
+    rev("UNIT_SPELLCAST_START", "player", "crit", 133)
+    run(3.5)
+    casting = nil
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "crit", 133)
+    rev("UNIT_SPELLCAST_STOP", "player", "crit", 133)
+    run(0.6)
+    rev("UNIT_COMBAT", "target", "WOUND", "CRITICAL", 900, 4)
+    run(0.3)
+    RunTimers()
+    assert(fired[1] == "instant:fireball", "a crit: its own impact: " .. tostring(fired[1]))
+    V.Fire = vfire
+    io.write("PASS: the Undead female's steps (her stride), her swings (the measured defaults); a mage's Recommended; a spell's crit lands as itself\n")
+end
