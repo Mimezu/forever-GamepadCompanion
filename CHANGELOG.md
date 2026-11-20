@@ -2,6 +2,7 @@
 
 ## Unreleased (0.69.3)
 
+- **Node compass** (with WoW Helper): while Find Minerals, Herbs or Treasure is on, the strip also sends the minimap (place, zoom, rotation) and your facing. WoW Helper finds the live node dots and points to them
 - Fixed: a Judgement right after a seal was sometimes not felt. Your abilities' 0.15 s gap is now per ability, not shared
 - Fixed: a blank realm at login made your character a new one, with fresh default profiles ("Alberich 2"). Now it finds your character by name; the stray one is dropped and its profiles stay in the list
 - L1 and R1 locked: Blizzard's target bars, on every layer (L1, R1, both together, with L2 / R2). Nothing of ours goes there; saved actions on them drop
