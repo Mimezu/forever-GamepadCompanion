@@ -191,11 +191,14 @@ end
 ---------------------------------------------------------------------------
 -- Pushed by modules: states, events, values
 ---------------------------------------------------------------------------
+-- A batch (St.Batch): refreshes wait for its end, then run once
+local batching, dirtyAll, dirtyLive = 0, false, false
+
 function St.Set(key, on)
     on = on and true or false
     if flags[key] == on then return end
     flags[key] = on
-    St.Refresh()
+    if batching > 0 then dirtyAll = true else St.Refresh() end
 end
 
 local timers = {}
@@ -204,7 +207,7 @@ function St.Fire(key)
     local c = conds[key]
     if not c then return end
     moments[key] = Now()
-    St.Refresh()
+    if batching > 0 then dirtyAll = true else St.Refresh() end
     local d = c.duration or 3
     if C_Timer and C_Timer.After then
         local mark = moments[key]
@@ -217,7 +220,22 @@ local sources = {}
 function St.SetValue(key, v)
     if sources[key] == v then return end
     sources[key] = v
+    if batching > 0 then dirtyLive = true; return end
     for _, k in pairs(kinds) do if k.spec.live then k:Refresh() end end
+end
+
+-- Several Set / SetValue / Fire at once (TriggerStack's 10 Hz update): one refresh at the end
+function St.Batch(fn)
+    batching = batching + 1
+    local ok, err = pcall(fn)
+    batching = batching - 1
+    if batching == 0 then
+        local all, live = dirtyAll, dirtyLive
+        dirtyAll, dirtyLive = false, false
+        if all then St.Refresh()
+        elseif live then for _, k in pairs(kinds) do if k.spec.live then k:Refresh() end end end
+    end
+    if not ok then error(err, 0) end
 end
 function St.Value(key) return sources[key] end
 

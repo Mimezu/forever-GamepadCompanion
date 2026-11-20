@@ -22,6 +22,7 @@
 - Fixed: a looping rumble (without HD) lost its strength after the first cycle
 - Fixed: Choose opened on page 1 after an earlier search, not on the current action's page
 - Lighter in play: Rumble's settings checked once, not every frame; the touchpad read only when needed; unit events only for you and your target; the L2 / R2 watcher idle without layer actions; food tooltips, footstep timing, sky and sound names kept; the Controller page redraws once per burst; one save per bar move or Undo; unused code gone
+- Triggers: the 10 Hz update resolves the stack once at its end, so a tick sends finished values only
 
 ## 0.69.2 — 2026-11-20
 
