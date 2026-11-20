@@ -14,32 +14,30 @@ local function Now() return GetTime and GetTime() or 0 end
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
 
 ---------------------------------------------------------------------------
--- Offsets: seconds from a swing's news (UNIT_COMBAT) to its impact. The
--- attack animation doesn't scale with weapon speed, unless the swing comes
--- round sooner than the animation lasts: then it plays faster, the impact
--- in proportion (T.Impact). Defaults per kind of weapon; a model's factor
--- (1 until measured); learned values (WoW Helper's slot); yours on top.
+-- Offsets: seconds from a swing's news (UNIT_COMBAT) to its impact heard.
+-- The news comes at the attack animation's hit frame (the game's models put
+-- it 200-900 ms into each attack; the impact is heard 140-165 ms after the
+-- news for one- and two-handers alike): what's left is the game's sound
+-- path, so weapon speed, haste and slows, race, form and mount don't move
+-- it. Defaults per kind; learned values (WoW Helper's); yours on top.
 ---------------------------------------------------------------------------
--- (measured by WoW Helper, 2026-11-17: a two-hander's impact heard 0.165 s
--- after the swing's news (24 hits, IQR 0.14-0.19), not the 0.35 guessed;
--- the other kinds scaled alike, x0.47)
+-- (measured by WoW Helper, 5-2: a two-hander heard at +0.165 s (IQR
+-- 0.14-0.19), a one-hander at +0.14 s; the two-handed kinds as the one, the
+-- one-handed as the other)
 T.KINDS = {
-    { key = "dagger", label = "Dagger", delay = 0.095, anim = 1.0 },
-    { key = "oneHand", label = "One-hand", delay = 0.12, anim = 1.2 },
-    { key = "twoHand", label = "Two-hand", delay = 0.165, anim = 1.5 },
-    { key = "polearm", label = "Polearm", delay = 0.15, anim = 1.5 },
-    { key = "staff", label = "Staff", delay = 0.14, anim = 1.4 },
-    { key = "fist", label = "Fist", delay = 0.095, anim = 1.0 },
-    { key = "unarmed", label = "Unarmed", delay = 0.095, anim = 1.0 },
-    { key = "form", label = "Form", delay = 0.095, anim = 1.0 },
-    { key = "ranged", label = "Ranged", delay = 0, anim = 1.0 },
+    { key = "dagger", label = "Dagger", delay = 0.14 },
+    { key = "oneHand", label = "One-hand", delay = 0.14 },
+    { key = "twoHand", label = "Two-hand", delay = 0.165 },
+    { key = "polearm", label = "Polearm", delay = 0.165 },
+    { key = "staff", label = "Staff", delay = 0.165 },
+    { key = "fist", label = "Fist", delay = 0.14 },
+    { key = "unarmed", label = "Unarmed", delay = 0.14 },
+    { key = "form", label = "Form", delay = 0.14 },
+    { key = "ranged", label = "Ranged", delay = 0 },
 }
 local KIND = {}
 for _, k in ipairs(T.KINDS) do KIND[k.key] = k end
 T.KIND = KIND
--- (a model's animations against the default, by "race id-sex": none
--- measured yet; WoW Helper's learned values take over per key)
-T.MODEL_FACTOR = {}
 
 -- (the guesses before WoW Helper measured them: a saved value equal to one
 -- is that guess, kept by touching the control, not a choice; it goes, once,
@@ -179,13 +177,54 @@ function T.Offset(kind, hand)
     local l = store.learned[key] or store.learned[(key:gsub("%-f%d+|", "|", 1))]
         or store.learned[T.HelperModel() .. "|" .. kind .. "|" .. (hand or "main")]
     if type(l) == "table" and type(l.v) == "number" then return l.v, "learned", l.hits end
-    local k = KIND[kind] or KIND.oneHand
-    local model = T.Model():match("^(%d+%-%d+)") or ""
-    -- (the default: WoW Helper's published table (one, night review H10), else the copy here)
-    local hits = T.Default("hits")
-    local delay = hits and tonumber(hits[kind]) or k.delay
-    return delay * (T.MODEL_FACTOR[model] or 1), "guess"
+    -- (nothing learned for this key: a melee kind takes this machine's sound path from what was
+    -- learned for any other melee key (any hand, any race: the delay is the sound's, not the
+    -- model's), the kinds' difference kept; else the default; said once per key)
+    local delay, from = T.KindDefault(kind), "the default"
+    if kind ~= "ranged" then
+        local near = T.NearLearned(kind, hand)
+        if near then delay, from = near.v, near.from end
+    end
+    T.SayOnce(key, ("hits %s: nothing learned, %s %.3f s"):format(key, from, delay))
+    return delay, "guess"
 end
+
+-- A kind's default (WoW Helper's published table (one, night review H10), else the copy here);
+-- a kind not in the list: a one-hander's
+function T.KindDefault(kind)
+    if not KIND[kind] then T.SayOnce("kind " .. tostring(kind), ("hits: unknown kind %s, a one-hander's"):format(tostring(kind))) end
+    local k = KIND[kind] or KIND.oneHand
+    local hits = T.Default("hits")
+    return hits and tonumber(hits[k.key]) or k.delay
+end
+
+-- For a melee key with nothing learned: the same kind's other hand (this model), else the median
+-- of every learned melee key, each moved by the kinds' defaults' difference. nil: none learned
+function T.NearLearned(kind, hand)
+    local learned = T.Store().learned
+    local base = T.HelperModel()
+    local other = base .. "|" .. kind .. "|" .. ((hand or "main") == "off" and "main" or "off")
+    local o = learned[other]
+    if type(o) == "table" and type(o.v) == "number" then return { v = o.v, from = "its other hand's" } end
+    local vs = {}
+    for key, l in pairs(learned) do
+        local lk = type(key) == "string" and key:match("^[^|]+|(%a+)|%a+$")
+        if lk and lk ~= "ranged" and KIND[lk] and type(l) == "table" and type(l.v) == "number" then
+            vs[#vs + 1] = l.v - T.KindDefault(lk) + T.KindDefault(kind)
+        end
+    end
+    if #vs == 0 then return nil end
+    return { v = max(0, T.Median(vs)), from = ("the sound path learned on %d other key%s"):format(#vs, #vs == 1 and "" or "s") }
+end
+
+-- A line in Timing's log once per session per subject (fallbacks are never silent, nor noisy)
+local said = {}
+function T.SayOnce(subject, line)
+    if said[subject] then return end
+    said[subject] = true
+    if T.Log then T.Log(line) end
+end
+function T.ForgetSaid() said = {} end
 
 function T.Set(kind, hand, seconds)
     T.Store().set[T.Key(kind, hand)] = max(-0.5, min(1, seconds))
@@ -251,8 +290,6 @@ local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, _, name) if name == "GamepadCompanion" then T.LoadHelper() end end)
 
--- The impact after the news: the offset, in proportion when the swing comes
--- round sooner than the animation (interval: the live swing time)
 -- WoW Helper's learned strikes for a gathering action (this race and sex),
 -- { first, period, strikes } or nil; period nil: timed by its crack (mining)
 function T.LearnedStrikes(action)
@@ -265,11 +302,12 @@ function T.LearnedStrikes(action)
     return nil
 end
 
+-- (interval, the live swing time, read each swing: kept for callers, no longer used. The news
+-- comes at the hit frame, so a swing sped up or slowed lands as long after it; the old shrink
+-- (x interval / animation when faster) put a hasted dagger's feel ~15 ms early)
+-- The impact after the news
 function T.Impact(kind, hand, interval)
-    local off = T.Offset(kind, hand)
-    local anim = (KIND[kind] or KIND.oneHand).anim
-    if interval and interval > 0 and interval < anim then off = off * interval / anim end
-    return off
+    return (T.Offset(kind, hand))
 end
 
 ---------------------------------------------------------------------------

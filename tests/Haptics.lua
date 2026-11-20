@@ -1879,10 +1879,10 @@ do
     for _ = 1, V.HIT_TRY_SWINGS do now = now + 3.6; rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1); land() end
     assert(not V.HitTrying(), "a few swings, then done")
     assert(select(2, T.FitDelay({ 0.1, 0.1 })) == "few", "few")
-    -- faster than the animation: the impact in proportion
+    -- the news comes at the hit frame: hasted or slowed, the impact as long after it
     T.Set("twoHand", "main", 0.4)
-    assert(math.abs(T.Impact("twoHand", "main", 3.6) - 0.4) < 1e-9 and math.abs(T.Impact("twoHand", "main", 0.75) - 0.2) < 1e-9,
-        "in proportion when the swing comes round sooner than the animation")
+    assert(math.abs(T.Impact("twoHand", "main", 3.6) - 0.4) < 1e-9 and math.abs(T.Impact("twoHand", "main", 0.75) - 0.4) < 1e-9
+        and math.abs(T.Impact("twoHand", "main", 5.2) - 0.4) < 1e-9, "faster or slower: the same delay")
     -- per model and form: a cat's swipes are their own
     GetShapeshiftFormID = function() return 1 end
     assert(V.WeaponKind(16) == "form" and T.Key("form", "main"):find("%-f1|form|main$"), T.Key("form", "main"))
@@ -2369,6 +2369,21 @@ do
     GetShapeshiftFormID = function() return 1 end
     assert(T.Offset("form", "main") == 0.15, "a cat's: the helper's key without the form")
     GetShapeshiftFormID = nil
+    -- nothing learned for a key: its other hand's; else this machine's sound path from the
+    -- other melee keys (the kinds' difference kept); ranged never; each said once
+    T.Store().set = {}
+    T.ForgetSaid()
+    local logged = #T.Store().log
+    assert(T.Offset("twoHand", "off") == 0.28 and select(2, T.Offset("twoHand", "off")) == "guess", "its other hand's, not 'learned'")
+    T.Offset("twoHand", "off")
+    assert(#T.Store().log == logged + 1 and T.Store().log[#T.Store().log]:find("other hand"), "said once")
+    -- (twoHand 0.28 is +0.115 on its default, form 0.15 +0.01: the median +0.0625 on a dagger's 0.14)
+    assert(math.abs(T.Offset("dagger", "main") - (0.14 + 0.0625)) < 1e-9, "a dagger: the sound path learned")
+    assert(T.Offset("ranged", "ranged") == 0, "ranged: its own default, never a swing's")
+    assert(math.abs(T.Offset("mace?", "main") - (0.14 + 0.0625)) < 1e-9, "an unknown kind: a one-hander's")
+    WowHelperData = {}
+    T.LoadHelper()
+    assert(T.Offset("dagger", "main") == 0.14 and T.Offset("twoHand", "main") == 0.165, "nothing learned: the defaults")
     WowHelperData = nil
     T.Store().set, T.Store().learned, T.Store().linkLatency = {}, {}, nil
     K.Enabled, K.Cue = enabled, cue
