@@ -250,6 +250,16 @@ function C.MomentSound(key)
     return name and K.SOUNDS[name] or nil
 end
 
+-- The game's sounds WoW Helper adds on the pad's speaker when a moment's cue carries no sound
+-- of its own (its src/fishing.rs default_sound, src/fall_yell.rs): named here, so what played
+-- can say so without asking it
+-- (Bobber lands: none, the cast's own sound ends in its splash)
+C.HELPER_SOUND = { ["gather:fishing"] = "The game's cast", fishCatch = "The game's reel", fallDamage = "Your yell" }
+function C.HelperSound(key)
+    if C.MomentSound(key) then return nil end
+    return C.HELPER_SOUND[key]
+end
+
 -- id: a sound, false: none, nil: its default
 function C.SetMomentSound(key, id)
     if id ~= nil and id ~= false and type(id) ~= "number" then return end
