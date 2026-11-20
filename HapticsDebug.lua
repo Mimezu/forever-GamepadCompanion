@@ -277,12 +277,17 @@ local function Wrap()
         C.Moment = function(key, feelKey, opts)
             local sent = moment(key, feelKey, opts)
             if sent and not (opts and (opts.build or opts.try or opts.open or opts.noSound))
-                and C.Settings().sounds == true and C.MomentSound(key) then
-                local e = L.EVENT[key] or RumbleEvent(key) or (LT and LT.Def and LT.Def(key))
-                local _, name = ns.SubMoment and ns.SubMoment(key)
-                local label = e and e.label or name or key
+                and C.Settings().sounds == true then
                 local id = C.MomentSound(key)
-                D.Note("Sound · " .. label, key, "sound", label, C.SoundName and C.SoundName(id) or tostring(id))
+                -- (none of its own: the game's sound WoW Helper adds, if any)
+                local added = not id and C.HelperSound and C.HelperSound(key)
+                if id or added then
+                    local e = L.EVENT[key] or RumbleEvent(key) or (LT and LT.Def and LT.Def(key))
+                    local _, name = ns.SubMoment and ns.SubMoment(key)
+                    local label = e and e.label or name or key
+                    local what = added or (C.SoundName and C.SoundName(id)) or tostring(id)
+                    D.Note("Sound · " .. label, key, "sound", label, what)
+                end
             end
             return sent
         end

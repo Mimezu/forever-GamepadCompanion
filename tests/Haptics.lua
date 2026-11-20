@@ -3900,3 +3900,20 @@ do
     WowHelperData, UnitGUID, UnitRace, UnitSex, GetPlayerInfoByGUID, C_CreatureInfo = savedData, savedGuid, savedRace, savedSex, savedInfo, savedCI
     io.write("PASS: emote voices: a voiced line, yours or a known player's, as marker 99 with the race and sex" .. string.char(10))
 end
+
+-- Just played: a moment with no sound of its own names the game's sound WoW Helper adds
+do
+    local C, D, K = ns.HelperCues, ns.HapticsDebug, ns.HelperLink
+    K.SetEnabled(true)
+    C.Settings().sounds = true
+    assert(C.HelperSound("fishCatch") == "The game's reel" and C.HelperSound("gather:fishing") == "The game's cast", "the helper's added sounds named")
+    assert(C.HelperSound("fishLand") == nil, "Bobber lands: none added (the cast's sound ends in its splash)")
+    assert(C.HelperSound("loot") == nil, "loot: its own sound, none added")
+    C.Moment("fishCatch", C.MomentFeel("fishCatch") or "reelIn")
+    local e = D.Recent("sound")[1]
+    assert(e and e.key == "fishCatch" and e.choice == "The game's reel", "Just played: Catch · The game's reel")
+    C.SetMomentSound("fishCatch", 900)
+    assert(C.HelperSound("fishCatch") == nil, "a sound of its own: the helper adds none")
+    C.SetMomentSound("fishCatch", nil)
+    io.write("PASS: Just played names the game's sound WoW Helper adds" .. string.char(10))
+end
