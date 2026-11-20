@@ -953,11 +953,11 @@ do
         for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t.label.text == label and t:IsShown() then return t end end
     end
     assert(not critLight.level and not critLight.edit, "strength in the picker, no Edit on a light")
-    -- Sound: every moment, loot's coin by default, None
+    -- Sound: every moment, loot's thud by default, None
     M.SetKind("sound")
     M.browser.Select("Progress")
     local loot = row("sound", "loot")
-    assert(loot:IsVisible() and loot.pick.label.text == "Coin" and not loot.edit, "loot: Coin, no Edit")
+    assert(loot:IsVisible() and loot.pick.label.text == "Thud" and not loot.edit, "loot: Thud, no Edit")
     loot.pick.scripts.OnClick(loot.pick)
     tile("Off").scripts.OnClick(tile("Off"))
     assert(ns.HelperCues.MomentSound("loot") == nil, "Off")
@@ -1151,7 +1151,7 @@ do
     now = now + 1
     L.Fire("loot")
     local last = K.queue[#K.queue]
-    assert(last and last.sound == K.SOUNDS.coin and last.moment == C.MOMENT_N.loot, "loot: the coin sound, its moment")
+    assert(last and last.sound == K.SOUNDS.thud and last.moment == C.MOMENT_N.loot, "loot: the thud sound, its moment")
     C.Settings().sounds = false
     local n = #K.queue
     now = now + 1
@@ -1164,21 +1164,21 @@ do
     now = now + 1
     L.Fire("loot")
     last = K.queue[#K.queue]
-    assert(last.sound == K.SOUNDS.coin and last.gain == 7, "full by default: " .. tostring(last.gain))
+    assert(last.sound == K.SOUNDS.thud and last.gain == 3, "loot at 50 % by default: " .. tostring(last.gain))
     Vol.SetSounds(0.5)
     Vol.SetSound("loot", 0.5)
     now = now + 1
     L.Fire("loot")
     last = K.queue[#K.queue]
-    assert(last.sound == K.SOUNDS.coin and last.gain == 1, "a quarter: gain 1, " .. tostring(last.gain))
+    assert(last.sound == K.SOUNDS.thud and last.gain == 1, "a quarter: gain 1, " .. tostring(last.gain))
     Vol.SetSound("loot", 0)
     n = #K.queue
     now = now + 1
     L.Fire("loot")
     assert(#K.queue == n or (K.queue[#K.queue].sound or 0) == 0, "0%: no sound")
-    Vol.SetSound("loot", 1)
+    Vol.SetSound("loot", 0.5)
     Vol.SetSounds(1)
-    assert(Vol.DB().sound.loot == nil, "full is the default, not saved")
+    assert(Vol.DB().sound.loot == nil, "its default (50 %), not saved")
     Vol.SetFeel("levelUp", 0.5)
     assert(V.Scaled({ strength = 0.8 }, "levelUp").strength == 0.4 and V.Scaled(nil, "jump") == nil, "a feel at its volume")
     Vol.SetFeel("levelUp", 1)
@@ -1200,14 +1200,14 @@ do
     M.browser.Select("Progress")
     local lootRow
     for _, r in ipairs(M.rows) do if r.kind == "sound" and r.key == "loot" then lootRow = r end end
-    assert(lootRow.level and lootRow.level.value.text == "100%", "loot: 100%")
+    assert(lootRow.level and lootRow.level.value.text == "50%", "loot: 50%")
     -- (the volume chip opens its slider)
     lootRow.level.scripts.OnClick(lootRow.level)
     local pop = ns.HapticsUI.LevelPop()
     pop.stepper.minus.scripts.OnClick(pop.stepper.minus)
     pop:Hide()
-    assert(math.abs(Vol.Sound("loot") - 0.9) < 1e-9 and lootRow.level.value.text == "90%", "loot: 90%")
-    Vol.SetSound("loot", 1)
+    assert(math.abs(Vol.Sound("loot") - 0.4) < 1e-9 and lootRow.level.value.text == "40%", "loot: 40%")
+    Vol.SetSound("loot", 0.5)
     -- WoW Helper's proposal: Proposed · its name, Accept writes it, Dismiss keeps it quiet; a dot on the group
     local savedData = WowHelperData
     WowHelperData = { at = "18:02", proposals = { loot = { kind = "sound", id = K.SOUNDS.chime, name = "Chime" },
@@ -1279,14 +1279,15 @@ do
         for _, item in ipairs(g.items) do assert(C.MOMENT_N[item[2]] or C.UNNUMBERED[item[2]], "no number: " .. item[2]) end
     end
     -- sounds: defaults, chosen, none, back to default
-    assert(C.MomentSound("loot") == K.SOUNDS.coin and C.IsSoundDefault("loot"), "loot: coin by default")
+    assert(C.MomentSound("loot") == K.SOUNDS.thud and C.IsSoundDefault("loot"), "loot: thud by default")
+    assert(C.MomentSound("money") == K.SOUNDS.coin and C.MomentSound("uiError") == nil, "money: coin; Error: none")
     assert(C.MomentSound("jump") == nil, "jump: none")
     C.SetMomentSound("jump", 900)
     assert(C.MomentSound("jump") == 900 and not C.IsSoundDefault("jump"), "a chosen sound")
     C.SetMomentSound("loot", false)
     assert(C.MomentSound("loot") == nil, "loot: none")
     C.SetMomentSound("loot", nil)
-    assert(C.MomentSound("loot") == K.SOUNDS.coin, "loot: default again")
+    assert(C.MomentSound("loot") == K.SOUNDS.thud, "loot: default again")
     -- an action has its kind's sound until it has its own; the fishing cast never Gathering's
     C.SetMomentSound("gather", 901)
     assert(C.MomentSound("gather:mining") == 901, "mining: Gathering's")
@@ -1342,7 +1343,7 @@ do
     for i = #K.queue, 1, -1 do K.queue[i] = nil end
     ok = C.EditHD("loot")
     local q = K.queue[#K.queue]
-    assert(ok and q.open and q.moment == C.MOMENT_N.loot and q.sound == K.SOUNDS.coin
+    assert(ok and q.open and q.moment == C.MOMENT_N.loot and q.sound == K.SOUNDS.thud
         and q.touch == ns.HapticsLab.HdId(lootFeel), "Edit HD: the moment's cue, open")
     -- Try as play: the HD cue on top of the rumble, what played in few words
     for i = #K.queue, 1, -1 do K.queue[i] = nil end
@@ -1356,9 +1357,9 @@ do
     C.SetHDMode("off")
     assert(C.TryHD("loot", lootFeel) == "rumble (HD off)", "HD off: rumble only")
     C.SetHDMode("auto")
-    assert(C.TrySound("loot") == "Coin", "Try a sound: " .. tostring(C.TrySound("loot")))
+    assert(C.TrySound("loot") == "Thud", "Try a sound: " .. tostring(C.TrySound("loot")))
     q = K.queue[#K.queue]
-    assert(q.sound == K.SOUNDS.coin and q.touch == 0 and q.moment == C.MOMENT_N.loot, "Try a sound: its cue")
+    assert(q.sound == K.SOUNDS.thud and q.touch == 0 and q.moment == C.MOMENT_N.loot, "Try a sound: its cue")
     assert(select(2, C.TrySound("rain")) == "no sound", "no sound")
     -- a WoW Helper library sound (1000+): Try sends it as a sound, never as an HD feel id
     C.SetMomentSound("levelUp", 1000)
@@ -1369,7 +1370,7 @@ do
     -- the export: moments with number, group, feel, sound; the data's stamp
     local ex = ns.HapticsLab.Export()
     assert(ex.moments.loot.n == 53 and ex.moments.loot.group == "Progress" and ex.moments.loot.feel == lootFeel
-        and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
+        and ex.moments.loot.sound == K.SOUNDS.thud and ex.moments.loot.label == "Loot", "moments exported")
     assert(ex.moments.crit.light == critLight and ex.moments.jump.light == false, "lights exported")
     assert(ex.moments.loot.feelVol == 1 and ex.moments.loot.soundVol, "volumes exported")
     assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
@@ -2380,6 +2381,13 @@ do
     K.Enabled = function() return false end
     assert(math.abs(T.Lead() - 0.018) < 1e-9, "the game's vibration over USB: no Bluetooth part")
     K.Enabled = function() return true end
+    -- (USB: WoW Helper plays no HD there, the game's rumble is felt: a measured link doesn't count)
+    WowHelperData = { link = "usb", padDelay = 0.019, linkLatency = 0.045 }
+    T.LoadHelper()
+    assert(math.abs(T.Lead() - 0.019) < 1e-9, "USB: its pad delay, not the measured link")
+    WowHelperData = { link = "bt", padDelay = 0.04, linkLatency = 0.045 }
+    T.LoadHelper()
+    assert(math.abs(T.Lead() - 0.045) < 1e-9, "Bluetooth: the measured link")
     WowHelperData = { link = "bt", padDelay = 0.03 }
     T.LoadHelper()
     assert(T.Link() == "bt" and math.abs(T.Lead() - 0.03) < 1e-9, "Bluetooth: 30 ms")

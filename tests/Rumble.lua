@@ -498,11 +498,16 @@ do
         P.state.class = class
         local rec = P.Recommended(class)
         for key, r in pairs(rec.events) do
+            -- (a feel only: on as the code has it)
+            local on = r.on
+            if on == nil then on = L.DefaultOn(key) end
             local s = L.EventSettings(key)
-            s.on = not r.on
+            s.on = not on
             assert(not L.IsEventDefault(key), class .. " " .. key .. ": not Recommended, Default lit")
             L.EventDefault(key)
-            assert(L.EventSettings(key).on == r.on and L.IsEventDefault(key), class .. " " .. key .. ": Default = the profile's Reset")
+            local now = L.EventSettings(key)
+            assert(now.on == on and now.feel == (r.feel or L.EVENT[key].feel) and L.IsEventDefault(key),
+                class .. " " .. key .. ": Default = the profile's Reset")
             n = n + 1
         end
         for key, r in pairs(rec.vibration.events) do

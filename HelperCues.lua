@@ -143,7 +143,8 @@ end)
 -- Clips and sounds, cued by Rumble's and the Beta events (wrapped)
 ---------------------------------------------------------------------------
 -- each moment's sound unless chosen (built-in names)
-C.DEFAULT_SOUND = { loot = "coin", questDone = "chime", uiError = "error", whisper = "click", readyCheck = "chime" }
+C.DEFAULT_SOUND = { loot = "thud", money = "coin", lowHp = "heartbeat_thump", questDone = "chime", whisper = "click",
+    readyCheck = "chime" }
 
 
 ---------------------------------------------------------------------------

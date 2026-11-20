@@ -36,7 +36,11 @@ P.UI_KEYS = { "optionsStyle", "optionsStyleVersion", "minimap" }
 P.RECOMMENDED = {
     events = { hit = false, miss = false, targetDodge = false, targetParry = false, targetBlock = false, dodge = false,
         parry = false, missedYou = false, hitTaken = false, aggro = false, targetCast = false, gcd = false,
-        combo = false, full = false, tension = false, heartbeat = false, rested = false, riding = false, oom = false },
+        combo = false, full = false, tension = false, heartbeat = false, rested = false, riding = false, oom = false,
+        money = true },
+    feels = { landing = "flick", money = "gravel" },   -- (events' feels other than the code's own)
+    vibration = { autoAttack = true, jump = true },
+    intensity = 1,   -- Strength: full (the code's own is 80 %)
 }
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
@@ -48,9 +52,17 @@ P.CLASS = {
 function P.Recommended(class)
     local feel = { events = {}, cues = {}, vibration = { events = {} } }
     local function Apply(r)
-        for key, on in pairs(r.events or {}) do feel.events[key] = { on = on } end
+        for key, on in pairs(r.events or {}) do
+            feel.events[key] = feel.events[key] or {}
+            feel.events[key].on = on
+        end
+        for key, f in pairs(r.feels or {}) do
+            feel.events[key] = feel.events[key] or {}
+            feel.events[key].feel = f
+        end
         for key, v in pairs(r.cues or {}) do feel.cues[key] = v end
         for key, on in pairs(r.vibration or {}) do feel.vibration.events[key] = { on = on } end
+        if r.intensity then feel.vibration.intensity = r.intensity end
     end
     Apply(P.RECOMMENDED)
     if class and P.CLASS[class] then Apply(P.CLASS[class]) end

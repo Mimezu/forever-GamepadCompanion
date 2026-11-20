@@ -275,10 +275,13 @@ local function MotorLead()
     if T.Store().link == "usb" then return min(T.MOTOR_LEAD, T.MOTOR_LEAD_USB) end
     return T.MOTOR_LEAD
 end
+-- (over USB WoW Helper plays no HD yet, only triggers and lights: what's felt is the game's
+-- rumble, so its measured link, strip drawn to report sent, doesn't count; its pad delay does)
 function T.Lead()
     local K = ns.HelperLink
     if K and K.Enabled and K.Enabled() then
         local s = T.Store()
+        if s.link == "usb" then return max(MotorLead(), s.padDelay or 0) end
         return max(MotorLead(), s.linkLatency or s.padDelay or T.LINK_DEFAULT)
     end
     return MotorLead()

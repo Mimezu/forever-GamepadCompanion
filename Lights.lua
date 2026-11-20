@@ -225,8 +225,9 @@ function LT.Base()
     local b = db.lightBase
     b.mode = b.mode or "class"
     b.color = PALETTE[b.color] and PALETTE[b.color].rgb and b.color or "blue"
-    b.level = tonumber(b.level) or 0.35
-    if b.light == nil then b.light = b.breathe and "breathe" or "steady" end   -- (0.27: breathe yes / no)
+    b.level = tonumber(b.level) or 0.375
+    -- (0.27: breathe yes / no; a fresh profile: Ember)
+    if b.light == nil then b.light = b.breathe and "breathe" or (b.breathe == false and "steady") or "ember" end
     if not LT.LightByKey(b.light) then b.light = "steady" end
     b.breathe = nil
     -- the mic light: in combat by default (0.29 saved "off" without asking: once)
@@ -298,7 +299,9 @@ LT.EVENTS = {
     { key = "avoid", group = "Combat", label = "Dodge, parry, block", color = "white", strength = 2, on = false },
     { key = "kill", group = "Combat", label = "Target killed", color = "white", strength = 5, on = true },
     { key = "lowHp", group = "Combat", label = "Low health", color = "red", strength = 6, on = true, state = true },
-    { key = "combat", group = "Combat", label = "In combat", color = "orange", strength = 2, on = false, state = true },
+    -- (In combat: the mic lit, the bar passing: passBar, its light 0)
+    { key = "combat", group = "Combat", label = "In combat", color = "orange", strength = 2, on = true, state = true,
+        passBar = true },
     { key = "cast", group = "Casting", label = "Casting", color = "school", strength = 6, on = true, state = true, school = true },
     { key = "release", group = "Casting", label = "Spell released", color = "school", strength = 7, on = true, school = true },
     { key = "interrupted", group = "Casting", label = "Interrupted", color = "red", strength = 6, on = true, school = true },
@@ -331,7 +334,7 @@ local PATTERNS = {
     crit = { "spark" }, critTaken = { "ends" }, kill = { "all" }, lowHp = { "pair", "pulse" },
     cast = { "fill" }, release = { "all" }, halo = { "ring" }, haloUse = { "spark" }, levelUp = { "fill" },
     questDone = { "centre" }, alive = { "spark" }, whisper = { "off", "pulse" }, readyCheck = { "all", "pulse" },
-    invite = { "off", "pulse" },
+    invite = { "off", "pulse" }, combat = { "pass", "on" },
 }
 local EVENT = {}
 for _, e in ipairs(LT.EVENTS) do
@@ -403,6 +406,12 @@ function LT.DefaultLight(key)
     local p = LT.LightByKey(e and e.look or key)
     return p and p.id
 end
+-- the light it starts with: its own, or 0 for a state whose bar passes
+function LT.StartLight(key)
+    local e = EVENT[key]
+    if e and e.passBar then return 0 end
+    return LT.DefaultLight(key)
+end
 
 -- 0.27 effects -> a preset (the moment's own when it was the default)
 local OLD_DEFAULT = { crit = "boost", critTaken = "double", hitTaken = "flash", avoid = "flash", kill = "flash",
@@ -463,7 +472,7 @@ function LT.Settings(key)
     local e = EVENT[key]
     local s = db.lightEvents[key]
     if type(s) ~= "table" then
-        s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
+        s = { on = e.on, light = LT.StartLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
         db.lightEvents[key] = s
     end
     if not DOTS[s.dots] then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
@@ -488,7 +497,7 @@ function LT.IsDefault(key)
     local _, name, O = Sub(key)
     if O then return O.Field(name, "light") == nil end
     local e, s = EVENT[key], LT.Settings(key)
-    return s.on == e.on and s.light == LT.DefaultLight(key) and s.color == e.color and s.strength == e.strength
+    return s.on == e.on and s.light == LT.StartLight(key) and s.color == e.color and s.strength == e.strength
         and s.dots == e.dots and s.mic == e.mic
 end
 
@@ -607,7 +616,7 @@ local function Migrate()
         local s = ev.combat
         if type(s) ~= "table" then
             local e = EVENT.combat
-            s = { on = e.on, light = LT.DefaultLight("combat"), color = e.color, strength = e.strength, dots = "pass", mic = "pass" }
+            s = { on = e.on, light = LT.StartLight("combat"), color = e.color, strength = e.strength, dots = "pass", mic = "pass" }
             ev.combat = s
         end
         if not s.on then s.on, s.light = true, 0 end
@@ -679,7 +688,7 @@ Recommended = function()
     local rows = {}
     for _, key in ipairs(LT.STACK) do
         local e = EVENT[key]
-        rows[#rows + 1] = { id = key, condition = key, on = e.on, light = LT.DefaultLight(key), color = e.color,
+        rows[#rows + 1] = { id = key, condition = key, on = e.on, light = LT.StartLight(key), color = e.color,
             strength = e.strength, dots = e.dots, mic = e.mic }
     end
     return rows
