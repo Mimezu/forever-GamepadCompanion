@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.67.5 — 2026-11-20
+
+- Underwater bubbles reach WoW Helper: each bubble is an HD cue, so they're felt while WoW Helper drives the pad (before, only without HD)
+- Closer bubbles: every 0.3-0.7 s holding still, very faint; the faster you swim, the closer (a fast swim ~0.13-0.3 s) and a little stronger
+- Weather taps (rain, snow, sand, embers) send their HD cues the same way
+
 ## Unreleased
 
 - Moments opens faster: only the rows on screen refresh (a page holds ~200 rows, a group ~12); the rest refresh as they show

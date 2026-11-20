@@ -1626,16 +1626,21 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
         if not live.weather[key] then return nil end
         if not v.next then v.next = now + random() * gap1 end
         -- (heavier weather: taps closer and a little stronger; under water,
-        -- swimming: closer and a little stronger than holding still)
+        -- the faster you swim, the closer and a little stronger: a normal swim
+        -- (4.7 yd/s) ~0.7 of still's gaps, a fast one (6.6) ~0.45)
         local k = live.weatherIntensity or 0.5
         local level, spacing = 0.7 + 0.5 * k, 1.6 - 0.6 * k
         if key == "underwater" then
-            level, spacing = live.swimming and 1.5 or 0.85, live.swimming and 0.7 or 1
+            local v = live.swimming and (live.speed or 0) or 0
+            level = min(1.6, 0.85 + 0.14 * v)
+            spacing = max(0.4, min(1, 1.3 - 0.13 * v))
         end
         if now >= v.next then
             v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * level, random() * 2 - 1
             v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
             v.next = now + (gap0 + random() * (gap1 - gap0)) * spacing
+            -- (each tap to WoW Helper too: its HD plays while it drives the pad)
+            if L.onSprinkle then pcall(L.onSprinkle, key, level) end
         end
         if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
         if v.tapEnd and now < v.tapEnd then
@@ -1692,9 +1697,9 @@ local WEATHER_FN = {
     thunder = Thunder,
     sand = Gust,
 }
--- (under water: a bubble every 0.45-1.1 s, very faint, holding still; every
--- 0.3-0.8 s and a little stronger, swimming)
-local BUBBLES = Sprinkle("underwater", 0.45, 1.1, 0.03, 0.05, 0.3)
+-- (under water: a bubble every 0.3-0.7 s, very faint, holding still; closer and
+-- a little stronger the faster you swim: Sprinkle)
+local BUBBLES = Sprinkle("underwater", 0.3, 0.7, 0.03, 0.05, 0.3)
 L.WEATHER_KEYS = { "rain", "thunder", "snow", "sand", "embers" }
 
 -- Ten times a second: falling, water, mount, taxi, moving, low health

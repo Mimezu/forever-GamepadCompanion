@@ -658,6 +658,18 @@ local function Wrap()
             end
         end
     end
+    -- (water and weather taps: one HD cue each, level by how strong the tap is,
+    -- 1 the designed level = intensity 4)
+    if L and not L.onSprinkle then
+        L.onSprinkle = function(key, level)
+            local V = ns.Rumble
+            if V and V.cueTimed then return end
+            if not (L.EVENT and L.EVENT[key] and C.MOMENT_N[key]) then return end
+            local s = L.EventSettings(key)
+            if not (H.Engine() and s.on) then return end
+            C.Moment(key, s.feel, { noSound = true, intensity = max(1, min(7, floor(4 * (level or 1) + 0.5))) })
+        end
+    end
     if L and L.Export and not L.momentsWrapped then
         L.momentsWrapped = true
         local export = L.Export
