@@ -106,8 +106,7 @@ local function MoveBy(layer, dx, dy)
     local bx, by = M.bounds.x, M.bounds.y
     local x = max(bx[1], min(bx[2], floor(Value(layer, "x") + dx + 0.5)))
     local y = max(by[1], min(by[2], floor(Value(layer, "y") + dy + 0.5)))
-    API.SetBarOption(layer, "x", x, mode)
-    return API.SetBarOption(layer, "y", y, mode)
+    return API.SetBarOptions(layer, { x = x, y = y }, mode)
 end
 EB.MoveBy = MoveBy
 
@@ -121,9 +120,9 @@ function EB.Restore(mode, snap)
     local ok
     for layer, entry in pairs(snap) do
         if M.IsLayer(mode, layer) and type(entry) == "table" then
-            for _, key in ipairs({ "x", "y", "scale" }) do
-                if entry[key] ~= nil then ok = API.SetBarOption(layer, key, entry[key], mode) end
-            end
+            local values = {}
+            for _, key in ipairs({ "x", "y", "scale" }) do values[key] = entry[key] end
+            if next(values) then ok = API.SetBarOptions(layer, values, mode) end
         end
     end
     return ok

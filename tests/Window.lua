@@ -114,6 +114,10 @@ GamepadCompanionAPI = {
         M.Layout(settings, mode)[layer][key] = value
         return true
     end,
+    SetBarOptions = function(layer, values, mode)
+        for key, value in pairs(values) do GamepadCompanionAPI.SetBarOption(layer, key, value, mode) end
+        return true
+    end,
     SetEnabled = function(v) settings.enabled = v; return true end,
     SetClassPrompts = function(v) settings.classPrompts = v; return true end,
     ResetBar = function() return true end, ResetMode = function(m) local n = M.Normalize(); if m == "compact" then settings.compact = n.compact else settings.bars = n.bars end; return true end, CopyLayout = function() return true end,

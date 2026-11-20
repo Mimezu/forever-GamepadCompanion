@@ -672,6 +672,22 @@ function API.SetBarOption(layer, key, value, mode)
     M.Layout(settings, mode)[layer][key] = checked
     return Save()
 end
+-- Several of a bar's settings ({ key = value }), one save: all checked before any is set
+function API.SetBarOptions(layer, values, mode)
+    mode = CheckLayer(layer, mode)
+    if not mode or type(values) ~= "table" then return false, "Unknown setting" end
+    local checked = {}
+    for key, value in pairs(values) do
+        local range = M.bounds[key]
+        if not range then return false, "Unknown setting" end
+        local n = M.Number(value, range[1], range[2], nil)
+        if n == nil then return false, "Not a number" end
+        checked[key] = n
+    end
+    local entry = M.Layout(settings, mode)[layer]
+    for key, n in pairs(checked) do entry[key] = n end
+    return Save()
+end
 function API.SetEnabled(enabled) settings.enabled = enabled == true; return Save() end
 function API.SetClassPrompts(shown) settings.classPrompts = shown ~= false; return Save() end
 function API.ResetBar(layer, mode)

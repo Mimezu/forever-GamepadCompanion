@@ -84,6 +84,10 @@ GamepadCompanionAPI = {
     Subscribe = function(owner, fn) subscriber = fn end,
     Unsubscribe = function() subscriber = nil end,
     SetBarOption = function(layer, key, value, mode) M.Layout(settings, mode)[layer][key] = value; return true end,
+    SetBarOptions = function(layer, values, mode)
+        for key, value in pairs(values) do M.Layout(settings, mode)[layer][key] = value end
+        return true
+    end,
     SetClassPrompts = function(v) settings.classPrompts = v end,
     ResetBar = function(layer, mode) M.Layout(settings, mode)[layer] = M.Entry(); return true end,
     GetBarFrame = function(layer)
