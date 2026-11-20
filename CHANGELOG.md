@@ -2,6 +2,7 @@
 
 ## Unreleased (0.69.3)
 
+- Fixed: the touchpad stuck on Focus UI after L1 + touchpad. 0.67.4's L1 chord (the click rebound while L1 was held) is gone; the zones work as before
 - Sound › Social: **Emote voices**, its volume (always the game's own voice)
 - Moments opens lighter: a moment's volume chip refreshes with its row, only on screen (it ran for all ~200 rows on every refresh)
 - **/gpc perf**: Moments timing, step by step, in chat (on / off)

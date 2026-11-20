@@ -370,15 +370,6 @@ uiFocused = false
 Tick()
 eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "lost release: the next press still works")
 
--- L1 held (Forever's bar keeps it: no modifier reaches a binding): the click is Focus UI, then zones again
-local keyDown = IsKeyDown
-IsKeyDown = function(k) return k == "PADLSHOULDER" end
-Tick()
-eq(GetBindingAction("PADBACK"), "TOGGLEUIFOCUS", "L1 held: the click is Focus UI")
-IsKeyDown = function() return false end
-Tick()
-eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "L1 released: zones again")
-IsKeyDown = keyDown
 
 -- Over windows (default): an open, focused window keeps the zones
 shownWindows, uiFocused, coreOnly = 1, true, false
