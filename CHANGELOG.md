@@ -3,7 +3,7 @@
 ## Unreleased (0.69.3)
 
 - Fishing: the cast no longer plays the Gathering sound. With WoW Helper you hear the cast's own whoosh, feel a throw forward, then a small splash as the bobber lands
-- Fishing: Fish hooked comes sooner (WoW Helper calls the bite 300 ms into its splash, not 600 ms), and R2 has a light pull the whole time the line is out
+- Fishing: Fish hooked comes sooner (WoW Helper calls the bite 200 ms into its splash, not 600 ms), and R2 has a light pull the whole time the line is out. The catch no longer ends in a pickaxe-like knock
 - Underwater, still: bubbles further apart and softer (swimming unchanged)
 - Node compass: the arrows follow your camera. Worked out from the sticks: exact while you move, the right stick while you stand
 - **Node compass** (with WoW Helper): while Find Minerals, Herbs or Treasure is on, the strip also sends the minimap (place, zoom, rotation) and your facing. WoW Helper finds the live node dots and points to them
