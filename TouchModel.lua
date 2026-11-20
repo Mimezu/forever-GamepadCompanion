@@ -12,8 +12,8 @@ ns.TouchModel = T
 
 -- Two ways to share the pad with Blizzard's own touchpad function
 -- (TOGGLEUIFOCUS: an open window takes or gives back the pad):
---   chord: the whole pad is zones while the world has the pad; L1 + touchpad
---          (the modifier L1 emulates) runs Blizzard's function, always.
+--   chord: the whole pad is zones while the world has the pad (no L1 chord:
+--          Focus UI goes where you put it, Choose › Gamepad).
 --   split: the right half becomes button PAD6 (a gamepad config) and is all
 --          zones; the left half stays Blizzard's PADBACK, untouched.
 T.MODES = { chord = true, split = true }
@@ -286,15 +286,11 @@ function T.BindingPlan(settings, env)
         return plan, nil
     end
     if env.conflict then return plan, "Improved Forever's touchpad corners are on" end
-    local chordMod = T.ModifierFor(settings.chordButton, env.emulate)
     local dual = settings.input == "dual" and env.clickReady
     for _, prefix in ipairs(T.Prefixes()) do
         local key = prefix .. T.PAD_KEY
         local clickKey = dual and (prefix .. T.SPLIT_KEY) or nil
-        if chordMod and prefix:find(chordMod .. "-", 1, true) then
-            plan[#plan + 1] = { key = key, action = T.NATIVE_ACTION }
-            if clickKey then plan[#plan + 1] = { key = clickKey, action = T.NATIVE_ACTION } end
-        elseif env.ours then
+        if env.ours then
             -- (dual: the touch is the left button, the click the right one)
             plan[#plan + 1] = { key = key, click = true, mouse = dual and "LeftButton" or nil }
             if clickKey then plan[#plan + 1] = { key = clickKey, click = true, mouse = "RightButton" } end
@@ -303,7 +299,8 @@ function T.BindingPlan(settings, env)
             plan[#plan + 1] = { key = clickKey, action = T.NATIVE_ACTION }
         end
     end
-    local why = not chordMod and "no modifier on " .. settings.chordButton .. ": no chord for Blizzard's function" or nil
+    -- (no chord for Blizzard's Focus UI: put it where you like, Choose › Gamepad › Focus UI)
+    local why = nil
     if settings.input == "dual" and not env.clickReady then why = why or "the click isn't PAD6 yet" end
     return plan, why
 end

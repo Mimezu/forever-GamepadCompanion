@@ -167,19 +167,18 @@ do
     eq(#plan, 8, "chord: eight keys")
     check(byKey.PADBACK and byKey.PADBACK.click, "chord: plain click is zones")
     check(byKey["SHIFT-PADBACK"] and byKey["SHIFT-PADBACK"].click, "chord: L2 + click is zones (LT layer)")
-    eq(byKey["CTRL-PADBACK"] and byKey["CTRL-PADBACK"].action, "TOGGLEUIFOCUS", "chord: L1 + click is Blizzard's")
-    eq(byKey["CTRL-SHIFT-PADBACK"] and byKey["CTRL-SHIFT-PADBACK"].action, "TOGGLEUIFOCUS", "chord: L1 + L2 + click too")
+    check(byKey["CTRL-PADBACK"] and byKey["CTRL-PADBACK"].click, "no chord: L1 (as Ctrl) + click is zones too")
+    for _, e in ipairs(plan) do check(e.action ~= "TOGGLEUIFOCUS", "no Focus UI put anywhere by itself") end
     env.ours = false
     plan = T.BindingPlan(s, env)
-    eq(#plan, 4, "chord, window focused: only the chord keys")
-    for _, e in ipairs(plan) do check(e.action == "TOGGLEUIFOCUS", "chord, window focused: no zone keys") end
+    eq(#plan, 0, "window focused: nothing bound, the click is Blizzard's")
     env.ours, env.conflict = true, true
     local _, why = T.BindingPlan(s, env)
     eq(#T.BindingPlan(s, env), 0, "chord yields to Improved Forever")
     check(why ~= nil, "conflict has a note")
     env.conflict, env.emulate = false, {}
     local _, noChord = T.BindingPlan(s, env)
-    check(noChord and noChord:find("no modifier", 1, true), "no chord without an emulated modifier")
+    check(noChord == nil, "no chord: no note about modifiers")
     s.mode = "split"
     eq(#T.BindingPlan(s, { padStyle = "Shapes", splitReady = false }), 0, "split waits for PAD6")
     plan = T.BindingPlan(s, { padStyle = "Shapes", splitReady = true })
@@ -283,7 +282,7 @@ _G.CharacterMicroButton = { Click = function() end }
 
 Touch.Command("on")
 eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "B: plain click is ours")
-eq(GetBindingAction("CTRL-PADBACK"), "TOGGLEUIFOCUS", "B: L1 + click is Blizzard's")
+check(GetBindingAction("CTRL-PADBACK") ~= "TOGGLEUIFOCUS", "B: no L1 chord for Focus UI")
 eq(GetBindingAction("PAD6"), "", "B: no PAD6")
 eq(cvars.GamePadTouchCursorEnable, "0", "touch cursor off while ours")
 eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "click top left: Character")
@@ -375,7 +374,7 @@ eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "lost release: the next pres
 shownWindows, uiFocused, coreOnly = 1, true, false
 Tick()
 eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "over windows: zones with a window focused")
-eq(GetBindingAction("CTRL-PADBACK"), "TOGGLEUIFOCUS", "over windows: L1 + click still focuses")
+check(GetBindingAction("CTRL-PADBACK") ~= "TOGGLEUIFOCUS", "over windows: no L1 chord")
 SetOverrideBindingClick(UIParent, true, "PADBACK", "SearchBoxButton", "LeftButton")
 RunTimers()
 eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "a window's click binding is taken back")
@@ -391,7 +390,7 @@ shownWindows = 1
 uiFocused = true
 Tick()
 eq(GetBindingAction("PADBACK"), "", "focused window: plain click is Blizzard's again")
-eq(GetBindingAction("CTRL-PADBACK"), "TOGGLEUIFOCUS", "focused window: chord stays")
+check(GetBindingAction("CTRL-PADBACK") ~= "TOGGLEUIFOCUS", "focused window: no chord of ours")
 uiFocused = false
 Tick()
 eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "back in the world: zones again")
@@ -493,7 +492,7 @@ do
     eq(cvars.GamePadTouchTapButtons, "1", "dual: taps press the pad")
     eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "dual: touch is the left button")
     eq(GetBindingAction("PAD6"), "CLICK GamepadCompanionTouchClick:RightButton", "dual: click is the right button")
-    eq(GetBindingAction("CTRL-PAD6"), "TOGGLEUIFOCUS", "dual: L1 + click focuses")
+    check(GetBindingAction("CTRL-PAD6") ~= "TOGGLEUIFOCUS", "dual: no L1 chord")
     check(Touch.SetZone("base", "r1c1", "text:/wave", "touch"), "set a touch action")
     check(not Touch.SetZone("base", "swipe-up", "text:/wave", "touch"), "no touch action on a swipe")
     local function Do(button, down, x, y)

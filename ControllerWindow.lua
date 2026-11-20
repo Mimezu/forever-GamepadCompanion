@@ -664,7 +664,7 @@ local function BuildTouchPanel(card)
     S.Segments(p, -1, -61, { half, half }, 24)
     tp.modes.chord = S.Segment(p, "Whole pad", 0, -62, half, function() Touch.SetMode("chord") end, 11, 24)
     tp.modes.split = S.Segment(p, "Right half", half, -62, half, function() Touch.SetMode("split") end, 11, 24)
-    S.Tooltip(tp.modes.chord, "Whole pad", "L1 + pad: Blizzard's")
+    S.Tooltip(tp.modes.chord, "Whole pad", "All zones")
     S.Tooltip(tp.modes.split, "Right half", "Left half: Blizzard's")
 
     local function Step(sx, tip, dc, dr)
