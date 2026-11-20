@@ -376,7 +376,8 @@ table.sort(gaps)
 assert(gaps[#gaps] - gaps[1] > 0.04 and left >= 3 and right >= 3, "uneven, over both hands: not a buzz")
 -- Evocation: a breath each second
 m = channel(12051, 8)
-assert(#m == 8 and m[1][2] == "r_evocation", "Evocation: eight breaths")
+assert(#m == 4 and m[1][2] == "r_evocation", "Evocation: four breaths, one per 2 s regen tick: " .. #m)
+near(m[1][1], 2, 0.03, "the first at 2 s")
 -- Cannibalize: a bite every 2 s
 m = channel(20578, 10)
 assert(#m == 5 and m[1][2] == "r_chew", "Cannibalize: five bites, 2 s apart")
@@ -565,5 +566,13 @@ do
     RunTimers()
     assert(fired[1] == "instant:fireball", "a crit: its own impact: " .. tostring(fired[1]))
     V.Fire = vfire
+    -- (the name rules and Study are a mage's only: a rogue's runes keep their own)
+    UnitClass = function() return "Rogue", "ROGUE" end
+    assert(V.MageOf(401762) == nil and V.MageOf(1302508) == nil, "another class: no Engrave or Study rule")
+    assert(V.MageOf(133) ~= nil, "the mage's own IDs stay")
+    UnitClass = function() return "Mage", "MAGE" end
+    for _, p in ipairs(V.MAGE_PATTERNS) do
+        if p.key == "peel" or p.key == "roll" or p.key == "bolt" then assert(p.group == "Crafts", p.key .. ": Crafts") end
+    end
     io.write("PASS: the Undead female's steps (her stride), her swings (the measured defaults); a mage's Recommended; a spell's crit lands as itself\n")
 end

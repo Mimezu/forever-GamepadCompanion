@@ -365,7 +365,7 @@ local MAGE_PATTERNS = {
 }
 for _, p in ipairs(MAGE_PATTERNS) do
     p.action, p.mage = true, true
-    if not p.move then p.group = "Spells" end
+    if not p.move and not p.group then p.group = "Spells" end
     V.PATTERNS[#V.PATTERNS + 1] = p
 end
 V.MAGE_PATTERNS = MAGE_PATTERNS
@@ -412,7 +412,7 @@ V.MAGE = {
     [401462] = { move = "blink", when = "cast" },                            -- Rewind Time
     [118] = { burst = "polymorph" }, [28270] = { burst = "polymorph" }, [28271] = { burst = "polymorph" },
     [28272] = { burst = "polymorph" },                                       -- Polymorph: Cow, Pig, Turtle
-    [12051] = { tick = "evocation", ticks = 8 },
+    [12051] = { tick = "evocation", ticks = 4 },                             -- (its mana: the 2 s regen ticks)
     [1463] = { move = "manaShield", when = "cast" }, [6117] = { move = "mantle", when = "cast" }, -- Mana Shield, Mage Armor
     [1459] = { move = "glow", when = "cast" }, [23028] = { move = "glow", when = "cast" }, -- Arcane Intellect, Brilliance
     [1008] = { move = "glow", when = "cast" }, [604] = { move = "glow", when = "cast" },   -- Amplify, Dampen Magic
@@ -421,7 +421,7 @@ V.MAGE = {
     [428885] = { move = "glow", when = "cast" },                             -- Temporal Anomaly
     [587] = { set = "feel:conjure" }, [5504] = { set = "feel:conjure" }, [759] = { set = "feel:conjure" }, -- Food, Water, Agate
     [3552] = { set = "feel:conjure" }, [10053] = { set = "feel:conjure" }, [10054] = { set = "feel:conjure" }, -- Jade, Citrine, Ruby
-    [1302508] = { set = "arcaneSpells" },                                    -- Study (a scroll read)
+    [1302508] = { set = "arcaneSpells", mageOnly = true },                   -- Study (a scroll read)
     [401417] = { set = "healing" }, [412510] = { set = "healing" },          -- Regeneration, Mass Regeneration
     [1297659] = { set = "travel" },                                          -- Teleport: Dalaran (Forever's)
     -- Undead: Cannibalize's channel, a bite each tick (every 2 s)
@@ -2750,14 +2750,26 @@ end
 -- shares the first's); nil: none
 local mageByName
 V.MAGE_ENGRAVE = { set = "enchanting" }
+-- (a mage's own: the name rules (every rank, the runes engraved) and Study, only for a mage; the
+-- spell IDs themselves are the mage's)
+function V.IsMage()
+    if not UnitClass then return false end
+    local _, class = UnitClass("player")
+    return class == "MAGE"
+end
 function V.MageOf(spellID, name)
     if not spellID or secret(spellID) then return nil end
-    if V.MAGE[spellID] then return V.MAGE[spellID] end
+    local m = V.MAGE[spellID]
+    if m then
+        if m.mageOnly and not V.IsMage() then return nil end
+        return m
+    end
+    if not V.IsMage() then return nil end
     if not mageByName then
         mageByName = {}
         for id, m in pairs(V.MAGE) do
             local n = SpellName(id)
-            if n and not secret(n) and not mageByName[n] and not m.byId then mageByName[n] = m end
+            if n and not secret(n) and not mageByName[n] and not m.byId and not m.mageOnly then mageByName[n] = m end
         end
     end
     name = name or SpellName(spellID)

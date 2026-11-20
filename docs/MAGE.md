@@ -16,7 +16,7 @@ tables (SpellName, SpellMisc, SpellEffect...). `tests/MageCoverage.lua` checks e
 | Instant at the target | As it lands | Fire Blast, Ice Lance, Arcane Barrage |
 | Around you | At the cast, both hands | Frost Nova, Arcane Explosion, Blast Wave, Cone of Cold, Dragon's Breath |
 | Released | At the release, no wait | Flamestrike (a breath, the eruption, the ground burning), Polymorph (a soft pop) |
-| Channel | One feel per tick, from the channel's real length over its count (haste-proof); a faint hum under it | Arcane Missiles (3, 4, 5 by rank; the last firmer, hands by turns), Blizzard (8 ticks of uneven shards), Evocation, Cannibalize (a bite every 2 s) |
+| Channel | One feel per tick, from the channel's real length over its count (haste-proof); a faint hum under it | Arcane Missiles (3, 4, 5 by rank; the last firmer, hands by turns), Blizzard (8 ticks of uneven shards), Evocation (a breath every 2 s), Cannibalize (a bite every 2 s) |
 | At the cast | A small feel | Blink, Counterspell, Ice Block, Ice Barrier, Mana Shield, the armors, Arcane Intellect, cooldowns |
 | Cast loop | Its own set | Conjures (crystals), Teleports and Portals (Hearthstone's), runes engraved (Enchanting's) |
 
