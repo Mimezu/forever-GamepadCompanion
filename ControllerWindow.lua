@@ -59,6 +59,9 @@ end
 
 local KINDS = { spell = "Spell", item = "Item", macro = "Macro", flyout = "Flyout", companion = "Mount",
     summonmount = "Mount", summonpet = "Pet", equipmentset = "Equipment set" }
+-- (Companion's own actions' kinds: not the game's slot kinds above)
+local ACTION_KINDS = { spell = "Spell", item = "Item", macro = "Macro", window = "Window", halo = "Halo ring",
+    text = "Typed macro", quick = "Quick use", pet = "Pet", bind = "Gamepad" }
 
 -- name, texture, kind label for a storage slot (nil when empty)
 local function ActionOf(storage)
@@ -160,9 +163,7 @@ local function FromAction(action, own, inherited)
     if not action then return nil end
     local name, icon, atlas = Look(action)
     local kind = action:match("^(%a+):")
-    local kinds = { spell = "Spell", item = "Item", macro = "Macro", window = "Window", halo = "Halo ring", text = "Typed macro",
-        quick = "Quick use", pet = "Pet", bind = "Gamepad" }
-    return { name = name, icon = icon, atlas = atlas, kind = (kinds[kind] or kind) .. (inherited and " · Base" or ""),
+    return { name = name, icon = icon, atlas = atlas, kind = (ACTION_KINDS[kind] or kind) .. (inherited and " · Base" or ""),
         own = own, inherited = inherited, action = action }
 end
 
@@ -595,6 +596,13 @@ local function Row(index)
     r.name = S.Text(r, "", 110, -13, W - 108, 12, S.GOLD)
     r.name:SetWordWrap(false)
     r:RegisterForClicks("LeftButtonUp")
+    r:SetScript("OnClick", function(self) selectedLayer = self.layer; Refresh() end)
+    -- (double-click: Choose for that layer)
+    r:SetScript("OnDoubleClick", function(self)
+        selectedLayer = self.layer
+        Refresh()
+        OpenPicker()
+    end)
     ui.rows[index] = r
     return r
 end
@@ -621,13 +629,7 @@ local function RefreshRows(target, y, glyph)
         if entry and not entry.inherited and not entry.dim then r.name:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
         else r.name:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
         r.selection:SetShown(l == layer)
-        r:SetScript("OnClick", function() selectedLayer = l; Refresh() end)
-        -- (double-click: Choose for that layer)
-        r:SetScript("OnDoubleClick", function()
-            selectedLayer = l
-            Refresh()
-            OpenPicker()
-        end)
+        r.layer = l
         r:Show()
     end
 end
