@@ -185,10 +185,18 @@ function C.SoundList()
     return list
 end
 
+-- (names by id, built once per helper data table)
+local soundNames, soundNamesFor
 function C.SoundName(id)
     if not id then return nil end
-    for _, e in ipairs(C.SoundList()) do if e.id == id then return e.name end end
-    return "Sound " .. id
+    local d = Data()
+    if not soundNames or soundNamesFor ~= d then
+        soundNames, soundNamesFor = {}, d
+        for _, e in ipairs(C.SoundList()) do
+            if soundNames[e.id] == nil then soundNames[e.id] = e.name end
+        end
+    end
+    return soundNames[id] or ("Sound " .. id)
 end
 
 -- A feel with an HD version in WoW Helper (from its data; its own feels always)
