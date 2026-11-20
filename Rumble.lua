@@ -2544,9 +2544,10 @@ function V.SpellRule(spellID, castTime)
     end
     if not linked then
         local ct = castTime or CastTimeOf(spellID) or 0
-        -- (a channel the client calls instant, asked with no cast going: listed in a cast set,
-        -- Mend Pet, Tame Beast, Eyes of the Beast, it is one)
-        local channel = ChannelTicks(spellID) ~= nil or (castTime == nil and spellByName and spellByName[name] ~= nil)
+        -- (a channel the client calls instant, asked with no cast going: Mend Pet, Tame Beast,
+        -- Eagle Eye: Hunter.lua's list)
+        local HNC = ns.Hunter
+        local channel = ChannelTicks(spellID) ~= nil or (castTime == nil and HNC and HNC.IsChannel and HNC.IsChannel(name))
         if ct > 0 or channel then
             local kind, action = CastKind(spellID)
             if kind == "gather" or kind == "craft" then

@@ -163,7 +163,7 @@ end
 -- (other spells the addon names: theirs, so name lookups never collide)
 local OTHER = { [1539] = "Feed Pet Effect", [1604] = "Dazed", [6603] = "Attack", [5019] = "Shoot", [3018] = "Shoot",
     [2480] = "Shoot Bow", [7918] = "Shoot Gun", [7919] = "Shoot Crossbow", [2764] = "Throw", [19386] = "Wyvern Sting",
-    [3355] = "Freezing Trap" }
+    [3355] = "Freezing Trap", [13810] = "Frost Trap", [14309] = "Freezing Trap" }
 for id, name in pairs(OTHER) do NAME[id] = NAME[id] or name end
 GetSpellInfo = function(id) return NAME[id] or ("Spell " .. tostring(id)), nil, nil, CAST[id] or 0 end
 -- (the client calls buffs helpful)
@@ -181,6 +181,7 @@ UnitIsDead = function(u) if u == "pet" then return game.petDead end return false
 UnitHealthMax = function(u) return u == "pet" and game.petHp or 3000 end
 UnitIsUnit = function(a, b) if a == "pettarget" and b == "target" then return game.petTarget end return a == b end
 UnitAffectingCombat = function() return true end
+UnitOnTaxi = function() return game.taxi == true end
 UnitCanAttack = function() return true end
 GetPetHappiness = function() return game.happiness end
 C_UnitAuras = { GetAuraDataByIndex = function(unit, i, filter)
@@ -189,7 +190,10 @@ C_UnitAuras = { GetAuraDataByIndex = function(unit, i, filter)
     for _, a in ipairs(list) do
         if (filter or ""):find(a.harmful and "HARMFUL" or "HELPFUL") then
             n = n + 1
-            if n == i then return { name = NAME[a.id], spellId = a.id, sourceUnit = a.source } end
+            if n == i and (not (filter or ""):find("PLAYER") or a.source == "player") then
+                return { name = NAME[a.id], spellId = a.id, sourceUnit = a.source }
+            end
+            if n == i then return { name = "other", spellId = 0 } end
         end
     end
 end }
@@ -357,6 +361,14 @@ check(Has("shot"), "Aimed Shot: the arrow at its impact")
 check(HN.CastReleased("petCare", 136) and HN.CastReleased("tame", 1515) and HN.CastReleased("summon", 982),
     "Mend Pet, Tame Beast, Revive Pet: a quiet end (the pet's moment plays)")
 check(not HN.CastReleased("summon", 688), "a warlock's summon keeps its release")
+NAME[900100] = "Steady Swing"
+fired = {}
+check(not HN.CastReleased("shots", 900100) and not Has("shot"), "another physical cast in the Shots set: no arrow")
+-- (Your spells, asked with no cast going: a channel the client calls instant is a cast; an
+-- instant listed in a set is not)
+eq(Plays(V.SpellRule(13544)), "cast petCare", "Your spells: Mend Pet a channel")
+eq(Plays(V.SpellRule(883)), "quiet", "Your spells: Call Pet an instant")
+eq(Plays(V.SpellRule(2643)), "shot multi", "Your spells: Multi-Shot a shot")
 -- (Arcane Shot's window takes only a magic wound: never the pet's blow just after it)
 check(V.SpellRule(14287, 0).magicOnly == true and V.SpellRule(409433, 0).magicOnly == true, "Arcane, Chimera Shot: magic only")
 check(not V.SpellRule(1495, 0).magicOnly, "Mongoose Bite: any wound")
@@ -438,6 +450,35 @@ now = now + 10
 game.happiness = 2
 HunterEvent("UNIT_POWER_UPDATE", "pet", "HAPPINESS")
 check(Has("lab:petUnhappy"), "less happy: a sulk")
+-- (fed, then dismissed mid-meal: no munching on)
+game.auras.pet = { { id = 1539 } }
+HunterEvent("UNIT_AURA", "pet")
+game.pet = nil
+HunterEvent("UNIT_PET", "player")
+fired = {}
+Run(); Run()
+check(not Has("lab:petFeed"), "the pet gone: no more munching")
+game.pet = "Pet-2"
+HunterEvent("UNIT_PET", "player")
+-- (a meal that never ends: over after FEED_MAX)
+fired = {}
+HunterEvent("UNIT_AURA", "pet")
+now = now + HN.FEED_MAX + 1
+Run(); fired = {}; Run()
+check(not Has("lab:petFeed"), "no munching past " .. HN.FEED_MAX .. " s")
+game.auras.pet = {}
+HunterEvent("UNIT_AURA", "pet")
+now = now + 6
+-- (a flight path: the pet goes and comes back quietly)
+fired = {}
+game.taxi = true
+game.pet = nil
+HunterEvent("UNIT_PET", "player")
+game.pet = "Pet-2"
+game.taxi = false
+HunterEvent("UNIT_PET", "player")
+check(not Has("lab:petDismiss") and not Has("lab:petArrive"), "a flight path: quiet")
+now = now + 6
 -- A heavy blow on the pet; a light one
 fired = {}
 HunterEvent("UNIT_COMBAT", "pet", "WOUND", nil, 50, 1)
@@ -456,10 +497,15 @@ fired = {}
 now = now + 5
 check(HN.ClaimsResult("WOUND", "CRITICAL", 1), "a physical crit on the target, your pet fighting it, no shot of yours: the pet's")
 check(Has("lab:petCrit"), "its crit: Pet crit")
-check(HN.ClaimsResult("WOUND", "CRITICAL", 1), "asked again for the same event (the Lab after Rumble): the same answer")
+check(HN.ClaimsResult("WOUND", "CRITICAL", 1, true), "the Lab asking after Rumble for the same event: the same answer")
 local crits = 0
 for _, f in ipairs(fired) do if f == "lab:petCrit" then crits = crits + 1 end end
 eq(crits, 1, "one Pet crit per event")
+-- (two alike in one frame: two events, each its own)
+check(HN.ClaimsResult("WOUND", "CRITICAL", 1) and HN.ClaimsResult("WOUND", "CRITICAL", 1, true), "a second like it in the same frame")
+crits = 0
+for _, f in ipairs(fired) do if f == "lab:petCrit" then crits = crits + 1 end end
+eq(crits, 2, "two Pet crits for two events")
 now = now + 0.5
 V.ShotLoosed(75)
 now = now + 0.4
@@ -468,6 +514,17 @@ now = now + 0.1
 check(HN.ClaimsResult("MISS", nil, 1), "the next one is the pet's (its miss is not yours)")
 now = now + 1
 check(not HN.ClaimsResult("WOUND", nil, 4), "a fire wound: not the pet's")
+-- (WoW Helper learned the shot lands 0.5 s on: only a result near then is the shot's, the
+-- pet's blow just after the shot leaves stays the pet's and never eats your crit)
+local impact = V.ImpactDelay
+V.ImpactDelay = function() return 0.5 end
+now = now + 3
+V.ShotLoosed(75)
+now = now + 0.05
+check(HN.ClaimsResult("WOUND", nil, 1), "learned: a blow 0.05 s after the shot left is the pet's")
+now = now + 0.45
+check(not HN.ClaimsResult("WOUND", "CRITICAL", 1), "learned: the crit where the shot lands is yours")
+V.ImpactDelay = impact
 game.pet = nil
 now = now + 1
 check(not HN.ClaimsResult("WOUND", "CRITICAL", 1), "no pet: not the pet's")
@@ -483,20 +540,24 @@ check(not Has("lab:trapArmed"), "laid: not armed yet")
 Run()
 check(Has("lab:trapArmed"), "armed")
 fired = {}
-HunterEvent("UNIT_AURA", "nameplate3", { addedAuras = { { name = "Freezing Trap", sourceUnit = "player" } } })
+HunterEvent("UNIT_AURA", "nameplate3", { addedAuras = { { name = "Freezing Trap", spellId = 14309, sourceUnit = "player" } } })
 check(Has("lab:trapSprung"), "sprung on a mob nearby")
 fired = {}
 HunterEvent("UNIT_AURA", "target", { addedAuras = { { name = "Freezing Trap", sourceUnit = "player" } } })
 check(not Has("lab:trapSprung"), "once per trap")
 -- (no list of added auras: a scan)
 HunterEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "g", 13809)
-game.auras.target = { { id = 13809, harmful = true, source = "player" } }
+game.auras.target = { { id = 13810, harmful = true, source = "player" } }
 HunterEvent("UNIT_AURA", "target", { isFullUpdate = true })
 check(Has("lab:trapSprung"), "Frost Trap sprung, by a scan")
 -- (none out: nothing is looked at)
 fired = {}
 HunterEvent("UNIT_AURA", "target", { addedAuras = { { name = "Frost Trap", sourceUnit = "player" } } })
 check(not Has("lab:trapSprung"), "no trap out: nothing")
+-- (by id, whatever the client calls it)
+HunterEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "g", 14311)
+HunterEvent("UNIT_AURA", "target", { addedAuras = { { name = "Freezing Trap Effect", spellId = 3355, sourceUnit = "player" } } })
+check(Has("lab:trapSprung"), "sprung, matched by the effect's id")
 
 ---------------------------------------------------------------------------
 -- Dazed in Cheetah
@@ -507,9 +568,14 @@ HunterEvent("UNIT_AURA", "player")
 check(not Has("lab:dazed"), "dazed without Cheetah: nothing here")
 game.auras.player = {}
 HunterEvent("UNIT_AURA", "player")
-game.auras.player = { { id = 5118 }, { id = 1604, harmful = true } }
+game.auras.player = { { id = 13159, source = "party1" }, { id = 1604, harmful = true } }
 HunterEvent("UNIT_AURA", "player")
-check(Has("lab:dazed"), "dazed in Cheetah: a wobble")
+check(not Has("lab:dazed"), "dazed under a party hunter's Pack: theirs, nothing")
+game.auras.player = {}
+HunterEvent("UNIT_AURA", "player")
+game.auras.player = { { id = 5118, source = "player" }, { id = 1604, harmful = true } }
+HunterEvent("UNIT_AURA", "player")
+check(Has("lab:dazed"), "dazed in your own Cheetah: a wobble")
 V.Fire, L.Fire = vFire, labFire
 
 ---------------------------------------------------------------------------

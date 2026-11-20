@@ -1437,7 +1437,7 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount, school)
     if unit == "target" and V and V.ClaimsResult and V.ClaimsResult(action, school) then return end
     -- (your pet's blow: Hunter.lua's, not your Miss or Target dodges)
     local HN = ns.Hunter
-    if unit == "target" and HN and HN.ClaimsResult and HN.ClaimsResult(action, flag, school) then return end
+    if unit == "target" and HN and HN.ClaimsResult and HN.ClaimsResult(action, flag, school, true) then return end
     if unit == "player" then
         -- (a wound just after a fall that could hurt: the fall's, Fall damage plays)
         if action == "WOUND" and L.FallWound and L.FallWound() then return end
