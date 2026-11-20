@@ -187,3 +187,10 @@ debugprofilestop
 C_Minimap
 GetPlayerFacing
 GetTrackingTexture
+CastPetAction
+GetPetActionInfo
+GetPetHappiness
+PetAttack
+PetFollow
+PetWait
+UnitAura

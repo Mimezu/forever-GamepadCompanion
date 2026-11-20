@@ -41,7 +41,8 @@ P.RECOMMENDED = {
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
     DRUID = { events = { combo = true, comboFull = true } },
-    HUNTER = { vibration = { shot = true } },
+    -- (a hunter: every shot felt, its crits too: a hunter's big moments are ranged)
+    HUNTER = { vibration = { shot = true, critRanged = true } },
 }
 
 -- A Feel profile as shipped for a class

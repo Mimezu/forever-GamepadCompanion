@@ -2,6 +2,14 @@
 
 ## Unreleased (0.69.3)
 
+- **Hunter**: every hunter spell has its own feel (tests/Hunter.lua lists all 76). Aimed Shot draws the string, then the arrow lands as a shot; Multi-Shot fans two more arrows; stings and Black Arrow creep in after the shot; Concussive and Scatter Shot daze; Volley rains small arrows over both hands; Feign Death drops, Disengage leaps, aspects breathe in
+- **Traps**: laid, armed 2 s later, a snap when one springs on an enemy
+- **Pet** (new group): arrives, leaves, tamed, attack / follow / stay, its crit, a heavy blow, its death, eating, happier or less. All fainter than your own
+- Fixed: your pet's crits played as your Crit, its misses and dodges as yours. Now its own, faint
+- **Dazed** in Cheetah or Pack: a wobble
+- Hunter defaults: ranged crits on
+- **Skyborne**: Walk on Air lifts you; Skysight and Read Leyline a far look. WoW Helper's learned shot, swing, step and gathering timing now applies to a Skyborne (it was kept under race 15 and never read back)
+- Fixed: Arcane Shot ranks 2-8 were timed as melee; now as a shot from afar, like rank 1
 - Fishing: the cast no longer plays the Gathering sound. With WoW Helper you hear the cast's own whoosh, feel a throw forward, then a small splash as the bobber lands
 - Fishing: Fish hooked comes sooner (WoW Helper calls the bite 200 ms into its splash, not 600 ms), and R2 has a light pull the whole time the line is out. The catch no longer ends in a pickaxe-like knock
 - Underwater, still: bubbles further apart and softer (swimming unchanged)
