@@ -27,7 +27,7 @@
 - Fixed: Choose opened on page 1 after an earlier search, not on the current action's page
 - Lighter in play: Rumble's settings checked once, not every frame; the touchpad read only when needed; unit events only for you and your target; the L2 / R2 watcher idle without layer actions; food tooltips, footstep timing, sky and sound names kept; the Controller page redraws once per burst; one save per bar move or Undo; unused code gone
 - Triggers: the 10 Hz update resolves the stack once at its end, so a tick sends finished values only
-- **Mage**: every mage spell its own feel (docs/MAGE.md). Bolts land on the target after their flight; Frost Nova and Arcane Explosion in both hands; Flamestrike erupts, then burns
+- **Mage**: every mage spell its own feel (docs/MAGE.md). Bolts land on the target after their flight; Frost Nova and Arcane Explosion in both hands; Flamestrike erupts, then burns
 - Arcane Missiles: one feel per missile, on its tick (haste too); the last a touch firmer. Blizzard: a storm of uneven shards each second
 - A mage's spell crit plays its own impact at full
 - Skinning: the hide pulled free as it succeeds. Tailoring: bolts of cloth wound and patted down
