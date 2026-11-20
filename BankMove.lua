@@ -248,10 +248,11 @@ function B.Hint()
     -- (a child of the bank, as Blizzard's legend is of its window: the bank's
     -- scale and strata, shown and hidden with it, never behind it)
     if Call(holder.GetParent, holder) ~= bank then Call(holder.SetParent, holder, bank) end
+    local target = not InCombat() and (B.Target()) or nil
     local l = Bar()
     if l then
         Place(l, bank)
-        local lit = (not InCombat() and B.Target() or nil) == "bank"
+        local lit = target == "bank"
         local send = prompts.send
         if send and lit ~= sendLit then
             if lit then Call(send.EnablePrompt, send) else Call(send.DisablePrompt, send) end
@@ -259,7 +260,7 @@ function B.Hint()
         end
         holder:Show()
     end
-    return not InCombat() and (B.Target()) or nil
+    return target
 end
 
 local wait = 0
