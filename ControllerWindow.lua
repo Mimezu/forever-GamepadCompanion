@@ -964,9 +964,16 @@ local function Build(frame, header)
         "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "CURSOR_CHANGED" }) do
         pcall(events.RegisterEvent, events, event)
     end
+    -- (event bursts: a spec swap's 100+ slot changes, a drag's cursor: one redraw a frame)
+    local queued
+    local function RefreshSoon()
+        if queued then return end
+        queued = true
+        C_Timer.After(0, function() queued = false; Refresh() end)
+    end
     events:SetScript("OnEvent", function(_, event)
         if event == "UPDATE_BINDINGS" then commandKeys = nil end
-        Refresh()
+        RefreshSoon()
     end)
     if ns.Touch and ns.Touch.OnChange then ns.Touch.OnChange(Refresh) end
     if ns.Keys then ns.Keys.OnChange(Refresh) end
