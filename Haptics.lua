@@ -331,6 +331,9 @@ local HISTORY = 240
 local history, head = {}, 0
 for i = 1, HISTORY do history[i] = { 0, 0 } end
 local sendTimes = {}
+local function PruneSends(now)
+    while sendTimes[1] and now - sendTimes[1] > 1 do table.remove(sendTimes, 1) end
+end
 
 local function Wake() driver:Show() end
 
@@ -545,6 +548,7 @@ driver:SetScript("OnUpdate", function()
         out.sentAt = now
         out.sends = out.sends + 1
         sendTimes[#sendTimes + 1] = now
+        PruneSends(now)
     end
     if keep or abs(lt - out.sentLT) > step or abs(rt - out.sentRT) > step then
         if lt > 0 or out.sentLT > 0 then Send("LTrigger", lt) end
@@ -565,8 +569,7 @@ function H.History()
 end
 
 function H.SendRate()
-    local now = Now()
-    while sendTimes[1] and now - sendTimes[1] > 1 do table.remove(sendTimes, 1) end
+    PruneSends(Now())
     return #sendTimes
 end
 
