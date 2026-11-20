@@ -531,8 +531,9 @@ end
 local function Queue(item)
     if not K.Enabled() or #K.queue >= K.QUEUE_MAX then return false end
     -- Hush (Hush.lua): no sounds, no moment lights; a touch still goes (the Feel channel scales it)
+    -- (and no race and sex: WoW Helper's yell for Fall damage is a sound too)
     if ns.Stack and ns.Stack.Is("hush") and not K.previewing then
-        item.sound, item.light = 0, nil
+        item.sound, item.light, item.seed = 0, nil, nil
         if (item.touch or 0) == 0 and not item.open then return false end
     end
     Attach(item)
@@ -604,9 +605,26 @@ function K.Cue(item)
     local touch, sound = Int(item.touch, 4095), Int(item.sound, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     if touch == 0 and sound == 0 and not item.open then return false end
+    -- (seed: nil = a random variation; Fall damage's carries the race and sex, K.RaceSexSeed)
     return Queue({ touch = touch, sound = sound, gain = Int(item.gain == nil and 4 or item.gain, 7),
         intensity = item.intensity and Int(item.intensity, 7) or 4, moment = Int(item.moment, 127),
-        open = item.open and true or false })
+        open = item.open and true or false, seed = item.seed and Int(item.seed, 255) or nil })
+end
+
+-- Fall damage (moment 92) carries the character's race and sex in its cue's seed (v2 bits
+-- 70-77), so WoW Helper plays that character's own yell with it, in the same frame: bits 0-6
+-- the race id (UnitRace's third value, 1-127; 0 unknown), bit 7 female (UnitSex 3), the
+-- markers' convention (src/calib.rs, src/gather.rs). An older WoW Helper takes the byte for a
+-- variation seed, as for any cue.
+function K.RaceSexSeed(race, sex)
+    race = type(race) == "number" and race or 0
+    if race < 1 or race > 127 or race ~= floor(race) then race = 0 end
+    return race + (sex == 3 and 128 or 0)
+end
+-- seed -> race (0 unknown), sex (2 male, 3 female)
+function K.RaceSexOf(seed)
+    seed = Int(seed, 255)
+    return seed % 128, seed >= 128 and 3 or 2
 end
 
 -- The mic LED (v2): "leave", "off", "on", "pulse"

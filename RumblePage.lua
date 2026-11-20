@@ -46,7 +46,7 @@ local GROUPS = {
         { "l", "death" }, { "l", "alive" } } },
     { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" } } },
-    { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
+    { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "fallDamage" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
         { "l", "underwater" }, { "l", "mount" }, { "l", "dismount" }, { "l", "taxi" } } },
     { key = "Care", items = { { "r", "eat" }, { "r", "drink" }, { "l", "bandage" }, { "l", "potion" }, { "l", "rested" } } },
     { key = "Weather", items = { { "l", "rain" }, { "l", "thunder" }, { "l", "snow" }, { "l", "sand" }, { "l", "embers" } } },

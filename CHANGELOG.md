@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.67.0 — 2026-11-20
+
+- **Fall damage**, a new moment (Moving, under Landing). A landing that hurts now plays one cue, not two: the hardest landing, a bit heavier (the thud a quarter longer, an echo more), in place of the landing and of Hit taken
+- WoW Helper adds your character's own pain yell on the pad's speaker, the one the game plays, picked at random among that race and sex's takes. Nothing to set up; a full feel made for Fall damage in WoW Helper plays instead
+- How it's known: WoW Forever gives addons no combat log, so a fall is a wound on you (UNIT_COMBAT) that arrives just after a fall long enough to hurt (1 s or more below where it began; a jump's own arc doesn't count). Such a landing waits up to half a second for its wound; with none, the landing plays then. Where the combat log is readable, its falling damage says it outright
+- The strip: Fall damage's cue (moment 92) carries your race and sex in its seed byte (race id in bits 0-6, female bit 7, as the swing markers already do), so the yell starts with the thud. Hush sends neither. Vectors shared with WoW Helper: `tests/fixtures/helperlink-fall-vectors.txt`
+
 ## 0.66.0 — 2026-11-20
 
 - **Triggers: drag to reorder**, as FrameGambit's cards: pick a row up anywhere but its buttons (the `::` grip lights on hover), a copy follows the cursor, the rows close up around the slot it will land in, and the new order is saved on release. Otherwise stays last. The ▲▼ buttons (drawn as empty squares) are gone

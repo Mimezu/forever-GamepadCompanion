@@ -13,7 +13,9 @@ Background: `ADAPTIVE-TRIGGERS.md`, `HAPTICS.md` section 5.
 **v2 is the default since 0.24.0**: the wide strip, 34 cells, cyan second marker, 96 bits with
 touch, sound, gain, level, side, intensity, seed, mic LED and a CRC-8. Spec:
 `C:\games\WowHelper\docs\PROTOCOL-V2.md`; addon side `K.EncodeV2` / `K.DecodeV2`, checked against
-the helper's `tests/fixtures/helperlink-v2-vectors.txt`. **HD link** off (Lab › Link)
+the helper's `tests/fixtures/helperlink-v2-vectors.txt`. Fall damage's cue (moment 92) carries the race and sex in `seed`
+(bits 0-6 race id, bit 7 female: `K.RaceSexSeed`), checked against
+`tests/fixtures/helperlink-fall-vectors.txt`. **HD link** off (Lab › Link)
 goes back to the v1 strip below (`GamepadCompanionHapticsDB.link.v1 = true`).
 
 ## The strip

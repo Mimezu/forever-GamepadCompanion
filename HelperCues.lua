@@ -58,6 +58,8 @@ C.MOMENTS = {
     { "craft:cooking", "Abilities", "craft" }, { "craft:engineering", "Abilities", "craft" },
     { "craft:enchanting", "Abilities", "craft" }, { "craft:firstaid", "Abilities", "craft" },
     { "craft:smelting", "Abilities", "craft" },
+    -- a landing that hurts (its cue carries the race and sex: WoW Helper plays the character's yell), 92
+    { "fallDamage", "Moving" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
@@ -380,6 +382,16 @@ local function Strength()
 end
 local function HdGain(gain) return floor(max(0, min(1, Strength() * (gain or 1))) * 7 + 0.5) end
 
+-- Moments whose cue carries the character's race and sex (HelperLink: K.RaceSexSeed)
+C.SEEDED = { fallDamage = true }
+function C.RaceSexSeed()
+    local race = UnitRace and select(3, UnitRace("player")) or 0
+    local sex = UnitSex and UnitSex("player") or 0
+    if secret(race) then race = 0 end
+    if secret(sex) then sex = 0 end
+    return K.RaceSexSeed(race, sex)
+end
+
 -- One cue for a moment: its HD feel and its sound together, with its number.
 -- Volumes (Volume.lua): gain = the sound's volume when there is a sound,
 -- else the feel's; intensity = the feel's strength (4 = as designed).
@@ -414,7 +426,8 @@ function C.Moment(key, feelKey, opts)
     if opts.intensity then intensity = max(0, min(7, floor(opts.intensity + 0.5))) end
     -- (a spell's own cue goes with no number: under its parent's, WoW Helper
     -- took the spell's sound for the parent's and dropped a pick pending on it)
-    local item = { moment = C.MOMENT_N[key] or 0, touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open }
+    local item = { moment = C.MOMENT_N[key] or 0, touch = touch, sound = sound, gain = gain, intensity = intensity, open = opts.open,
+        seed = C.SEEDED[key] and C.RaceSexSeed() or nil }
     if opts.build then return item end
     return K.Cue(item)
 end

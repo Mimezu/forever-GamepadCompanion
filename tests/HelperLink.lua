@@ -162,6 +162,28 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-v2-vectors.txt") do
 end
 assert(v2count == 81, "81 v2 vectors: " .. v2count)
 
+-- Fall damage (moment 92): the race and sex in the cue's seed, the helper's vectors
+local fallcount = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-fall-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local race, sex, head, digits = row:match("^(%d+) (%d+) : (.-)%s*:%s*(%d+)%s*$")
+        race, sex = tonumber(race), tonumber(sex)
+        local n, i = {}, 0
+        for num in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(num) end
+        assert(i == 19 and #digits == 34 and n.moment == 92, "fall vector line: " .. row)
+        assert(K.RaceSexSeed(race, sex) == n.seed, "fall vector seed: " .. row)
+        local r2, s2 = K.RaceSexOf(n.seed)
+        assert(r2 == race and s2 == sex, "fall vector read back: " .. row)
+        local s = { seq = n.seq, left = {}, right = {}, touch = n.touch, gain = n.gain, intensity = n.intensity,
+            seed = K.RaceSexSeed(race, sex), moment = 92 }
+        local cells, out = K.EncodeV2(s), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        assert(table.concat(out) == digits, "fall vector: " .. row .. " got " .. table.concat(out))
+        fallcount = fallcount + 1
+    end
+end
+assert(fallcount == 26, "26 fall vectors: " .. fallcount)
+
 -- Live (v1 switch): switch, layout, queue -----------------------------------------------------
 K.SetV2(false)
 assert(not K.V2() and GamepadCompanionHapticsDB.link.v1 == true, "v1 switch")
@@ -294,6 +316,22 @@ assert(#cues == 2, "two moment cues: " .. #cues)
 assert(cues[1].moment == 42 and cues[1].open and cues[1].touch == 300 and cues[1].sound == 900, "moment, open, both")
 assert(cues[2].moment == 7 and cues[2].open and cues[2].touch == 0, "open alone")
 assert(prev.moment == 0 and not prev.open, "moment cleared after")
+-- Fall damage: its seed (race and sex) on screen as sent; Hush drops it (the yell is a sound)
+assert(K.Cue({ moment = 92, touch = 300, seed = K.RaceSexSeed(8, 3) }))
+local fallCue
+for _ = 1, 50 do
+    local d = renderV2()
+    if d.seq ~= prev.seq then fallCue = d end
+    prev = d
+end
+assert(fallCue and fallCue.moment == 92 and fallCue.seed == 136, "the fall's seed: " .. tostring(fallCue and fallCue.seed))
+do
+    local stack = ns.Stack
+    ns.Stack = { Is = function(k) return k == "hush" end }
+    assert(K.Cue({ moment = 92, touch = 300, seed = 136 }) and K.queue[#K.queue].seed == nil, "hushed: no race and sex")
+    ns.Stack = stack
+    for _ = 1, 50 do prev = renderV2() end
+end
 K.SetMic("pulse")
 local dm = renderV2()
 assert(dm.mic == K.MIC.pulse and dm.seq == prev.seq, "mic: a state, no cue")
@@ -547,4 +585,4 @@ end
 
 K.SetEnabled(false)
 
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors)")
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors)")

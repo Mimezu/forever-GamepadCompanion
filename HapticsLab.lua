@@ -731,6 +731,8 @@ L.EVENTS = {
     -- Moving
     { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
         tip = "Softer or harder by the time in the air" },
+    { key = "fallDamage", icon = ART .. "vibe_slam", group = "Moving", label = "Fall damage", feel = "thud", on = true,
+        tip = "A landing that hurts, in its place: heavier. WoW Helper adds your character's yell" },
     { key = "footsteps", icon = ART .. "vibe_tick", group = "Moving", label = "Footsteps", feel = "steps", on = false, live = true },
     { key = "wading", icon = ART .. "vibe_bubble", group = "Moving", label = "Wading", feel = "wade", on = true, live = true,
         tip = "Footsteps in shallow water" },
@@ -1342,6 +1344,8 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount, school)
     local V = ns.Rumble
     if unit == "target" and V and V.ClaimsResult and V.ClaimsResult(action, school) then return end
     if unit == "player" then
+        -- (a wound just after a fall that could hurt: the fall's, Fall damage plays)
+        if action == "WOUND" and L.FallWound and L.FallWound() then return end
         if action == "WOUND" then
             local gain = 1
             if not secret(amount) and type(amount) == "number" then
@@ -1828,8 +1832,47 @@ local air = CreateFrame("Frame")
 L.airFrame = air
 local airState = { falling = false, since = 0 }
 
--- A landing after t seconds in the air: on ground a thud, in water a splash
-local function Land(t, now)
+---------------------------------------------------------------------------
+-- Fall damage: a landing that hurts. WoW Forever gives addons no combat log,
+-- so it is a wound on you (UNIT_COMBAT player WOUND) just after a fall long
+-- enough to hurt: such a landing waits up to FALL_WAIT for it. A wound in
+-- time: Fall damage plays in place of the landing and of Hit taken (the
+-- hardest landing, a bit heavier; WoW Helper adds the character's yell, the
+-- game's own, as the game plays it on the same wound). No wound: the landing
+-- plays, that much late. Where the combat log is readable, its
+-- ENVIRONMENTAL_DAMAGE (Falling) on you says the same.
+---------------------------------------------------------------------------
+-- (falls hurt from about 1.2 s below where they began: 1.0 leaves room)
+L.FALL_HURT_MIN = 1.0
+-- (a jump's own arc, back down to where it left the ground: a standing jump is about 0.8 s)
+L.JUMP_ARC = 0.75
+-- (the wound comes back from the server: a round trip)
+L.FALL_WAIT = 0.5
+-- (the same wound told twice, the combat log and UNIT_COMBAT: one cue)
+L.FALL_ECHO = 0.4
+
+-- Whether a fall of t seconds in the air can hurt (jumped: it began with a jump)
+function L.FallCouldHurt(t, jumped)
+    return (t or 0) - (jumped and L.JUMP_ARC or 0) >= L.FALL_HURT_MIN
+end
+
+-- The hardest landing, a bit heavier: the thud a quarter longer, an echo more, fading slower
+function L.FallFeel()
+    local longest = H.DB().landLong or L.LAND_LONG
+    local len = longest * 1.25
+    local list = { { 0, len, 1, 0 } }
+    local at = len + 0.08
+    for i = 1, 4 do
+        local echo = 0.05 + 0.1 / i
+        list[#list + 1] = { at, echo, 0.6 ^ i, i % 2 == 0 and -0.4 or 0.4 }
+        at = at + echo + 0.07
+    end
+    return { pulses = list, duck = { amount = 1, time = 0.1 + len } }
+end
+
+-- A landing after t seconds in the air: on ground a thud, in water a splash;
+-- hurt: Fall damage in its place (when on)
+local function LandNow(t, now, hurt)
     local db = H.DB()
     db.landings = db.landings or {}
     table.insert(db.landings, 1, floor(t * 100 + 0.5) / 100)
@@ -1848,7 +1891,19 @@ local function Land(t, now)
     -- (what WoW Helper's cue and clip take from this landing: HelperCues)
     L.landCue = { fade = fade, k = k }
     L.why1, L.why2, L.why3 = "landing", t, fade
-    if water.swimming then
+    local fall = hurt and L.EventSettings("fallDamage")
+    if fall and fall.on then
+        L.why1 = "fallDamage"
+        L.landCue = nil
+        if fall.feel == EVENT.fallDamage.feel then
+            L.Fire("fallDamage", 1, L.FallFeel(), true)
+            L.lastLanding.feel = "Fall damage, shaped"
+        else
+            L.Fire("fallDamage", 1, nil, true)
+            local played = H.Feel(fall.feel)
+            L.lastLanding.feel = "Fall damage: " .. (played and played.label or fall.feel)
+        end
+    elseif water.swimming then
         -- deep water: one splash (Into water), as heavy as the fall
         splashedAt = now
         L.Fire("splash", (strength + (1 - strength) * k) * fade, L.SplashFeel(k), true)
@@ -1884,8 +1939,51 @@ local function Land(t, now)
     if live.moving then live.moveStart = now; H.Stop("live_footsteps"); H.Stop("live_wading") end
 end
 
+-- A landing: one that could hurt waits for its wound (L.held), on ground only
+local function Land(t, now, jumped)
+    local water = L.WaterState()
+    if not water.swimming and not water.wading and L.FallCouldHurt(t, jumped) then
+        L.held = { t = t, at = now }
+        return
+    end
+    LandNow(t, now)
+end
+L.Land, L.LandNow = Land, LandNow
+
+-- A wound on you (UNIT_COMBAT) or the combat log's fall: a held landing becomes Fall damage.
+-- Returns true when the wound was the fall's (Hit taken then stays quiet).
+function L.FallWound(now)
+    now = now or Now()
+    local h = L.held
+    if h then
+        L.held = nil
+        L.fallAt = now
+        LandNow(h.t, now, true)
+        return true
+    end
+    -- (the same wound told the second time)
+    return L.fallAt ~= nil and now - L.fallAt < L.FALL_ECHO
+end
+
+-- (a jump: the fall it starts began above the ground it left)
+if hooksecurefunc and JumpOrAscendStart then
+    hooksecurefunc("JumpOrAscendStart", function() L.jumpAt = Now() end)
+end
+
+-- Where the combat log is readable (not on WoW Forever): environmental damage, falling, on you
+if type(CombatLogGetCurrentEventInfo) == "function" then
+    local log = CreateFrame("Frame")
+    pcall(log.RegisterEvent, log, "COMBAT_LOG_EVENT_UNFILTERED")
+    log:SetScript("OnEvent", function()
+        local _, sub, _, _, _, _, _, dest, _, _, _, kind = CombatLogGetCurrentEventInfo()
+        if sub ~= "ENVIRONMENTAL_DAMAGE" or secret(dest) or secret(kind) then return end
+        if type(kind) ~= "string" or kind:upper() ~= "FALLING" or dest ~= call(UnitGUID, "player") then return end
+        L.FallWound()
+    end)
+end
+
 air:SetScript("OnUpdate", function()
-    if not H.Engine() then airState.falling, airState.pending = false, nil; return end
+    if not H.Engine() then airState.falling, airState.pending, L.held = false, nil, nil; return end
     -- (what the motors were sent after the last landing: its peak and length)
     local sent = L.lastLanding and L.lastLanding.sent
     if sent and not sent.done then
@@ -1910,13 +2008,22 @@ air:SetScript("OnUpdate", function()
     local pending = airState.pending
     if pending then
         airState.pending = nil
-        if not falling then Land(pending.t, now) end
+        if not falling then Land(pending.t, now, pending.jumped) end
     end
-    if falling and not airState.falling then airState.since = now end
+    -- (a landing that could hurt, no wound in time: the landing, late; airborne again: dropped)
+    local held = L.held
+    if held and (falling or now - held.at >= L.FALL_WAIT) then
+        L.held = nil
+        if not falling then LandNow(held.t, now) end
+    end
+    if falling and not airState.falling then
+        airState.since = now
+        airState.jumped = L.jumpAt ~= nil and now - L.jumpAt < 0.3
+    end
     if airState.falling and not falling then
         local blocked = call(IsFlying) or call(UnitOnTaxi, "player")
         local t = now - airState.since
-        if not blocked and t > L.LAND_SHORTEST then airState.pending = { t = t } end
+        if not blocked and t > L.LAND_SHORTEST then airState.pending = { t = t, jumped = airState.jumped } end
     end
     airState.falling = falling
 end)

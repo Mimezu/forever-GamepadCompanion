@@ -366,6 +366,9 @@ assert(#fired == 0, "off: nothing")
 local falling = true
 IsFalling = function() return falling end
 local air = L.airFrame
+-- (plain landings first: none of these could hurt)
+local hurtMin = L.FALL_HURT_MIN
+L.FALL_HURT_MIN = 99
 air.scripts.OnUpdate(air, 0.01); now = now + 1
 falling = false
 air.scripts.OnUpdate(air, 0.01)
@@ -403,6 +406,7 @@ assert(hop.pulses[1][2] <= 0.07, "a hop: short")
 H.DB().landLong = 0.8
 assert(L.LandingFeel(1).pulses[1][2] >= 0.79, "longest landing set by hand")
 H.DB().landLong = nil
+L.FALL_HURT_MIN = hurtMin
 -- Footsteps: the fit from squeezes (one step missed), and the timing it gives
 local rate, offset = L.FitSteps({ 0.15, 0.55, 0.95, 1.75, 2.15, 2.55 })
 assert(math.abs(rate - 2.5) < 1e-6 and math.abs(offset - 0.15) < 1e-6, "rate and offset: " .. tostring(rate) .. " " .. tostring(offset))
@@ -3741,4 +3745,98 @@ do
     K.SpellEvent, K.Enabled, K.V2 = spellEvent, enabled, v2
     wipe(K.queue)
     io.write("PASS: spell row: casting started with the cast cue, released with the release cue, stopped, instants once, secret ids 0" .. string.char(10))
+end
+-- Fall damage: a fall that could hurt waits for its wound; the wound plays Fall damage, in place
+-- of the landing and of Hit taken; its cue carries the race and sex
+do
+    L.SetEngine(true)
+    fired = {}
+    L.onFire = function(key) fired[#fired + 1] = key end
+    local saved = { IsFalling, IsFlying, IsSwimming, IsSubmerged, UnitOnTaxi, L.IsWading }
+    IsFalling = function() return falling end
+    IsFlying, IsSwimming, IsSubmerged, UnitOnTaxi = nil, nil, nil, nil
+    L.IsWading = function() return false end
+    assert(L.EVENT.fallDamage and L.EVENT.fallDamage.label == "Fall damage", "a moment of its own")
+    assert(L.FallCouldHurt(1.3) and not L.FallCouldHurt(0.9), "a fall of 1.3 s can hurt, 0.9 s can't")
+    assert(not L.FallCouldHurt(1.5, true) and L.FallCouldHurt(2.2, true), "a jump's own arc doesn't count")
+    local ff, hardest = L.FallFeel(), L.LandingFeel(1)
+    assert(ff.pulses[1][3] == 1 and ff.pulses[1][2] > hardest.pulses[1][2] and #ff.pulses > #hardest.pulses,
+        "heavier than the hardest landing: longer, an echo more")
+    local function fallFor(t, jumped)
+        L.jumpAt = jumped and now or nil
+        falling = true; air.scripts.OnUpdate(air, 0.01); now = now + t
+        falling = false; air.scripts.OnUpdate(air, 0.01); air.scripts.OnUpdate(air, 0.01)
+    end
+    fired = {}
+    now = now + 1
+    fallFor(1.6)
+    assert(#fired == 0 and L.held, "a fall that could hurt: held for its wound: " .. table.concat(fired, ",") .. " " .. tostring(L.held) .. " " .. tostring(H.Engine()))
+    now = now + 0.15
+    ev("UNIT_COMBAT", "player", "WOUND", "", 120, 1)
+    assert(table.concat(fired, ",") == "fallDamage", "the wound: Fall damage alone: " .. table.concat(fired, ","))
+    assert(L.lastLanding.feel == "Fall damage, shaped" and H.DB().landings[1] == 1.6, "shown as the landing")
+    assert(H.Playing("ev_fallDamage"), "its rumble plays")
+    now = now + 0.1
+    ev("UNIT_COMBAT", "player", "WOUND", "", 120, 1)
+    assert(#fired == 1, "the same wound told twice: one cue")
+    -- no wound in time: the landing, late; a wound after it is a hit
+    now = now + 2
+    fired = {}
+    fallFor(1.6)
+    assert(#fired == 0, "held")
+    now = now + L.FALL_WAIT
+    air.scripts.OnUpdate(air, 0.01)
+    assert(fired[1] == "landing" and not L.held, "no wound: the landing: " .. tostring(fired[1]))
+    now = now + 1
+    ev("UNIT_COMBAT", "player", "WOUND", "", 120, 1)
+    assert(fired[2] ~= "fallDamage" and not L.FallWound(now), "a later wound: not the fall's (Hit taken)")
+    -- a jump from level ground: never held
+    now = now + 2
+    fired = {}
+    fallFor(1.5, true)
+    assert(fired[1] == "landing" and not L.held, "a jump's landing at once")
+    -- in the air again before the wound: dropped, the next landing carries it
+    now = now + 2
+    fired = {}
+    fallFor(1.6)
+    falling = true; air.scripts.OnUpdate(air, 0.01)
+    assert(not L.held and #fired == 0, "airborne again: dropped")
+    now = now + 1.3
+    falling = false; air.scripts.OnUpdate(air, 0.01); air.scripts.OnUpdate(air, 0.01)
+    ev("UNIT_COMBAT", "player", "WOUND", "", 120, 1)
+    assert(fired[1] == "fallDamage", "the next landing's wound")
+    -- Fall damage off: the landing plays on the wound
+    L.EventSettings("fallDamage").on = false
+    now = now + 2
+    fired = {}
+    fallFor(1.6)
+    ev("UNIT_COMBAT", "player", "WOUND", "", 120, 1)
+    assert(table.concat(fired, ",") == "landing", "off: the landing: " .. table.concat(fired, ","))
+    L.EventSettings("fallDamage").on = true
+    for _, v in ipairs({ "ev_fallDamage", "ev_landing", "ev_hitTaken" }) do H.Stop(v) end
+    L.onLand = nil
+    -- its cue on the strip: moment 92, the race and sex in the seed (K.RaceSexSeed)
+    local C, K = ns.HelperCues, ns.HelperLink
+    assert(C.MOMENT_N.fallDamage == 92, "Fall damage is moment 92: " .. tostring(C.MOMENT_N.fallDamage))
+    assert(K.RaceSexSeed(10, 3) == 138 and K.RaceSexSeed(1, 2) == 1 and K.RaceSexSeed(0, 3) == 128, "race in bits 0-6, female bit 7")
+    assert(K.RaceSexSeed(200, 2) == 0 and K.RaceSexSeed(nil, nil) == 0 and K.RaceSexSeed(2.5, 2) == 0, "unknown: race 0")
+    local r, x = K.RaceSexOf(138)
+    assert(r == 10 and x == 3, "and back")
+    UnitRace, UnitSex = function() return "Troll", "Troll", 8 end, function() return 3 end
+    assert(C.RaceSexSeed() == 136, "the player's: " .. C.RaceSexSeed())
+    issecretvalue = function(v) return v == 8 end
+    assert(C.RaceSexSeed() == 128, "a secret race: unknown")
+    issecretvalue = nil
+    local cue, enabled, v2 = K.Cue, K.Enabled, K.V2
+    local cues = {}
+    K.Cue = function(item) cues[#cues + 1] = item; return true end
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    C.Moment("fallDamage", "thud")
+    C.Moment("landing", "thud")
+    K.Cue, K.Enabled, K.V2 = cue, enabled, v2
+    assert(cues[1] and cues[1].moment == 92 and cues[1].seed == 136, "the fall's cue: moment 92, seed 136: " .. tostring(cues[1] and cues[1].seed))
+    assert(cues[2] and cues[2].seed == nil, "other moments: a random seed")
+    UnitRace, UnitSex = nil, nil
+    IsFalling, IsFlying, IsSwimming, IsSubmerged, UnitOnTaxi, L.IsWading = saved[1], saved[2], saved[3], saved[4], saved[5], saved[6]
+    io.write("PASS: fall damage: held for its wound, in place of the landing and Hit taken; moment 92 with the race and sex" .. string.char(10))
 end
