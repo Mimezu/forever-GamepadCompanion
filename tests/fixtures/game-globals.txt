@@ -184,3 +184,6 @@ NUM_TOTAL_BAG_FRAMES
 SmartNavigation
 SmartNavigation_MarkFrameIgnored
 debugprofilestop
+C_Minimap
+GetPlayerFacing
+GetTrackingTexture

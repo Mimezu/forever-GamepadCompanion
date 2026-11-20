@@ -663,6 +663,79 @@ do
     print("PASS: spell row: 13 cells, CRC, round trips, stacked and one line (89), gated on spellRow, with its cue")
 end
 
+-- The map row (WoW Helper's node compass, same contract): 24 cells, white first; WoW Helper's
+-- vectors (tests/fixtures/helperlink-map-vectors.txt, written by its protocol2.rs); four rows up
+-- (stacked) or from cell 89 (one line: 113 cells); drawn only while WowHelperData.mapRow and a map
+local mapcount = 0
+do
+    for row in io.lines(root .. "/tests/fixtures/helperlink-map-vectors.txt") do
+        row = row:gsub("\r$", "")
+        if row ~= "" and not row:match("^#") then
+            local f, digits = row:match("^(.-) : (%d+)$")
+            local v = {}
+            for n in f:gmatch("%d+") do v[#v + 1] = tonumber(n) end
+            local m = { facing = v[1], x = v[2], y = v[3], radius = v[4], yards = v[5], rotates = v[6] == 1, tracking = v[7] }
+            local cells = K.EncodeMapRow(m)
+            local got = {}
+            for i, c in ipairs(cells) do got[i] = tostring(c[1] * 4 + c[2] * 2 + c[3]) end
+            assert(table.concat(got) == digits, "map vector " .. row .. " -> " .. table.concat(got))
+            local d = assert(K.DecodeMapRow(cells))
+            for _, k in ipairs({ "facing", "x", "y", "radius", "yards", "rotates", "tracking" }) do
+                assert(d[k] == m[k], "map round trip " .. k)
+            end
+            -- every bit flip rejected (but bit 68, the last cell's blue: spare, read past)
+            for c = 2, 24 do
+                for k = 1, c == 24 and 2 or 3 do
+                    cells[c][k] = 1 - cells[c][k]
+                    assert(not K.DecodeMapRow(cells), "flip " .. c .. "," .. k)
+                    cells[c][k] = 1 - cells[c][k]
+                end
+            end
+            mapcount = mapcount + 1
+        end
+    end
+    assert(mapcount >= 60, "map vectors: " .. mapcount)
+    local sp = K.EncodeSpellRow({}); for i = 14, 24 do sp[i] = { 0, 0, 0 } end
+    assert(select(2, K.DecodeMapRow(sp)) == "marker", "a spell row is not a map row")
+
+    K.SetEnabled(true)
+    K.Layout()
+    local unit = K.frame.height
+    local mt = K.mapTextures
+    local m = { facing = 256, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 }
+    K.SetMap(m)
+    K.MarkDirty()
+    K.Step(0)
+    assert(#mt == 24 and not mt[1]:IsShown(), "WoW Helper hasn't said it reads it: no row")
+    WowHelperData = { mapRow = true }
+    K.MarkDirty()
+    K.Step(0)
+    assert(mt[1]:IsShown() and mt[1].color[1] == 1 and mt[1].color[2] == 1 and mt[1].color[3] == 1, "mapRow: drawn, white first")
+    assert(mt[1].points[1][5] == 4 * unit and mt[1].points[1][4] == 0, "stacked: four rows up")
+    local function drawn() local c = {} for i = 1, 24 do c[i] = mt[i].color end return K.DecodeMapRow(c) end
+    assert(drawn().facing == 256 and drawn().x == 1800, "drawn as set")
+    K.SetMap({ facing = 300, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 })
+    K.Step(0)
+    assert(drawn().facing == 300, "a turn redraws")
+    -- one line: from cell 89, 113 cells; the trigger and spell rows' places black while they have none
+    K.SetStrip("oneline")
+    WowHelperData.stripOneLine = true
+    K.MarkDirty()
+    K.Step(0)
+    assert(math.abs(mt[1].points[1][4] - 89 * unit) < 1e-6 and mt[1].points[1][5] == 0, "one line: from cell 89")
+    assert(math.abs(K.frame.width - 113 * unit) < 1e-6, "113 cells")
+    local st, tt = K.spellTextures, K.trigTextures
+    assert(st[1]:IsShown() and st[1].color[3] == 0 and tt[1]:IsShown() and tt[1].color[1] == 0, "spell and trigger places black")
+    -- no map (tracking off): the line as before
+    K.SetMap(nil)
+    K.Step(0)
+    assert(not mt[1]:IsShown() and math.abs(K.frame.width - 76 * unit) < 1e-6 and not st[1]:IsShown(), "no map row: 76")
+    K.SetStrip("stacked")
+    WowHelperData = nil
+    K.SetEnabled(false)
+    print("PASS: map row: 24 cells, " .. mapcount .. " vectors, flips rejected, stacked and one line (113), gated on mapRow")
+end
+
 K.SetEnabled(false)
 
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors)")
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors)")

@@ -26,6 +26,7 @@ Volume.lua
 SpellOverrides.lua
 HapticsLab.lua
 HelperLink.lua
+NodeCompass.lua
 TriggerRules.lua
 Stack.lua
 LightPresets.lua
