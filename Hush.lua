@@ -115,7 +115,7 @@ local function Chip(window)
             if ns.Shell then ns.Shell.SetStatus(Hu.Auto() and "Hush when resting" or "Hush: only by hand", true) end
         else
             Hu.Toggle()
-            if ns.Shell then ns.Shell.SetStatus(Hu.Manual() and "Hush" or "Hush off", true) end
+            if ns.Shell then ns.Shell.SetStatus(Hu.On() and "Hush" or "Hush off", true) end
         end
         if ns.RumblePage and ns.RumblePage.Refresh then ns.RumblePage.Refresh() end
     end)
@@ -145,7 +145,7 @@ end
 
 -- The key binding (Bindings.xml): Hush on / off
 BINDING_NAME_GAMEPADCOMPANION_HUSH = "Hush"
-function GamepadCompanion_Hush() Hu.Toggle(); Hu.Say(Hu.Manual()) end
+function GamepadCompanion_Hush() Hu.Toggle(); Hu.Say(Hu.On()) end
 
 -- /gpc hush [on | off | resting]
 if type(SlashCmdList) == "table" and SlashCmdList.GAMEPADCOMPANION then
