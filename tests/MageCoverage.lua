@@ -477,11 +477,14 @@ do
     K.Enabled = function() return true end
     C.Settings().hdFeels = true
     wipe(K.queue)
-    local loops, playedNow = {}, {}
+    local loops, playedNow, marks = {}, {}, {}
+    -- (the markers as they're made: the link sends them from the queue while the frames run)
+    local kmarker = K.Marker
+    K.Marker = function(item) marks[#marks + 1] = item; return kmarker(item) end
     local vplay2 = V.Play
     V.Play = function(key, loop, ...) playedNow[#playedNow + 1] = key; return vplay2(key, loop, ...) end
     local function castOf(id, seconds)
-        playedNow = {}
+        playedNow, marks = {}, {}
         wipe(K.queue)
         now = now + 5
         casting = { now, now + seconds }
@@ -499,14 +502,14 @@ do
     assert(loops[#loops] == "skin", "skinning: the knife, not the pickaxe: " .. tostring(loops[#loops]))
     assert(playedNow[#playedNow] == "peel", "skinning succeeds: the hide pulled free: " .. tostring(playedNow[#playedNow]))
     local start, done
-    for _, q in ipairs(K.queue) do
+    for _, q in ipairs(marks) do
         if q.moment == 106 then start = q elseif q.moment == 107 then done = q end
     end
     assert(start and done, "its markers: 106 start, 107 succeeded")
     assert(done.touch == L.HdId("r_peel"), "the succeeded marker carries the peel's HD")
     assert(start.side == 5 and start.seed >= 128, "an Undead female's markers")
-    for _, q in ipairs(K.queue) do
-        assert(q.touch ~= L.HdId("r_pickaxe") and q.moment ~= 100 and q.moment ~= 101, "nothing of mining's")
+    for _, q in ipairs(marks) do
+        assert((q.touch or 0) ~= L.HdId("r_pickaxe") and q.moment ~= 100 and q.moment ~= 101, "nothing of mining's")
     end
     assert(C.MomentSound("gather:skinning") == C.MomentSound("gather"), "its sound: Gathering's, never Mining's own")
     -- Tailoring: stitches, a snip; a bolt of cloth wound onto the bolt, then patted down
@@ -518,7 +521,7 @@ do
     assert(loops[#loops] == "roll" and playedNow[#playedNow] == "bolt", "a bolt of cloth: wound and patted: "
         .. tostring(loops[#loops]) .. " " .. tostring(playedNow[#playedNow]))
     TradeSkillFrame, GetTradeSkillLine = false, nil
-    V.Play, K.Enabled = vplay2, enabled
+    V.Play, K.Enabled, K.Marker = vplay2, enabled, kmarker
     io.write("PASS: Skinning: the knife, the hide pulled free (its marker carries it), nothing of mining's; Tailoring: stitches, a snip; bolts wound and patted down\n")
 end
 
