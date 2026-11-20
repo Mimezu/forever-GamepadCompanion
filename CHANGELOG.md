@@ -2,6 +2,7 @@
 
 ## Unreleased (0.69.3)
 
+- Fixed: Focus UI on a touchpad zone stuck the whole pad on Focus UI. Blizzard functions (Focus UI, Radial) now go on buttons only, where their binding never moves; zones that had one are cleared, with a word in chat
 - **OpenMap on the gamepad map**: OpenMap's seamless map, its names, quests, Questie, dungeons and flight paths now draw over Blizzard's gamepad map. It's OpenMap's own controller view, turned on once: it reads the pad, binds nothing. Off: OpenMap's menu › The map
 - No automatic Focus UI chord on the touchpad: L1 + click is zones like any click, and L1 is no longer lent a modifier while a window is open (both broke bindings). Put Focus UI where you like: Choose › Gamepad › Focus UI. A modifier lent by an older version is given back once
 - Fixed: the touchpad stuck on Focus UI after L1 + touchpad. 0.67.4's L1 chord (the click rebound while L1 was held) is gone; the zones work as before

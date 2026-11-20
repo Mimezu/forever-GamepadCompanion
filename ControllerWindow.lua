@@ -507,8 +507,8 @@ local function OpenPicker()
         title = "Choose · " .. (target.kind == "zone"
             and ((T.GESTURE_LABELS[tpZone] or T.ZoneLabel(tpZone, T.Grid(TouchSettings(), TouchSettings().mode))) .. " · " .. C.LAYER_LABELS[layer])
             or (C.LAYER_LABELS[layer] .. " + " .. (selected.kind == "slot" and C.SLOTS[selected.slot].name or C.BUTTON_BY_ID[selected.id].name))),
-        -- (a Blizzard binding needs a key: not a bar slot, nor a swipe, known only at the release)
-        accepts = (target.kind == "slot" or (target.kind == "zone" and T.GESTURE_LABELS[tpZone])) and T.SLOT_ACCEPTS or T.ACCEPTS,
+        -- (a Blizzard binding needs a key of its own: not a bar slot, nor a touchpad zone)
+        accepts = (target.kind == "slot" or target.kind == "zone") and T.SLOT_ACCEPTS or T.ACCEPTS,
         current = entry and entry.own and entry.action or nil,
         onPick = function(action)
             target.set(layer, action)

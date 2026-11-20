@@ -937,6 +937,23 @@ events:SetScript("OnEvent", function(_, event, arg)
         local char = ns.Shared.CharDB()
         local raw = type(char.touch) == "table" and char.touch or T.Copy(account)
         settings = T.Normalize(raw)
+        -- (Blizzard functions on zones, from before: cleared, with a word)
+        local cleared = 0
+        for _, set in pairs(settings.actions or {}) do
+            for _, layer in pairs(set) do
+                if type(layer) == "table" then
+                    for zone, action in pairs(layer) do
+                        if T.BindingOf(action) then layer[zone] = "none"; cleared = cleared + 1 end
+                    end
+                end
+            end
+        end
+        for _, layer in pairs(settings.touchActions or {}) do
+            for zone, action in pairs(layer) do
+                if T.BindingOf(action) then layer[zone] = "none"; cleared = cleared + 1 end
+            end
+        end
+        if cleared > 0 then Say("Focus UI and Radial now go on buttons, not touchpad zones") end
         for _, key in ipairs(T.DEVICE_FIELDS) do settings[key] = T.Copy(account[key]) end
         if type(settings.split) ~= "table" then settings.split = {} end
         char.touch = settings
@@ -1151,6 +1168,9 @@ end
 function Touch.SetZone(layer, zone, action, slot)
     local mode = settings.mode
     if not T.IsZone(settings, mode, zone) or not T.IsLayer(layer) then return false end
+    -- (no Blizzard function on a zone: it would mean rebinding the touchpad by the finger,
+    -- which stuck the whole pad on Focus UI; it belongs on a button)
+    if T.BindingOf(action) then return false end
     if slot == "touch" then
         if mode ~= "chord" or not settings.touchActions[layer] or T.GESTURE_LABELS[zone] then return false end
         settings.touchActions[layer][zone] = action or "none"
