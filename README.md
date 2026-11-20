@@ -4,7 +4,9 @@ Binds every button of a PlayStation pad in WoW Forever's gamepad UI, adds touchp
 
 ## Install
 
-Put the `GamepadCompanion` folder in `World of Warcraft\_forever_\Interface\AddOns\`.
+1. Battle.net › WoW Forever › ⚙ › Show in Explorer.
+2. Unzip into `_forever_\Interface\AddOns\` (so `AddOns\GamepadCompanion\GamepadCompanion.toc`).
+3. Optional: WoW Helper (its own zip) for triggers, HD feels, the pad's speaker. Then `/gpc` › Setup › Link on.
 
 ## Use
 

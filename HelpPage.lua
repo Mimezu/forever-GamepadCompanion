@@ -228,7 +228,8 @@ end
 -- the footer's two chips
 PICTURES.profiles = function(f)
     local x0 = (WELL_W - 460) / 2
-    for i, word in ipairs({ "Controls · Alberich", "Feel · Alberich" }) do
+    local who = (UnitName and UnitName("player")) or "You"
+    for i, word in ipairs({ "Controls · " .. who, "Feel · " .. who }) do
         local b = S.NewButton(f, word .. "  ▾", x0 + (i - 1) * 240, -96, 220, nil, nil, 13, 34)
         b:EnableMouse(false)
         Badge(f, i, 0, 0, b)

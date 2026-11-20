@@ -433,7 +433,7 @@ end
 -- bits LE: version 0-1 (1), facing 2-11 (GetPlayerFacing / 2pi * 1024), the minimap's centre x
 -- 12-23 and y 24-35 (client pixels from the top-left), radius 36-45 (pixels), yards across 46-55,
 -- rotates 56, tracking 57-58 (1 minerals, 2 herbs, 3 treasure), camera known 59, camera yaw 60-69
--- (as facing), spare 70-71, CRC-8 over bits 0-71 at 72-79, spare 80. Four rows up (stacked) or
+-- (as facing), x bit 12 at 70 and y bit 12 at 71 (a 5120 px wide screen), CRC-8 over bits 0-71 at 72-79, spare 80. Four rows up (stacked) or
 -- from cell 89 (one line: 117 cells); drawn only while WowHelperData.mapRow is 2 and a node
 -- tracking is on (NodeCompass.lua).
 K.MAP_CELLS = 28
@@ -446,8 +446,11 @@ function K.EncodeMapRow(m)
     for i = 0, 80 do bits[i] = 0 end
     Put(bits, 0, 1, 2)
     Put(bits, 2, Int(m.facing, 1023), 10)
-    Put(bits, 12, Int(m.x, 4095), 12)
-    Put(bits, 24, Int(m.y, 4095), 12)
+    local x, y = Int(m.x, 8191), Int(m.y, 8191)
+    Put(bits, 12, x % 4096, 12)
+    Put(bits, 24, y % 4096, 12)
+    Put(bits, 70, floor(x / 4096), 1)
+    Put(bits, 71, floor(y / 4096), 1)
     Put(bits, 36, Int(m.radius, 1023), 10)
     Put(bits, 46, Int(m.yards, 1023), 10)
     Put(bits, 56, m.rotates and 1 or 0, 1)
@@ -476,7 +479,8 @@ function K.DecodeMapRow(cells)
     end
     if Get(bits, 0, 2) ~= 1 then return nil, "value" end
     if CrcBits(bits, 72) ~= Get(bits, 72, 8) then return nil, "crc" end
-    return { facing = Get(bits, 2, 10), x = Get(bits, 12, 12), y = Get(bits, 24, 12), radius = Get(bits, 36, 10),
+    return { facing = Get(bits, 2, 10), x = Get(bits, 12, 12) + 4096 * Get(bits, 70, 1),
+        y = Get(bits, 24, 12) + 4096 * Get(bits, 71, 1), radius = Get(bits, 36, 10),
         yards = Get(bits, 46, 10), rotates = Get(bits, 56, 1) == 1, tracking = Get(bits, 57, 2),
         camera = Get(bits, 59, 1) == 1 and Get(bits, 60, 10) or nil }
 end
@@ -503,6 +507,13 @@ local function DB()
 end
 
 function K.Enabled() return DB().on == true end
+
+-- At load: a fresh install with WoW Helper already run (its data addon is here) starts linked;
+-- once. Turned off in Setup, it stays off.
+function K.AutoOn()
+    local l = DB()
+    if l.on == nil and type(WowHelperData) == "table" then l.on = true end
+end
 
 -- The strip's rows: stacked (the main strip, the light row one up, the trigger row two up) or
 -- one line (main 34 cells, the light row from cell 34 padded to 23, the trigger row from 57:
@@ -543,7 +554,7 @@ function K.SetMap(m)
         if K.map then K.map = nil; dirty = true end
         return
     end
-    local key = Int(m.facing, 1023) .. ":" .. Int(m.x, 4095) .. ":" .. Int(m.y, 4095) .. ":" .. Int(m.radius, 1023)
+    local key = Int(m.facing, 1023) .. ":" .. Int(m.x, 8191) .. ":" .. Int(m.y, 8191) .. ":" .. Int(m.radius, 1023)
         .. ":" .. Int(m.yards, 1023) .. ":" .. (m.rotates and 1 or 0) .. ":" .. Int(m.tracking, 3)
         .. ":" .. (m.camera and Int(m.camera, 1023) or "-")
     if K.map and K.map.key == key then return end
@@ -1074,7 +1085,7 @@ local function Build()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
     frame:SetScript("OnEvent", function(_, event, name)
         if event == "ADDON_LOADED" then
-            if name == addonName then K.Refresh() end
+            if name == addonName then K.AutoOn(); K.Refresh() end
         else
             K.Layout()
         end
