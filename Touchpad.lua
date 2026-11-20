@@ -77,11 +77,12 @@ local function PadIndex(binding)
     return index and index + 1 or nil
 end
 
-local function Finger()
-    local state = MappedState()
+local function FingerOf(state)
     local stick = state and state.sticks and state.sticks[T.PAD_STICK]
     if stick then return stick.x or 0, stick.y or 0, stick.len or 0 end
 end
+
+local function Finger() return FingerOf(MappedState()) end
 
 local function TriggersHeld()
     local state = MappedState()
@@ -897,9 +898,12 @@ watcher:SetScript("OnUpdate", function(_, elapsed)
     if settings.mode == "chord" and Touch.WorldHasPad() ~= lastOurs then
         if InCombat() then pending = true else Touch.Apply() end
     end
+    -- (the pad read once a tick, only when something here needs it)
+    local follow = hasBinds and not InCombat()
+    local state = (follow or settings.preview) and MappedState() or nil
+    local fx, fy, flen = FingerOf(state)
     -- (a zone runs a Blizzard binding: the touchpad's key follows the finger)
-    if hasBinds and not InCombat() then
-        local fx, fy, flen = Finger()
+    if follow then
         if fx and (fx ~= 0 or fy ~= 0 or (flen or 0) > 0) then
             local zone = (settings.mode ~= "split" or fx >= 0)
                 and T.ZoneAt(settings.mode, fx, fy, T.Grid(settings, settings.mode)) or nil
@@ -909,8 +913,8 @@ watcher:SetScript("OnUpdate", function(_, elapsed)
             end
         end
     end
-    if not settings.preview or PadStyle() ~= "Shapes" then return UpdatePreview(0, 0, false) end
-    local x, y = Finger()
+    if not settings.preview or (state and state.labelStyle) ~= "Shapes" then return UpdatePreview(0, 0, false) end
+    local x, y = fx, fy
     if not x then return UpdatePreview(0, 0, false) end
     local now = GetTime()
     if lastX and (math.abs(x - lastX) > 0.004 or math.abs(y - lastY) > 0.004) then movedAt = now end
