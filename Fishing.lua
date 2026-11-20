@@ -1,6 +1,8 @@
 -- Fishing: a pole in your hands turns R2 into the line. R2 casts; while the line is out, R2
--- catches (Interact, on the bobber); the pole off, R2 is yours again. Bindings change out of
--- combat only (the pole goes on and off out of combat anyway).
+-- catches (Interact, on the bobber); the pole off, R2 is yours again. An override binding on R2
+-- alone: it fires while R2 is also the gamepad's Ctrl (checked in game), so the game's own
+-- settings for R2 are never touched. R2's binding changes out of combat, and never while R2 is
+-- held (read from the pad): the cast's own press ends before R2 turns into Catch.
 --
 -- Felt (HapticsLab events, so each is a moment WoW Helper's full feels can override):
 --   the cast        Rumble's Fishing throw (gather:fishing), WoW Helper adds R2's own buzz
@@ -29,8 +31,8 @@ F.LAND_AT = 1.1
 F.NIBBLE_FROM, F.NIBBLE_GAP, F.NIBBLE_MAX, F.NIBBLE_CHANCE = 3, { 3, 8 }, 3, 0.55
 -- Interact's reach while the line is out: the bobber lands 10-20 yards off (the game's is 10)
 F.REACH = 30
--- The game's modifiers that can sit on R2 (R2 as Ctrl: no key of its own)
-F.MODS = { "GamePadEmulateShift", "GamePadEmulateCtrl", "GamePadEmulateAlt" }
+-- (R2's modifier, GamePadEmulateCtrl: 0.68.0-0.69.1 turned it off while fishing; a record of that
+-- left behind is put back once at login. Fishing no longer touches it)
 
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -79,13 +81,11 @@ end
 
 -- R2's modifiers off while it fishes (each kept, to put back)
 ---------------------------------------------------------------------------
--- The game's settings fishing changes (R2's modifier, Interact's reach) are
--- account-wide, so what they were is kept account-wide too
--- (GamepadCompanionDB.fishingCVars, cvar -> the value to put back), and put
--- back: when the pole comes off, the line comes in, R2 fishing is turned off,
--- on every logout and /reload, and at login before anything else (a record
--- left by a crash, or by 0.68.0's per-character one, heals there). Fishing
--- mode is entered again only while a pole is in hand. Never stashed elsewhere.
+-- The one game setting fishing changes, Interact's reach, is account-wide, so
+-- what it was is kept account-wide too (GamepadCompanionDB.fishingCVars, cvar
+-- -> the value to put back), and put back when the line comes in, on every
+-- logout and /reload, and at login before anything else. (R2's modifier: no
+-- longer changed; a record of it from 0.68.0-0.69.1 is put back once at login.)
 ---------------------------------------------------------------------------
 local function Record()
     if type(GamepadCompanionDB) ~= "table" then GamepadCompanionDB = {} end
@@ -117,16 +117,7 @@ local function Restore(which)
 end
 F.Restore = Restore
 
-local MODS = {}
-for _, cvar in ipairs(F.MODS) do MODS[cvar] = true end
 
--- R2's modifiers off while it fishes
-local function FreeR2()
-    for _, cvar in ipairs(F.MODS) do
-        if Call(GetCVar, cvar) == F.KEY then Change(cvar, "NONE") end
-    end
-end
-local function RestoreR2() Restore(MODS) end
 
 -- Interact's reach, longer while the line is out
 local REACH = { SoftTargetInteractRange = true }
@@ -139,7 +130,7 @@ local function Reach(out)
     end
 end
 
--- 0.68.0 kept them per character: into the account's record, once
+-- 0.68.0 kept them per character: into the account's record, once (then healed with it)
 local function Adopt()
     local s = F.Settings()
     local rec = Record()
@@ -150,15 +141,39 @@ local function Adopt()
     s.mods, s.reach = nil, nil
 end
 
+-- R2 down now, read from the pad itself (nil: no pad to read)
+function F.R2Held()
+    local P = C_GamePad
+    if not P then return nil end
+    local id = Call(P.GetActiveDeviceID)
+    local state = id and Call(P.GetDeviceMappedState, id)
+    local index = Call(P.ButtonBindingToIndex, F.KEY)
+    if type(state) ~= "table" or type(state.buttons) ~= "table" or type(index) ~= "number" then return nil end
+    return state.buttons[index + 1] and true or false
+end
+
+-- What R2 runs now (nil: yours)
+local current
+local waiter = CreateFrame("Frame")
+waiter:Hide()
+
 function F.Apply()
     if InCombat() then pending = true; return false end
     pending = false
     local s = F.Settings()
     local want = F.Want(s.r2, lib.PoleEquipped(), line ~= nil)
+    -- (nothing to change: the binding stays as it is, R2 held or not)
+    if want == current then waiter:Hide(); return true end
+    -- (never mid-press: R2 held, the change waits for its release)
+    if F.R2Held() then
+        waiter:Show()
+        return false
+    end
+    waiter:Hide()
+    current = want
     ClearOverrideBindings(owner)
     wipe(bound)
     if want then
-        FreeR2()
         if want == "catch" then
             SetOverrideBinding(owner, true, F.KEY, "INTERACTTARGET")
             bound[F.KEY] = "INTERACTTARGET"
@@ -167,8 +182,6 @@ function F.Apply()
             SetOverrideBindingClick(owner, true, F.KEY, F.BUTTON, "LeftButton")
             bound[F.KEY] = "CLICK " .. F.BUTTON .. ":LeftButton"
         end
-    else
-        RestoreR2()
     end
     local was = mode
     mode = want ~= nil
@@ -176,11 +189,18 @@ function F.Apply()
     return true
 end
 
+-- (R2 released: the change that waited)
+waiter:SetScript("OnUpdate", function()
+    if InCombat() then waiter:Hide(); pending = true; return end
+    if not F.R2Held() then F.Apply() end
+end)
+
 function F.Mode() return mode end
 function F.Line() return line end
 
 Sh.Claim(bound, function()
     if InCombat() then pending = true; return end
+    current = false     -- (rebind what it should be)
     F.Apply()
 end)
 
@@ -245,7 +265,7 @@ events:SetScript("OnEvent", function(_, event, unit, _, spellID)
         -- (the game's settings as they were before any fishing, whatever happened since; then
         -- fishing again only if a pole is in hand)
         Adopt()
-        Restore()
+        Restore()         -- (the reach; and R2's modifier, once, from an older record)
         F.Apply()
     elseif event == "PLAYER_LOGOUT" then
         -- (logout, /reload: never leave R2's modifier or the reach changed; login decides again)

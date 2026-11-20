@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.69.2 — 2026-11-20
+
+- **Fishing leaves R2's settings alone.** R2 casts and catches through an override binding on R2 itself, which fires while R2 is also the gamepad's Ctrl (checked in game), so R2's modifier (GamePadEmulateCtrl) is no longer switched off while a pole is in hand, and Blizzard's R2 bar keeps paging. A record left by 0.68.0-0.69.1 puts R2 back once at login, then is cleared
+- R2's binding never changes mid-press: after the cast, R2 turns into Catch only once you let go of it (read from the pad); after a catch, back to Cast the same way. A change with nothing to change leaves the binding alone
+
 ## 0.67.9 — 2026-11-20
 
 - **L2 / R2 layers on L1, R1, L3, R3, Create, Options, PS and Mic, in combat too**: each button Companion runs is bound once to a secure click that reads L2 / R2 at the press (the touchpad's way) and runs that layer's action, Base's when the layer is empty. Nothing is rebound while a trigger is held for these; the bindings change only when the settings do. A key the game leaves free (PS, Mic) works with an empty Base
