@@ -668,6 +668,10 @@ if frame then
         if seen[ev] then return end
         seen[ev] = true
         if C_EventUtils and C_EventUtils.IsEventValid and not call(C_EventUtils.IsEventValid, ev) then return end
+        -- (unit events: only the player's and the target's reach us)
+        if ev:find("^UNIT_") and frame.RegisterUnitEvent then
+            if pcall(frame.RegisterUnitEvent, frame, ev, "player", "target") then return end
+        end
         pcall(frame.RegisterEvent, frame, ev)
     end
     for _, c in ipairs(condList) do
