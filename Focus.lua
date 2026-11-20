@@ -219,9 +219,8 @@ end
 local function Move(dir)
     local pts = Points()
     local from
-    if Valid(state.focus) then
-        for _, p in ipairs(pts) do if p[3] == state.focus then from = p end end
-    end
+    -- (a focus not among the points leaves from nil)
+    for _, p in ipairs(pts) do if p[3] == state.focus then from = p end end
     local to = from and Focus.Pick(pts, from, dir) or Focus.First(pts)
     if to then Focus.Set(to[3]) end
 end
@@ -322,12 +321,7 @@ end
 function Focus.Rescope()
     if not state.active then return end
     state.focus = nil
-    local pts = {}
-    for _, c in ipairs((Focus.Controls())) do
-        local x, y = Center(c)
-        if x then pts[#pts + 1] = { x, y, c } end
-    end
-    local first = Focus.First(pts)
+    local first = Focus.First(Points())
     Focus.Set(first and first[3] or nil)
 end
 
