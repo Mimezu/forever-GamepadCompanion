@@ -130,6 +130,25 @@ function P.Load(name, realm, class)
         return false
     end
     local h, p = HDB(), P.DB()
+    -- (the realm can come back blank at load: a blank one once made "Name-" a new character,
+    -- with fresh profiles. Blank: the one realm this name is known on, else off this session)
+    if realm == "" then
+        local found
+        for k in pairs(p.use) do
+            local r = type(k) == "string" and k:sub(1, #name + 1) == name .. "-" and k:sub(#name + 2)
+            if r and r ~= "" then
+                if found then found = nil; break end
+                found = r
+            end
+        end
+        if not found then
+            state.note = "Profiles: off this session (no realm yet)"
+            return false
+        end
+        realm = found
+    end
+    -- (a character keyed with a blank realm by an older version: it was this one)
+    p.use[name .. "-"] = nil
     local key = name .. "-" .. realm
     state.key, state.name, state.class = key, name, class
     -- (once: the account parts frozen as they were, the backup)

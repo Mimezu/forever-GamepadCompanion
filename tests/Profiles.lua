@@ -176,6 +176,26 @@ P = Login("Alberich", "Noir", "PALADIN")
 check(GamepadCompanionHapticsDB.events.hit.on == false, "Alberich after Celes's unreleased save: his own")
 Logout()
 
+-- 6c. A blank realm at load (seen in game 2026-11-20): the realm this name is known on, never
+-- a new character; a blank-realm key an older version made is dropped (its profiles stay listed)
+do
+    local a = disk.account.haptics.profiles
+    a.use["Alberich-"] = { feel = "Alberich 2", controls = "Alberich 2" }
+    a.feel["Alberich 2"] = { events = { landing = { on = true, feel = "thud" } } }
+    a.controls["Alberich 2"] = { char = { version = 1 }, bars = {} }
+    disk.chars["Alberich-"] = Copy(disk.chars["Alberich-Noir"])
+    P = Login("Alberich", "", "PALADIN")
+    local mine = GamepadCompanionHapticsDB.profiles.use["Alberich-Noir"]
+    check(P.Current("feel") == mine.feel and P.Current("controls") == mine.controls, "blank realm: Alberich's own profiles")
+    check(GamepadCompanionHapticsDB.profiles.use["Alberich-"] == nil, "the blank-realm key dropped")
+    check(GamepadCompanionHapticsDB.profiles.feel["Alberich 2"] ~= nil, "its profiles still listed")
+    Logout()
+    disk.chars["Alberich-"] = nil
+    P = Login("Nobody", "", "MAGE")
+    check(GamepadCompanionHapticsDB.profiles.use["Nobody-"] == nil, "blank realm, unknown name: no new character")
+    Logout()
+end
+
 -- 7. Recommended's keys exist in the game's lists
 local known = {}
 local f = io.open(root .. "/HapticsLab.lua"):read("*a") .. io.open(root .. "/Rumble.lua"):read("*a")
