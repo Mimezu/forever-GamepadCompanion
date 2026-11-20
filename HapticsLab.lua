@@ -1627,7 +1627,8 @@ function L.ReadWeather()
 end
 
 -- What the sky brings now: { rain, thunder, snow, sand, embers = true },
--- and the intensity (0-1)
+-- and the intensity (0-1). (One table, refilled: callers read it at once.)
+local NONE, sky = {}, {}
 function L.Sky()
     local api = C_Weather and C_Weather.GetCurrentWeather
     if api then
@@ -1637,7 +1638,7 @@ function L.Sky()
         -- (an intensity given 0-1 or 0-100)
         if i and i > 1 then i = i / 100 end
         i = i and max(0, min(1, i)) or 0.5
-        local brings = {}
+        local brings = wipe(sky)
         if weatherNow.kind == "rain" then
             brings.rain = true
             if i >= 0.6 then brings.thunder = true end
@@ -1649,7 +1650,7 @@ function L.Sky()
         return brings, i, true
     end
     local climate = L.Climate()
-    return climate and CLIMATE_EVENTS[climate] or {}, 0.5, false
+    return climate and CLIMATE_EVENTS[climate] or NONE, 0.5, false
 end
 
 function L.Climate()
@@ -1798,7 +1799,7 @@ local function Poll()
     -- Weather: the zone's climate, outdoors, above water, alive
     local outdoors = not call(IsIndoors) and not swimming and not live.underwater
         and not call(UnitIsDeadOrGhost, "player")
-    local brings, intensity = {}, 0.5
+    local brings, intensity = NONE, 0.5
     if outdoors then brings, intensity = L.Sky() end
     live.weatherIntensity = intensity
     for _, k in ipairs(L.WEATHER_KEYS) do
