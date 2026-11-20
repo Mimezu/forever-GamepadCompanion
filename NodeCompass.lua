@@ -145,7 +145,10 @@ function N.Camera(facing)
         c.speed = speed
         c.gain = store and store.speed == speed and tonumber(store.gain) or N.GAIN0 * speed
     end
-    local moving = (GetUnitSpeed and (GetUnitSpeed("player") or 0) > 0) or false
+    -- (the speed is a secret number in combat: the last known kept then)
+    local sp = GetUnitSpeed and GetUnitSpeed("player")
+    if type(sp) == "number" and not (issecretvalue and issecretvalue(sp)) then c.moving = sp > 0 end
+    local moving = c.moving or false
     local was = c.gain
     local yaw = N.CameraStep(c, dt, facing, lx, ly, rx, moving, FaceLimit())
     if c.gain ~= was then
@@ -171,7 +174,7 @@ function N.Row()
     local mm = Minimap
     if not mm or not mm:IsVisible() then return nil end
     local facing = GetPlayerFacing and GetPlayerFacing()
-    if not facing then return nil end
+    if type(facing) ~= "number" or (issecretvalue and issecretvalue(facing)) then return nil end
     local cx, cy = mm:GetCenter()
     local _, ph = GetPhysicalScreenSize()
     if not cx or not ph or ph <= 0 then return nil end
