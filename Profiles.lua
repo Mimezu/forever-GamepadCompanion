@@ -298,9 +298,21 @@ function P.InUse(kind, name)
     return false
 end
 
+-- (the game refuses ReloadUI from a pick made with the pad: not a hardware click,
+-- ADDON_ACTION_BLOCKED, and the switch never applied. A popup's Reload button is one)
 local function Reload()
     if P.reload then return P.reload() end
-    if ReloadUI then ReloadUI() end
+    local dialogs = _G.StaticPopupDialogs
+    if type(dialogs) == "table" and _G.StaticPopup_Show then
+        dialogs.GPC_PROFILE_RELOAD = dialogs.GPC_PROFILE_RELOAD or {
+            text = "Profile changed", button1 = "Reload", button2 = "Later",
+            OnAccept = function() ReloadUI() end,
+            timeout = 0, whileDead = true, hideOnEscape = true,
+        }
+        _G.StaticPopup_Show("GPC_PROFILE_RELOAD")
+    elseif ReloadUI then
+        ReloadUI()
+    end
 end
 
 local function Busy() return InCombatLockdown and InCombatLockdown() end
