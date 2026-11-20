@@ -621,6 +621,12 @@ for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, 
 Keys.Set("PAD5", "lt", nil)
 eq(overrides.PADFORWARD, nil, "Options: Blizzard's again")
 eq(overrides.PAD5, nil, "Mute: unbound")
+-- No layer action anywhere: the watcher reads no trigger
+local heldCalls, counting = 0, ns.Model.Held
+ns.Model.Held = function(action) heldCalls = heldCalls + 1; return counting(action) end
+heldL = true; Keys.Watch(); heldL = false; Keys.Watch()
+eq(heldCalls, 0, "no layer action: the watcher reads nothing")
+ns.Model.Held = counting
 ClearOverrideBindings, SetOverrideBinding, SetOverrideBindingClick = clear, set, setClick
 bindings.PADFORWARD = nil
 ns.Model.Held = modelHeld

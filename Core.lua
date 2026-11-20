@@ -58,16 +58,19 @@ local function ReadHeld(action)
     if not GetBindingKey or not IsKeyDown then return nil end
     local ok, first, second = pcall(GetBindingKey, action, 1)
     if not ok then return nil end
-    local keys = { first, second }
     local known = false
-    for index = 1, 2 do
-        local key = keys[index]
-        if M.Readable(key) and type(key) == "string" then
-            local held = SafeCall(IsKeyDown, key)
-            if type(held) == "boolean" then
-                known = true
-                if held then return true end
-            end
+    if M.Readable(first) and type(first) == "string" then
+        local held = SafeCall(IsKeyDown, first)
+        if type(held) == "boolean" then
+            known = true
+            if held then return true end
+        end
+    end
+    if M.Readable(second) and type(second) == "string" then
+        local held = SafeCall(IsKeyDown, second)
+        if type(held) == "boolean" then
+            known = true
+            if held then return true end
         end
     end
     if known then return false end

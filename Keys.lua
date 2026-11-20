@@ -121,6 +121,15 @@ local function HasLayer(key)
     return false
 end
 
+-- Any layer action at all (none: the watcher has nothing to read)
+local anyLayer = false
+local function CountLayers()
+    anyLayer = false
+    for _, key in ipairs(Keys.KEYS) do
+        if HasLayer(key) then anyLayer = true; return end
+    end
+end
+
 -- How a key is bound: "click" (Companion's secure button: every layer),
 -- "binding", command (its Base is a Blizzard function) or nil (left to the
 -- game). gameAction: what the game binds there without Companion ("" none).
@@ -222,6 +231,7 @@ function Keys.Set(key, layer, action)
     settings[key][layer] = action
     if next(settings[key]) == nil then settings[key] = nil end
     Keys.Apply()
+    CountLayers()
     Notify()
     return true
 end
@@ -278,6 +288,8 @@ end
 -- One look at the triggers (the watcher's tick)
 function Keys.Watch()
     if not loaded or (InCombatLockdown and InCombatLockdown()) then return end
+    -- (no layer action: nothing to read; extras left from the last one still cleared)
+    if not anyLayer and not next(extras) then return end
     SetExtras(Keys.Extras(Keys.HeldLayer()))
 end
 
@@ -299,6 +311,7 @@ events:SetScript("OnEvent", function(_, event, arg)
         local char = Sh.CharDB()
         settings = Keys.Normalize(char.keys)
         char.keys = settings
+        CountLayers()
         loaded = true
         return
     end
