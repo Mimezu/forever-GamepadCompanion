@@ -1008,10 +1008,14 @@ end
 -- moving (PLAYER_STARTED_MOVING), steps come at a rate that grows with speed.
 -- Rate and offset per race and sex, walking and running apart, from a sync
 -- (squeeze R2 on each footfall, L.StepSync); a guess until then.
+local model, modelRace, modelSex   -- (the key built again only when race or sex reads differently)
 local function Model()
     local race = select(3, UnitRace("player")) or 0
     local sex = UnitSex("player") or 0
-    return race .. "-" .. sex
+    if race ~= modelRace or sex ~= modelSex then
+        model, modelRace, modelSex = race .. "-" .. sex, race, sex
+    end
+    return model
 end
 
 -- Walking (about 2.5 yd/s) and running (7) are two animations: each its own
@@ -1024,18 +1028,27 @@ local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate 
 -- A gait's sync for this character, or nil
 -- A gait's timing: yours (synced or set by hand), else WoW Helper's learned
 -- by listening (WowHelperData.stepTiming, read at load), else nil (a guess)
+-- (WoW Helper's learned timing, built once per data table and gait)
+local learnedCal, learnedFrom = {}, nil
 function L.StepCal(band)
     local db = H.DB()
     db.stepSync = db.stepSync or {}
-    local own = db.stepSync[Model() .. "-" .. band]
+    local m = Model()
+    local own = db.stepSync[m .. "-" .. band]
     if own then return own end
     local d = _G.WowHelperData
-    local l = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming[Model() .. "|" .. band]
-    if type(l) == "table" and tonumber(l.rate) and tonumber(l.speed) then
-        return { rate = tonumber(l.rate), offset = tonumber(l.offset) or 0, speed = tonumber(l.speed), taps = 0,
-            learned = tonumber(l.steps) or 0 }
+    if learnedFrom ~= d then learnedCal, learnedFrom = {}, d end
+    local key = m .. "|" .. band
+    if learnedCal[key] == nil then
+        local l = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming[key]
+        if type(l) == "table" and tonumber(l.rate) and tonumber(l.speed) then
+            learnedCal[key] = { rate = tonumber(l.rate), offset = tonumber(l.offset) or 0, speed = tonumber(l.speed),
+                taps = 0, learned = tonumber(l.steps) or 0 }
+        else
+            learnedCal[key] = false
+        end
     end
-    return nil
+    return learnedCal[key] or nil
 end
 
 -- Where a gait's timing comes from: "yours", "learned" (and its steps), "guess"
