@@ -2539,8 +2539,10 @@ do
     now = now + 5; start = now
     rev("UNIT_SPELLCAST_START", "player", "g1", 2575)
     local m = K.queue[1]
-    assert(m and m.moment == 100 and m.side == 1 and m.seed == 127 and m.touch == 0,
-        "mining starts: race 1, male, its first strike past 1.26 s: unknown (WoW Helper's guess), a marker alone")
+    -- (mining's default timing is WoW Helper's to play too, the strike and the crack: the start
+    -- carries the pickaxe since 2026-11-20; tests/Gathering.lua)
+    assert(m and m.moment == 100 and m.side == 1 and m.seed == 127 and m.touch == L.HdId("r_pickaxe"),
+        "mining starts: race 1, male, its first strike past 1.26 s: unknown (WoW Helper's guess), the pickaxe carried")
     rev("UNIT_SPELLCAST_STOP", "player", "g1")
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "g1", 2575)
     RunTimers()
@@ -3310,7 +3312,8 @@ do
     T.Store().strikes = {}
     local start
     UnitCastingInfo = function() return "Mining", nil, nil, start * 1000, (start + 3) * 1000 end
-    -- (the addon times them)
+    -- (the addon times them: a timing set by hand; mining's default is WoW Helper's since 2026-11-20)
+    V.SetStrikeTiming("mining", 1.4, 1.49)
     now = now + 5; start = now
     rev("UNIT_SPELLCAST_START", "player", "gm1", 2575)
     assert(#cues == 0, "the cast's start: no cue (its strikes carry it): " .. #cues)
@@ -3325,6 +3328,7 @@ do
             .. tostring(q.moment) .. " " .. tostring(q.sound))
     end
     rev("UNIT_SPELLCAST_SUCCEEDED", "player", "gm1", 2575)
+    V.Settings().strikes = {}
     -- (WoW Helper times them: the start marker carries Mining's cue, nothing from here)
     WowHelperData = { strikeTiming = { ["1-2|mining"] = { first = 0.62, period = 1.18, strikes = 30, casts = 9 } } }
     T.LoadHelper()

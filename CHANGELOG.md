@@ -42,6 +42,7 @@
 - Undead female: her own steps (a longer stride) until WoW Helper learns them
 - Mage Recommended: Low mana, Enemy casts at you, Aggro on
 - Mining: the ore cracking loose is felt firmer than a strike, and plays even when the cast ends a moment early
+- Mining with WoW Helper: it plays the strike and the crack from the first cast, not only once it has learned your timing. A timing it learned with no steady second strike is no longer ignored
 
 ## 0.69.2 — 2026-11-20
 
