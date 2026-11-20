@@ -41,6 +41,7 @@ Fishing.lua
 SlotMacros.lua
 BankMove.lua
 MailOpenAll.lua
+OpenMapPad.lua
 BagGrid.lua
 AutorunTurn.lua
 ControllerModel.lua
