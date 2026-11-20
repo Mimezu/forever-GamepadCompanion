@@ -429,20 +429,22 @@ function K.DecodeSpellRow(cells)
     return { seq = Get(bits, 0, 4), phase = Get(bits, 4, 2), id = Get(bits, 6, 20) }
 end
 
--- The map row (WoW Helper's node compass, its docs/NODE-COMPASS.md): 24 cells, white first, 69
--- bits LE: version 0-1 (0), facing 2-11 (GetPlayerFacing / 2pi * 1024), the minimap's centre x
+-- The map row (WoW Helper's node compass, its docs/NODE-COMPASS.md): 28 cells, white first, 81
+-- bits LE: version 0-1 (1), facing 2-11 (GetPlayerFacing / 2pi * 1024), the minimap's centre x
 -- 12-23 and y 24-35 (client pixels from the top-left), radius 36-45 (pixels), yards across 46-55,
--- rotates 56, tracking 57-58 (1 minerals, 2 herbs, 3 treasure), spare 59, CRC-8 over bits 0-59 at
--- 60-67, spare 68. Four rows up (stacked) or from cell 89 (one line: 113 cells); drawn only while
--- WowHelperData.mapRow and a node tracking is on (NodeCompass.lua).
-K.MAP_CELLS = 24
+-- rotates 56, tracking 57-58 (1 minerals, 2 herbs, 3 treasure), camera known 59, camera yaw 60-69
+-- (as facing), spare 70-71, CRC-8 over bits 0-71 at 72-79, spare 80. Four rows up (stacked) or
+-- from cell 89 (one line: 117 cells); drawn only while WowHelperData.mapRow is 2 and a node
+-- tracking is on (NodeCompass.lua).
+K.MAP_CELLS = 28
 K.MAP_MARKER = { 1, 1, 1 }   -- white
 
--- m = { facing, x, y, radius, yards, rotates, tracking } -> 24 cells
+-- m = { facing, x, y, radius, yards, rotates, tracking, camera (nil: unknown) } -> 28 cells
 function K.EncodeMapRow(m)
     m = m or {}
     local bits = {}
-    for i = 0, 68 do bits[i] = 0 end
+    for i = 0, 80 do bits[i] = 0 end
+    Put(bits, 0, 1, 2)
     Put(bits, 2, Int(m.facing, 1023), 10)
     Put(bits, 12, Int(m.x, 4095), 12)
     Put(bits, 24, Int(m.y, 4095), 12)
@@ -450,7 +452,11 @@ function K.EncodeMapRow(m)
     Put(bits, 46, Int(m.yards, 1023), 10)
     Put(bits, 56, m.rotates and 1 or 0, 1)
     Put(bits, 57, Int(m.tracking, 3), 2)
-    Put(bits, 60, CrcBits(bits, 60), 8)
+    if m.camera then
+        Put(bits, 59, 1, 1)
+        Put(bits, 60, Int(m.camera, 1023), 10)
+    end
+    Put(bits, 72, CrcBits(bits, 72), 8)
     local cells = { { 1, 1, 1 } }
     for c = 0, K.MAP_CELLS - 2 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
     return cells
@@ -468,10 +474,11 @@ function K.DecodeMapRow(cells)
             bits[c * 3 + k - 1] = v
         end
     end
-    if Get(bits, 0, 2) ~= 0 then return nil, "value" end
-    if CrcBits(bits, 60) ~= Get(bits, 60, 8) then return nil, "crc" end
+    if Get(bits, 0, 2) ~= 1 then return nil, "value" end
+    if CrcBits(bits, 72) ~= Get(bits, 72, 8) then return nil, "crc" end
     return { facing = Get(bits, 2, 10), x = Get(bits, 12, 12), y = Get(bits, 24, 12), radius = Get(bits, 36, 10),
-        yards = Get(bits, 46, 10), rotates = Get(bits, 56, 1) == 1, tracking = Get(bits, 57, 2) }
+        yards = Get(bits, 46, 10), rotates = Get(bits, 56, 1) == 1, tracking = Get(bits, 57, 2),
+        camera = Get(bits, 59, 1) == 1 and Get(bits, 60, 10) or nil }
 end
 
 ---------------------------------------------------------------------------
@@ -504,7 +511,7 @@ function K.Enabled() return DB().on == true end
 K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" } }
 K.LINE_LIGHT, K.LINE_TRIG, K.LINE_CELLS = 34, 57, 76
 K.LINE_SPELL, K.LINE_CELLS_SPELL = 76, 89   -- (the spell row after the trigger row: 89 cells)
-K.LINE_MAP, K.LINE_CELLS_MAP = 89, 113      -- (the map row after the spell row's place: 113 cells)
+K.LINE_MAP, K.LINE_CELLS_MAP = 89, 117      -- (the map row after the spell row's place: 117 cells)
 function K.Strip() return DB().strip == "oneline" and "oneline" or "stacked" end
 function K.SetStrip(v)
     DB().strip = v == "oneline" and "oneline" or nil
@@ -522,11 +529,11 @@ function K.SpellRowOn()
     return K.V2() and type(d) == "table" and d.spellRow == true
 end
 
--- The map row: only once WoW Helper says it reads it (WowHelperData.mapRow), and while
--- NodeCompass.lua has one (a node tracking on)
+-- The map row: only once WoW Helper says it reads this version (WowHelperData.mapRow = 2), and
+-- while NodeCompass.lua has one (a node tracking on)
 function K.MapRowOn()
     local d = WowHelperData
-    return K.V2() and type(d) == "table" and d.mapRow == true and K.map ~= nil
+    return K.V2() and type(d) == "table" and d.mapRow == 2 and K.map ~= nil
 end
 
 -- The map row's state (NodeCompass.lua), or nil: none. Redrawn when a field changes.
@@ -538,8 +545,10 @@ function K.SetMap(m)
     end
     local key = Int(m.facing, 1023) .. ":" .. Int(m.x, 4095) .. ":" .. Int(m.y, 4095) .. ":" .. Int(m.radius, 1023)
         .. ":" .. Int(m.yards, 1023) .. ":" .. (m.rotates and 1 or 0) .. ":" .. Int(m.tracking, 3)
+        .. ":" .. (m.camera and Int(m.camera, 1023) or "-")
     if K.map and K.map.key == key then return end
-    K.map = { key = key, facing = m.facing, x = m.x, y = m.y, radius = m.radius, yards = m.yards, rotates = m.rotates, tracking = m.tracking }
+    K.map = { key = key, facing = m.facing, x = m.x, y = m.y, radius = m.radius, yards = m.yards, rotates = m.rotates,
+        tracking = m.tracking, camera = m.camera }
     dirty = true
 end
 

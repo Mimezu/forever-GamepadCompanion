@@ -66,3 +66,36 @@ tracking[2].active = false
 N.Refresh()
 assert(N.Row() == nil and sent[#sent] == false, "tracking off: the row goes")
 print("NodeCompass: ok")
+
+-- The camera from the sticks
+do
+    local W, step = N.Wrap, N.CameraStep
+    local function near(a, b) return math.abs(W(a - b)) < 1e-3 end
+    local c = {}
+    local f = 1.0
+    assert(near(step(c, 0.016, f, 0, 0, 0, false, math.pi), f), "nothing known: behind the character")
+    -- standing, the right stick right for 0.5 s at 2.5 rad/s: 1.25 rad clockwise
+    for _ = 1, 50 do step(c, 0.01, f, 0, 0, 1, false, math.pi) end
+    assert(near(c.yaw, f - 1.25), "right stick: " .. c.yaw)
+    -- moving with the stick left: once the facing settles, camera = facing - pi/2
+    local function run(lx, ly, facing, limit)
+        for _ = 1, 12 do step(c, 0.016, facing, lx, ly, 0, true, limit or math.pi) end
+        return c.yaw
+    end
+    assert(near(run(-1, 0, f), f - math.pi / 2), "stick left: the camera looks to the character's right")
+    assert(near(run(0, 1, 2.0), 2.0), "stick up: the camera behind")
+    -- (not settled yet: the facing still turning, no fix)
+    local before = c.yaw
+    for i = 1, 12 do step(c, 0.016, 2.0 + i * 0.05, 1, 0, 0, true, math.pi) end
+    assert(near(c.yaw, before), "turning: no fix")
+    -- in combat past the limit (stick back, limit 105): the character faces the camera
+    assert(near(run(0, -1, 0.5, 105 * math.pi / 180), 0.5), "backpedal: camera = facing")
+    -- learning the right stick's speed: the stick said 0.4 rad/s-units, the camera turned 1.2
+    c = {}
+    run(0, 1, 0.0)
+    for _ = 1, 40 do step(c, 0.01, 0.0, 0, 0, 1, false, math.pi) end
+    assert(near(c.yaw, -1.0), "predicted at 2.5: " .. c.yaw)
+    run(0, 1, -1.2)
+    assert(near(c.yaw, -1.2) and math.abs(c.gain - 2.65) < 1e-6, "fixed, and learned toward 3: " .. tostring(c.gain))
+    print("NodeCompass camera: ok")
+end
