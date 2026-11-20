@@ -477,17 +477,19 @@ function Picker.Open(req)
     ui.categories = Categories()
     LayoutCategories()
     -- Start where the current action is
-    category, offset, query = ui.categories[1], 0, ""
+    local startCategory, startOffset = ui.categories[1], 0
     for _, cat in ipairs(ui.categories) do
         for i, e in ipairs(cat.list or {}) do
             if e.action == req.current then
-                category = cat
-                offset = math.floor((i - 1) / (COLS * ROWS)) * COLS * ROWS
+                startCategory = cat
+                startOffset = math.floor((i - 1) / (COLS * ROWS)) * COLS * ROWS
             end
         end
-        if cat.text and type(req.current) == "string" and req.current:match("^text:") then category = cat end
+        if cat.text and type(req.current) == "string" and req.current:match("^text:") then startCategory = cat end
     end
-    ui.search:SetText("")
+    category, offset, query = startCategory, startOffset, ""
+    ui.search:SetText("")        -- (OnTextChanged may reset offset: set it after)
+    offset = startOffset
     ui.macro:SetText(type(req.current) == "string" and req.current:match("^text:(.*)$") or "")
     window:Show()
     window:Raise()
