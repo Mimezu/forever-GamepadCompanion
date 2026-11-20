@@ -223,8 +223,8 @@ do
         if p.feel and not p.beta then
             local f = H.Copy(p.feel)
             f.label, f.icon, f.rumble = p.label, p.icon, p.key
-            f.group = (p.swing or p.weapon) and "Weapons" or p.move and "Moves" or SPELL[p.key] and "Spells"
-                or CRAFT[p.key] and "Crafts" or "Basics"
+            f.group = p.group or ((p.swing or p.weapon) and "Weapons" or p.move and "Moves" or SPELL[p.key] and "Spells"
+                or CRAFT[p.key] and "Crafts" or "Basics")
             f.loop, f.gap = nil, nil
             H.AddLibrary("r_" .. p.key, f)
         end

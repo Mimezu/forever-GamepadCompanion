@@ -226,6 +226,191 @@ for _, p in ipairs({
     V.PATTERNS[#V.PATTERNS + 1] = p
 end
 
+-- Mage: each iconic spell its own feel (the mage pass, 2026-11-20; docs/MAGE.md).
+-- Impacts land on the target (the wound, after the bolt's flight); area spells
+-- spread from you to both hands; a channel's ticks each their own small feel.
+-- Rhythm and contrast: faint short taps against the few big moments.
+local function MPu(t, len, s, side) return { t, len, s, side or 0 } end
+local MAGE_PATTERNS = {
+    -- (a cast's impact, as its wound lands)
+    { key = "fireball", label = "Fireball", art = "kindle",       -- a whoomp, the fire crackling on
+        steps = { { 0.75, 0.6, 0.12 }, { 0.2, 0.1, 0.1 }, { 0.1, 0.15, 0.1 } },
+        pulses = { MPu(0, 0.12, 0.75), MPu(0.16, 0.05, 0.2, -0.5), MPu(0.25, 0.05, 0.13, 0.5), MPu(0.36, 0.05, 0.07, -0.3) } },
+    { key = "frostbolt", label = "Frostbolt", art = "frost",      -- a hard crack, splinters to both hands
+        steps = { { 0.7, 0.7, 0.1 }, { 0.2, 0.05, 0.1 }, { 0.05, 0.2, 0.1 } },
+        pulses = { MPu(0, 0.06, 0.7), MPu(0.08, 0.05, 0.22, -0.7), MPu(0.14, 0.05, 0.16, 0.7), MPu(0.21, 0.05, 0.1, -0.4),
+            MPu(0.3, 0.05, 0.06, 0.5) } },
+    { key = "pyroblast", label = "Pyroblast", art = "impact",     -- a huge blast, burning on, side to side
+        steps = { { 1, 1, 0.3 }, { 0.3, 0.15, 0.1 }, { 0.15, 0.3, 0.1 }, { 0.1, 0.1, 0.15 } },
+        pulses = { MPu(0, 0.32, 1), MPu(0.4, 0.05, 0.3, -0.6), MPu(0.48, 0.05, 0.25, 0.6), MPu(0.6, 0.05, 0.15, -0.3),
+            MPu(0.72, 0.05, 0.1, 0.4), MPu(0.86, 0.05, 0.06) } },
+    { key = "scorch", label = "Scorch", art = "kindle",           -- a searing touch, a short hiss
+        steps = { { 0.45, 0.4, 0.1 }, { 0.12, 0.15, 0.2 } },
+        pulses = { MPu(0, 0.08, 0.45), MPu(0.1, 0.18, 0.13) } },
+    { key = "arcaneBlast", label = "Arcane Blast", art = "arcane", -- a tight snap, a quick ring
+        steps = { { 0.6, 0.6, 0.1 }, { 0.3, 0.3, 0.1 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.6), MPu(0.07, 0.1, 0.33), MPu(0.22, 0.05, 0.1) } },
+    { key = "frostfire", label = "Frostfire", art = "kindle",     -- the crack, the whoomp, a hiss of steam
+        steps = { { 0.65, 0.6, 0.1 }, { 0.5, 0.45, 0.12 }, { 0.1, 0.15, 0.1 } },
+        pulses = { MPu(0, 0.06, 0.65), MPu(0.08, 0.12, 0.5), MPu(0.24, 0.05, 0.15, -0.6), MPu(0.32, 0.05, 0.1, 0.6) } },
+    -- (instants at the target)
+    { key = "fireBlast", label = "Fire Blast", art = "shock", move = true,     -- a sharp pop of flame
+        steps = { { 0.35, 0.35, 0.1 }, { 0.8, 0.8, 0.1 }, { 0.12, 0.12, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.35), MPu(0.05, 0.1, 0.8), MPu(0.2, 0.05, 0.12) } },
+    { key = "iceLance", label = "Ice Lance", art = "stab", move = true,        -- a thin spike, quick and bright
+        steps = { { 0.4, 0.6, 0.1 }, { 0.05, 0.15, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.55, 0.3), MPu(0.07, 0.05, 0.15, 0.5) } },
+    { key = "barrage", label = "Barrage", art = "arcane", move = true,        -- three bolts, the last the hardest
+        steps = { { 0.4, 0.1, 0.1 }, { 0.1, 0.4, 0.1 }, { 0.55, 0.55, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.35, -0.5), MPu(0.08, 0.05, 0.35, 0.5), MPu(0.16, 0.06, 0.5) } },
+    -- (around you: both hands, spreading out)
+    { key = "frostNova", label = "Frost Nova", art = "burst", move = true,    -- a cold crack, frost creeping out
+        steps = { { 0.9, 0.9, 0.1 }, { 0.25, 0.25, 0.1 }, { 0.15, 0.15, 0.1 }, { 0, 0, 0.1 }, { 0.12, 0.12, 0.15 } },
+        pulses = { MPu(0, 0.06, 0.9, -1), MPu(0, 0.06, 0.9, 1), MPu(0.1, 0.05, 0.25, -1), MPu(0.11, 0.05, 0.25, 1),
+            MPu(0.2, 0.05, 0.15, -1), MPu(0.23, 0.05, 0.15, 1), MPu(0.34, 0.05, 0.08, -1), MPu(0.38, 0.05, 0.08, 1),
+            MPu(0.52, 0.14, 0.12) } },
+    { key = "coneOfCold", label = "Cone of Cold", art = "burst", move = true,  -- a cold spray ahead, fanning out
+        steps = { { 0.3, 0.3, 0.05 }, { 0.75, 0.75, 0.14 }, { 0.25, 0.25, 0.1 }, { 0.12, 0.12, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.3), MPu(0.04, 0.14, 0.75), MPu(0.2, 0.05, 0.25, -0.6), MPu(0.24, 0.05, 0.25, 0.6),
+            MPu(0.32, 0.05, 0.12, -0.9), MPu(0.36, 0.05, 0.12, 0.9) } },
+    { key = "arcaneExplosion", label = "Arcane Explosion", art = "burst", move = true, -- a ring snapping out
+        steps = { { 0.4, 0.4, 0.05 }, { 0.85, 0.85, 0.1 }, { 0.25, 0.25, 0.1 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.4), MPu(0.05, 0.1, 0.85), MPu(0.18, 0.05, 0.25, -1), MPu(0.18, 0.05, 0.25, 1),
+            MPu(0.3, 0.05, 0.08, -1), MPu(0.3, 0.05, 0.08, 1) } },
+    { key = "blastWave", label = "Blast Wave", art = "slam", move = true,     -- a concussive thump, heat rolling out
+        steps = { { 1, 1, 0.22 }, { 0.35, 0.35, 0.1 }, { 0.15, 0.15, 0.12 }, { 0.06, 0.06, 0.1 } },
+        pulses = { MPu(0, 0.22, 1), MPu(0.28, 0.1, 0.35, -0.8), MPu(0.28, 0.1, 0.35, 0.8), MPu(0.45, 0.12, 0.15, -1),
+            MPu(0.45, 0.12, 0.15, 1), MPu(0.65, 0.05, 0.06) } },
+    { key = "dragonsBreath", label = "Dragon's Breath", art = "slam", move = true, -- a roar of flame ahead
+        steps = { { 0.2, 0.2, 0.06 }, { 0.8, 0.8, 0.3 }, { 0.2, 0.15, 0.1 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.2), MPu(0.06, 0.3, 0.8), MPu(0.4, 0.05, 0.2, -0.5), MPu(0.48, 0.05, 0.15, 0.5),
+            MPu(0.58, 0.05, 0.08) } },
+    -- (cast-time area spells, at the release: Flamestrike's breath, its eruption, the ground burning)
+    { key = "flamestrike", label = "Flamestrike", art = "surge",
+        steps = { { 0.08, 0.08, 0.1 }, { 0, 0, 0.25 }, { 1, 1, 0.25 }, { 0.2, 0.15, 0.15 }, { 0.15, 0.2, 0.15 },
+            { 0.1, 0.1, 0.3 } },
+        pulses = { MPu(0, 0.05, 0.08), MPu(0.35, 0.25, 1), MPu(0.7, 0.05, 0.2, -0.5), MPu(0.85, 0.05, 0.16, 0.5),
+            MPu(1.02, 0.05, 0.13, -0.2), MPu(1.2, 0.05, 0.1, 0.6), MPu(1.4, 0.05, 0.07, -0.6), MPu(1.65, 0.05, 0.05, 0.3) } },
+    { key = "polymorph", label = "Polymorph", art = "arcane",    -- a soft pop, a woolly wobble
+        steps = { { 0.35, 0.35, 0.1 }, { 0.12, 0, 0.1 }, { 0, 0.1, 0.1 }, { 0.06, 0.06, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.35), MPu(0.12, 0.05, 0.12, -0.4), MPu(0.22, 0.05, 0.1, 0.4), MPu(0.32, 0.05, 0.06, -0.2) } },
+    -- (a channel's tick: one each)
+    { key = "missile", label = "Missile", art = "arcane",        -- one missile leaving the hand
+        steps = { { 0.22, 0.22, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.22), MPu(0.07, 0.05, 0.07) } },
+    { key = "missileLast", label = "Last missile", art = "arcane", -- the last, a touch firmer
+        steps = { { 0.4, 0.4, 0.1 }, { 0.1, 0.1, 0.1 } },
+        pulses = { MPu(0, 0.07, 0.38), MPu(0.1, 0.05, 0.12) } },
+    { key = "blizzard", label = "Blizzard", art = "frost",       -- a second of ice shards, uneven, hand to hand
+        steps = { { 0.15, 0, 0.1 }, { 0, 0.12, 0.1 }, { 0.22, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.12, 0.1 },
+            { 0.18, 0, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.2, 0.1 }, { 0.1, 0.05, 0.1 } },
+        pulses = { cycle = 1, MPu(0.02, 0.05, 0.16, -0.6), MPu(0.13, 0.05, 0.1, 0.7), MPu(0.21, 0.05, 0.22, -0.1),
+            MPu(0.37, 0.05, 0.12, 0.9), MPu(0.46, 0.05, 0.18, -0.8), MPu(0.6, 0.05, 0.09, 0.3), MPu(0.71, 0.05, 0.2, 0.6),
+            MPu(0.83, 0.05, 0.11, -0.4) } },
+    { key = "evocation", label = "Evocation", art = "shimmer",   -- a slow breath of mana drawn in
+        steps = { { 0.04, 0.04, 0.15 }, { 0.08, 0.08, 0.15 }, { 0.12, 0.12, 0.15 }, { 0, 0, 0.5 } },
+        pulses = { MPu(0, 0.05, 0.04), MPu(0.15, 0.05, 0.07), MPu(0.3, 0.1, 0.12), MPu(0.5, 0.05, 0.05) } },
+    -- (at the cast: moves, shields, buffs)
+    { key = "blink", label = "Blink", art = "charge", move = true, -- gone from the left, there on the right
+        steps = { { 0.45, 0, 0.1 }, { 0, 0, 0.1 }, { 0, 0.2, 0.1 } },
+        pulses = { MPu(0, 0.06, 0.45, -0.8), MPu(0.16, 0.05, 0.2, 0.8) } },
+    { key = "counterspell", label = "Counterspell", art = "shock", move = true, -- a sharp snap, cut short
+        steps = { { 0.5, 0.7, 0.1 }, { 0.15, 0.05, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.7, 0.3), MPu(0.06, 0.05, 0.2, -0.3) } },
+    { key = "deepFreeze", label = "Deep Freeze", art = "bash", move = true, -- ice crunching shut
+        steps = { { 0.4, 0.4, 0.05 }, { 0.85, 0.85, 0.15 }, { 0.15, 0.15, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.4), MPu(0.05, 0.15, 0.85), MPu(0.25, 0.05, 0.15) } },
+    { key = "frozenOrb", label = "Frozen Orb", art = "frost", move = true, -- launched, crackling away
+        steps = { { 0.5, 0.5, 0.1 }, { 0.15, 0.15, 0.1 }, { 0, 0, 0.1 }, { 0.09, 0.09, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.05, 0.1 } },
+        pulses = { MPu(0, 0.1, 0.5), MPu(0.2, 0.05, 0.15), MPu(0.35, 0.05, 0.12), MPu(0.5, 0.05, 0.09), MPu(0.65, 0.05, 0.06),
+            MPu(0.8, 0.05, 0.04) } },
+    { key = "bomb", label = "Living Bomb", art = "hex", move = true, -- a seed of fire set, ticking
+        steps = { { 0.3, 0.3, 0.1 }, { 0, 0, 0.15 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.3), MPu(0.25, 0.05, 0.08), MPu(0.5, 0.05, 0.06) } },
+    { key = "iceBlock", label = "Ice Block", art = "ward", move = true, -- ice closing round you, then still
+        steps = { { 0.15, 0.2, 0.1 }, { 0.25, 0.3, 0.1 }, { 0.6, 0.6, 0.3 } },
+        pulses = { MPu(0, 0.05, 0.15, -1), MPu(0.06, 0.05, 0.2, 1), MPu(0.12, 0.05, 0.25, -0.5), MPu(0.18, 0.05, 0.3, 0.5),
+            MPu(0.25, 0.3, 0.6) } },
+    { key = "iceBarrier", label = "Ice Barrier", art = "ward", move = true, -- a shell of ice forming
+        steps = { { 0.12, 0.12, 0.1 }, { 0.18, 0.18, 0.1 }, { 0.35, 0.35, 0.2 } },
+        pulses = { MPu(0, 0.05, 0.12, -1), MPu(0, 0.05, 0.12, 1), MPu(0.1, 0.05, 0.18, -0.6), MPu(0.1, 0.05, 0.18, 0.6),
+            MPu(0.22, 0.2, 0.35) } },
+    { key = "manaShield", label = "Mana Shield", art = "ward", move = true, -- an arcane shell humming up
+        steps = { { 0.1, 0.1, 0.1 }, { 0.15, 0, 0.1 }, { 0, 0.15, 0.1 }, { 0.3, 0.3, 0.2 } },
+        pulses = { MPu(0, 0.05, 0.1), MPu(0.1, 0.05, 0.15, -0.5), MPu(0.2, 0.05, 0.15, 0.5), MPu(0.3, 0.2, 0.3) } },
+    { key = "mantle", label = "Armor", art = "seal", move = true, -- an armor spell settling over the shoulders
+        steps = { { 0.18, 0, 0.15 }, { 0, 0.18, 0.15 }, { 0.06, 0.06, 0.1 } },
+        pulses = { MPu(0, 0.15, 0.18, -0.4), MPu(0.18, 0.15, 0.18, 0.4), MPu(0.42, 0.05, 0.06) } },
+    { key = "glow", label = "Glow", art = "shimmer", move = true, -- a faint brightening (intellect, a ward of magic)
+        steps = { { 0.05, 0.05, 0.1 }, { 0.09, 0.09, 0.1 }, { 0.14, 0.14, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.05), MPu(0.12, 0.05, 0.09), MPu(0.24, 0.08, 0.14) } },
+    { key = "empower", label = "Empower", art = "rise", move = true, -- power rushing in (Arcane Power, Combustion)
+        steps = { { 0.12, 0.12, 0.1 }, { 0.2, 0.2, 0.1 }, { 0.55, 0.55, 0.2 }, { 0.1, 0.1, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.12), MPu(0.08, 0.05, 0.2), MPu(0.16, 0.2, 0.55), MPu(0.42, 0.05, 0.1) } },
+    -- (a cast's loop: conjuring, crystals forming)
+    { key = "conjure", label = "Conjure", art = "shimmer",
+        steps = { { 0.05, 0, 0.1 }, { 0, 0, 0.1 }, { 0, 0.07, 0.1 }, { 0, 0, 0.1 }, { 0.1, 0.1, 0.1 }, { 0, 0, 0.25 } },
+        pulses = { cycle = 0.75, MPu(0, 0.05, 0.05, -0.4), MPu(0.18, 0.05, 0.07, 0.4), MPu(0.4, 0.05, 0.1) } },
+}
+for _, p in ipairs(MAGE_PATTERNS) do
+    p.action, p.mage = true, true
+    if not p.move then p.group = "Spells" end
+    V.PATTERNS[#V.PATTERNS + 1] = p
+end
+V.MAGE_PATTERNS = MAGE_PATTERNS
+
+-- What each mage spell plays (first rank's ID: every rank shares its name).
+-- move, when: an instant's feel, at the "cast" or as it lands ("hit"); impact: a
+-- cast's feel as its wound lands; burst: a cast's feel at its release, no wait
+-- (on the ground, Flamestrike; no damage, Polymorph); tick: a channel's feel per
+-- tick, last: the last tick's, ticks: how many (by rank: Arcane Missiles 3, 4, 5);
+-- set: a cast's loop. Dragon's Breath is Forever's: no skill line teaches it.
+V.MAGE = {
+    -- Fire
+    [133] = { impact = "fireball" }, [11366] = { impact = "pyroblast" }, [2948] = { impact = "scorch" },
+    [2136] = { move = "fireBlast", when = "hit" }, [400618] = { move = "fireBlast", when = "hit" },
+    [24530] = { move = "fireBlast", when = "hit" },                          -- Felfire
+    [11113] = { move = "blastWave", when = "cast" }, [1220410] = { move = "dragonsBreath", when = "cast" },
+    [2120] = { burst = "flamestrike" }, [401502] = { impact = "frostfire" },
+    [428878] = { impact = "fireball" },                                      -- Balefire Bolt
+    [400613] = { move = "bomb", when = "cast" }, [401556] = { move = "bomb", when = "cast" }, -- Living Bomb, Living Flame
+    [11129] = { move = "empower", when = "cast" }, [543] = { move = "ward", when = "cast" }, -- Combustion, Fire Ward
+    [428741] = { move = "mantle", when = "cast" },                           -- Molten Armor
+    -- Frost
+    [116] = { impact = "frostbolt" }, [412532] = { impact = "frostbolt" },   -- Frostbolt, Spellfrost Bolt
+    [122] = { move = "frostNova", when = "cast" }, [120] = { move = "coneOfCold", when = "cast" },
+    [10] = { tick = "blizzard", ticks = 8 },
+    [1312002] = { move = "iceLance", when = "hit" }, [440802] = { move = "frozenOrb", when = "cast" },
+    [440809] = { move = "frozenOrb", when = "cast" }, [428739] = { move = "deepFreeze", when = "cast" },
+    [11958] = { move = "iceBlock", when = "cast" }, [11426] = { move = "iceBarrier", when = "cast" },
+    [6143] = { move = "ward", when = "cast" },                               -- Frost Ward
+    [168] = { move = "mantle", when = "cast" }, [7302] = { move = "mantle", when = "cast" }, -- Frost, Ice Armor
+    [12472] = { move = "empower", when = "cast" }, [425121] = { move = "empower", when = "cast" }, -- Cold Snap, Icy Veins
+    -- Arcane
+    [5143] = { tick = "missile", last = "missileLast", alternate = true, ticks = 5, rankTicks = { [5143] = 3, [5144] = 4 } },
+    [400574] = { impact = "arcaneBlast" }, [1326079] = { impact = "arcaneBlast" }, -- Arcane Blast, Arcane Wrath
+    [400610] = { move = "barrage", when = "hit" }, [425124] = { move = "arcaneBlast", when = "hit" }, -- Barrage, Surge
+    [1449] = { move = "arcaneExplosion", when = "cast" }, [2139] = { move = "counterspell", when = "cast" },
+    [1953] = { move = "blink", when = "cast" }, [428861] = { move = "blink", when = "cast" }, -- Blink, Displacement
+    [401462] = { move = "blink", when = "cast" },                            -- Rewind Time
+    [118] = { burst = "polymorph" }, [28270] = { burst = "polymorph" }, [28271] = { burst = "polymorph" },
+    [28272] = { burst = "polymorph" },                                       -- Polymorph: Cow, Pig, Turtle
+    [12051] = { tick = "evocation", ticks = 8 },
+    [1463] = { move = "manaShield", when = "cast" }, [6117] = { move = "mantle", when = "cast" }, -- Mana Shield, Mage Armor
+    [1459] = { move = "glow", when = "cast" }, [23028] = { move = "glow", when = "cast" }, -- Arcane Intellect, Brilliance
+    [1008] = { move = "glow", when = "cast" }, [604] = { move = "glow", when = "cast" },   -- Amplify, Dampen Magic
+    [130] = { move = "glow", when = "cast" }, [475] = { move = "glow", when = "cast" },    -- Slow Fall, Remove Lesser Curse
+    [12042] = { move = "empower", when = "cast" }, [12043] = { move = "empower", when = "cast" }, -- Arcane Power, Presence of Mind
+    [428885] = { move = "glow", when = "cast" },                             -- Temporal Anomaly
+    [587] = { set = "feel:conjure" }, [5504] = { set = "feel:conjure" }, [759] = { set = "feel:conjure" }, -- Food, Water, Agate
+    [3552] = { set = "feel:conjure" }, [10053] = { set = "feel:conjure" }, [10054] = { set = "feel:conjure" }, -- Jade, Citrine, Ruby
+    [1302508] = { set = "arcaneSpells" },                                    -- Study (a scroll read)
+    [401417] = { set = "healing" }, [412510] = { set = "healing" },          -- Regeneration, Mass Regeneration
+    [1297659] = { set = "travel" },                                          -- Teleport: Dalaran (Forever's)
+    -- Undead: Cannibalize's channel, a bite each tick (every 2 s)
+    [20578] = { tick = "chew", ticks = 5, byId = true },
+}
+
 -- The instant abilities each move matches (every rank shares its name: the
 -- first's ID names them)
 V.MOVES = {
@@ -399,6 +584,8 @@ local PULSES = {
     swPolearm = { Pu(0, 0.05, 0.12, -0.6), Pu(0.08, 0.16, 0.5, 0.6) },
     swStaff = { Pu(0, 0.12, 0.3) },
 }
+-- (the mage's own, defined with their patterns)
+for _, p in ipairs(MAGE_PATTERNS) do PULSES[p.key] = p.pulses end
 -- (draw: an aimed shot, the string tightening: taps closer and stronger)
 do
     local list, t = { cycle = 1.1 }, 0
@@ -1185,6 +1372,55 @@ local function Missiles(now)
     return math.max(low, tail), math.max(high, tail)
 end
 
+-- A mage's channel (Arcane Missiles, Blizzard, Evocation; Cannibalize): each
+-- tick its own small feel, the last its own (the last missile a touch
+-- firmer), the family's rhythm faint under them. The ticks come from the
+-- channel's real length (haste shortens it) over its count (V.MAGE), from its
+-- start: the first one period in, the last at its end. Each tick's HD goes as
+-- it plays (WoW Helper's loop hums under it). Missiles leave either hand by turns.
+function V.TickHD(pattern, k, alternate)
+    local C = ns.HelperCues
+    if not (C and C.Feel and pattern) then return end
+    local gain = (cast.gain or 1) * (ns.Volume and ns.Volume.Feel and ns.Volume.Feel("cast") or 1)
+    C.Feel("r_" .. pattern, gain, alternate and (k % 2 == 0 and 0.4 or -0.4) or nil)
+end
+
+-- The tick due at `since` s into the channel (nil: none yet), and its pattern
+function V.TickAt(t, since)
+    local m = t and t.mageTick
+    if not (m and t.interval and t.interval > 0) then return nil end
+    local k = math.floor(since / t.interval + 1e-6)
+    if k < 1 or k > t.ticks then return nil end
+    return k, (k == t.ticks and m.last) or m.tick
+end
+
+local function Ticks(now)
+    local t = cast.timing
+    local m = t.mageTick
+    local since = now - t.start
+    local low, high = Family(since)
+    low, high = (low or 0) * 0.25, (high or 0) * 0.25
+    local k, key = V.TickAt(t, since)
+    if k then
+        if k > (t.tickSent or 0) then
+            t.tickSent = k
+            V.TickHD(key, k, m.alternate)
+        end
+        local p = PATTERN[key]
+        local H = ns.Haptics
+        if p and p.feel and H then
+            local l, r = H.Sample(p.feel, since - k * t.interval, 1)
+            if l then
+                -- (each tick from the other hand: missiles by turns, shards mirrored)
+                if k % 2 == 0 then l, r = r, l end
+                low, high = math.max(low, l), math.max(high, r)
+            end
+        end
+    end
+    local tail = ReleaseEnv(now - releasedAt)
+    return math.max(low, tail), math.max(high, tail)
+end
+
 local function Release(now)
     local d = now - releasedAt
     if d >= RELEASE_END then return nil end
@@ -1363,6 +1599,7 @@ local function CastShape()
     if V.castKind ~= "spell" then return nil end
     if t.channel and not t.interval then return nil end
     t.texture = V.EventPattern("cast")
+    if t.mageTick then return Ticks end
     return t.channel and Missiles or BuildUp
 end
 
@@ -2187,6 +2424,13 @@ local function CastStarted(event, _, guid, spellID)
     local kinds = V.SpellKinds(spellID)
     cast.timing = start and { start = start, finish = finish, channel = channel,
         interval = channel and (ChannelTicks(spellID) or (kinds and kinds.h and kinds.tick)) or nil } or nil
+    -- (a mage's channel: its ticks over its real length; a cast: its impact or burst)
+    local mage = rule and rule.mage or nil
+    cast.mage = mage
+    if cast.timing and channel and mage and mage.tick and finish > start then
+        local n = mage.rankTicks and mage.rankTicks[spellID] or mage.ticks or 1
+        cast.timing.ticks, cast.timing.interval, cast.timing.mageTick, cast.timing.tickSent = n, (finish - start) / n, mage, 0
+    end
     -- (gathering: its marker first; WoW Helper timing the strikes: no HD from here)
     local timed = false
     if V.castKind == "gather" and V.GATHER_MARKERS[V.castAction] then
@@ -2224,9 +2468,26 @@ local function CastReleased()
     if cast.ended then return end
     cast.ended = true
     if cast.off then return end
-    -- (a damaging spell, its family's set: felt as it lands)
+    local mage = V.castKind == "spell" and not V.castSet and cast.mage or nil
+    -- (a mage's ground spell or Polymorph: its own feel at the release, no wait)
+    if mage and mage.burst then
+        if V.Active() then V.Play(mage.burst, false, cast.gain < 1 and { strength = cast.gain } or nil) end
+        return
+    end
+    -- (a mage's channel run to its end: its last tick, unless it played)
+    local t = cast.timing
+    if mage and t and t.mageTick then
+        if (t.tickSent or 0) < t.ticks then
+            local key = mage.last or mage.tick
+            t.tickSent = t.ticks
+            if V.Active() then V.Play(key, false, cast.gain < 1 and { strength = cast.gain } or nil) end
+            V.TickHD(key, t.ticks, mage.alternate)
+        end
+        return
+    end
+    -- (a damaging spell, its family's set: felt as it lands; a mage's bolt, its own impact)
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
-        and V.CastImpactWindow(V.castAction, cast.gain) then return end
+        and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact) then return end
     if cast.shaped and not cast.timing.fishing then
         if cast.timing.strikes then V.Crack(cast.timing.cracked) else V.Release() end
     end
@@ -2452,6 +2713,27 @@ local function SummonOf(name, kinds)
     return nil
 end
 
+-- A mage spell's entry (V.MAGE), by its ID, else by its name (every rank
+-- shares the first's); nil: none
+local mageByName
+V.MAGE_ENGRAVE = { set = "enchanting" }
+function V.MageOf(spellID, name)
+    if not spellID or secret(spellID) then return nil end
+    if V.MAGE[spellID] then return V.MAGE[spellID] end
+    if not mageByName then
+        mageByName = {}
+        for id, m in pairs(V.MAGE) do
+            local n = SpellName(id)
+            if n and not secret(n) and not mageByName[n] and not m.byId then mageByName[n] = m end
+        end
+    end
+    name = name or SpellName(spellID)
+    if not name or secret(name) then return nil end
+    -- (a rune engraved: an enchanting's shimmer, not the fallback; English names)
+    if name:find("^Engrave ") then return V.MAGE_ENGRAVE end
+    return mageByName[name]
+end
+
 -- castTime: known by the caller (a cast started: > 0; an instant: 0)
 function V.SpellRule(spellID, castTime)
     if not spellID or secret(spellID) then return nil end
@@ -2460,6 +2742,7 @@ function V.SpellRule(spellID, castTime)
     local name = spellID == V.OTHER_PROC and V.OTHER_PROC_NAME or SpellName(spellID)
     if not name or secret(name) then return nil end
     local r = { id = spellID, name = name, volume = 1 }
+    local mage = V.MageOf(spellID, name)
     local L = ns.HapticsLab
     local linked = false
     if proc then
@@ -2477,7 +2760,7 @@ function V.SpellRule(spellID, castTime)
     end
     if not linked then
         local ct = castTime or CastTimeOf(spellID) or 0
-        local channel = ChannelTicks(spellID) ~= nil
+        local channel = ChannelTicks(spellID) ~= nil or (mage ~= nil and mage.tick ~= nil)
         if ct > 0 or channel then
             local kind, action = CastKind(spellID)
             if kind == "gather" or kind == "craft" then
@@ -2490,7 +2773,8 @@ function V.SpellRule(spellID, castTime)
                     if not action then
                         local kinds = V.SpellKinds(spellID)
                         local b = kinds and SchoolOf(kinds.school)
-                        if kinds and kinds.s then action = "summon"
+                        if mage and mage.set then action = mage.set
+                        elseif kinds and kinds.s then action = "summon"
                         elseif V.SpellHelpful(spellID) then action = "healing"
                         elseif b then action = b[3]
                         elseif kinds and kinds.h and kinds.school == PHYSICAL then action = "shots" end
@@ -2498,6 +2782,13 @@ function V.SpellRule(spellID, castTime)
                     end
                     r.set = action or CAST_KIND.spell.fallback
                     r.why = action and ("Its family: " .. (PRESET[action] and PRESET[action].label or action)) or "A cast: the spell set"
+                    -- (a mage's own: its impact, its burst, its ticks)
+                    if mage and (mage.impact or mage.burst or mage.tick) then
+                        r.mage = mage
+                        local k = mage.impact or mage.burst or mage.tick
+                        r.why = r.why .. (mage.impact and "; lands as " or mage.burst and "; released as " or "; each tick ")
+                            .. (PATTERN[k] and PATTERN[k].label or k)
+                    end
                 else
                     r.set = V.CastPreset("spell")
                     r.why = "Your cast set"
@@ -2514,6 +2805,11 @@ function V.SpellRule(spellID, castTime)
             if NextSwing(spellID) then
                 r.move, r.when, r.next = move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
+            elseif mage and mage.move then
+                -- (a mage's own: at the cast, or as it lands)
+                r.move, r.when, r.mage = mage.move, mage.when or "cast", mage
+                r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ")
+                    .. (PATTERN[mage.move] and PATTERN[mage.move].label or mage.move)
             elseif summon then
                 if summon == "ground" then r.move, r.when, r.why = "surge", "cast", "Laid on the ground: at the cast"
                 elseif summon == "pet" then r.move, r.when, r.why = "ritual", "cast", "A summon: at the cast"
@@ -3017,7 +3313,8 @@ function V.AbilityCast(move, spellID, nextSwing, how, rule)
     how = how or {}
     local now = GetTime()
     local ranged = how.ranged or (not secret(spellID) and RANGED_ABILITIES[spellID]) or false
-    local spell = not how.melee and not ranged and (SPELL_MOVES[move] or move == "judge") or false
+    local spell = not how.melee and not ranged and (SPELL_MOVES[move] or move == "judge" or (rule and rule.mage ~= nil))
+        or false
     local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
     pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
@@ -3221,11 +3518,11 @@ end
 V.CAST_IMPACT = { fire = { "shock", 4 }, frostSpells = { "shock", 16 }, arcaneSpells = { "judge", 64 },
     shadowSpells = { "shock", 32 }, holy = { "judge", 2 }, nature = { "shock", 8 } }
 V.CAST_WINDOW = 2.5
-function V.CastImpactWindow(action, gain)
+function V.CastImpactWindow(action, gain, move)
     local f = V.CAST_IMPACT[action]
     if not f then return false end
     local now = GetTime()
-    pending = { move = f[1], school = f[2], at = now, until_ = now + V.CAST_WINDOW, notBefore = now + 0.15,
+    pending = { move = move or f[1], school = f[2], at = now, until_ = now + V.CAST_WINDOW, notBefore = now + 0.15,
         spell = true, gain = gain or 1 }
     return true
 end

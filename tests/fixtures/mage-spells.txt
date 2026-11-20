@@ -1,0 +1,268 @@
+# Every castable mage spell in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds, 2026-11-20),
+# the rune abilities, the Undead racials and the wand. id, name, line, school mask, cast ms, channel,
+# helpful (no effect on an enemy), kinds letters, kinds tick (s). Rewrite: WowHelper work/mage-data/make_fixture.py
+1008	Amplify Magic	Arcane	64	0	0	1		
+8455	Amplify Magic	Arcane	64	0	0	1		
+10169	Amplify Magic	Arcane	64	0	0	1		
+10170	Amplify Magic	Arcane	64	0	0	1		
+400610	Arcane Barrage	Arcane	64	0	0	0	h	
+400574	Arcane Blast	Arcane	64	1500	0	0	h	
+1239696	Arcane Blast	Arcane	64	1500	0	0	h	
+1239697	Arcane Blast	Arcane	64	1500	0	0	h	
+1239699	Arcane Blast	Arcane	64	1500	0	0	h	
+1239700	Arcane Blast	Arcane	64	1500	0	0	h	
+23028	Arcane Brilliance	Arcane	64	0	0	1		
+1449	Arcane Explosion	Arcane	64	0	0	0	ha	
+8437	Arcane Explosion	Arcane	64	0	0	0	ha	
+8438	Arcane Explosion	Arcane	64	0	0	0	ha	
+8439	Arcane Explosion	Arcane	64	0	0	0	ha	
+10201	Arcane Explosion	Arcane	64	0	0	0	ha	
+10202	Arcane Explosion	Arcane	64	0	0	0	ha	
+1459	Arcane Intellect	Arcane	64	0	0	1		
+1460	Arcane Intellect	Arcane	64	0	0	1		
+1461	Arcane Intellect	Arcane	64	0	0	1		
+10156	Arcane Intellect	Arcane	64	0	0	1		
+10157	Arcane Intellect	Arcane	64	0	0	1		
+5143	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+5144	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+5145	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+8416	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+8417	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+10211	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+10212	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+25345	Arcane Missiles	Arcane	64	0	1	0	h	1.0
+12042	Arcane Power	Arcane	64	0	0	1		
+425124	Arcane Surge	Arcane	64	0	0	0	h	
+1326079	Arcane Wrath	Arcane	64	3500	0	0	h	
+1326080	Arcane Wrath	Arcane	64	3500	0	0	h	
+1326081	Arcane Wrath	Arcane	64	3500	0	0	h	
+1326082	Arcane Wrath	Arcane	64	3500	0	0	h	
+1953	Blink	Arcane	64	0	0	1		
+12536	Clearcasting	Arcane	64	0	0	1		
+587	Conjure Food	Arcane	64	3000	0	1		
+597	Conjure Food	Arcane	64	3000	0	1		
+990	Conjure Food	Arcane	64	3000	0	1		
+6129	Conjure Food	Arcane	64	3000	0	1		
+10144	Conjure Food	Arcane	64	3000	0	1		
+10145	Conjure Food	Arcane	64	3000	0	1		
+28612	Conjure Food	Arcane	64	3000	0	1		
+759	Conjure Mana Agate	Arcane	64	3000	0	1		
+10053	Conjure Mana Citrine	Arcane	64	3000	0	1		
+3552	Conjure Mana Jade	Arcane	64	3000	0	1		
+10054	Conjure Mana Ruby	Arcane	64	3000	0	1		
+5504	Conjure Water	Arcane	64	3000	0	1		
+5505	Conjure Water	Arcane	64	3000	0	1		
+5506	Conjure Water	Arcane	64	3000	0	1		
+6127	Conjure Water	Arcane	64	3000	0	1		
+10138	Conjure Water	Arcane	64	3000	0	1		
+10139	Conjure Water	Arcane	64	3000	0	1		
+10140	Conjure Water	Arcane	64	3000	0	1		
+468766	Conjure Water	Arcane	64	3000	0	1		
+2139	Counterspell	Arcane	64	0	0	0	ni	
+604	Dampen Magic	Arcane	64	0	0	1		
+8450	Dampen Magic	Arcane	64	0	0	1		
+8451	Dampen Magic	Arcane	64	0	0	1		
+10173	Dampen Magic	Arcane	64	0	0	1		
+10174	Dampen Magic	Arcane	64	0	0	1		
+12051	Evocation	Arcane	64	0	1	1		
+6117	Mage Armor	Arcane	64	0	0	1		
+22782	Mage Armor	Arcane	64	0	0	1		
+22783	Mage Armor	Arcane	64	0	0	1		
+29442	Magic Absorption	Arcane	1	0	0	1		
+1463	Mana Shield	Arcane	64	0	0	1		
+8494	Mana Shield	Arcane	64	0	0	1		
+8495	Mana Shield	Arcane	64	0	0	1		
+10191	Mana Shield	Arcane	64	0	0	1		
+10192	Mana Shield	Arcane	64	0	0	1		
+10193	Mana Shield	Arcane	64	0	0	1		
+412510	Mass Regeneration	Arcane	64	0	1	1		
+118	Polymorph	Arcane	64	1500	0	0	nc	
+12824	Polymorph	Arcane	64	1500	0	0	nc	
+12825	Polymorph	Arcane	64	1500	0	0	nc	
+12826	Polymorph	Arcane	64	1500	0	0	nc	
+28271	Polymorph	Arcane	64	1500	0	0	nc	
+28272	Polymorph	Arcane	64	1500	0	0	nc	
+28270	Polymorph: Cow	Arcane	64	1500	0	0	nc	
+11419	Portal: Darnassus	Arcane	64	10000	0	1	sg	
+11416	Portal: Ironforge	Arcane	64	10000	0	1	sg	
+11417	Portal: Orgrimmar	Arcane	64	10000	0	1	sg	
+10059	Portal: Stormwind	Arcane	64	10000	0	1	sg	
+11420	Portal: Thunder Bluff	Arcane	64	10000	0	1	sg	
+11418	Portal: Undercity	Arcane	64	10000	0	1	sg	
+12043	Presence of Mind	Arcane	1	0	0	1		
+401417	Regeneration	Arcane	64	0	1	1		
+475	Remove Lesser Curse	Arcane	64	0	0	1		
+401462	Rewind Time	Arcane	64	0	0	1		
+130	Slow Fall	Arcane	64	0	0	1		
+1297659	Teleport: Dalaran	Arcane	64	10000	0	1		
+3565	Teleport: Darnassus	Arcane	64	10000	0	1		
+3562	Teleport: Ironforge	Arcane	64	10000	0	1		
+3567	Teleport: Orgrimmar	Arcane	64	10000	0	1		
+3561	Teleport: Stormwind	Arcane	64	10000	0	1		
+3566	Teleport: Thunder Bluff	Arcane	64	10000	0	1		
+3563	Teleport: Undercity	Arcane	64	10000	0	1		
+1296017	Comprehend Scroll	Comprehension	1	0	0	1		
+1302508	Study	Comprehension	1	6000	0	1		
+401762	Engrave Belt - Frostfire Bolt	Engraving	1	3000	0	1		
+401763	Engrave Belt - Missile Barrage	Engraving	1	3000	0	1		
+415948	Engrave Belt - Spellfrost Bolt	Engraving	1	3000	0	1		
+401752	Engrave Boots - Brain Freeze	Engraving	1	3000	0	1		
+425189	Engrave Boots - Chronostatic Preservation	Engraving	1	3000	0	1		
+415934	Engrave Boots - Spell Power	Engraving	1	3000	0	1		
+429311	Engrave Bracers - Balefire Bolt	Engraving	1	3000	0	1		
+429309	Engrave Bracers - Displacement	Engraving	1	3000	0	1		
+429308	Engrave Bracers - Molten Armor	Engraving	1	3000	0	1		
+401761	Engrave Bracers - Rewind Time	Engraving	1	3000	0	1		
+401759	Engrave Chest - Burnout	Engraving	1	3000	0	1		
+415942	Engrave Chest - Enlightenment	Engraving	1	3000	0	1		
+401765	Engrave Chest - Fingers of Frost	Engraving	1	3000	0	1		
+401767	Engrave Chest - Regeneration	Engraving	1	3000	0	1		
+401722	Engrave Cloak - Arcane Barrage	Engraving	1	3000	0	1		
+440858	Engrave Cloak - Frozen Orb	Engraving	1	3000	0	1		
+401764	Engrave Cloak - Overheat	Engraving	1	3000	0	1		
+401757	Engrave Gloves - Arcane Blast	Engraving	1	3000	0	1		
+401760	Engrave Gloves - Ice Lance	Engraving	1	3000	0	1		
+415936	Engrave Gloves - Living Bomb	Engraving	1	3000	0	1		
+401754	Engrave Helm - Advanced Warding	Engraving	1	3000	0	1		
+429304	Engrave Helm - Deep Freeze	Engraving	1	3000	0	1		
+401749	Engrave Helm - Hot Streak	Engraving	1	3000	0	1		
+429306	Engrave Helm - Temporal Anomaly	Engraving	1	3000	0	1		
+425171	Engrave Pants - Arcane Surge	Engraving	1	3000	0	1		
+425170	Engrave Pants - Icy Veins	Engraving	1	3000	0	1		
+401768	Engrave Pants - Living Flame	Engraving	1	3000	0	1		
+415939	Engrave Pants - Mass Regeneration	Engraving	1	3000	0	1		
+428878	Balefire Bolt	Fire	84	2500	0	0	h	
+11113	Blast Wave	Fire	4	0	0	0	ha	
+13018	Blast Wave	Fire	4	0	0	0	ha	
+13019	Blast Wave	Fire	4	0	0	0	ha	
+13020	Blast Wave	Fire	4	0	0	0	ha	
+13021	Blast Wave	Fire	4	0	0	0	ha	
+11129	Combustion	Fire	4	0	0	1		
+24530	Felfire	Fire	4	0	0	0	h	
+2136	Fire Blast	Fire	4	0	0	0	h	
+400618	Fire Blast	Fire	4	0	0	0	h	
+2137	Fire Blast	Fire	4	0	0	0	h	
+400619	Fire Blast	Fire	4	0	0	0	h	
+2138	Fire Blast	Fire	4	0	0	0	h	
+400616	Fire Blast	Fire	4	0	0	0	h	
+8412	Fire Blast	Fire	4	0	0	0	h	
+400620	Fire Blast	Fire	4	0	0	0	h	
+8413	Fire Blast	Fire	4	0	0	0	h	
+400621	Fire Blast	Fire	4	0	0	0	h	
+10197	Fire Blast	Fire	4	0	0	0	h	
+400622	Fire Blast	Fire	4	0	0	0	h	
+10199	Fire Blast	Fire	4	0	0	0	h	
+400623	Fire Blast	Fire	4	0	0	0	h	
+22959	Fire Vulnerability	Fire	4	0	0	0	nd	
+543	Fire Ward	Fire	4	0	0	1		
+8457	Fire Ward	Fire	4	0	0	1		
+8458	Fire Ward	Fire	4	0	0	1		
+10223	Fire Ward	Fire	4	0	0	1		
+10225	Fire Ward	Fire	4	0	0	1		
+133	Fireball	Fire	4	1500	0	0	h	
+143	Fireball	Fire	4	2000	0	0	h	
+145	Fireball	Fire	4	2500	0	0	h	
+3140	Fireball	Fire	4	3000	0	0	h	
+8400	Fireball	Fire	4	3500	0	0	h	
+8401	Fireball	Fire	4	3500	0	0	h	
+8402	Fireball	Fire	4	3500	0	0	h	
+10148	Fireball	Fire	4	3500	0	0	h	
+10149	Fireball	Fire	4	3500	0	0	h	
+10150	Fireball	Fire	4	3500	0	0	h	
+10151	Fireball	Fire	4	3500	0	0	h	
+25306	Fireball	Fire	4	3500	0	0	h	
+2120	Flamestrike	Fire	4	3000	0	0	h	
+2121	Flamestrike	Fire	4	3000	0	0	h	
+8422	Flamestrike	Fire	4	3000	0	0	h	
+8423	Flamestrike	Fire	4	3000	0	0	h	
+10215	Flamestrike	Fire	4	3000	0	0	h	
+10216	Flamestrike	Fire	4	3000	0	0	h	
+401502	Frostfire Bolt	Fire	20	3000	0	0	h	
+1237312	Frostfire Bolt	Fire	20	3000	0	0	h	
+1237313	Frostfire Bolt	Fire	20	3000	0	0	h	
+12355	Impact	Fire	4	0	0	0	nc	
+400614	Living Bomb	Fire	4	0	0	0	h	
+400613	Living Bomb	Fire	4	0	0	0	nd	
+401558	Living Flame	Fire	68	0	0	1		
+401556	Living Flame	Fire	68	0	0	0	nd	
+29077	Master of Elements	Fire	64	0	0	1		
+11366	Pyroblast	Fire	4	6000	0	0	h	
+12505	Pyroblast	Fire	4	6000	0	0	h	
+12522	Pyroblast	Fire	4	6000	0	0	h	
+12523	Pyroblast	Fire	4	6000	0	0	h	
+12524	Pyroblast	Fire	4	6000	0	0	h	
+12525	Pyroblast	Fire	4	6000	0	0	h	
+12526	Pyroblast	Fire	4	6000	0	0	h	
+18809	Pyroblast	Fire	4	6000	0	0	h	
+2948	Scorch	Fire	4	1500	0	0	h	
+8444	Scorch	Fire	4	1500	0	0	h	
+8445	Scorch	Fire	4	1500	0	0	h	
+8446	Scorch	Fire	4	1500	0	0	h	
+10205	Scorch	Fire	4	1500	0	0	h	
+10206	Scorch	Fire	4	1500	0	0	h	
+10207	Scorch	Fire	4	1500	0	0	h	
+10	Blizzard	Frost	16	0	1	0		
+6141	Blizzard	Frost	16	0	1	0		
+8427	Blizzard	Frost	16	0	1	0		
+10185	Blizzard	Frost	16	0	1	0		
+10186	Blizzard	Frost	16	0	1	0		
+10187	Blizzard	Frost	16	0	1	0		
+12484	Chilled	Frost	16	0	0	0	nd	
+12472	Cold Snap	Frost	1	0	0	1		
+120	Cone of Cold	Frost	16	0	0	0	h	
+8492	Cone of Cold	Frost	16	0	0	0	h	
+10159	Cone of Cold	Frost	16	0	0	0	h	
+10160	Cone of Cold	Frost	16	0	0	0	h	
+10161	Cone of Cold	Frost	16	0	0	0	h	
+168	Frost Armor	Frost	16	0	0	1		
+7300	Frost Armor	Frost	16	0	0	1		
+7301	Frost Armor	Frost	16	0	0	1		
+122	Frost Nova	Frost	16	0	0	0	ha	
+865	Frost Nova	Frost	16	0	0	0	ha	
+6131	Frost Nova	Frost	16	0	0	0	ha	
+10230	Frost Nova	Frost	16	0	0	0	ha	
+6143	Frost Ward	Frost	16	0	0	1		
+8461	Frost Ward	Frost	16	0	0	1		
+8462	Frost Ward	Frost	16	0	0	1		
+10177	Frost Ward	Frost	16	0	0	1		
+28609	Frost Ward	Frost	16	0	0	1		
+12494	Frostbite	Frost	16	0	0	0	nc	
+116	Frostbolt	Frost	16	1500	0	0	h	
+205	Frostbolt	Frost	16	1800	0	0	h	
+837	Frostbolt	Frost	16	2200	0	0	h	
+7322	Frostbolt	Frost	16	2600	0	0	h	
+8406	Frostbolt	Frost	16	3000	0	0	h	
+8407	Frostbolt	Frost	16	3000	0	0	h	
+8408	Frostbolt	Frost	16	3000	0	0	h	
+10179	Frostbolt	Frost	16	3000	0	0	h	
+10180	Frostbolt	Frost	16	3000	0	0	h	
+10181	Frostbolt	Frost	16	3000	0	0	h	
+25304	Frostbolt	Frost	16	3000	0	0	h	
+440802	Frozen Orb	Frost	16	0	0	1	sp	
+440809	Frozen Orb	Frost	16	0	0	0	h	
+7302	Ice Armor	Frost	16	0	0	1		
+7320	Ice Armor	Frost	16	0	0	1		
+10219	Ice Armor	Frost	16	0	0	1		
+10220	Ice Armor	Frost	16	0	0	1		
+11426	Ice Barrier	Frost	16	0	0	1		
+13031	Ice Barrier	Frost	16	0	0	1		
+13032	Ice Barrier	Frost	16	0	0	1		
+13033	Ice Barrier	Frost	16	0	0	1		
+11958	Ice Block	Frost	16	0	0	1		
+1312002	Ice Lance	Frost	16	0	0	0	h	
+400640	Ice Lance	Frost	16	0	0	0	h	
+1240044	Ice Lance	Frost	16	0	0	0	h	
+1240045	Ice Lance	Frost	16	0	0	0	h	
+1240046	Ice Lance	Frost	16	0	0	0	h	
+1240047	Ice Lance	Frost	16	0	0	0	h	
+425121	Icy Veins	Frost	16	0	0	1		
+412532	Spellfrost Bolt	Frost	80	2500	0	0	h	
+428739	Deep Freeze	Rune	16	0	0	0		
+428741	Molten Armor	Rune	4	0	0	1		
+428861	Displacement	Rune	1	0	0	1		
+428885	Temporal Anomaly	Rune	64	0	0	1		
+1220410	Dragon's Breath	Forever	4	0	0	0		
+7744	Will of the Forsaken	Racial - Undead	1	0	0	1		
+20577	Cannibalize	Racial - Undead	1	0	0	1		
+20578	Cannibalize	Racial - Undead	1	0	1	1		
+5019	Shoot	Wands	1	0	0	0		
