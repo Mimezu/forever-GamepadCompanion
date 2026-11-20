@@ -849,9 +849,7 @@ function L.IsEventDefault(key)
 end
 
 local function Strength()
-    local V = ns.Rumble
-    local ok, s = pcall(function() return V.Settings() end)
-    return ok and s and s.intensity or 0.8
+    return ns.Rumble and ns.Rumble.Intensity() or 0.8
 end
 
 local lastFire = {}
@@ -860,8 +858,7 @@ function L.Fire(key, gain, feel, absolute, stretch)
     if not H.Engine() then return end
     -- (Rumble off, or Improved Forever: Vibration has the motors: quiet too)
     local V = ns.Rumble
-    local okOn, on = pcall(function() return V.Settings().enabled and not V.Other() end)
-    if okOn and not on then return end
+    if V and not V.Active() then return end
     local s = L.EventSettings(key)
     if not s.on then return end
     local now = Now()
@@ -1226,8 +1223,7 @@ local function LiveOn(key)
     if not H.Engine() then return false end
     -- (Rumble off, or Improved Forever: Vibration has the motors: quiet, as L.Fire)
     local V = ns.Rumble
-    local okOn, on = pcall(function() return V.Settings().enabled and not V.Other() end)
-    if okOn and not on then return false end
+    if V and not V.Active() then return false end
     return L.EventSettings(key).on
 end
 

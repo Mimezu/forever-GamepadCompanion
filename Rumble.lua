@@ -36,6 +36,8 @@ end
 function V.Active()
     return IF.db ~= nil and V.Settings().enabled and not V.Other()
 end
+-- The set strength (0.8 before the settings load)
+function V.Intensity() return IF.db and V.Settings().intensity or 0.8 end
 
 -- The events' icons, drawn in the radial menu's style (tools/make_vibe_icons.py)
 local EVENT_ICONS = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_event_"

@@ -802,8 +802,7 @@ local function PreviewOK()
     if InCombatLockdown and InCombatLockdown() then return false end
     local V = ns.Rumble
     if not V then return true end
-    local ok, on = pcall(function() return V.Settings().enabled and not V.Other() end)
-    return ok and on and true or false
+    return V.Active() and true or false
 end
 HUI.PreviewOK = PreviewOK
 function HUI.StopPreview() if H.Stop then H.Stop("preview") end end

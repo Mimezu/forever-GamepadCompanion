@@ -89,8 +89,7 @@ local Popup, PickFeel, ROW_H = HUI.Popup, HUI.PickFeel, HUI.ROW_H
 local function Play(key, loop)
     local feel = H.Feel(key)
     if not feel then return end
-    local strength = 0.8
-    pcall(function() strength = ns.Rumble.Settings().intensity end)
+    local strength = ns.Rumble and ns.Rumble.Intensity() or 0.8
     H.Play(feel, { voice = "beta", gain = strength, loop = loop })
     Say((feel.label or key) .. (loop and " · looping" or ""))
 end

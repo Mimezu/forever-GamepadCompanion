@@ -394,9 +394,9 @@ end
 
 -- HD at Rumble's strength
 local function Strength()
-    local ok, s = pcall(function() return ns.Rumble.Settings().intensity end)
+    local s = ns.Rumble and ns.Rumble.Intensity() or 0.8
     -- (and the Feel channel: Hush, Resting 30 %… Hush.lua)
-    return (ok and s or 0.8) * (ns.FeelScale and ns.FeelScale() or 1)
+    return s * (ns.FeelScale and ns.FeelScale() or 1)
 end
 local function HdGain(gain) return floor(max(0, min(1, Strength() * (gain or 1))) * 7 + 0.5) end
 
