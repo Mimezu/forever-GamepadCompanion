@@ -399,6 +399,25 @@ ITEM.sound = {
     level = Volume("sound"),
 }
 
+-- Emote voices on the pad's speaker: always the game's own voice (WoW Helper picks it by
+-- the emoter's race and sex); the row is its volume, under Sound › Social
+ITEM.voice = {
+    label = LabelOf,
+    icon = IconOf,
+    tip = function() return "Pad speaker" end,
+    show = function() return "Game's voice", BELL end,
+    pick = function(key, anchor)
+        HUI.Popup(anchor, LabelOf(key), { { key = "game", label = "Game's voice", icon = BELL } }, "game",
+            function() end, 1, 150)
+    end,
+    isDefault = function() return true end,
+    default = function() end,
+    try = function(key) Say(LabelOf(key) .. ": do an emote in game") end,
+    level = Volume("sound"),
+}
+-- (the voiced moments with no number of their own: their Sound row is a voice row)
+local VOICE_ROWS = { Social = { "emoteVoice" } }
+
 ---------------------------------------------------------------------------
 -- The kinds, and each one's moments by group
 ---------------------------------------------------------------------------
@@ -423,11 +442,12 @@ local function Items(kind, group)
                 end
             end
         end
+        for _, key in ipairs(VOICE_ROWS[group] or {}) do list[#list + 1] = { "voice", key } end
     end
     return list
 end
 
-local KIND_OF = { r = "feel", c = "feel", l = "feel", g = "feel", light = "light", sound = "sound" }
+local KIND_OF = { r = "feel", c = "feel", l = "feel", g = "feel", light = "light", sound = "sound", voice = "sound" }
 
 -- The other kinds a moment has, as marks
 local Jump
@@ -686,7 +706,7 @@ local function MakeRow(parent, y, width, kind, key)
             end)
             return
         end
-        if kind == "light" or kind == "sound" then return I.pick(key, anchor) end
+        if kind == "light" or kind == "sound" or kind == "voice" then return I.pick(key, anchor) end
         HUI.PickFeel(anchor, I.current(key), function(feel)
             I.pick(key, feel)
             Refresh()

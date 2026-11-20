@@ -925,3 +925,16 @@ do
     assert(not b.buttons.triggers or not b.buttons.triggers:IsShown(), "back: Triggers hidden")
     io.write("PASS: U2-6: the group list fits; Triggers alone in its view" .. string.char(10))
 end
+
+-- Emote voices: no moment number, but a Sound row (Social) for their volume, which WoW Helper reads
+do
+    local page = ns.RumblePage
+    local voice
+    for _, r in ipairs(page.rows) do if r.kind == "voice" and r.key == "emoteVoice" then voice = r end end
+    assert(voice, "Sound › Social: an Emote voices row")
+    assert(voice.pick.label.text == "Game's voice", "the game's own voice: " .. tostring(voice.pick.label.text))
+    ns.Volume.SetSound("emoteVoice", 0.5)
+    assert(math.abs(ns.Volume.SoundLevel("emoteVoice") - 0.5 * ns.Volume.Sounds()) < 1e-9, "its volume is the one WoW Helper reads")
+    ns.Volume.SetSound("emoteVoice", 1)
+    io.write("PASS: Emote voices: a Sound row for their volume" .. string.char(10))
+end
