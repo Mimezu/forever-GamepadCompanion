@@ -1,0 +1,16 @@
+# HelperLink gathering markers: action phase race sex(UnitSex) carries first(10 ms, 127 unknown) : the v2 frame
+# (as helperlink-v2-vectors.txt). carries: strike (the start carries the strike's HD and sound: WoW Helper
+# plays the strikes and the crack), finish (the succeeded marker carries the finish), none. touch 300-303
+# stand for the addon's HD ids. Fishing sends none of these. Written by WoW Helper:
+# cargo test write_gather_fixture -- --ignored
+mining start 5 2 strike 127 : 0 0 0 0 0 0 0 0 0 300 1001 4 0 5 4 127 0 100 0 : 5300000000000064422760450776023370
+mining succeeded 5 2 none 127 : 1 0 0 0 0 0 0 0 0 0 0 4 0 5 4 127 0 101 0 : 5340000000000000000000450776123237
+mining stopped 5 2 none 127 : 2 0 0 0 0 0 0 0 0 0 0 4 0 5 4 127 0 102 0 : 5320000000000000000000450776063213
+mining start 5 3 strike 127 : 3 0 0 0 0 0 0 0 0 300 1001 4 0 5 4 255 0 100 0 : 5360000000000064422760450777023011
+mining start 15 3 strike 52 : 4 0 0 0 0 0 0 0 0 300 1001 4 0 15 4 180 0 100 0 : 5310000000000064422760474455023277
+herbalism start 5 3 strike 85 : 5 0 0 0 0 0 0 0 0 301 0 4 0 5 4 213 0 103 0 : 5350000000000264400000450653163241
+herbalism start 1 2 none 127 : 6 0 0 0 0 0 0 0 0 0 0 4 0 1 4 127 0 103 0 : 5330000000000000000000440776163076
+skinning start 5 3 none 127 : 7 0 0 0 0 0 0 0 0 0 0 4 0 5 4 255 0 106 0 : 5370000000000000000000450777053034
+skinning succeeded 5 3 finish 127 : 8 0 0 0 0 0 0 0 0 302 0 4 0 5 4 255 0 107 0 : 5304000000000164400000450777153064
+skinning stopped 5 3 none 127 : 9 0 0 0 0 0 0 0 0 0 0 4 0 5 4 255 0 108 0 : 5344000000000000000000450777033011
+skinning start 5 3 strike 40 : 10 0 0 0 0 0 0 0 0 303 0 4 0 5 4 168 0 106 0 : 5324000000000364400000450425053337

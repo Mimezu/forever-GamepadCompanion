@@ -582,12 +582,13 @@ end
 
 ---------------------------------------------------------------------------
 -- 5. Mining's crack (2026-11-20, the user: "the crack no longer plays"): a cast the server ends
--- a touch before its time still cracks, and the crack is the strike firmer, not one more strike
+-- a touch before its time still cracks, and the crack is the strike firmer, not one more strike.
+-- (The addon's own crack: without the link; with it WoW Helper times mining, tests/Gathering.lua)
 ---------------------------------------------------------------------------
 do
     V.SetCastPreset("gather", "auto")
     local enabled = K.Enabled
-    K.Enabled = function() return true end
+    K.Enabled = function() return false end
     C.Settings().hdFeels = true
     local cues = {}
     local cm = C.Moment

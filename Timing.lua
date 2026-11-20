@@ -229,8 +229,11 @@ function T.LoadHelper()
     if type(d.strikeTiming) == "table" then
         local strikes = store.strikes
         for key, v in pairs(d.strikeTiming) do
-            if type(key) == "string" and type(v) == "table" and type(v.first) == "number" and type(v.period) == "number" then
-                strikes[key] = { first = v.first, period = v.period, strikes = tonumber(v.strikes) }
+            -- (period 0 or none: timed by its crack, mining's, no steady second strike: WoW Helper
+            -- publishes period = 0.000; read as none, never dropped)
+            if type(key) == "string" and type(v) == "table" and type(v.first) == "number" then
+                local period = type(v.period) == "number" and v.period > 0.2 and v.period or nil
+                strikes[key] = { first = v.first, period = period, strikes = tonumber(v.strikes) }
                 n = n + 1
             end
         end
@@ -251,13 +254,14 @@ loader:SetScript("OnEvent", function(_, _, name) if name == "GamepadCompanion" t
 -- The impact after the news: the offset, in proportion when the swing comes
 -- round sooner than the animation (interval: the live swing time)
 -- WoW Helper's learned strikes for a gathering action (this race and sex),
--- { first, period, strikes } or nil
+-- { first, period, strikes } or nil; period nil: timed by its crack (mining)
 function T.LearnedStrikes(action)
     local strikes = T.Store().strikes
     if type(strikes) ~= "table" then return nil end
     local base = T.HelperModel()
     local s = strikes[base .. "|" .. action]
-    if type(s) == "table" and type(s.first) == "number" and type(s.period) == "number" and s.period > 0.2 then return s end
+    if type(s) == "table" and type(s.first) == "number" and s.first > 0
+        and (s.period == nil or (type(s.period) == "number" and s.period > 0.2)) then return s end
     return nil
 end
 

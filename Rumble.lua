@@ -1553,7 +1553,7 @@ function V.StrikeTiming(action)
         return cal.period or guess.period, cal.offset or guess.offset, synced, synced and "synced" or "set"
     end
     local learned = ns.Timing and ns.Timing.LearnedStrikes and ns.Timing.LearnedStrikes(action)
-    if learned then return learned.period, learned.first, false, "learned", learned.strikes end
+    if learned then return learned.period or guess.period, learned.first, false, "learned", learned.strikes end
     return guess.period, guess.offset, false, "guess"
 end
 
@@ -2447,6 +2447,16 @@ local function RaceSex()
     return math.min(15, race), sex == 3 and 128 or 0
 end
 
+-- A gathering cast whose strikes this addon plays where WoW Helper should: once a session per
+-- action, in Timing's log (and V.gatherFallbacks, for the tests)
+V.gatherFallbacks = {}
+function V.GatherFallback(action, why)
+    if V.gatherFallbacks[action] then return end
+    V.gatherFallbacks[action] = why
+    local T = ns.Timing
+    if T and T.Log then T.Log(("%s: the addon plays the strikes (%s)"):format(action, why)) end
+end
+
 -- Send a gathering marker; true: the start's carries the strikes' HD feel
 function V.GatherMarker(action, phase)
     local base = V.GATHER_MARKERS[action]
@@ -2460,7 +2470,10 @@ function V.GatherMarker(action, phase)
         steps = math.max(0, math.floor(first / 0.01 + 0.5))
     end
     local item
-    if phase == "start" and source == "learned" and C and C.MomentItem then
+    -- (WoW Helper times the strikes itself once it has a timing: learned for this race and sex, or
+    -- the action's default (mining's: the strike, then the crack). Else this addon plays them)
+    local helperTimes = source == "learned" or (source == "guess" and STRIKES[action] ~= nil)
+    if phase == "start" and helperTimes and C and C.MomentItem then
         local pattern = V.EventPattern("cast")
         local L = ns.HapticsLab
         -- (the action's own moment: its sound, which WoW Helper replays on each strike)
@@ -2474,6 +2487,10 @@ function V.GatherMarker(action, phase)
         if type(item) ~= "table" then item = nil end
     end
     local carries = item ~= nil and ((item.touch or 0) > 0 or (item.sound or 0) > 0)
+    -- (a start that carries nothing where WoW Helper should time it: said once, in the timing
+    -- log, so a silent fallback shows there and not only in the feel)
+    if phase == "start" and helperTimes and not carries then V.GatherFallback(action, "no feel or sound to carry") end
+    if phase == "start" and not helperTimes and STRIKES[action] then V.GatherFallback(action, "timing " .. tostring(source)) end
     item = item or {}
     item.moment, item.side, item.seed, item.level, item.open = base + GATHER_PHASE[phase], race, sexBit + steps, 0, nil
     K.Marker(item)
