@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Moments opens faster: only the rows on screen refresh (a page holds ~200 rows, a group ~12); the rest refresh as they show
+
 ## 0.67.4 — 2026-11-20
 
 - Fixed: L1 + touchpad never ran Focus UI (Forever's gamepad bar keeps L1: no modifier reaches a binding). Now, while L1 is held out of combat, the touchpad click is Focus UI; on release, the zones again

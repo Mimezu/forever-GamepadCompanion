@@ -3635,6 +3635,8 @@ do
     local list, ci = row.card.list
     for i, r in ipairs(list) do if r.key == "craft" then ci = i end end
     assert(ci and list[ci + 1].key == "craft:blacksmithing" and list[ci + 9].key == "craft:smelting", "right under Crafting")
+    row.card.Reveal(row)
+    assert(row:IsVisible(), "First Aid's row, scrolled into view")
     assert(row.sub:GetText() == "As Crafting", "As Crafting: " .. tostring(row.sub:GetText()))
     C.SetMomentSound("craft", nil)
     C.SetMomentSound("craft:smelting", nil)

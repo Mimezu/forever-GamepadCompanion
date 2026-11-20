@@ -420,8 +420,8 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     end
     function r:SetChoice(name, icon2, sub, off, rgb, isDefault)
         -- (a new choice, not the first draw: a pick or Default)
-        if r.shown ~= nil and r.shown ~= name then r:Flash() end
-        r.shown = name
+        if r.choiceName ~= nil and r.choiceName ~= name then r:Flash() end
+        r.choiceName = name
         if off then r.accent:SetColorTexture(0.62, 0.62, 0.62, 0.35)
         elseif rgb then r.accent:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.95)
         else r.accent:SetColorTexture(1, 0.78, 0.25, 0.9) end

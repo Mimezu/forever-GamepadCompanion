@@ -20,7 +20,7 @@ local ui = { rows = {} }
 ui.panels = {}
 function ui.AddPanel(def) ui.panels[#ui.panels + 1] = def end
 local pg = { refresh = {} }
-local Refresh
+local Refresh, RefreshRow
 pg.Refresh = function() Refresh() end
 
 local function Say(text, warn)
@@ -738,6 +738,7 @@ local function MakeRow(parent, y, width, kind, key)
         S.Tooltip(row.when, "When")
     end
     ui.rows[#ui.rows + 1] = row
+    row:HookScript("OnShow", function(self) if self.stale then RefreshRow(self) end end)
     return row
 end
 
@@ -2152,7 +2153,9 @@ local function BuildSearch(frame, left, cw)
     local select = ui.browser.Select
     ui.browser.Select = function(...)
         card:Hide()
-        return select(...)
+        local r = select(...)
+        ui.RefreshStale()
+        return r
     end
     -- (the index: built again when the field is entered, then filtered per key)
     box:SetScript("OnEditFocusGained", function(self) ui.searchCache = nil; ui.ShowSearch(self:GetText()) end)
@@ -2322,6 +2325,7 @@ local function Build(frame, header)
                 S.Tooltip(card.reset, "Reset group", "Every changed moment here back to Recommended")
             end
             ui.cards[g.key][k[1]] = card
+            card:HookScript("OnShow", function() ui.RefreshStale() end)
           end
         end
     end
@@ -2353,6 +2357,68 @@ local function Build(frame, header)
 
 end
 
+-- One row: its choice, marks, proposal, When chip and full feel. Hidden rows
+-- wait (stale) and refresh as they show: a page holds ~200 rows, a group ~12.
+-- The rows that waited, now on screen
+function ui.RefreshStale()
+    for _, row in ipairs(ui.rows or {}) do
+        if row.stale and row:IsVisible() then RefreshRow(row) end
+    end
+end
+RefreshRow = function(row)
+    row.stale = nil
+    local s = V.Settings()
+    local other = V.Other()
+    local toHelper = ui.ToHelper()
+    local FF = ns.FullFeel
+    local function Full(key) return FF ~= nil and FF.Entry(key) ~= nil end
+    local I = ITEM[row.kind]
+    local name, icon, sub, off, rgb = I.show(row.key)
+    row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
+    -- (nothing plays: no volume, no Try)
+    if row.level then row.level:SetShown(not off) end
+    if row.try then row.try:SetShown(not off) end
+    if row.edit then
+        -- Shape, always: in WoW Helper; dim when it can't go there (Edit in Lab when Lab is on)
+        local lab = not toHelper and H.DB().lab == true
+        local word = lab and "Edit" or "Shape"
+        row.edit.label:SetText(word)
+        row.edit:SetAlpha((toHelper or lab) and 1 or 0.45)
+        S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or lab and "In Lab" or "Needs WoW Helper")
+    end
+    row:SetMarks(Marks(row))
+    local rk = KIND_OF[row.kind]
+    local full = row.fullEdit ~= nil and Full(row.key)
+    -- (a full feel: no proposals, the choice is made in WoW Helper)
+    local p = not full and C and C.Proposal and C.Proposal(rk, row.key) or nil
+    row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
+        p and function() C.DismissProposal(row.key, p.id); Refresh() end)
+    -- (the When chip after the sub line, as wide as its words; a proposal's line wins: U2-9, U2-10)
+    if row.when then
+        row.when:SetShown(not p)
+        row.when.label:SetText("When: " .. ns.When.Words(row.key))
+        local tw = row.when.label:GetStringWidth()
+        row.when:SetWidth(math.max(90, (type(tw) == "number" and tw or 150) + 14))
+        local w = (row.sub:GetText() or "") ~= "" and row.sub:GetStringWidth() or nil
+        row.when:ClearAllPoints()
+        row.when:SetPoint("TOPLEFT", 44 + (type(w) == "number" and (w + 8) or 0), -21)
+    end
+    local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
+    row:SetAlpha(live and 1 or 0.55)
+    if row.fullEdit then
+        row.pick:SetShown(not full)
+        row.default:SetShown(not full)
+        if row.edit then row.edit:SetShown(not full) end
+        if full and row.try then row.try:Hide() end
+        row.fullEdit:SetShown(full)
+        row.fullName:SetShown(full)
+        if full then
+            row.fullName:SetText(FF.Name(row.key) or "Full feel")
+            row.fullName:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+        end
+    end
+end
+
 Refresh = function()
     if not ui.enable then return end
     local kind = ui.kind
@@ -2379,52 +2445,9 @@ Refresh = function()
         ui.soundOff:SetShown(blocked)
         if ui.browser and ui.browser.panelsFrame then ui.browser.panelsFrame:SetShown(not blocked) end
     end
+    -- (only the rows on screen: the rest when they show, RefreshRow)
     for _, row in ipairs(ui.rows) do
-        local I = ITEM[row.kind]
-        local name, icon, sub, off, rgb = I.show(row.key)
-        row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
-        -- (nothing plays: no volume, no Try)
-        if row.level then row.level:SetShown(not off) end
-        if row.try then row.try:SetShown(not off) end
-        if row.edit then
-            -- Shape, always: in WoW Helper; dim when it can't go there (Edit in Lab when Lab is on)
-            local lab = not toHelper and H.DB().lab == true
-            local word = lab and "Edit" or "Shape"
-            row.edit.label:SetText(word)
-            row.edit:SetAlpha((toHelper or lab) and 1 or 0.45)
-            S.Tooltip(row.edit, word, toHelper and "In WoW Helper" or lab and "In Lab" or "Needs WoW Helper")
-        end
-        row:SetMarks(Marks(row))
-        local rk = KIND_OF[row.kind]
-        local full = row.fullEdit ~= nil and Full(row.key)
-        -- (a full feel: no proposals, the choice is made in WoW Helper)
-        local p = not full and C and C.Proposal and C.Proposal(rk, row.key) or nil
-        row:SetProposal(p, p and function() Accept(row.kind, row.key, p); Refresh() end,
-            p and function() C.DismissProposal(row.key, p.id); Refresh() end)
-        -- (the When chip after the sub line, as wide as its words; a proposal's line wins: U2-9, U2-10)
-        if row.when then
-            row.when:SetShown(not p)
-            row.when.label:SetText("When: " .. ns.When.Words(row.key))
-            local tw = row.when.label:GetStringWidth()
-            row.when:SetWidth(math.max(90, (type(tw) == "number" and tw or 150) + 14))
-            local w = (row.sub:GetText() or "") ~= "" and row.sub:GetStringWidth() or nil
-            row.when:ClearAllPoints()
-            row.when:SetPoint("TOPLEFT", 44 + (type(w) == "number" and (w + 8) or 0), -21)
-        end
-        local live = rk == "feel" and (s.enabled and not other) or rk == "light" and H.DB().light == true or rk == "sound" and SoundOn()
-        row:SetAlpha(live and 1 or 0.55)
-        if row.fullEdit then
-            row.pick:SetShown(not full)
-            row.default:SetShown(not full)
-            if row.edit then row.edit:SetShown(not full) end
-            if full and row.try then row.try:Hide() end
-            row.fullEdit:SetShown(full)
-            row.fullName:SetShown(full)
-            if full then
-                row.fullName:SetText(FF.Name(row.key) or "Full feel")
-                row.fullName:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-            end
-        end
+        if row:IsVisible() then RefreshRow(row) else row.stale = true end
     end
     if ui.states then ui.RefreshStates(kind) end
     if ui.trigStack then ui.RefreshTriggerStack(kind) end

@@ -722,8 +722,11 @@ do
     -- the sound row of the same moment shows it too; a moment without a When has no chip
     page.SetKind("sound")
     page.browser.Select("Abilities")
-    local oom = row("oom")
+    local oom
+    for _, r in ipairs(page.rows) do if r.key == "oom" and r.kind == "sound" then oom = r end end
+    oom.card.Reveal(oom)
     page.Refresh()
+    assert(oom:IsVisible(), "Out of mana's sound row, scrolled into view")
     assert(oom and not oom.when, "U2-11: Out of mana's sound row: no second When (one setting, one place)")
     page.SetKind("feel")
     page.browser.Select("Attacks")
