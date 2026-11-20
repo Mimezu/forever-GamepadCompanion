@@ -241,10 +241,11 @@ function C.MomentSound(key)
     local v = SoundDB()[key]
     if v == false then return nil end
     if type(v) == "number" then return v end
-    -- (an action, "gather:mining", "craft:cooking": its kind's until it has its own)
+    -- (an action, "gather:mining", "craft:cooking": its kind's until it has its own. Not the
+    -- fishing cast: a throw, not a strike; WoW Helper adds the cast's own whoosh when it has none)
     local Of = ns.Rumble and ns.Rumble.ActionOf
     local parent = Of and select(2, Of(key))
-    if parent then return C.MomentSound(parent) end
+    if parent and key ~= "gather:fishing" then return C.MomentSound(parent) end
     local name = C.DEFAULT_SOUND[key]
     return name and K.SOUNDS[name] or nil
 end

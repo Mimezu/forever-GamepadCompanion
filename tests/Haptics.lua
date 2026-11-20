@@ -1287,6 +1287,14 @@ do
     assert(C.MomentSound("loot") == nil, "loot: none")
     C.SetMomentSound("loot", nil)
     assert(C.MomentSound("loot") == K.SOUNDS.coin, "loot: default again")
+    -- an action has its kind's sound until it has its own; the fishing cast never Gathering's
+    C.SetMomentSound("gather", 901)
+    assert(C.MomentSound("gather:mining") == 901, "mining: Gathering's")
+    assert(C.MomentSound("gather:fishing") == nil, "the fishing cast: none (WoW Helper adds the cast's own)")
+    C.SetMomentSound("gather:fishing", 902)
+    assert(C.MomentSound("gather:fishing") == 902, "the fishing cast: its own once chosen")
+    C.SetMomentSound("gather:fishing", nil)
+    C.SetMomentSound("gather", nil)
     -- no data: no helper sounds, Edit HD says so
     WowHelperData = nil
     K.SetEnabled(true)
