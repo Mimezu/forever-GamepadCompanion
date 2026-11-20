@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.67.2 — 2026-11-20
+
+- Choose › Gamepad: Radial (Blizzard's radial menu), on any button, like Focus UI: a key binding, not a bar slot
+
 ## 0.67.1 — 2026-11-20
 
 - Underwater: the bubbles closer (every 0.45-1.1 s, was 1.2-2.9), still very faint holding still; swimming, closer again (0.3-0.8 s) and a little stronger
