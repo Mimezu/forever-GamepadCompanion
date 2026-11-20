@@ -517,6 +517,19 @@ eq(select(2, ns.SlotMacros.Ensure("bind:focus")), "Not on bar slots", "no bar sl
 check(Keys.Set("PADSYSTEM", "base", "bind:radial"), "PS: Radial")
 eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "OPENRADIAL", "PS bound to Blizzard's Radial")
 check(Keys.Set("PADSYSTEM", "base", "bind:focus"), "PS: Focus UI again")
+-- L2 held (Forever's bar takes it: no Shift): the bare key runs the L2 action, then the base again
+check(Keys.Set("PADFORWARD", "lt", "bind:radial"), "L2 + Options: Radial")
+local held = ns.Model.Held
+ns.Model.Held = function(action) return action == "GAMEPADLEFTMOD" end
+eq(Keys.HeldLayer(), "lt", "L2 held")
+Keys.Apply(Keys.HeldLayer())
+eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "OPENRADIAL", "L2 held: Options runs its L2 action")
+eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "TOGGLEUIFOCUS", "a key with no L2 action keeps its base one")
+ns.Model.Held = function() return false end
+Keys.Apply(Keys.HeldLayer())
+eq(overrides.PADFORWARD, nil, "released: Options is Blizzard's again")
+ns.Model.Held = held
+Keys.Set("PADFORWARD", "lt", nil)
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
 check(ui.layers.lt.selected, "L2 on the art picks the L2 bar")
 check(ui.showLayer:IsShown(), "card: show layer")

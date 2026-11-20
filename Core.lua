@@ -72,6 +72,8 @@ local function ReadHeld(action)
     end
     if known then return false end
 end
+-- (held: true / false, nil when it can't be read; Keys reads L2 / R2 by it)
+M.Held = ReadHeld
 
 local function ReadState()
     local page = PageUnit()
