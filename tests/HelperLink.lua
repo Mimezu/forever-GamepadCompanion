@@ -384,6 +384,45 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-trigger-vectors.txt") do
 end
 assert(trigcount == 61, "61 trigger vectors: " .. trigcount)
 
+-- Fishing (WoW Helper's src/fishing.rs): the cues of moments 93-96 as any cue, and the trigger
+-- rows WoW Helper plays while the line is out (R2 one of shapes 18-21, L2 the addon's)
+do
+    local C = { fishLand = 93, fishNibble = 94, fishBite = 95, fishCatch = 96 }
+    local SHAPES = { flick = 18, tug = 19, reel = 20, line = 21 }
+    local cues, trigs = 0, 0
+    for row in io.lines(root .. "/tests/fixtures/helperlink-fishing-vectors.txt") do
+        local key, head, digits = row:match("^cue (%w+) : (.-)%s*:%s*(%d+)%s*$")
+        if key then
+            local n, i = {}, 0
+            for num in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(num) end
+            assert(i == 19 and n.moment == C[key], "fishing cue: " .. row)
+            local s = { seq = n.seq, left = {}, right = {}, touch = n.touch, gain = n.gain, intensity = n.intensity,
+                seed = n.seed, moment = n.moment }
+            local cells, out = K.EncodeV2(s), {}
+            for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+            assert(table.concat(out) == digits, "fishing cue: " .. row .. " got " .. table.concat(out))
+            cues = cues + 1
+        end
+        local shape, thead, tdigits = row:match("^trig (%w+) : (.-)%s*:%s*(%d+)%s*$")
+        if shape then
+            local v = {}
+            for num in thead:gmatch("%d+") do v[#v + 1] = tonumber(num) end
+            assert(v[4] == SHAPES[shape], "fishing trigger shape: " .. row)
+            local d = assert(K.DecodeTrigRow((function()
+                local cells = {}
+                for ch in tdigits:gmatch("%d") do
+                    local x = tonumber(ch)
+                    cells[#cells + 1] = { math.floor(x / 4) % 2, math.floor(x / 2) % 2, x % 2 }
+                end
+                return cells
+            end)()), "fishing trigger row decodes: " .. row)
+            assert(d.right.shape == SHAPES[shape] and d.right.value == nil and d.left.shape == v[1], "fishing trigger row: " .. row)
+            trigs = trigs + 1
+        end
+    end
+    assert(cues == 4 and trigs == 8, "fishing vectors: " .. cues .. " cues, " .. trigs .. " trigger rows")
+end
+
 -- One line (Lab › Strip, full-feel plan 4b): main 34, the light row from 34 (padded to 23,
 -- yellow first), the trigger row from 57: 76 cells; only when WoW Helper says it reads it
 do

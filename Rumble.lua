@@ -79,6 +79,8 @@ V.PATTERNS = {
         steps = { { 0.5, 0.1, 0.15 }, { 0.1, 0.5, 0.15 }, { 0, 0, 0.15 } } },
     { key = "reel", label = "Line", action = true,         -- fishing: a still line, a bob now and then
         steps = { { 0.12, 0.12, 0.5 }, { 0.45, 0.35, 0.1 }, { 0.12, 0.12, 0.4 } } },
+    { key = "flick", label = "Cast", action = true, art = "toss", once = true,  -- fishing: the pole drawn back, whipped, the line out
+        steps = { { 0.08, 0.04, 0.14 }, { 0.1, 0.08, 0.1 }, { 0.68, 0.85, 0.12 }, { 0.04, 0.2, 0.1 }, { 0, 0.09, 0.45 } } },
     { key = "click", label = "Tumbler", action = true,     -- opening, a lock: small clicks, then give
         steps = { { 0.3, 0.3, 0.1 }, { 0, 0, 0.2 }, { 0.35, 0.35, 0.1 }, { 0, 0, 0.35 } } },
     { key = "hammer", label = "Anvil", action = true,      -- blacksmithing: hammer and its rebound
@@ -305,6 +307,13 @@ local PULSES = {
     pickaxe = { cycle = 1, Pu(0, 0.055, 0.45), Pu(0.1, 0.05, 0.07) },
     skin = { cycle = 0.45, Pu(0, 0.05, 0.15, -0.8), Pu(0.15, 0.05, 0.15, 0.8) },
     reel = { cycle = 1.2, Pu(0, 0.05, 0.05), Pu(0.6, 0.05, 0.05), Pu(0.75, 0.1, 0.25) },
+    -- (the cast, once: the pole drawn back over the left shoulder, faint; whipped forward, one
+    -- firm short pulse; the line leaving the tip toward the right hand, the spool running out in
+    -- faint ticks slowing down. WoW Helper carries it on into R2's own buzz; the bobber's
+    -- landing is a moment of its own, Bobber lands)
+    flick = { cycle = 1.25, Pu(0, 0.12, 0.08, -0.5), Pu(0.14, 0.05, 0.12, -0.3), Pu(0.24, 0.12, 0.85, 0.2),
+        Pu(0.38, 0.05, 0.2, 0.6), Pu(0.48, 0.05, 0.12, 0.8), Pu(0.56, 0.05, 0.09, 0.9), Pu(0.65, 0.05, 0.07, 1),
+        Pu(0.75, 0.05, 0.05, 1), Pu(0.87, 0.05, 0.04, 1) },
     click = { cycle = 0.9, Pu(0, 0.05, 0.1), Pu(0.3, 0.05, 0.1), Pu(0.5, 0.12, 0.3) },
     -- (crafts last long and repeat: faint, each its own rhythm and material)
     hammer = { cycle = 0.8, Pu(0, 0.08, 0.4), Pu(0.25, 0.05, 0.1) },
@@ -498,7 +507,7 @@ V.CAST_ACTIONS = {
     { key = "herbalism", label = "Herbalism", kind = "gather", pattern = "pluck", spell = 2366 },
     { key = "mining", label = "Mining", kind = "gather", pattern = "pickaxe", spell = 2575 },
     { key = "skinning", label = "Skinning", kind = "gather", pattern = "skin", spell = 8613 },
-    { key = "fishing", label = "Fishing", kind = "gather", pattern = "reel", spell = 7620 },
+    { key = "fishing", label = "Fishing", kind = "gather", pattern = "flick", spell = 7620 },
     { key = "opening", label = "Opening", kind = "gather", pattern = "click", spell = 3365 },
     -- (a craft: its loop while making, its finish once as it's made)
     { key = "blacksmithing", label = "Blacksmithing", kind = "craft", pattern = "hammer", finish = "quench", spell = 2018 },
@@ -567,7 +576,7 @@ V.CAST_KINDS = {
             .. " (Arcane Missiles, Drain Life)." },
     { key = "gather", label = "Gathering", icon = EVENT_ICONS .. "gather", preset = "auto",
         tip = "Herbalism, mining, skinning, fishing, opening a chest or a lock. Match the action: each its"
-            .. " own feel. Fishing: the throw, then still (the game doesn't tell addons when a fish bites)." },
+            .. " own feel. Fishing: the cast, the bobber landing, nibbles while you wait, the catch." },
     { key = "craft", label = "Crafting", icon = EVENT_ICONS .. "craft", preset = "auto",
         tip = "Making something with a profession (cast with its window open)." },
 }
@@ -1181,17 +1190,21 @@ local function Release(now)
     return env, env
 end
 
--- Fishing: the throw (the pole drawn back, whipped forward, the line
--- running out, the bobber landing), then nothing. (No bite to feel: WoW
--- Forever tells addons nothing when a fish bites. The bobber's soft
--- interact state, the events and its cursor icon all stay as they are.)
-local FISHING = { { 0, 0.05, 0.08, 0 }, { 0.15, 0.05, 0.12, 0 }, { 0.35, 0.15, 0.9, 0.8 },
-    { 0.6, 0.05, 0.12, 0.6 }, { 0.72, 0.05, 0.08, 0.6 }, { 0.84, 0.05, 0.05, 0.6 }, { 1.1, 0.1, 0.3, 0.85 } }
+-- Fishing: the throw, the Cast pattern's pulses once (the pole drawn back,
+-- whipped forward, the line running out), then nothing: the bobber's landing,
+-- the nibbles and the catch are moments of their own (Fishing.lua). (No bite
+-- to feel from here: WoW Forever tells addons nothing when a fish bites. The
+-- bobber's soft interact state, the events and its cursor icon all stay as
+-- they are. WoW Helper hears it.) Side: left (the heavy motor) .. right.
 local function Fishing(now)
     local t = now - cast.timing.start
-    if t >= 1.25 then return nil end
-    for _, p in ipairs(FISHING) do
-        if t >= p[1] and t < p[1] + p[2] then return p[3], p[3] * p[4] end
+    local list = PULSES.flick
+    if t >= list.cycle then return nil end
+    for _, p in ipairs(list) do
+        if t >= p[1] and t < p[1] + p[2] then
+            local side = p[4] or 0
+            return p[3] * math.min(1, 1 - side), p[3] * math.min(1, 1 + side)
+        end
     end
     return 0, 0
 end
@@ -1530,6 +1543,8 @@ function V.Fire(eventKey)
         -- (a loop keeps its shape: its volume as a gain, a spell's own on top)
         local gain = (ns.Volume and ns.Volume.Feel(eventKey) or 1) * (V.fireGain or 1)
         V.looping = { key = eventKey, pattern = pattern, shape = shape, gain = gain < 1 and gain or nil }
+        -- (a once-only pattern, the fishing cast: its HD cue once, not each cycle)
+        if PATTERN[pattern] and PATTERN[pattern].once then V.looping.once = true end
         if eventKey == "cast" then cast.shaped = V.looping.shape ~= nil end
         loops[#loops + 1] = V.looping
         Resume(V.looping)

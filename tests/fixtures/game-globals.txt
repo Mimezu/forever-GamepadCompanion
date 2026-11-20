@@ -59,6 +59,7 @@ GetItemIcon
 GetItemInfo
 GetItemInfoInstant
 GetItemSpell
+GetItemSubClassInfo
 GetMacroInfo
 GetMirrorTimerInfo
 GetMoney
@@ -91,6 +92,7 @@ IsAddOnLoaded
 IsAltKeyDown
 IsControlKeyDown
 IsFalling
+IsFishingLoot
 IsFlying
 IsInGroup
 IsInInstance

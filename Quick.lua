@@ -1,5 +1,6 @@
--- Quick use: food, drink, potions, trinkets, a random mount or pet, for any
--- binder (zones, gestures, pad buttons) as quick:<key>. The bags are read out
+-- Quick use: food, drink, potions, trinkets, a random mount or pet, the
+-- fishing pole swap, for any binder (zones, gestures, pad buttons) as
+-- quick:<key>. The bags are read out
 -- of combat (bags change, combat ends, level up) and the best items picked
 -- (TouchModel's QuickOrder); a changed pick re-applies the binders. In combat
 -- the last pick stays.
@@ -75,6 +76,10 @@ function Q.Refresh()
         picks[key] = ids
     end
     scanned = true
+    -- (the pole swap: its macro follows the bags and the hands)
+    local fish = Q.FishMacro()
+    if fish ~= picks.fish then changed = true end
+    picks.fish = fish
     if changed then
         for _, m in ipairs({ ns.Keys, ns.Touch, ns.Gestures, ns.SlotMacros }) do
             if m and m.Apply then pcall(m.Apply) end
@@ -86,8 +91,20 @@ end
 
 function Q.Picks(key) return picks[key] end
 
+-- The pole swap's macro (MimezuFishing.lua, shared with Halo); in combat the last one
+function Q.FishMacro()
+    local lib = _G.MimezuFishing
+    if InCombat() or not (lib and lib.Macro) then return picks.fish end
+    local ok, text = pcall(lib.Macro)
+    return ok and text or nil
+end
+
 -- The macro a key runs now (the binders' lookup.quick)
 function Q.Macro(key)
+    if key == "fish" then
+        if not InCombat() then picks.fish = Q.FishMacro() end
+        return picks.fish
+    end
     if not scanned and not InCombat() then
         scanned = true   -- (the first scan: no re-apply, the binder asking is applying)
         local items, level = Q.Scan(), tonumber((Call(UnitLevel, "player")))
@@ -109,6 +126,14 @@ function Q.Look(key)
         return name or q.label, Call(GetInventoryItemTexture, "player", q.slot) or q.icon
     end
     if q.run then return q.label, q.icon end
+    if q.swap then
+        local lib = _G.MimezuFishing
+        if lib and lib.Look then
+            local ok, name, icon = pcall(lib.Look)
+            if ok then return name, icon or q.icon end
+        end
+        return q.label, q.icon
+    end
     local id = picks[key] and picks[key][1]
     if not id then return q.none, q.icon end
     local name = Call(C_Item.GetItemNameByID, id) or Call(GetItemInfo, id)
@@ -118,12 +143,14 @@ end
 
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENABLED", "PLAYER_LEVEL_UP",
-    "GET_ITEM_INFO_RECEIVED" }) do
+    "GET_ITEM_INFO_RECEIVED", "PLAYER_EQUIPMENT_CHANGED" }) do
     pcall(events.RegisterEvent, events, event)
 end
 local wait = 0
 events:SetScript("OnEvent", function(_, event, itemID)
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
+    -- (the hands changed in combat: the pole swap's macro after it)
+    if event == "PLAYER_EQUIPMENT_CHANGED" and InCombat() then pending = true; return end
     -- (item info arrives in bursts, mostly for others' items: only ours that
     -- were missing, once, a moment later)
     if event == "GET_ITEM_INFO_RECEIVED" then

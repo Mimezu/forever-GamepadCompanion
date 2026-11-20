@@ -685,6 +685,8 @@ T.QUICK = {
     { key = "trinket2", label = "Trinket 2", icon = I .. "INV_Jewelry_Talisman_02", slot = 14, none = "Empty slot" },
     { key = "mount", label = "Random mount", icon = I .. "Ability_Mount_RidingHorse", run = "C_MountJournal.SummonByID(0)" },
     { key = "pet", label = "Random pet", icon = I .. "INV_Box_PetCarrier_01", run = "C_PetJournal.SummonRandomPet(false)" },
+    -- (the best pole from the bags, or back to your weapons: MimezuFishing's macro, Quick.lua)
+    { key = "fish", label = "Fishing pole", icon = I .. "INV_Fishingpole_02", swap = true, none = "No fishing pole" },
 }
 T.QUICK_BY_KEY = {}
 for _, q in ipairs(T.QUICK) do T.QUICK_BY_KEY[q.key] = q end
@@ -764,6 +766,7 @@ function T.QuickMacro(key, ids)
     if not q then return nil end
     if q.slot then return "/use " .. q.slot end
     if q.run then return "/run " .. q.run end
+    if q.swap then return nil end   -- (Quick.lua: Q.Macro)
     if not (ids and ids[1]) then return nil end
     if key == "food" or key == "drink" then return "/use item:" .. ids[1] end
     local stone = T.HEALTHSTONES[ids[1]] == true

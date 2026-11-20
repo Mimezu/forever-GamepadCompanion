@@ -46,6 +46,11 @@ TS.PRESETS = {
     [15] = { key = "drag", label = "Drag", old = { "resist", 0, 0, 2 } },
     [16] = { key = "nibble", label = "Nibble", old = { "vibrate", 5, 3, 6 } },
     [17] = { key = "heart", label = "Heartbeat", gauge = "speed", old = { "vibrate", 0, 5, 0 } },
+    -- Fishing: WoW Helper plays them itself (it hears the bite); here for their names
+    [18] = { key = "flick", label = "Line out", old = { "vibrate", 0, 4, 2 } },
+    [19] = { key = "tug", label = "Tug", old = { "vibrate", 0, 7, 6 } },
+    [20] = { key = "reel", label = "Reel", old = { "slope", 1, 12, 11 } },
+    [21] = { key = "line", label = "Line", old = { "resist", 2, 0, 1 } },
 }
 local ID = {}
 for id, s in pairs(TS.PRESETS) do ID[s.key] = id end

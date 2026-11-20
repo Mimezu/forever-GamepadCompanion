@@ -19,6 +19,20 @@
 
 - Fixed: L2, R2 and L2 R2 actions on L1, R1, L3, R3, Create, Options, PS and Mic never ran (Forever's gamepad bar takes L2 / R2 for itself: no Shift or Ctrl reaches the binding). Now, while L2 / R2 is held out of combat, the button runs that layer's action; on release, its base one. In combat: the base action
 
+## 0.68.0 — 2026-11-20
+
+- **Fishing**. A fishing pole in your hands turns R2 into the line: **R2 casts**; while the line is out, **R2 catches** (the game's Interact, on the bobber). The pole off, R2 is yours again (and its Ctrl layer). A short word says so: "R2 casts", "R2 is back". Bindings change out of combat only
+- **Choose › Quick use › Fishing pole**: one press, your best pole from the bags (the best you can use); the next, back to the weapons you held. No pole: "No fishing pole in your bags". The same swap is a Halo slice: one shared file, `MimezuFishing.lua`, ships in both addons
+- The cast is felt as a cast now (Cast, a new pattern, Fishing's default): the pole drawn back, whipped forward, the line leaving the tip toward the right hand, the spool running out in fine ticks. Its HD feel plays once, not every 1.2 s through the wait. WoW Helper carries the motion on into R2's own motor
+- Four new moments under Abilities, each with its feel, sound and volumes, and overridable with full feels in WoW Helper:
+  - **Bobber lands** (93): a soft wet knock 1.1 s after the cast. WoW Helper adds the game's own small splash on the pad's speaker
+  - **Nibbles** (94): faint, now and then while you wait (at most three a cast). A stand-in: the game says nothing until the bite, so these never mean anything
+  - **Fish hooked** (95): strong. Never sent from here: WoW Forever tells addons nothing when a fish bites (its events, the bobber's soft target and its cursor stay the same). WoW Helper hears the bite's splash and plays it, then R2 tugs and resists like a reel
+  - **Catch** (96): the reel winding in, in step with the game's own reel sound, on a fishing loot. WoW Helper plays that sound on the pad's speaker too
+- While the line is out, Interact reaches 30 yards (the game's soft target reach is 10; the bobber lands farther). Back as it was when the line comes in
+- Trigger shapes 18-21 (Line out, Tug, Reel, Line) are known by name; WoW Helper plays them itself while fishing
+- Shared vectors with WoW Helper: `tests/fixtures/helperlink-fishing-vectors.txt`. Tests: `tests/Fishing.lua`
+
 ## 0.67.2 — 2026-11-20
 
 - Choose › Gamepad: Radial (Blizzard's radial menu), on any button, like Focus UI: a key binding, not a bar slot

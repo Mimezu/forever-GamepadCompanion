@@ -2,7 +2,7 @@
 ## Title: Gamepad Companion
 ## Notes: Bind every pad button, touchpad zones and controller bar layout for Forever's gamepad UI.
 ## Author: Mimezu
-## Version: 0.67.2
+## Version: 0.68.0
 ## X-GamepadCompanion-Client: Forever
 ## SavedVariables: GamepadCompanionDB, GamepadCompanionEditModeDB, GamepadCompanionFormNames, GamepadCompanionTouchDB, GamepadCompanionHapticsDB
 ## SavedVariablesPerCharacter: GamepadCompanionCharDB
@@ -12,6 +12,7 @@
 ## IconAtlas: gamepad-radial-icon-gamemenu
 # Settings load through native SavedVariables.
 
+MimezuFishing.lua
 Profiles.lua
 Model.lua
 Shared.lua
@@ -36,6 +37,7 @@ HapticsDebug.lua
 Battery.lua
 TouchModel.lua
 Quick.lua
+Fishing.lua
 SlotMacros.lua
 BankMove.lua
 MailOpenAll.lua

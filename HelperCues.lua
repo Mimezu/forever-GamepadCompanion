@@ -60,6 +60,10 @@ C.MOMENTS = {
     { "craft:smelting", "Abilities", "craft" },
     -- a landing that hurts (its cue carries the race and sex: WoW Helper plays the character's yell), 92
     { "fallDamage", "Moving" },
+    -- fishing, after the cast (gather:fishing): the bobber landing, nibbles while you wait (a
+    -- stand-in), the bite (WoW Helper's: it hears it; never sent from here), the catch, 93-96
+    { "fishLand", "Abilities" }, { "fishNibble", "Abilities" }, { "fishBite", "Abilities" },
+    { "fishCatch", "Abilities" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
@@ -583,6 +587,8 @@ end
 local function LoopStart(loop, sent)
     -- (WoW Helper plays this loop's strikes itself: nothing from here)
     if loop and loop.helperTimed then loopCue = { loop = loop, timed = true }; loopFrame:Show(); return end
+    -- (a once-only pattern, the fishing cast: its cue went with the fire, no more)
+    if loop and loop.once then loopCue = { loop = loop, timed = true }; loopFrame:Show(); return end
     local feel = loop and loop.pattern and L.FeelFor(loop.pattern)
     if not feel then loopCue = nil; loopFrame:Hide(); return end
     loopCue = { loop = loop, key = loop.key, feel = feel, start = GetTime(), period = C.LoopPeriod(feel), sent = sent }

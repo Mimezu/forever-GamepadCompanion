@@ -185,6 +185,20 @@ local LIB = {
     { "wrap", "Bandage", "Nature", "sew", Pulses({ P(0, 0.05, 0.05), P(0.2, 0.1, 0.09) }, { loop = true, length = 1 }) },
     { "potion", "Potion", "Nature", "gulp", Pulses({ P(0, 0.05, 0.08), P(0.14, 0.05, 0.1), P(0.3, 0.25, 0.3),
         P(0.65, 0.05, 0.08) }) },
+    -- Fishing (Fishing.lua): soft and analog, the water's, never a signal's
+    -- (the bobber lands: one soft wet knock, two faint ripples)
+    { "plop", "Plop", "Nature", "bubble", Pulses({ P(0, 0.07, 0.22, 0.3), P(0.16, 0.05, 0.05, 0.1), P(0.3, 0.05, 0.03, 0.4) }) },
+    -- (a fish nosing the lure: two tiny uneven tugs, right, where the line is)
+    { "nibble", "Nibble", "Nature", "micro", Pulses({ P(0, 0.05, 0.07, 0.6), P(0.13, 0.05, 0.04, 0.7) }) },
+    -- (the bite: the bobber yanked under, a hard pull, then the fish thrashing on the line)
+    { "hooked", "Hooked", "Impacts", "burst", Pulses({ P(0, 0.2, 0.95, 0.3), P(0.28, 0.08, 0.45, 0.6), P(0.42, 0.06, 0.3, -0.2),
+        P(0.56, 0.06, 0.28, 0.5), P(0.72, 0.05, 0.14, 0.1) }, { duck = { amount = 0.6, time = 0.3 } }) },
+    -- (the catch, in step with the game's own reel winding in (FISHING_REEL_IN): the ratchet fast,
+    -- slowing as the fish comes up, then a last wet flap in the hand)
+    { "reelIn", "Reel in", "Rolls", "gears", Pulses({ P(0.03, 0.05, 0.12, 0.7), P(0.12, 0.05, 0.12, 0.7), P(0.21, 0.05, 0.11, 0.7),
+        P(0.31, 0.05, 0.11, 0.7), P(0.45, 0.05, 0.1, 0.7), P(0.56, 0.05, 0.1, 0.7), P(0.69, 0.05, 0.09, 0.7),
+        P(0.89, 0.05, 0.09, 0.7), P(1.04, 0.05, 0.08, 0.7), P(1.28, 0.05, 0.08, 0.7), P(1.49, 0.05, 0.07, 0.7),
+        P(1.67, 0.12, 0.35, 0.2) }) },
     -- Extremes: the limits
     { "max", "Full both", "Extremes", "impact", Pulses({ P(0, 0.5, 1) }) },
     { "maxL", "Full left", "Extremes", "bash", Pulses({ P(0, 0.5, 1, -1) }) },
@@ -728,6 +742,15 @@ L.EVENTS = {
     { key = "comboFull", icon = ART .. "vibe_flurry", group = "Abilities", label = "Combo points full", feel = "knock", on = true },
     { key = "full", icon = ART .. "vibe_rise", group = "Abilities", label = "Rage or energy full", feel = "ready", on = false },
     { key = "oom", icon = ART .. "vibe_fade", group = "Abilities", label = "Low mana", feel = "alert", on = true },
+    -- Fishing (Fishing.lua), after the cast
+    { key = "fishLand", icon = ART .. "vibe_bubble", group = "Abilities", label = "Bobber lands", feel = "plop", on = true,
+        tip = "The bobber hits the water. WoW Helper adds its splash" },
+    { key = "fishNibble", icon = ART .. "vibe_micro", group = "Abilities", label = "Nibbles", feel = "nibble", on = true,
+        tip = "Faint, now and then while you wait. A stand-in: the game doesn't say" },
+    { key = "fishBite", icon = ART .. "vibe_burst", group = "Abilities", label = "Fish hooked", feel = "hooked", on = true,
+        tip = "WoW Helper hears the bite. Then R2 reels it in" },
+    { key = "fishCatch", icon = ART .. "vibe_gears", group = "Abilities", label = "Catch", feel = "reelIn", on = true,
+        tip = "The fish comes in" },
     -- Moving
     { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
         tip = "Softer or harder by the time in the air" },

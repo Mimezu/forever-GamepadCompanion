@@ -1,0 +1,16 @@
+# HelperLink fishing vectors (src/fishing.rs, GamepadCompanion Fishing.lua)
+# cue <key> : a v2 frame (as helperlink-v2-vectors.txt): the addon's cue for that moment
+# trig <r2 key> : l_shape l_value l_count r_shape r_value r_count : 19 cells (as helperlink-trigger-vectors.txt)
+# Written by WoW Helper: cargo test write_fishing_fixture -- --ignored
+cue fishLand : 1 0 0 0 0 0 0 0 0 301 0 4 0 0 4 0 0 93 0 : 5340000000000264400000400400135141
+cue fishNibble : 2 0 0 0 0 0 0 0 0 302 0 4 0 0 4 17 0 94 0 : 5320000000000164400000400610075307
+cue fishBite : 3 0 0 0 0 0 0 0 0 303 0 4 0 0 4 34 0 95 0 : 5360000000000364400000400504175377
+cue fishCatch : 4 0 0 0 0 0 0 0 0 304 0 4 0 0 4 51 0 96 0 : 5310000000000014400000400714003246
+trig flick : 12 35 0 18 127 0 : 4030061004407741620
+trig flick : 0 0 0 18 127 0 : 4000000004407740174
+trig tug : 12 35 0 19 127 0 : 4030061014407740640
+trig tug : 0 0 0 19 127 0 : 4000000014407741114
+trig reel : 12 35 0 20 127 0 : 4030061002407740544
+trig reel : 0 0 0 20 127 0 : 4000000002407741210
+trig line : 12 35 0 21 127 0 : 4030061012407741524
+trig line : 0 0 0 21 127 0 : 4000000012407740270
