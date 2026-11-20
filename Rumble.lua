@@ -1947,9 +1947,11 @@ local smeltByName = {}
 local gatherByName, craftByName, spellByName, ticksByName, shotByName, moveByName, restByName
 -- (built again until every gathering spell has its name: a name not loaded
 -- yet at login would leave mining a plain spell all session)
-local namesComplete = false
+-- (a gathering name the client lacks: tried again at most every 10 s, not on every aura)
+local namesComplete, namesTried = false, -math.huge
 local function Names()
-    if gatherByName and namesComplete then return end
+    if gatherByName and (namesComplete or GetTime() - namesTried < 10) then return end
+    namesTried = GetTime()
     namesComplete = true
     gatherByName, craftByName, ticksByName, shotByName, moveByName, restByName = {}, {}, {}, {}, {}, {}
     for kind, ids in pairs(REST_SPELLS) do
