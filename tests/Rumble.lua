@@ -239,6 +239,10 @@ button("+").scripts.OnClick(button("+"))
 assert(math.abs(V.Settings().intensity - 0.9) < 1e-9 and strength.text == "90%", "stronger")
 -- Rows by key, groups down the left
 local page = ns.RumblePage
+-- (cards are built on first need: only the shown group's exists yet; build every
+-- Feel card to inspect them all)
+assert(#page.rows < 40, "only the shown group's rows are built on open: " .. #page.rows)
+for _, g in ipairs(page.GROUPS) do page.EnsureCard(g.key, "feel") end
 local rowFor = {}
 local FEEL = { r = true, c = true, l = true }
 for _, f in ipairs(created) do if FEEL[rawget(f, "kind")] and rawget(f, "pick") then rowFor[f.key] = f end end

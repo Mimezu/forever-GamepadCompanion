@@ -1667,10 +1667,21 @@ function ui.SetKind(kind)
     Refresh()
 end
 
+-- The cards that hold a moment, built if new (cards are built on first need)
+local function EnsureRowsFor(key, kind)
+    if not ui.EnsureCard then return end
+    for _, g in ipairs(GROUPS) do
+        for _, item in ipairs(Items(kind, g.key)) do
+            if item[2] == key then ui.EnsureCard(g.key, kind) end
+        end
+    end
+end
+
 -- Find a moment's row: its kind, its group, the row lit a moment
 Jump = function(key, kind)
     kind = kind or "feel"
     ui.SetKind(kind)
+    EnsureRowsFor(key, kind)
     -- (a reaction of the stack: the States list)
     if kind == "light" and LT.stack and LT.stack:Row(key) then
         ui.browser.Select("states")
@@ -2216,6 +2227,7 @@ local function Build(frame, header)
         jump = function(key, kind) Jump(key, kind) end,
         -- (Again: the last moment's Try, at its own volume)
         again = function(key, kind)
+            EnsureRowsFor(key, kind)
             for _, row in ipairs(ui.rows) do
                 if row.key == key and KIND_OF[row.kind] == kind then return ITEM[row.kind].try(key) end
             end
@@ -2323,33 +2335,45 @@ local function Build(frame, header)
     ui.browser = b
     ui.cards = {}
     local cw = W - LEFT_W - 10
-    for _, g in ipairs(GROUPS) do
-        local panel = b.panels[g.key]
-        ui.cards[g.key] = {}
-        for _, k in ipairs(KINDS) do
-          if k[1] ~= "trigger" then
-            local items = Items(k[1], g.key)
-            local fit = ui.CARD_ROWS
-            local card = S.Card(panel, g.key, 0, 0, cw, max(90, 44 + math.min(#items, fit) * HUI.ROW_H))
-            if #items == 0 then S.Text(card, "None here", 14, -44, cw - 28, 12, DIM) end
-            local rows = {}
-            for i, item in ipairs(items) do
-                -- (a moment under another: indented under it)
-                local indent = V.ActionOf(item[2]) and ui.INDENT or 0
-                rows[i] = MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw - indent, item[1], item[2])
-                rows[i].indent, rows[i].card = indent, card
-            end
-            ui.ScrollRows(card, rows, fit)
-            -- (in its title band: every changed row back to Recommended, Undo for 5 s)
-            if #items > 0 then
-                local kind = k[1]
-                card.reset = S.NewButton(card, "Reset group", cw - 118, -3, 108, function() ResetGroup(g.key, kind) end, nil, 11, 24)
-                S.Tooltip(card.reset, "Reset group", "Every changed moment here back to Recommended")
-            end
-            ui.cards[g.key][k[1]] = card
-            card:HookScript("OnShow", function() ui.RefreshStale() end)
-          end
+    -- A group's card for one kind, built the first time it is needed (the group
+    -- shown, a Jump, Again): all 8 groups x 3 kinds at once were ~200 rows and
+    -- ~1,670 buttons, and the game laid them all out on the first show (~0.4 s).
+    function ui.EnsureCard(group, kind)
+        local cards = ui.cards[group]
+        if not cards or not (kind == "feel" or kind == "light" or kind == "sound") then return end
+        if cards[kind] then return cards[kind] end
+        local panel = b.panels[group]
+        if not panel then return end
+        local items = Items(kind, group)
+        local fit = ui.CARD_ROWS
+        local card = S.Card(panel, group, 0, 0, cw, max(90, 44 + math.min(#items, fit) * HUI.ROW_H))
+        if #items == 0 then S.Text(card, "None here", 14, -44, cw - 28, 12, DIM) end
+        local rows = {}
+        for i, item in ipairs(items) do
+            -- (a moment under another: indented under it)
+            local indent = V.ActionOf(item[2]) and ui.INDENT or 0
+            rows[i] = MakeRow(card, -38 - (i - 1) * HUI.ROW_H, cw - indent, item[1], item[2])
+            rows[i].indent, rows[i].card = indent, card
+            rows[i].stale = true -- (filled in as it shows: RefreshStale)
         end
+        ui.ScrollRows(card, rows, fit)
+        -- (in its title band: every changed row back to Recommended, Undo for 5 s)
+        if #items > 0 then
+            card.reset = S.NewButton(card, "Reset group", cw - 118, -3, 108, function() ResetGroup(group, kind) end, nil, 11, 24)
+            S.Tooltip(card.reset, "Reset group", "Every changed moment here back to Recommended")
+        end
+        cards[kind] = card
+        card:SetShown(kind == ui.kind)
+        card:HookScript("OnShow", function() ui.RefreshStale() end)
+        if card:IsVisible() then ui.RefreshStale() end
+        return card
+    end
+    for _, g in ipairs(GROUPS) do ui.cards[g.key] = {} end
+    -- (a group picked: its card for the kind shown, built if new)
+    local select = b.Select
+    b.Select = function(key, ...)
+        if ui.kind then ui.EnsureCard(key, ui.kind) end
+        return select(key, ...)
     end
     -- sounds while the link is off: one card where the groups go
     ui.soundOff = S.Card(frame, nil, LEFT_W + 10, 0, cw, PH)
@@ -2510,6 +2534,7 @@ Refresh = function()
         if ui.browser and ui.browser.panelsFrame then ui.browser.panelsFrame:SetShown(not blocked) end
     end
     Step("head")
+    if ui.browser and ui.browser.current then ui.EnsureCard(ui.browser.current, kind) end
     -- (only the rows on screen: the rest when they show, RefreshRow)
     local n = 0
     for _, row in ipairs(ui.rows) do

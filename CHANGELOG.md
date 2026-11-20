@@ -10,7 +10,7 @@
 - Sound › Social: **Emote voices**, its volume (always the game's own voice)
 - Moments opens lighter: a moment's volume chip refreshes with its row, only on screen (it ran for all ~200 rows on every refresh)
 - **/gpc perf**: Moments timing, step by step, in chat (on / off)
-- Moments opens without the ~0.4 s freeze: no fade-in the first time a page shows (the fade made the game lay out the whole new page in that one call)
+- Moments opens without the ~0.4 s freeze: a group's rows are built the first time that group shows (all 8 groups x 3 kinds at once were ~200 rows, laid out together on the first show)
 
 ## 0.69.2 — 2026-11-20
 
