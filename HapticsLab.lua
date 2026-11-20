@@ -255,8 +255,8 @@ do
         if p.feel and not p.beta then
             local f = H.Copy(p.feel)
             f.label, f.icon, f.rumble = p.label, p.icon, p.key
-            f.group = (p.swing or p.weapon) and "Weapons" or p.move and "Moves" or SPELL[p.key] and "Spells"
-                or CRAFT[p.key] and "Crafts" or "Basics"
+            f.group = p.group or ((p.swing or p.weapon) and "Weapons" or p.move and "Moves" or SPELL[p.key] and "Spells"
+                or CRAFT[p.key] and "Crafts" or "Basics")
             f.loop, f.gap = nil, nil
             H.AddLibrary("r_" .. p.key, f)
         end
@@ -1075,6 +1075,23 @@ local function Band(speed) return speed < 4 and "walk" or "run" end
 L.Band = Band
 -- (the fallback without WoW Helper; its published defaults win: Timing.Default)
 local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate = 2.4, speed = 7, offset = 0.1 } }
+-- A model's own steps per second until WoW Helper learns them ("race-sex"): from its run and walk
+-- animations (one stride, two steps, at the animation's own speed), calibrated on the one model
+-- measured: the Undead male, heard at 3.23 steps/s running (his animation says 3.36, x 0.96). The
+-- Undead female's stride is longer (666 ms against his 600): 2.91 running, 1.92 walking.
+-- (WoW Helper publishes the same table: timingDefaults.models; this copy without it)
+L.STEP_MODELS = { ["5-3"] = { run = 2.906, walk = 1.919 } }
+-- The default for a gait, this model's rate when it has one
+local function StepDefault(band)
+    local d = ns.Timing and ns.Timing.Default(band)
+    local cal = d and tonumber(d.rate) and tonumber(d.speed) and d or GUESS[band]
+    local published = ns.Timing and ns.Timing.Default("models")
+    local m = type(published) == "table" and published[Model()] or L.STEP_MODELS[Model()]
+    local rate = type(m) == "table" and tonumber(m[band])
+    if not rate then return cal end
+    return { rate = rate, speed = cal.speed, offset = cal.offset }
+end
+L.StepDefault = StepDefault
 
 -- A gait's sync for this character, or nil
 -- A gait's timing: yours (synced or set by hand), else WoW Helper's learned
@@ -1149,7 +1166,7 @@ end
 -- Steps per second at a speed, and the first step's time after the start
 -- A gait's steps per second at its own speed (synced, or the guess)
 function L.StepRate(band)
-    local cal = L.StepCal(band) or (ns.Timing and ns.Timing.Default(band)) or GUESS[band]
+    local cal = L.StepCal(band) or StepDefault(band)
     return cal.rate
 end
 
@@ -1175,8 +1192,7 @@ function L.StepTiming(speed)
     local synced = cal and cal.rate and cal.speed and cal.speed > 0
     -- (the default: WoW Helper's published one, else the fallback here)
     if not synced then
-        local d = ns.Timing and ns.Timing.Default(band)
-        cal = d and tonumber(d.rate) and tonumber(d.speed) and d or GUESS[band]
+        cal = StepDefault(band)
     end
     return cal.rate * speed / cal.speed, (cal.offset or 0) + nudge, synced and true or false
 end

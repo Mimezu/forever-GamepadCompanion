@@ -507,11 +507,11 @@ function C.EditHD(key)
     return C.Moment(key, C.MomentFeel(key), { open = true }), nil
 end
 
--- A feel alone, in HD
-function C.Feel(feelKey, gain)
+-- A feel alone, in HD (side -1..1: where it plays; nil: the feel's own)
+function C.Feel(feelKey, gain, side)
     if not (On("hdFeels") and K.V2() and feelKey) then return end
     local id = L.HdId(feelKey)
-    if id then K.PlayFeel(id, HdGain(gain)) end
+    if id then K.PlayFeel(id, HdGain(gain), side) end
 end
 function C.Sound(name, gain) if On("sounds") then K.PlaySound(name, gain) end end
 

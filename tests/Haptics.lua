@@ -2912,7 +2912,7 @@ do
     local names = { [900031] = "Searing Totem", [900032] = "Healing Stream Totem", [900033] = "Call Pet",
         [900041] = "Odd Stun", [900042] = "Odd Bolt", [900043] = "Odd Frost Cast" }
     GetSpellInfo = function(id)
-        if id == 133 or id == 900043 then return names[id] or "Spell 133", nil, nil, 2500 end
+        if id == 133 or id == 348 or id == 900043 then return names[id] or ("Spell " .. id), nil, nil, 2500 end
         return names[id] or ("Spell " .. tostring(id)), nil, nil, 0
     end
     IsSpellHelpful = function(id) return id == 900031 or id == 900032 end
@@ -2950,14 +2950,15 @@ do
     -- a damaging cast: a silent release, its school's wound at the impact (not in the first 0.15 s, not another school)
     local start = now + 3
     now = start
-    UnitCastingInfo = function() return "Fireball", nil, nil, start * 1000, (start + 2.5) * 1000 end
-    rev("UNIT_SPELLCAST_START", "player", "fb", 133)
+    -- (Immolate: a school's generic impact; the mage's own bolts land as themselves, below)
+    UnitCastingInfo = function() return "Immolate", nil, nil, start * 1000, (start + 2.5) * 1000 end
+    rev("UNIT_SPELLCAST_START", "player", "fb", 348)
     now = start + 2.5
     fired = {}
     local release = V.Release
     local released = false
     V.Release = function() released = true end
-    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "fb", 133)
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "fb", 348)
     assert(not released and #fired == 0, "the release: silent")
     rev("UNIT_COMBAT", "target", "WOUND", "", 300, 4)
     assert(#fired == 0, "not in the first 0.15 s")
@@ -2965,7 +2966,17 @@ do
     rev("UNIT_COMBAT", "target", "WOUND", "", 30, 16)
     assert(#fired == 0, "another school's wound: not it")
     rev("UNIT_COMBAT", "target", "WOUND", "", 300, 4)
-    assert(fired[1] == "shock", "Fireball lands: Shock: " .. tostring(fired[1]))
+    assert(fired[1] == "shock", "Immolate lands: Shock: " .. tostring(fired[1]))
+    -- a mage's Fireball: its own impact (V.MAGE)
+    start = now + 3
+    now = start
+    rev("UNIT_SPELLCAST_START", "player", "fb3", 133)
+    now = start + 2.5
+    fired = {}
+    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "fb3", 133)
+    now = now + 0.4
+    rev("UNIT_COMBAT", "target", "WOUND", "", 300, 4)
+    assert(fired[1] == "fireball", "Fireball lands as itself: " .. tostring(fired[1]))
     V.Release = release
     UnitCastingInfo = nil
     -- the kinds table (WoW Helper): letters, school, tick
