@@ -346,7 +346,6 @@ function Focus.Attach(window)
         elseif event == "PLAYER_REGEN_ENABLED" then if window:IsShown() then Take(true) end
         elseif state.active then Focus.SetActive(false) end
     end)
-    Focus.Take = Take
 end
 
 if S.OnPopupChange then S.OnPopupChange(function() Focus.Rescope() end) end

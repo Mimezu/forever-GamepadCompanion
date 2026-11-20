@@ -46,9 +46,7 @@ function G.Normalize(raw)
 end
 
 function G.Get(slot) return settings[slot] end
-function G.Settings() return settings end
 function G.IsPending() return pending end
-function G.Bound(slot) return bound[G.Key(slot)] end
 
 function G.Apply()
     if InCombatLockdown and InCombatLockdown() then pending = true; return false end

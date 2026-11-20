@@ -109,7 +109,6 @@ end
 
 function Keys.Allowed(key) return ALLOWED[key] == true end
 function Keys.Get(key, layer) return settings[key] and settings[key][layer] or nil end
-function Keys.Settings() return settings end
 function Keys.IsPending() return pending end
 function Keys.OnChange(callback) listeners[#listeners + 1] = callback end
 local function Notify() for _, callback in ipairs(listeners) do pcall(callback) end end
@@ -235,9 +234,6 @@ function Keys.Set(key, layer, action)
     Notify()
     return true
 end
-
--- The command Companion bound to a key, or nil
-function Keys.Bound(key) return bound[key] end
 
 ---------------------------------------------------------------------------
 -- Out of combat: what a held layer needs on top, where the secure click

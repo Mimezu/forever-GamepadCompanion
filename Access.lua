@@ -201,7 +201,6 @@ function Access.SetIconShown(shown)
     Access.UpdateIcon()
 end
 function Access.IconShown() return MinimapSettings().shown == true end
-Access.Icon = function() return icon end
 
 -- Blizzard Settings page ----------------------------------------------------------
 

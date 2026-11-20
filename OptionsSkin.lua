@@ -179,7 +179,6 @@ local function Plate(frame, atlas, borderOnly)
     art:Update()
     return art
 end
-S.Plate = Plate
 
 local function Leather(frame)
     local t = Texture(frame,"Legacy-Challenge-BG","BACKGROUND",-4)
@@ -824,16 +823,4 @@ function S.Fit(frame)
     if not width or not height or width <= 0 or height <= 0 then return end
     local size = S.UIScale()
     frame:SetScale(math.max(0.5, math.min(size, (UIParent:GetWidth() - 30) / width, (UIParent:GetHeight() - 30) / height)))
-end
-
--- A (controller) and B use the Legacy chrome; C is the classic look.
-function S.ChromeKind(style)
-    return style == "C" and "classic" or "legacy"
-end
-
-function S.CurrentStyle()
-    local api = _G.GamepadCompanionAPI
-    local ok, settings = pcall(function() return api and api.GetSettings and api.GetSettings() end)
-    local style = ok and type(settings) == "table" and settings.optionsStyle
-    return (style == "B" or style == "C") and style or "A"
 end

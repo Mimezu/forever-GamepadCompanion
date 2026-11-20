@@ -437,4 +437,4 @@ for _, event in ipairs({ "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "INPUT_DEVICE_
     "PLAYER_REGEN_ENABLED", "EDIT_MODE_LAYOUTS_UPDATED" }) do
     events:RegisterEvent(event)
 end
-ns.EditModeEventFrame, ns.EditModeAuto = events, Auto
+ns.EditModeEventFrame = events

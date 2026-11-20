@@ -202,9 +202,6 @@ waiter:SetScript("OnUpdate", function()
     if not F.R2Held() then F.Apply() end
 end)
 
-function F.Mode() return mode end
-function F.Line() return line end
-
 Sh.Claim(bound, function()
     if InCombat() then pending = true; return end
     current = false     -- (rebind what it should be)

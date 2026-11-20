@@ -497,7 +497,6 @@ function Picker.Open(req)
 end
 
 function Picker.Close() if window then window:Hide() end end
-function Picker.IsShown() return window ~= nil and window:IsShown() end
 
 -- Harness access
 ns.PickerWindow = function() return window, ui end
