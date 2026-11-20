@@ -1625,12 +1625,17 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
     return function(now, v)
         if not live.weather[key] then return nil end
         if not v.next then v.next = now + random() * gap1 end
-        -- (heavier weather: taps closer and a little stronger)
-        local k = key == "underwater" and 0.5 or (live.weatherIntensity or 0.5)
+        -- (heavier weather: taps closer and a little stronger; under water,
+        -- swimming: closer and a little stronger than holding still)
+        local k = live.weatherIntensity or 0.5
+        local level, spacing = 0.7 + 0.5 * k, 1.6 - 0.6 * k
+        if key == "underwater" then
+            level, spacing = live.swimming and 1.5 or 0.85, live.swimming and 0.7 or 1
+        end
         if now >= v.next then
-            v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * (0.7 + 0.5 * k), random() * 2 - 1
+            v.tapEnd, v.level, v.side = now + PULSE, (lo + random() * (hi - lo)) * level, random() * 2 - 1
             v.second = random() < (chance2 or 0) and now + 0.09 + random() * 0.05 or nil
-            v.next = now + (gap0 + random() * (gap1 - gap0)) * (1.6 - 0.6 * k)
+            v.next = now + (gap0 + random() * (gap1 - gap0)) * spacing
         end
         if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
         if v.tapEnd and now < v.tapEnd then
@@ -1687,7 +1692,9 @@ local WEATHER_FN = {
     thunder = Thunder,
     sand = Gust,
 }
-local BUBBLES = Sprinkle("underwater", 0.9, 2.2, 0.03, 0.05, 0.3)
+-- (under water: a bubble every 0.45-1.1 s, very faint, holding still; every
+-- 0.3-0.8 s and a little stronger, swimming)
+local BUBBLES = Sprinkle("underwater", 0.45, 1.1, 0.03, 0.05, 0.3)
 L.WEATHER_KEYS = { "rain", "thunder", "snow", "sand", "embers" }
 
 -- Ten times a second: falling, water, mount, taxi, moving, low health
@@ -1715,6 +1722,7 @@ local function Poll()
     live.speed = speed
     live.mounted = mounted
     live.moving = speed > 0 and not falling and not swimming and not flying and not taxi
+    live.swimming = swimming and speed > 0
     L.water = L.WaterState()
     live.wading = L.water.wading
     L.StepMarkers(now, live.moving and not mounted, speed)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.67.1 — 2026-11-20
+
+- Underwater: the bubbles closer (every 0.45-1.1 s, was 1.2-2.9), still very faint holding still; swimming, closer again (0.3-0.8 s) and a little stronger
+
 ## 0.67.0 — 2026-11-20
 
 - **Fall damage**, a new moment (Moving, under Landing). A landing that hurts now plays one cue, not two: the hardest landing, a bit heavier (the thud a quarter longer, an echo more), in place of the landing and of Hit taken
