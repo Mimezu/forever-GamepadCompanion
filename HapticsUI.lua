@@ -313,7 +313,9 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
             local ok, v = pcall(lv.get)
             if ok and v then r.level.label:SetText((lv.format or tostring)(v)) end
         end
-        if opts.pg then opts.pg.refresh[#opts.pg.refresh + 1] = Show end
+        -- (opts.lazy: the page refreshes it with the row, r.ShowLevel, not on every refresh)
+        r.ShowLevel = Show
+        if opts.pg and not opts.lazy then opts.pg.refresh[#opts.pg.refresh + 1] = Show end
         Show()
         S.Tooltip(r.level, "Volume")
         x = x - 6

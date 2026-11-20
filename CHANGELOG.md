@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (0.69.3)
+
+- Moments opens lighter: a moment's volume chip refreshes with its row, only on screen (it ran for all ~200 rows on every refresh)
+- **/gpc perf**: Moments timing, step by step, in chat (on / off)
+
 ## 0.69.2 — 2026-11-20
 
 - **Fishing leaves R2's settings alone.** R2 casts and catches through an override binding on R2 itself, which fires while R2 is also the gamepad's Ctrl (checked in game), so R2's modifier (GamePadEmulateCtrl) is no longer switched off while a pole is in hand, and Blizzard's R2 bar keeps paging. A record left by 0.68.0-0.69.1 puts R2 back once at login, then is cleared

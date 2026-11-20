@@ -707,7 +707,7 @@ local function MakeRow(parent, y, width, kind, key)
         editTip = "In WoW Helper (else Lab)",
         defaultTip = "Recommended",
         level = I.level and I.level(key) or nil,
-        pg = pg,
+        pg = pg, lazy = true,
         marks = 3,
     })
     row.kind, row.key = kind, key
@@ -1950,7 +1950,7 @@ local function BuildSpells(panel, cw)
         row:Hide()
         sp.rows[i] = row
     end
-    pg.refresh[#pg.refresh + 1] = function()
+    ui.spellsRefresh = function()
         local kind = ui.kind
         if sp.card:IsVisible() or #sp.lines == 0 then
             ReadBook()
@@ -2007,6 +2007,7 @@ local function BuildSpells(panel, cw)
         local btn = ui.browser and ui.browser.buttons.spells
         if btn and btn.count then btn.count:SetText(all > 0 and (on .. "/" .. all) or "") end
     end
+    pg.refresh[#pg.refresh + 1] = ui.spellsRefresh
 end
 
 ---------------------------------------------------------------------------
@@ -2358,13 +2359,45 @@ local function Build(frame, header)
 
 end
 
+-- /gpc perf: how long opening Moments takes, step by step, in chat (ms; off by default)
+local perf
+local function Now() return debugprofilestop and debugprofilestop() or 0 end
+local PERF_ORDER = { "open", "tab", "build", "refresh", "head", "rows", "states", "trig", "groups",
+    "panels", "spells", "reflow", "tail", "stale" }
+local function Note(step, ms, n)
+    if not perf then return end
+    perf[step] = (perf[step] or 0) + ms
+    if n then perf[step .. "#"] = (perf[step .. "#"] or 0) + n end
+    if perf.armed then return end
+    perf.armed = true
+    -- (once the frame is done: everything one open ran)
+    C_Timer.After(0, function()
+        local p, out = perf, {}
+        if not p then return end
+        perf = { slow = {} }
+        for _, k in ipairs(PERF_ORDER) do
+            if p[k] then out[#out + 1] = string.format("%s %.1f", k, p[k]) .. (p[k .. "#"] and ("/" .. p[k .. "#"]) or "") end
+        end
+        table.sort(p.slow, function(a, b) return a[2] > b[2] end)
+        for i = 1, math.min(3, #p.slow) do out[#out + 1] = string.format("p%d %.1f", p.slow[i][1], p.slow[i][2]) end
+        print("|cff80c0ffMoments ms:|r " .. table.concat(out, " · "))
+    end)
+end
+ui.Note = Note
+function ui.TogglePerf()
+    perf = not perf and { slow = {} } or nil
+    print("|cff80c0ffMoments timing:|r " .. (perf and "on · open Moments" or "off"))
+end
+
 -- One row: its choice, marks, proposal, When chip and full feel. Hidden rows
 -- wait (stale) and refresh as they show: a page holds ~200 rows, a group ~12.
 -- The rows that waited, now on screen
 function ui.RefreshStale()
+    local t, n = perf and Now(), 0
     for _, row in ipairs(ui.rows or {}) do
-        if row.stale and row:IsVisible() then RefreshRow(row) end
+        if row.stale and row:IsVisible() then RefreshRow(row); n = n + 1 end
     end
+    if t and n > 0 then Note("stale", Now() - t, n) end
 end
 RefreshRow = function(row)
     row.stale = nil
@@ -2376,6 +2409,7 @@ RefreshRow = function(row)
     local I = ITEM[row.kind]
     local name, icon, sub, off, rgb = I.show(row.key)
     row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
+    if row.ShowLevel then row.ShowLevel() end
     -- (nothing plays: no volume, no Try)
     if row.level then row.level:SetShown(not off) end
     if row.try then row.try:SetShown(not off) end
@@ -2422,6 +2456,15 @@ end
 
 Refresh = function()
     if not ui.enable then return end
+    local t0 = perf and Now()
+    local t = t0
+    -- (the probe: the time since the last step, under its name)
+    local function Step(name, n)
+        if not t0 then return end
+        local at = Now()
+        Note(name, at - t, n)
+        t = at
+    end
     local kind = ui.kind
     local s = V.Settings()
     local other = V.Other()
@@ -2446,12 +2489,17 @@ Refresh = function()
         ui.soundOff:SetShown(blocked)
         if ui.browser and ui.browser.panelsFrame then ui.browser.panelsFrame:SetShown(not blocked) end
     end
+    Step("head")
     -- (only the rows on screen: the rest when they show, RefreshRow)
+    local n = 0
     for _, row in ipairs(ui.rows) do
-        if row:IsVisible() then RefreshRow(row) else row.stale = true end
+        if row:IsVisible() then RefreshRow(row); n = n + 1 else row.stale = true end
     end
+    Step("rows", n)
     if ui.states then ui.RefreshStates(kind) end
+    Step("states")
     if ui.trigStack then ui.RefreshTriggerStack(kind) end
+    Step("trig")
     for _, g in ipairs(GROUPS) do
         for k, card in pairs(ui.cards[g.key]) do card:SetShown(k == kind) end
         local items = Items(kind, g.key)
@@ -2487,8 +2535,19 @@ Refresh = function()
         end
         btn.changed = changed
     end
-    for _, fn in ipairs(pg.refresh) do fn() end
+    Step("groups")
+    local last = t
+    for i, fn in ipairs(pg.refresh) do
+        fn()
+        if t0 then
+            local at = Now()
+            if fn == ui.spellsRefresh then Note("spells", at - last) else perf.slow[#perf.slow + 1] = { i, at - last } end
+            last = at
+        end
+    end
+    Step("panels", #pg.refresh)
     ui.Reflow()
+    Step("reflow")
     -- (a newer change: an Undo for an older one goes)
     if Shell.CheckOffer then Shell.CheckOffer() end
     if kind == "feel" then
@@ -2496,6 +2555,8 @@ Refresh = function()
     else
         Shell.SetStatus(enabled and "" or (kind == "light" and "Light bar off" or kind == "trigger" and "Triggers off" or "Sounds off"))
     end
+    Step("tail")
+    if t0 then Note("refresh", Now() - t0, 1) end
 end
 -- The group list from the buttons shown, top down, as tight as it must be to stay above the
 -- footer (U2-6: 13 buttons ran 18 px into it; Triggers' view kept gaps)
@@ -2522,14 +2583,31 @@ ns.RumblePage = ui
 
 Shell.AddPage({
     key = "moments", name = "Moments", order = 2, aliases = { "rumble" }, icon = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_mod_vibration",
-    build = Build, refresh = function() Refresh() end,
+    build = function(...)
+        local t = perf and Now()
+        Build(...)
+        if t then Note("build", Now() - t) end
+    end,
+    refresh = function() Refresh() end,
     hide = function()
         V.StopSimulation()
         HUI.HidePopup()
     end,
 })
 
+-- (the probe: the whole open, and the tab's own part)
+for _, name in ipairs({ "Open", "Select" }) do
+    local fn = Shell[name]
+    Shell[name] = function(key, ...)
+        if not perf then return fn(key, ...) end
+        local t = Now()
+        fn(key, ...)
+        Note(name == "Open" and "open" or "tab", Now() - t)
+    end
+end
+
 function API.OpenRumble() Shell.Open("moments"); ui.SetKind("feel") end
+function API.MomentsPerf() ui.TogglePerf() end
 -- /gpc light: Moments on a kind
 function API.OpenMoments(kind)
     Shell.Open("moments")

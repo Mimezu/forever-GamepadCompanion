@@ -750,6 +750,7 @@ local commandHelp = {
     "/gpc gestures | setup  their tab",
     "/gpc lab  tuning and probes",
     "/gpc debug  why it vibrates",
+    "/gpc perf  Moments timing",
     "/gpc nav  bag cursor log",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
@@ -781,6 +782,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "nav" and ns.BagGrid then
         ns.BagGrid.Report(rest:lower() == "clear")
+        return
+    end
+    if command == "perf" and API.MomentsPerf then
+        API.MomentsPerf()
         return
     end
     if command == "debug" and API.ToggleHapticsDebug then
