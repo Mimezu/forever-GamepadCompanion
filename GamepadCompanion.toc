@@ -32,6 +32,7 @@ Stack.lua
 LightPresets.lua
 Lights.lua
 HelperCues.lua
+Hunter.lua
 FullFeel.lua
 TriggerStack.lua
 HapticsDebug.lua

@@ -206,6 +206,34 @@ V.PATTERNS = {
         steps = { { 0.2, 0.2, 0.12 }, { 0.4, 0.4, 0.15 }, { 0.2, 0.2, 0.12 } } },
     { key = "hex", label = "Hex", action = true, move = true,         -- a curse, a poison, a mark: something creeping in
         steps = { { 0.3, 0.05, 0.12 }, { 0.1, 0, 0.12 }, { 0.25, 0.05, 0.12 }, { 0.05, 0, 0.12 } } },
+    -- A hunter's own (Hunter.lua; tests/Hunter.lua lists what each spell plays)
+    { key = "volley", label = "Volley", art = "string", action = true,      -- arrows raining down around the target: small, spread, never one blow
+        steps = { { 0.2, 0, 0.1 }, { 0, 0.15, 0.1 }, { 0.1, 0.25, 0.1 }, { 0, 0, 0.1 }, { 0.25, 0.1, 0.1 }, { 0, 0.2, 0.1 },
+            { 0, 0, 0.2 } } },
+    { key = "multi", label = "Multi-Shot", art = "string", action = true, move = true,  -- after the shot: two more arrows fanning out
+        steps = { { 0.35, 0, 0.1 }, { 0, 0.35, 0.1 } } },
+    { key = "sting", label = "Sting", art = "hex", action = true, move = true,      -- after the shot: venom creeping in, faint
+        steps = { { 0.12, 0.04, 0.12 }, { 0, 0, 0.15 }, { 0.08, 0.02, 0.12 } } },
+    { key = "daze", label = "Daze", art = "bash", action = true, move = true,        -- after the shot: a dull knock, the legs going
+        steps = { { 0.5, 0.2, 0.12 }, { 0.12, 0.06, 0.15 }, { 0.06, 0.12, 0.15 } } },
+    { key = "trap", label = "Trap set", art = "latch", action = true, move = true,    -- a trap laid down: a soft set-down, the spring cocked
+        steps = { { 0.3, 0.15, 0.12 }, { 0, 0, 0.12 }, { 0.05, 0.2, 0.1 } } },
+    { key = "aspect", label = "Aspect", art = "seal", action = true, move = true,    -- a change of stance: a breath in, settling
+        steps = { { 0.08, 0.08, 0.15 }, { 0.2, 0.2, 0.2 }, { 0.08, 0.08, 0.15 } } },
+    { key = "feign", label = "Feign Death", art = "fade", action = true, move = true, -- a body dropping: the knees go, the thump, stillness
+        steps = { { 0.15, 0.1, 0.12 }, { 0.75, 0.5, 0.2 }, { 0, 0, 0.2 }, { 0.08, 0.04, 0.12 } } },
+    { key = "leap", label = "Disengage", art = "charge", action = true, move = true,   -- a leap back: the push, the air, a light landing
+        steps = { { 0.7, 0.5, 0.12 }, { 0, 0, 0.25 }, { 0.2, 0.25, 0.1 } } },
+    { key = "roar", label = "Roar", art = "shadow", action = true, move = true,        -- your pet's fury: a low growl swelling (the pet's: faint)
+        steps = { { 0.15, 0.02, 0.15 }, { 0.3, 0.06, 0.2 }, { 0.15, 0.03, 0.15 } } },
+    { key = "petMend", label = "Mend Pet", art = "mend", action = true,              -- healing your pet: soft slow pulses, fainter than your own
+        steps = { { 0.15, 0.15, 0.15 }, { 0.05, 0.05, 0.15 }, { 0, 0, 0.5 } } },
+    { key = "tame", label = "Taming", art = "draw", action = true,                   -- a wild beast held: a steady pull, the beast fighting it now and then
+        steps = { { 0.15, 0.1, 0.4 }, { 0.4, 0.15, 0.1 }, { 0.15, 0.1, 0.3 }, { 0.1, 0.35, 0.1 }, { 0.15, 0.1, 0.4 } } },
+    { key = "updraft", label = "Updraft", art = "rise", action = true, move = true,  -- Walk on Air (Skyborne): wind gathering under you, lifting
+        steps = { { 0.08, 0.08, 0.15 }, { 0.2, 0.2, 0.15 }, { 0.35, 0.35, 0.2 }, { 0.1, 0.1, 0.2 } } },
+    { key = "sky", label = "Skyward", art = "shimmer", action = true,                   -- a far look (Eyes of the Beast, Skysight): a faint breath of air
+        steps = { { 0.05, 0.05, 0.3 }, { 0.1, 0.1, 0.3 }, { 0, 0, 0.4 } } },
 }
 
 -- Swings, by melee weapon (Auto attack's "Match the weapon"): a quick
@@ -387,6 +415,23 @@ local PULSES = {
     judge = { Pu(0, 0.05, 0.15), Pu(0.1, 0.25, 1), Pu(0.42, 0.05, 0.15) },
     ward = { Pu(0, 0.05, 0.1), Pu(0.12, 0.3, 0.4) },
     hex = { Pu(0, 0.05, 0.08, -0.5), Pu(0.2, 0.05, 0.06, -0.5), Pu(0.4, 0.05, 0.1, -0.5), Pu(0.6, 0.05, 0.05, -0.5) },
+    -- A hunter's own. (Volley: a pass of the rain, one second like its waves: micro taps scattered
+    -- over both hands, one a little firmer as each wave lands)
+    volley = { cycle = 1, Pu(0, 0.05, 0.16, -0.3), Pu(0.08, 0.05, 0.07, 0.7), Pu(0.17, 0.05, 0.1, -0.8),
+        Pu(0.27, 0.05, 0.06, 0.2), Pu(0.38, 0.05, 0.09, 0.9), Pu(0.5, 0.05, 0.05, -0.5), Pu(0.61, 0.05, 0.08, 0.4),
+        Pu(0.74, 0.05, 0.05, -0.9), Pu(0.86, 0.05, 0.06, 0.6) },
+    multi = { Pu(0, 0.05, 0.18, -0.8), Pu(0.07, 0.05, 0.18, 0.8) },
+    sting = { Pu(0, 0.05, 0.06, -0.4), Pu(0.25, 0.05, 0.04, -0.4) },
+    daze = { Pu(0, 0.12, 0.45, -0.2), Pu(0.2, 0.05, 0.1, 0.5), Pu(0.36, 0.05, 0.06, -0.5) },
+    trap = { Pu(0, 0.1, 0.25), Pu(0.22, 0.05, 0.12, 0.4) },
+    aspect = { Pu(0, 0.05, 0.05), Pu(0.14, 0.05, 0.1), Pu(0.3, 0.15, 0.2) },
+    feign = { Pu(0, 0.05, 0.1), Pu(0.12, 0.22, 0.7, -0.2), Pu(0.5, 0.05, 0.05, -0.2) },
+    leap = { Pu(0, 0.12, 0.6), Pu(0.45, 0.05, 0.18) },
+    roar = { Pu(0, 0.05, 0.06, 0.6), Pu(0.12, 0.2, 0.22, 0.6), Pu(0.4, 0.05, 0.06, 0.6) },
+    petMend = { cycle = 1.2, Pu(0, 0.08, 0.12, 0.5), Pu(0.5, 0.05, 0.04, 0.5) },
+    tame = { cycle = 1.6, Pu(0, 0.2, 0.1), Pu(0.55, 0.05, 0.25, -0.6), Pu(0.66, 0.05, 0.12, -0.6), Pu(1.1, 0.05, 0.2, 0.6) },
+    updraft = { Pu(0, 0.05, 0.05, -0.5), Pu(0.1, 0.05, 0.08, 0.5), Pu(0.2, 0.05, 0.12, -0.3), Pu(0.32, 0.2, 0.3) },
+    sky = { cycle = 1.5, Pu(0, 0.05, 0.04, -0.5), Pu(0.5, 0.05, 0.05, 0.5) },
     -- Swings: quick and faint for light weapons, long for heavy ones
     swDagger = { Pu(0, 0.05, 0.07) },
     swFist = { Pu(0, 0.05, 0.1) },
@@ -536,7 +581,14 @@ V.CAST_ACTIONS = {
         spells = { 2050, 2054, 2060, 2061, 596, 5185, 8936, 740, 331, 8004, 1064, 635, 19750 } },
     { key = "nature", label = "Nature", kind = "spell", pattern = "static",
         spells = { 403, 421, 5176, 339, 16914, 2637, 6795 } },
-    { key = "shots", label = "Shots", kind = "spell", pattern = "draw", spells = { 19434, 1510, 2643 } },
+    -- (Aimed Shot, Sniper Shot: the string drawn; Volley its own rain)
+    { key = "shots", label = "Shots", kind = "spell", pattern = "draw", spells = { 19434, 1310687, 2643 } },
+    { key = "volley", label = "Volley", kind = "spell", pattern = "volley", spells = { 1510 } },
+    -- (your pet's care, felt fainter than your own: Mend Pet, Dismiss Pet; Tame Beast, Scare Beast)
+    { key = "petCare", label = "Pet care", kind = "spell", pattern = "petMend", spells = { 136, 2641 } },
+    { key = "tame", label = "Taming", kind = "spell", pattern = "tame", spells = { 1515, 1513 } },
+    -- (a far look: Eyes of the Beast, Eagle Eye; Skysight, Read Leyline, the Skyborne's)
+    { key = "farsight", label = "Far sight", kind = "spell", pattern = "sky", spells = { 1002, 6197, 1259686, 1259705 } },
     { key = "travel", label = "Hearthstone", kind = "spell", pattern = "hearth",
         spells = { 8690, 556, 3561, 3562, 3563, 3565, 3566, 3567, 10059, 11416, 11417, 11418, 11419, 11420 } },
     { key = "summon", label = "Summoning", kind = "spell", pattern = "ritual",
@@ -1873,6 +1925,9 @@ local function UnitCombat(unit, action, flag, _, school)
         if result == "hit" and not secret(flag) and flag == "CRITICAL" then result = "crit" end
         return V.SwingLanded(nil, false, result)
     end
+    -- (your pet's blow: its own feel, faint (Hunter.lua), never your crit)
+    local HN = ns.Hunter
+    if unit == "target" and HN and HN.ClaimsResult and HN.ClaimsResult(action, flag, school) then return end
     -- (no one's claim: a proc of yours, by its mixed school)
     if unit == "target" and action == "WOUND" then
         local can = UnitCanAttack and UnitCanAttack("player", "target")
@@ -1940,6 +1995,7 @@ local CHANNEL_TICKS = {
 local SHOT_IDS = {
     75, 5019, 3018, 2480, 7918, 7919, 2764,
     2643, 5116, 1978, 3043, 3034, 19386, 19503, 20736, 19801,
+    3674,   -- Black Arrow (an arrow loosed, its shadow creeping in after: Hunter.lua's tail)
 }
 -- Eating and drinking: the buffs of sitting with food or a drink (each
 -- also the spell the item casts). Most are Food or Drink; a few have their
@@ -2185,8 +2241,11 @@ local function CastStarted(event, _, guid, spellID)
     local start, finish = CastTimes(channel)
     cast.channelEnd = channel and finish or nil
     local kinds = V.SpellKinds(spellID)
+    cast.spellID = not secret(spellID) and spellID or nil
+    -- (Volley: its own rain, never a strong pulse per tick)
     cast.timing = start and { start = start, finish = finish, channel = channel,
-        interval = channel and (ChannelTicks(spellID) or (kinds and kinds.h and kinds.tick)) or nil } or nil
+        interval = channel and V.castAction ~= "volley" and (ChannelTicks(spellID) or (kinds and kinds.h and kinds.tick))
+            or nil } or nil
     -- (gathering: its marker first; WoW Helper timing the strikes: no HD from here)
     local timed = false
     if V.castKind == "gather" and V.GATHER_MARKERS[V.castAction] then
@@ -2224,6 +2283,10 @@ local function CastReleased()
     if cast.ended then return end
     cast.ended = true
     if cast.off then return end
+    -- (a hunter's: an aimed shot looses its arrow, felt as it lands; a pet's cast, a far look:
+    -- quiet, the pet's own moment says the rest. Hunter.lua)
+    local HN = ns.Hunter
+    if V.castKind == "spell" and HN and HN.CastReleased and HN.CastReleased(V.castAction, cast.spellID) then return end
     -- (a damaging spell, its family's set: felt as it lands)
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
         and V.CastImpactWindow(V.castAction, cast.gain) then return end
@@ -2471,13 +2534,20 @@ function V.SpellRule(spellID, castTime)
         r.moment, r.when, r.why, linked = "autoAttack", "hit", "Auto attack: each swing as it lands", true
     elseif IsShot(spellID) then
         r.moment, r.when, r.why, linked = "shot", "cast", "A shot: as it leaves", true
+        -- (a hunter's shot with a tail after it: Multi-Shot's other arrows, a sting's venom)
+        local HN = ns.Hunter
+        r.tail = HN and HN.TailOf and HN.TailOf(name) or nil
+        if r.tail then r.why = "A shot, then " .. (PATTERN[r.tail] and PATTERN[r.tail].label or r.tail) end
     elseif RestOf(spellID) then
         r.moment, r.when, linked = RestOf(spellID) == "drink" and "drink" or "eat", "channel", true
         r.why = "Food or drink: with each bite or sip"
     end
     if not linked then
         local ct = castTime or CastTimeOf(spellID) or 0
-        local channel = ChannelTicks(spellID) ~= nil
+        -- (a channel the client calls instant, asked with no cast going: Mend Pet, Tame Beast,
+        -- Eagle Eye: Hunter.lua's list)
+        local HNC = ns.Hunter
+        local channel = ChannelTicks(spellID) ~= nil or (castTime == nil and HNC and HNC.IsChannel and HNC.IsChannel(name))
         if ct > 0 or channel then
             local kind, action = CastKind(spellID)
             if kind == "gather" or kind == "craft" then
@@ -2510,8 +2580,16 @@ function V.SpellRule(spellID, castTime)
             -- (curses, poisons, marks: routine debuffs, quiet)
             if nohit == nil and move == "hex" then nohit = false end
             local summon = SummonOf(name, kinds)
+            -- (a hunter's or a Skyborne's own: Hunter.lua)
+            local HN = ns.Hunter
+            local own = HN and HN.Rule and HN.Rule(name)
             r.moment = "instant"
-            if NextSwing(spellID) then
+            if own then
+                r.move, r.when, r.why = own.move, own.when, own.why
+                if own.ranged then r.how = { ranged = true } end
+                if own.magic then r.magicOnly = true end
+                if not own.move then r.moment, r.when = "quiet", "none" end
+            elseif NextSwing(spellID) then
                 r.move, r.when, r.next = move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
             elseif summon then
@@ -2644,6 +2722,26 @@ function V.GatherNode(action, name)
     return K.Marker({ moment = 109, seed = n, side = 0, level = 0 })
 end
 
+-- A shot loosed (an instant shot, Auto Shot, an aimed shot's release): Shooting at its impact,
+-- timed as WoW Helper learned it; a hunter's shot its tail after it (Hunter.lua: Multi-Shot's
+-- other arrows, a sting's venom, Concussive Shot's daze)
+function V.ShotLoosed(spellID)
+    ranged.shot = GetTime()
+    if V.HitSyncEvent then V.HitSyncEvent("ranged", "ranged", ranged.shot) end
+    local d = V.ImpactDelay("ranged", "ranged")
+    local timed = V.SwingMarker("ranged", "ranged", "hit", d)
+    return AtImpact(d, function()
+        V.why1, V.why2, V.why3 = "shot", "ranged", d
+        V.cueTimed = timed or nil
+        V.Fire("shot")
+        V.cueTimed, V.why1 = nil, nil
+        local HN = ns.Hunter
+        if HN and HN.ShotTail then HN.ShotTail(spellID) end
+    end)
+end
+-- When the last shot left (GetTime seconds): its result on the target is the shot's, not a pet's
+function V.LastShot() return ranged.shot end
+
 local CAST_HANDLERS = {
     -- (the cast's target as sent: a node's name, for gathering)
     UNIT_SPELLCAST_SENT = function(_, _, target)
@@ -2694,18 +2792,7 @@ local CAST_HANDLERS = {
             return
         end
         if secret(spellID) or spellID ~= ATTACK then swing.ability = GetTime() end
-        if IsShot(spellID) then
-            ranged.shot = GetTime()
-            if V.HitSyncEvent then V.HitSyncEvent("ranged", "ranged", ranged.shot) end
-            local d = V.ImpactDelay("ranged", "ranged")
-            local timed = V.SwingMarker("ranged", "ranged", "hit", d)
-            return AtImpact(d, function()
-                V.why1, V.why2, V.why3 = "shot", "ranged", d
-                V.cueTimed = timed or nil
-                V.Fire("shot")
-                V.cueTimed, V.why1 = nil, nil
-            end)
-        end
+        if IsShot(spellID) then return V.ShotLoosed(spellID) end
         -- The cast in progress, done
         if cast.timing and not cast.timing.channel and not cast.ended and SameCast(guid) then
             return CastReleased()

@@ -71,7 +71,11 @@ for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
 -- Moments on the Rumble tab with no number (their cue goes as 0, its touch and sound as sent):
 -- 95 is the last number, 96-127 are WoW Helper's markers
 -- (Emote voices: its voice goes on WoW Helper's marker 99, HelperLink K.EmoteVoice)
-C.UNNUMBERED = { fishNibble = true, emoteVoice = true }
+C.UNNUMBERED = { fishNibble = true, emoteVoice = true,
+    -- (a hunter's: Hunter.lua)
+    trapArmed = true, trapSprung = true, dazed = true, petArrive = true, petDismiss = true, petTamed = true,
+    petAttack = true, petCommand = true, petCrit = true, petHurt = true, petDeath = true, petFeed = true,
+    petHappy = true, petUnhappy = true }
 -- Light-only moments: no cue goes with their number (no sound row for them). A cast's cue goes
 -- as its kind's moment (Spell casting, Gathering, Crafting: 22-24), not as "cast" (72)
 C.LIGHT_ONLY = { critTaken = true, avoid = true, combat = true, cast = true, halo = true }

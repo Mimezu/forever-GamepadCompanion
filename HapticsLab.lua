@@ -199,6 +199,38 @@ local LIB = {
         P(0.31, 0.05, 0.11, 0.7), P(0.45, 0.05, 0.1, 0.7), P(0.56, 0.05, 0.1, 0.7), P(0.69, 0.05, 0.09, 0.7),
         P(0.89, 0.05, 0.09, 0.7), P(1.04, 0.05, 0.08, 0.7), P(1.28, 0.05, 0.08, 0.7), P(1.49, 0.05, 0.07, 0.7),
         P(1.67, 0.12, 0.35, 0.2) }) },
+    -- A hunter's pet (Hunter.lua): beside you, on the right; fainter than your own, it's the pet's
+    -- (Call Pet: a soft two-note whistle, then paws padding in, a settle at your side)
+    { "pawsIn", "Paws in", "Life", "charge", Pulses({ P(0, 0.05, 0.05, 0.6), P(0.1, 0.05, 0.08, 0.7), P(0.45, 0.05, 0.06, -0.2),
+        P(0.6, 0.05, 0.08, 0.4), P(0.74, 0.05, 0.1, 0), P(0.87, 0.05, 0.12, 0.6), P(1.04, 0.15, 0.18, 0.5) }) },
+    -- (Dismiss Pet: paws going off, fainter and slower)
+    { "pawsOut", "Paws away", "Life", "fade", Pulses({ P(0, 0.05, 0.12, 0.5), P(0.16, 0.05, 0.09, 0.1), P(0.34, 0.05, 0.07, 0.6),
+        P(0.56, 0.05, 0.05, 0.2), P(0.82, 0.05, 0.03, 0.7) }) },
+    -- (your pet dies: one soft low sag, then a breath, then a fainter one: sad, never a blow)
+    { "petFall", "Pet falls", "Life", "fade", Pulses({ P(0, 0.3, 0.26, 0.4), P(0.6, 0.05, 0.06, 0.4), P(1.05, 0.05, 0.03, 0.4) }) },
+    -- (your pet's crit: a tiny double nip, its teeth, not your weapon)
+    { "nip", "Nip", "Combat", "stab", Pulses({ P(0, 0.05, 0.14, 0.6), P(0.08, 0.05, 0.08, 0.6) }) },
+    -- (your pet takes a heavy blow: one faint dull nudge)
+    { "bruise", "Bruise", "Combat", "bash", Pulses({ P(0, 0.1, 0.13, 0.5) }) },
+    -- (happier: a tail wagging, side to side, a little brighter each time)
+    { "wag", "Wag", "Life", "double", Pulses({ P(0, 0.05, 0.08, 0.2), P(0.11, 0.05, 0.09, 0.8), P(0.22, 0.05, 0.11, 0.2),
+        P(0.33, 0.05, 0.13, 0.8) }) },
+    -- (less happy: a slow low sag, faint)
+    { "sulk", "Sulk", "Life", "fade", Pulses({ P(0, 0.2, 0.09, 0.5), P(0.42, 0.05, 0.04, 0.5) }) },
+    -- (your pet eating at your side: two or three chomps, a pause)
+    { "crunch", "Crunch", "Life", "chew", Pulses({ P(0, 0.06, 0.09, 0.7), P(0.18, 0.05, 0.05, 0.7), P(0.4, 0.05, 0.07, 0.7) }) },
+    -- (a command: attack two quick taps forward, follow or stay one faint tap)
+    { "sic", "Sic", "Signals", "charge", Pulses({ P(0, 0.05, 0.08, -0.3), P(0.08, 0.05, 0.14, 0.5) }) },
+    { "heel", "Heel", "Signals", "micro", Pulses({ P(0, 0.05, 0.07, 0.4) }) },
+    -- (tamed: a warm swell, then the tail wagging)
+    { "bond", "Bond", "Life", "rise", Pulses({ P(0, 0.05, 0.06), P(0.18, 0.05, 0.1), P(0.34, 0.3, 0.35), P(0.8, 0.05, 0.1, 0.2),
+        P(0.91, 0.05, 0.11, 0.8) }) },
+    -- Traps: armed, a tiny spring catching; sprung, the jaws shut
+    { "spring", "Spring", "Taps", "click", Pulses({ P(0, 0.05, 0.11, 0.2), P(0.07, 0.05, 0.04, 0.2) }) },
+    { "jaws", "Jaws", "Impacts", "latch", Pulses({ P(0, 0.08, 0.75), P(0.14, 0.05, 0.18), P(0.26, 0.05, 0.07) }) },
+    -- (dazed, running in Cheetah: the ground tilting, side to side)
+    { "wobble", "Wobble", "Impacts", "whirl", Pulses({ P(0, 0.1, 0.35, -0.5), P(0.25, 0.05, 0.12, 0.6), P(0.45, 0.05, 0.1, -0.6),
+        P(0.65, 0.05, 0.06, 0.5) }) },
     -- Extremes: the limits
     { "max", "Full both", "Extremes", "impact", Pulses({ P(0, 0.5, 1) }) },
     { "maxL", "Full left", "Extremes", "bash", Pulses({ P(0, 0.5, 1, -1) }) },
@@ -710,7 +742,7 @@ end)
 ---------------------------------------------------------------------------
 local ART = "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_"
 -- (groups shared with Rumble's own events on the Rumble tab)
-L.EVENT_GROUPS = { "Attacks", "Defense", "Abilities", "Moving", "Care", "Weather", "Progress", "Social" }
+L.EVENT_GROUPS = { "Attacks", "Defense", "Abilities", "Pet", "Moving", "Care", "Weather", "Progress", "Social" }
 L.EVENTS = {
     -- Attacks: your blows (Rumble adds swings, crits, shots)
     { key = "hit", icon = ART .. "vibe_stab", group = "Attacks", label = "Hit", feel = "strike", on = true,
@@ -751,6 +783,25 @@ L.EVENTS = {
         tip = "WoW Helper hears the bite. Then R2 reels it in" },
     { key = "fishCatch", icon = ART .. "vibe_gears", group = "Abilities", label = "Catch", feel = "reelIn", on = true,
         tip = "The fish comes in" },
+    -- A hunter's traps and Cheetah's daze (Hunter.lua)
+    { key = "trapArmed", icon = ART .. "vibe_click", group = "Abilities", label = "Trap armed", feel = "spring", on = true },
+    { key = "trapSprung", icon = ART .. "vibe_latch", group = "Abilities", label = "Trap sprung", feel = "jaws", on = true },
+    { key = "dazed", icon = ART .. "vibe_whirl", group = "Abilities", label = "Dazed", feel = "wobble", on = true,
+        tip = "In Cheetah or Pack" },
+    -- Your pet (Hunter.lua): fainter than your own
+    { key = "petArrive", icon = ART .. "vibe_charge", group = "Pet", label = "Pet arrives", feel = "pawsIn", on = true },
+    { key = "petDismiss", icon = ART .. "vibe_fade", group = "Pet", label = "Pet leaves", feel = "pawsOut", on = true },
+    { key = "petTamed", icon = ART .. "vibe_rise", group = "Pet", label = "Beast tamed", feel = "bond", on = true },
+    { key = "petAttack", icon = ART .. "vibe_charge", group = "Pet", label = "Pet attacks", feel = "sic", on = true },
+    { key = "petCommand", icon = ART .. "vibe_micro", group = "Pet", label = "Follow, stay", feel = "heel", on = true },
+    -- (the pet's blows and the blows on it: off for every class with a pet, too much noise in a fight)
+    { key = "petCrit", icon = ART .. "vibe_stab", group = "Pet", label = "Pet crit", feel = "nip", on = false },
+    { key = "petHurt", icon = ART .. "vibe_bash", group = "Pet", label = "Pet hurt", feel = "bruise", on = false,
+        tip = "A heavy blow" },
+    { key = "petDeath", icon = ART .. "vibe_shadow", group = "Pet", label = "Pet dies", feel = "petFall", on = true },
+    { key = "petFeed", icon = ART .. "vibe_chew", group = "Pet", label = "Pet eats", feel = "crunch", on = true },
+    { key = "petHappy", icon = ART .. "vibe_double", group = "Pet", label = "Happier", feel = "wag", on = true },
+    { key = "petUnhappy", icon = ART .. "vibe_fade", group = "Pet", label = "Less happy", feel = "sulk", on = true },
     -- Moving
     { key = "landing", icon = ART .. "vibe_slam", group = "Moving", label = "Landing", feel = "thud", on = true, scaled = true,
         tip = "Softer or harder by the time in the air" },
@@ -1045,7 +1096,8 @@ function L.StepCal(band)
     if own then return own end
     local d = _G.WowHelperData
     if learnedFrom ~= d then learnedCal, learnedFrom = {}, d end
-    local key = m .. "|" .. band
+    -- (WoW Helper's key: the race the markers carry, Timing.HelperModel; a Skyborne's is 15)
+    local key = (ns.Timing and ns.Timing.HelperModel and ns.Timing.HelperModel() or m) .. "|" .. band
     if learnedCal[key] == nil then
         local l = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming[key]
         if type(l) == "table" and tonumber(l.rate) and tonumber(l.speed) then
@@ -1391,6 +1443,9 @@ handlers.UNIT_COMBAT = function(unit, action, flag, amount, school)
     -- (your own swing's or ability's result: Rumble plays it at the blow)
     local V = ns.Rumble
     if unit == "target" and V and V.ClaimsResult and V.ClaimsResult(action, school) then return end
+    -- (your pet's blow: Hunter.lua's, not your Miss or Target dodges)
+    local HN = ns.Hunter
+    if unit == "target" and HN and HN.ClaimsResult and HN.ClaimsResult(action, flag, school, true) then return end
     if unit == "player" then
         -- (a wound just after a fall that could hurt: the fall's, Fall damage plays)
         if action == "WOUND" and L.FallWound and L.FallWound() then return end
