@@ -83,7 +83,8 @@ function print() end
 function wipe(t) for k in pairs(t) do t[k] = nil end; return t end
 function hooksecurefunc() end
 C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
-function SecureHandlerWrapScript() end
+local wraps = {}   -- frame name -> the wrapped OnClick body
+function SecureHandlerWrapScript(frame, _, _, body) if frame.name then wraps[frame.name] = body end end
 function ClearOverrideBindings(owner) for k, b in pairs(overrides) do if b.owner == owner then overrides[k] = nil end end end
 function SetOverrideBindingClick(owner, _, key) overrides[key] = { owner = owner, action = "CLICK" } end
 function SetOverrideBinding(owner, _, key, action) overrides[key] = { owner = owner, action = action } end
@@ -478,7 +479,7 @@ check(not pui.tiles[2]:IsShown(), "another character's ring left out")
 pui.tiles[1].scripts.OnClick(pui.tiles[1])
 eq(Keys.Get("PADLSTICK", "base"), "halo:1", "L3 runs the ring")
 eq(GamepadCompanionCharDB.keys.PADLSTICK.base, "halo:1", "saved per character")
-eq(overrides.PADLSTICK and overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:k1", "L3 bound")
+eq(overrides.PADLSTICK and overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:p3", "L3 bound")
 eq(_G.GamepadCompanionKeys:GetAttribute("*macrotext-k1"), "/click HaloButton t1 LeftButton true", "ring macro")
 eq(ui.name.text, "Utility", "card shows the ring")
 check((ui.buttons.l3.text.text or ""):find("Utility", 1, true), "label on the art")
@@ -491,20 +492,21 @@ check(pui.textPane:IsShown(), "typed macro pane")
 pui.macro:SetText("/wave")
 pui.useMacro.scripts.OnClick(pui.useMacro)
 eq(Keys.Get("PADLSTICK", "lt"), "text:/wave", "L2 + L3 macro")
-eq(overrides["SHIFT-PADLSTICK"] and overrides["SHIFT-PADLSTICK"].action, "CLICK GamepadCompanionKeys:k2", "Shift = L2")
+eq(_G.GamepadCompanionKeys:GetAttribute("gpc-p3-lt"), "k2", "L2 + L3: on the same click, read at the press")
+eq(overrides["SHIFT-PADLSTICK"], nil, "no Shift binding (Forever's bar keeps L2)")
 -- Blizzard takes the key back: put back next frame
 overrides.PADLSTICK = { owner = UIParent, action = "TOGGLEAUTORUN" }
 for _, fn in ipairs(hooks.SetOverrideBinding or {}) do fn(UIParent, true, "PADLSTICK", "TOGGLEAUTORUN") end
 RunTimers()
-eq(overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:k1", "binding put back")
+eq(overrides.PADLSTICK.action, "CLICK GamepadCompanionKeys:p3", "binding put back")
 -- Clear, in combat it waits
 combat = true
 ui.clear.scripts.OnClick(ui.clear)
 eq(Keys.Get("PADLSTICK", "lt"), nil, "cleared")
-check(overrides["SHIFT-PADLSTICK"] ~= nil, "binding waits for combat to end")
+eq(_G.GamepadCompanionKeys:GetAttribute("gpc-p3-lt"), "k2", "the change waits for combat to end")
 combat = false
 Fire("PLAYER_REGEN_ENABLED")
-eq(overrides["SHIFT-PADLSTICK"], nil, "binding gone after combat")
+eq(_G.GamepadCompanionKeys:GetAttribute("gpc-p3-lt"), nil, "gone after combat")
 ui.layers.base.scripts.OnClick(ui.layers.base)
 ui.buttons.ps.scripts.OnClick(ui.buttons.ps)
 eq(ui.name.text, "Empty", "PS unbound")
@@ -517,20 +519,111 @@ eq(select(2, ns.SlotMacros.Ensure("bind:focus")), "Not on bar slots", "no bar sl
 check(Keys.Set("PADSYSTEM", "base", "bind:radial"), "PS: Radial")
 eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "OPENRADIAL", "PS bound to Blizzard's Radial")
 check(Keys.Set("PADSYSTEM", "base", "bind:focus"), "PS: Focus UI again")
--- L2 held (Forever's bar takes it: no Shift): the bare key runs the L2 action, then the base again
-check(Keys.Set("PADFORWARD", "lt", "bind:radial"), "L2 + Options: Radial")
-local held = ns.Model.Held
-ns.Model.Held = function(action) return action == "GAMEPADLEFTMOD" end
-eq(Keys.HeldLayer(), "lt", "L2 held")
-Keys.Apply(Keys.HeldLayer())
-eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "OPENRADIAL", "L2 held: Options runs its L2 action")
-eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "TOGGLEUIFOCUS", "a key with no L2 action keeps its base one")
-ns.Model.Held = function() return false end
-Keys.Apply(Keys.HeldLayer())
-eq(overrides.PADFORWARD, nil, "released: Options is Blizzard's again")
-check(Keys.Used("lt") and not Keys.Used("rt") and not Keys.Used("base"), "only a layer with an action rebinds (R2 empty: Blizzard's R2 bar untouched)")
-ns.Model.Held = held
-Keys.Set("PADFORWARD", "lt", nil)
+-- L2 / R2 on the small buttons: one static binding per key, the layer read at the press (the touchpad's way)
+local keySnippet = assert(loadstring("local self, button, down = ...\n" .. assert(wraps.GamepadCompanionKeys, "keys snippet wrapped")))
+setfenv(keySnippet, { GetGamePadState = function() return C_GamePad.GetDeviceMappedState() end })
+local kb = _G.GamepadCompanionKeys
+-- A press of key with L2 / R2 held (released before the button's own release
+-- with early): the macro that ran, as SecureActionButton_OnClick runs it
+local function PressKey(key, lt, rt, early)
+    local name = overrides[key] and overrides[key].action:match("^CLICK GamepadCompanionKeys:(%w+)$")
+    if not name then return nil end
+    pressed.PADLTRIGGER, pressed.PADRTRIGGER = lt or false, rt or false
+    local ran
+    for _, down in ipairs({ true, false }) do
+        if not down and early then pressed.PADLTRIGGER, pressed.PADRTRIGGER = false, false end
+        local id = keySnippet(kb, name, down)
+        if id and down == (cvars.ActionButtonUseKeyDown == "1") then ran = kb:GetAttribute("*macrotext-" .. id) end
+    end
+    pressed.PADLTRIGGER, pressed.PADRTRIGGER = nil, nil
+    return ran
+end
+local changes = 0
+local clear, set, setClick = ClearOverrideBindings, SetOverrideBinding, SetOverrideBindingClick
+-- (the keys' own bindings; the touchpad's are its own)
+local keyOwner = _G.GamepadCompanionKeyBinds
+local function Count(owner) if owner == keyOwner then changes = changes + 1 end end
+ClearOverrideBindings = function(owner, ...) Count(owner); return clear(owner, ...) end
+SetOverrideBinding = function(owner, ...) Count(owner); return set(owner, ...) end
+SetOverrideBindingClick = function(owner, ...) Count(owner); return setClick(owner, ...) end
+-- The triggers as the watcher reads them (Blizzard's bar keeps them: IsKeyDown on their keys)
+local modelHeld = ns.Model.Held
+local heldL, heldR = false, false
+ns.Model.Held = function(action)
+    if action == "GAMEPADLEFTMOD" then return heldL end
+    if action == "GAMEPADRIGHTMOD" then return heldR end
+    return false
+end
+local layerOwner = _G.GamepadCompanionKeyLayers
+-- Options is Blizzard's Radial (a Blizzard function runs only from its binding): kept;
+-- L2 + Options runs out of combat, by the watcher putting the secure click on it while L2 is held
+bindings.PADFORWARD = "OPENRADIAL"
+check(Keys.Set("PADFORWARD", "lt", "text:/randompet"), "L2 + Options: Random pet")
+eq(overrides.PADFORWARD, nil, "Options stays Blizzard's Radial")
+local runs, why = Keys.Runs("PADFORWARD", "lt")
+check(runs == true and why == "out of combat", "L2 + Options: out of combat")
+ui.buttons.options.scripts.OnClick(ui.buttons.options)
+ui.layers.lt.scripts.OnClick(ui.layers.lt)
+eq(ui.kind.text, "Typed macro · out of combat", "card: a short note")
+ui.layers.base.scripts.OnClick(ui.layers.base)
+heldL = true; Keys.Watch()
+eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "CLICK GamepadCompanionKeys:p6", "L2 held: Options on the click")
+eq(PressKey("PADFORWARD", true), "/randompet", "L2 + Options: Random pet")
+heldL = false; Keys.Watch()
+eq(overrides.PADFORWARD, nil, "L2 released: Radial again")
+changes = 0
+heldR = true; Keys.Watch()
+local layerChanged = overrides.PADFORWARD ~= nil
+heldR = false; Keys.Watch()
+check(not layerChanged, "R2 held, nothing on R2: Options untouched (Blizzard's R2 bar left alone)")
+combat = true; heldL = true; Keys.Watch()
+eq(overrides.PADFORWARD, nil, "in combat: Options stays Radial")
+combat = false; heldL = false
+-- A Base of ours: every layer runs, picked by the triggers at the press
+check(Keys.Set("PADFORWARD", "base", "text:/sit"), "Options: a macro")
+eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "CLICK GamepadCompanionKeys:p6", "Options on the secure click")
+check(Keys.Runs("PADFORWARD", "lt"), "L2 + Options runs now")
+eq(PressKey("PADFORWARD"), "/sit", "plain: Base")
+eq(PressKey("PADFORWARD", true), "/randompet", "L2: its action")
+eq(PressKey("PADFORWARD", false, true), "/sit", "R2, empty: falls back to Base")
+eq(PressKey("PADFORWARD", true, true), "/sit", "L2 R2, empty: Base")
+Keys.Set("PADFORWARD", "both", "text:/cheer")
+eq(PressKey("PADFORWARD", true, true), "/cheer", "L2 R2: its action")
+-- Acting on the release: the layer of the press, though L2 let go first
+cvars.ActionButtonUseKeyDown = "0"
+eq(PressKey("PADFORWARD", true, false, true), "/randompet", "on the release: the press's layer")
+cvars.ActionButtonUseKeyDown = "1"
+-- A Blizzard function on a layer: the click runs nothing (no fallback to Base);
+-- out of combat the watcher puts its binding on the key while R2 is held
+Keys.Set("PADFORWARD", "rt", "bind:focus")
+runs, why = Keys.Runs("PADFORWARD", "rt")
+check(runs == true and why == "out of combat", "R2 + Options: Focus UI, out of combat")
+eq(PressKey("PADFORWARD", false, true), nil, "R2 + Options from the click: nothing")
+heldR = true; Keys.Watch()
+eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "TOGGLEUIFOCUS", "R2 held: Focus UI on Options")
+heldR = false; Keys.Watch()
+check(not (overrides.PADFORWARD and overrides.PADFORWARD.owner == layerOwner), "R2 released: the watcher's binding off")
+Keys.Apply(true)
+-- Nothing rebinds while a trigger is held: presses, macro and spell changes
+changes = 0
+pressed.PADRTRIGGER = true
+PressKey("PADFORWARD", false, true)
+Fire("SPELLS_CHANGED"); Fire("UPDATE_MACROS"); Fire("PLAYER_ENTERING_WORLD")
+eq(changes, 0, "no binding changes while R2 is held")
+pressed.PADRTRIGGER = nil
+-- A key the game leaves free (Mute): its layers run with an empty Base
+check(Keys.Set("PAD5", "lt", "text:/wave"), "L2 + Mute")
+eq(overrides.PAD5 and overrides.PAD5.action, "CLICK GamepadCompanionKeys:p8", "Mute on the secure click")
+eq(PressKey("PAD5"), nil, "plain Mute: nothing")
+eq(PressKey("PAD5", true), "/wave", "L2 + Mute")
+-- Base back to Blizzard: Options is Radial again
+for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, nil) end
+Keys.Set("PAD5", "lt", nil)
+eq(overrides.PADFORWARD, nil, "Options: Blizzard's again")
+eq(overrides.PAD5, nil, "Mute: unbound")
+ClearOverrideBindings, SetOverrideBinding, SetOverrideBindingClick = clear, set, setClick
+bindings.PADFORWARD = nil
+ns.Model.Held = modelHeld
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
 check(ui.layers.lt.selected, "L2 on the art picks the L2 bar")
 check(ui.showLayer:IsShown(), "card: show layer")

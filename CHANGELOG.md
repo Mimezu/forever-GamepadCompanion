@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.67.9 — 2026-11-20
+
+- **L2 / R2 layers on L1, R1, L3, R3, Create, Options, PS and Mic, in combat too**: each button Companion runs is bound once to a secure click that reads L2 / R2 at the press (the touchpad's way) and runs that layer's action, Base's when the layer is empty. Nothing is rebound while a trigger is held for these; the bindings change only when the settings do. A key the game leaves free (PS, Mic) works with an empty Base
+- A button whose Base is Blizzard's (plain Options: Radial) keeps it. Its L2 / R2 actions, and a Blizzard function (Radial, Focus UI) on a layer, run out of combat, by 0.67.8's watcher, now only for those keys and for a layer that has one. In combat that button runs its Base. The card says "out of combat" for them
+- Macro and spell changes no longer rebind the buttons (only their actions change)
+
 ## 0.67.8 — 2026-11-20
 
 - Back: L2 / R2 layers on L1, R1, L3, R3, Create, Options, PS and Mic, out of combat (0.67.6's). Blizzard's R2 bar was broken by Halo's chord relay, not by these

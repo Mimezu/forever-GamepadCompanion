@@ -221,7 +221,14 @@ local function Target()
             title = C.Combo(layer, info.glyph, 18) .. "   " .. (layer == "base" and "" or (C.LAYER_LABELS[layer] .. " + ")) .. info.name,
             entry = function(l)
                 local action = ns.Keys.Get(key, l)
-                if action then return FromAction(action, true) end
+                if action then
+                    local entry = FromAction(action, true)
+                    -- (where it runs, in a few words; one that can't: dim)
+                    local runs, note = ns.Keys.Runs(key, l)
+                    if note then entry.kind = entry.kind .. " · " .. note end
+                    if not runs then entry.dim = true end
+                    return entry
+                end
                 local game = GameBinding(key, l)
                 if not game then return nil end
                 return { name = game, icon = "Gamepad_" .. info.glyph .. "_64", atlas = true, kind = "Blizzard" }
@@ -555,13 +562,13 @@ local function RefreshEditor(target)
     local editable = target.editable(layer) and not (entry and entry.fixed)
     if entry and entry.icon then
         SetIcon(ed.icon.texture, entry.icon, entry.atlas)
-        ed.icon.texture:SetAlpha(entry.inherited and 0.45 or 1)
+        ed.icon.texture:SetAlpha((entry.inherited or entry.dim) and 0.45 or 1)
     else
         ed.icon.texture:Hide()
     end
     ed.icon.empty:SetShown(not (entry and entry.icon))
     ed.name:SetText(entry and entry.name or "Empty")
-    if entry then ed.name:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) else ed.name:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
+    if entry and not entry.dim then ed.name:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) else ed.name:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
     ed.kind:SetText(entry and entry.kind or "")
     ed.choose:SetEnabled(editable)
     ed.clear:SetEnabled(editable and entry ~= nil and entry.own == true)
@@ -605,12 +612,12 @@ local function RefreshRows(target, y, glyph)
         local entry = target.entry(l)
         if entry and entry.icon then
             SetIcon(r.icon, entry.icon, entry.atlas)
-            r.icon:SetAlpha(entry.inherited and 0.45 or 1)
+            r.icon:SetAlpha((entry.inherited or entry.dim) and 0.45 or 1)
         else
             r.icon:Hide()
         end
         r.name:SetText(entry and entry.name or "Empty")
-        if entry and not entry.inherited then r.name:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
+        if entry and not entry.inherited and not entry.dim then r.name:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
         else r.name:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3]) end
         r.selection:SetShown(l == layer)
         r:SetScript("OnClick", function() selectedLayer = l; Refresh() end)
@@ -842,7 +849,9 @@ Refresh = function()
                 else b.text:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) end
             else
                 b.text:SetText(C.Glyph(info.glyph, 14) .. (runs and ((b.oneLine and " " or "\n") .. runs) or ""))
-                if info.role == "binding" and ns.Keys.Get(info.key, layer) then b.text:SetTextColor(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3])
+                if info.role == "binding" and ns.Keys.Get(info.key, layer) and not ns.Keys.Runs(info.key, layer) then
+                    b.text:SetTextColor(S.DIM[1], S.DIM[2], S.DIM[3])
+                elseif info.role == "binding" and ns.Keys.Get(info.key, layer) then b.text:SetTextColor(S.YELLOW[1], S.YELLOW[2], S.YELLOW[3])
                 else b.text:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3]) end
             end
         end
