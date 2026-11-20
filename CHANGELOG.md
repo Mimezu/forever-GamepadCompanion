@@ -16,6 +16,12 @@
 - **/gpc perf**: Moments timing, step by step, in chat (on / off)
 - Moments opens without the ~0.4 s freeze: a group's rows are built the first time that group shows (all 8 groups x 3 kinds at once were ~200 rows, laid out together on the first show)
 - The window opens faster: each page is built the first time it shows, not all on the first open (~0.3 s)
+- Fixed: a bar change or a minimap drag with the fishing line out left Interact's reach long. Its record now stays put
+- Fixed: Share › Import refused a Controls profile with a rank macro ("Frostbolt(Rank 1)")
+- Fixed: the Hush key and chip said "Hush off" while Hush stayed on in a rested area
+- Fixed: a looping rumble (without HD) lost its strength after the first cycle
+- Fixed: Choose opened on page 1 after an earlier search, not on the current action's page
+- Lighter in play: Rumble's settings checked once, not every frame; the touchpad read only when needed; unit events only for you and your target; the L2 / R2 watcher idle without layer actions; food tooltips, footstep timing, sky and sound names kept; the Controller page redraws once per burst; one save per bar move or Undo; unused code gone
 
 ## 0.69.2 — 2026-11-20
 
