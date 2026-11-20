@@ -105,7 +105,7 @@ end
 -- { { action, n, name, first, period, casts, ready } ... } in list order
 function T.LearnedNodes()
     local out = {}
-    local base = T.Model():match("^(%d+%-%d+)") or ""
+    local base = T.HelperModel()
     for key, v in pairs(T.Store().nodes or {}) do
         local model, action, n = key:match("^([^|]+)|(%a+)#(%d+)$")
         n = tonumber(n)
@@ -122,7 +122,7 @@ end
 -- { { kind, hand, delay, hits } ... }
 function T.LearnedHits()
     local out = {}
-    local base = T.Model():match("^(%d+%-%d+)") or ""
+    local base = T.HelperModel()
     for key, l in pairs(T.Store().learned or {}) do
         local model, kind, hand = key:match("^([^|]+)|(%a+)|(%a+)$")
         if model == base and KIND[kind] and type(l) == "table" and type(l.v) == "number" then
@@ -154,6 +154,20 @@ end
 
 function T.Key(kind, hand) return T.Model() .. "|" .. kind .. "|" .. (hand or "main") end
 
+-- The race id the markers carry (side: 4 bits, 15 the most): WoW Helper keeps what it learns
+-- under it ("15-3|ranged|ranged" for a Skyborne woman, race 95 or 96), so what it learned is
+-- read back under it too
+function T.MarkerRace(race)
+    if type(race) ~= "number" or secret(race) then return 0 end
+    return min(15, race)
+end
+-- The race and sex WoW Helper's learned keys use ("15-3")
+function T.HelperModel()
+    local race = UnitRace and select(3, UnitRace("player")) or 0
+    local sex = UnitSex and UnitSex("player") or 0
+    return tostring(T.MarkerRace(race)) .. "-" .. tostring(sex)
+end
+
 function T.Label(kind) return KIND[kind] and KIND[kind].label or tostring(kind) end
 
 -- An offset (seconds, game time) and where it comes from: "set", "learned", "guess"
@@ -163,6 +177,7 @@ function T.Offset(kind, hand)
     if type(store.set[key]) == "number" then return store.set[key], "set" end
     -- (WoW Helper's keys are race-sex|kind|hand, no form)
     local l = store.learned[key] or store.learned[(key:gsub("%-f%d+|", "|", 1))]
+        or store.learned[T.HelperModel() .. "|" .. kind .. "|" .. (hand or "main")]
     if type(l) == "table" and type(l.v) == "number" then return l.v, "learned", l.hits end
     local k = KIND[kind] or KIND.oneHand
     local model = T.Model():match("^(%d+%-%d+)") or ""
@@ -240,7 +255,7 @@ loader:SetScript("OnEvent", function(_, _, name) if name == "GamepadCompanion" t
 function T.LearnedStrikes(action)
     local strikes = T.Store().strikes
     if type(strikes) ~= "table" then return nil end
-    local base = T.Model():match("^(%d+%-%d+)") or ""
+    local base = T.HelperModel()
     local s = strikes[base .. "|" .. action]
     if type(s) == "table" and type(s.first) == "number" and type(s.period) == "number" and s.period > 0.2 then return s end
     return nil

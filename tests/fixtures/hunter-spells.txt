@@ -1,0 +1,204 @@
+# Every castable hunter spell rank of WoW Forever 1.60.1 (WoW Helper --spells, class Hunter, not passive,
+# not Beast Training, Engraving or the pets' own lines), and the Skyborne racials (skill line 2980).
+# id<TAB>name<TAB>cast ms<TAB>channel<TAB>school<TAB>kind. tests/Hunter.lua checks what each plays.
+13161	Aspect of the Beast	0	0	Nature	instant buff/other
+1299445	Aspect of the Beast	0	0	Nature	instant buff/other
+1299446	Aspect of the Beast	0	0	Nature	instant buff/other
+1299447	Aspect of the Beast	0	0	Nature	instant buff/other
+5118	Aspect of the Cheetah	0	0	Nature	instant buff/other
+469145	Aspect of the Falcon	0	0	Nature	instant buff/other
+13165	Aspect of the Hawk	0	0	Nature	instant buff/other
+14318	Aspect of the Hawk	0	0	Nature	instant buff/other
+14319	Aspect of the Hawk	0	0	Nature	instant buff/other
+14320	Aspect of the Hawk	0	0	Nature	instant buff/other
+14321	Aspect of the Hawk	0	0	Nature	instant buff/other
+14322	Aspect of the Hawk	0	0	Nature	instant buff/other
+25296	Aspect of the Hawk	0	0	Nature	instant buff/other
+13163	Aspect of the Monkey	0	0	Nature	instant buff/other
+13159	Aspect of the Pack	0	0	Nature	instant buff/other
+415423	Aspect of the Viper	0	0	Nature	instant buff/other
+20043	Aspect of the Wild	0	0	Nature	instant buff/other
+20190	Aspect of the Wild	0	0	Nature	instant buff/other
+1462	Beast Lore	0	0	Nature	instant buff/other
+19574	Bestial Wrath	0	0	Physical	instant buff/other
+883	Call Pet	0	0	Physical	summon
+2641	Dismiss Pet	5000	0	Physical	pet utility
+6197	Eagle Eye	0	1	Arcane	channel
+1002	Eyes of the Beast	2000	1	Nature	channel
+6991	Feed Pet	0	0	Physical	pet utility
+24406	Improved Mend Pet	0	0	Nature	instant buff/other
+19577	Intimidation	0	0	Nature	instant buff/other
+409379	Kill Command	0	0	Physical	instant buff/other
+136	Mend Pet	0	1	Nature	channel
+3111	Mend Pet	0	1	Nature	channel
+3661	Mend Pet	0	1	Nature	channel
+3662	Mend Pet	0	1	Nature	channel
+13542	Mend Pet	0	1	Nature	channel
+13543	Mend Pet	0	1	Nature	channel
+13544	Mend Pet	0	1	Nature	channel
+982	Revive Pet	10000	0	Nature	pet utility
+1513	Scare Beast	1500	0	Nature	cast offensive, no hit
+14326	Scare Beast	1500	0	Nature	cast offensive, no hit
+14327	Scare Beast	1500	0	Nature	cast offensive, no hit
+24529	Spirit Bond	0	0	Nature	instant heal
+1310725	Spirit Bond	0	0	Nature	instant heal
+1293241	Summon Hawk	0	0	Physical	instant hit
+1293525	Summon Hawk	0	0	Physical	instant hit
+1293526	Summon Hawk	0	0	Physical	instant hit
+1293527	Summon Hawk	0	0	Physical	instant hit
+13535	Tame Beast	0	0	Nature	instant buff/other
+1515	Tame Beast	0	1	Nature	channel
+13481	Tame Beast	0	0	Nature	pet utility
+19801	Tranquilizing Shot	0	0	Nature	instant offensive, no hit
+19434	Aimed Shot	2000	0	Physical	cast hit
+20900	Aimed Shot	2000	0	Physical	cast hit
+20901	Aimed Shot	2000	0	Physical	cast hit
+20902	Aimed Shot	2000	0	Physical	cast hit
+20903	Aimed Shot	2000	0	Physical	cast hit
+20904	Aimed Shot	2000	0	Physical	cast hit
+3044	Arcane Shot	0	0	Arcane	instant hit
+14281	Arcane Shot	0	0	Arcane	instant hit
+14282	Arcane Shot	0	0	Arcane	instant hit
+14283	Arcane Shot	0	0	Arcane	instant hit
+14284	Arcane Shot	0	0	Arcane	instant hit
+14285	Arcane Shot	0	0	Arcane	instant hit
+14286	Arcane Shot	0	0	Arcane	instant hit
+14287	Arcane Shot	0	0	Arcane	instant hit
+75	Auto Shot	0	0	Physical	instant hit
+3674	Black Arrow	0	0	Shadow	instant offensive, no hit
+14296	Black Arrow	0	0	Shadow	instant offensive, no hit
+409433	Chimera Shot	0	0	Nature	instant hit
+409495	Chimera Shot - Scorpid	0	0	Nature	instant offensive, no hit
+409493	Chimera Shot - Serpent	0	0	Nature	instant hit
+409494	Chimera Shot - Viper	0	0	Nature	instant buff/other
+5116	Concussive Shot	0	0	Arcane	instant offensive, no hit
+20736	Distracting Shot	0	0	Arcane	instant offensive, no hit
+14274	Distracting Shot	0	0	Arcane	instant offensive, no hit
+15629	Distracting Shot	0	0	Arcane	instant offensive, no hit
+15630	Distracting Shot	0	0	Arcane	instant offensive, no hit
+15631	Distracting Shot	0	0	Arcane	instant offensive, no hit
+15632	Distracting Shot	0	0	Arcane	instant offensive, no hit
+1221404	Enchanted Flare	0	0	Arcane	summon
+1543	Flare	0	0	Arcane	instant offensive, no hit
+1130	Hunter's Mark	0	0	Arcane	instant offensive, no hit
+14323	Hunter's Mark	0	0	Arcane	instant offensive, no hit
+14324	Hunter's Mark	0	0	Arcane	instant offensive, no hit
+14325	Hunter's Mark	0	0	Arcane	instant offensive, no hit
+2643	Multi-Shot	0	0	Physical	instant hit
+3045	Rapid Fire	0	0	Arcane	instant buff/other
+19503	Scatter Shot	0	0	Physical	instant hit
+3043	Scorpid Sting	0	0	Nature	instant offensive, no hit
+1978	Serpent Sting	0	0	Nature	instant offensive, no hit
+425728	Serpent Sting	0	0	Nature	instant offensive, no hit
+13549	Serpent Sting	0	0	Nature	instant offensive, no hit
+425729	Serpent Sting	0	0	Nature	instant offensive, no hit
+13550	Serpent Sting	0	0	Nature	instant offensive, no hit
+425730	Serpent Sting	0	0	Nature	instant offensive, no hit
+13551	Serpent Sting	0	0	Nature	instant offensive, no hit
+425732	Serpent Sting	0	0	Nature	instant offensive, no hit
+13552	Serpent Sting	0	0	Nature	instant offensive, no hit
+425733	Serpent Sting	0	0	Nature	instant offensive, no hit
+13553	Serpent Sting	0	0	Nature	instant offensive, no hit
+425734	Serpent Sting	0	0	Nature	instant offensive, no hit
+13554	Serpent Sting	0	0	Nature	instant offensive, no hit
+425735	Serpent Sting	0	0	Nature	instant offensive, no hit
+13555	Serpent Sting	0	0	Nature	instant offensive, no hit
+425736	Serpent Sting	0	0	Nature	instant offensive, no hit
+25295	Serpent Sting	0	0	Nature	instant offensive, no hit
+425737	Serpent Sting	0	0	Nature	instant offensive, no hit
+1310687	Sniper Shot	4000	0	Physical	cast hit
+1310785	Sniper Shot	4000	0	Physical	cast hit
+1310786	Sniper Shot	4000	0	Physical	cast hit
+1299346	Trueshot Aura	0	0	Arcane	instant buff/other
+1299348	Trueshot Aura	0	0	Arcane	instant buff/other
+19506	Trueshot Aura	0	0	Arcane	instant buff/other
+20905	Trueshot Aura	0	0	Arcane	instant buff/other
+20906	Trueshot Aura	0	0	Arcane	instant buff/other
+3034	Viper Sting	0	0	Nature	instant offensive, no hit
+14279	Viper Sting	0	0	Nature	instant offensive, no hit
+14280	Viper Sting	0	0	Nature	instant offensive, no hit
+1510	Volley	0	1	Arcane	channel
+14294	Volley	0	1	Arcane	channel
+14295	Volley	0	1	Arcane	channel
+425711	Carve	0	0	Physical	instant hit
+19306	Counterattack	0	0	Physical	instant hit
+1242634	Counterattack	0	0	Physical	instant hit
+20909	Counterattack	0	0	Physical	instant hit
+20910	Counterattack	0	0	Physical	instant hit
+19263	Deterrence	0	0	Physical	instant buff/other
+781	Disengage	0	0	Physical	instant offensive, no hit
+14272	Disengage	0	0	Physical	instant offensive, no hit
+14273	Disengage	0	0	Physical	instant offensive, no hit
+19185	Entrapment	0	0	Physical	instant offensive, no hit
+13813	Explosive Trap	0	0	Fire	summon
+13812	Explosive Trap	0	0	Fire	instant hit
+14316	Explosive Trap	0	0	Fire	summon
+14314	Explosive Trap	0	0	Fire	instant hit
+14317	Explosive Trap	0	0	Fire	summon
+14315	Explosive Trap	0	0	Fire	instant hit
+5384	Feign Death	0	0	Physical	instant buff/other
+415320	Flanking Strike	0	0	Physical	instant hit
+1499	Freezing Trap	0	0	Frost	summon
+14310	Freezing Trap	0	0	Frost	summon
+14311	Freezing Trap	0	0	Frost	summon
+13809	Frost Trap	0	0	Frost	summon
+409580	Heart of the Lion	0	0	Nature	instant buff/other
+13795	Immolation Trap	0	0	Fire	summon
+13797	Immolation Trap	0	0	Fire	instant offensive, no hit
+14302	Immolation Trap	0	0	Fire	summon
+14298	Immolation Trap	0	0	Fire	instant offensive, no hit
+14303	Immolation Trap	0	0	Fire	summon
+14299	Immolation Trap	0	0	Fire	instant offensive, no hit
+14304	Immolation Trap	0	0	Fire	summon
+14300	Immolation Trap	0	0	Fire	instant offensive, no hit
+14305	Immolation Trap	0	0	Fire	summon
+14301	Immolation Trap	0	0	Fire	instant offensive, no hit
+24118	Lacerate	0	0	Physical	instant offensive, no hit
+24119	Lacerate	0	0	Physical	instant offensive, no hit
+24120	Lacerate	0	0	Physical	instant offensive, no hit
+1299332	Lacerate	0	0	Physical	instant offensive, no hit
+1495	Mongoose Bite	0	0	Physical	instant hit
+14269	Mongoose Bite	0	0	Physical	instant hit
+14270	Mongoose Bite	0	0	Physical	instant hit
+14271	Mongoose Bite	0	0	Physical	instant hit
+2973	Raptor Strike	0	0	Physical	next-swing hit
+409691	Raptor Strike	0	0	Physical	instant hit
+415335	Raptor Strike	0	0	Physical	instant hit
+14260	Raptor Strike	0	0	Physical	next-swing hit
+409693	Raptor Strike	0	0	Physical	instant hit
+415336	Raptor Strike	0	0	Physical	instant hit
+14261	Raptor Strike	0	0	Physical	next-swing hit
+409748	Raptor Strike	0	0	Physical	instant hit
+415337	Raptor Strike	0	0	Physical	instant hit
+14262	Raptor Strike	0	0	Physical	next-swing hit
+409750	Raptor Strike	0	0	Physical	instant hit
+415338	Raptor Strike	0	0	Physical	instant hit
+14263	Raptor Strike	0	0	Physical	next-swing hit
+409751	Raptor Strike	0	0	Physical	instant hit
+415340	Raptor Strike	0	0	Physical	instant hit
+14264	Raptor Strike	0	0	Physical	next-swing hit
+409752	Raptor Strike	0	0	Physical	instant hit
+415341	Raptor Strike	0	0	Physical	instant hit
+14265	Raptor Strike	0	0	Physical	next-swing hit
+409754	Raptor Strike	0	0	Physical	instant hit
+415342	Raptor Strike	0	0	Physical	instant hit
+14266	Raptor Strike	0	0	Physical	next-swing hit
+409755	Raptor Strike	0	0	Physical	instant hit
+415343	Raptor Strike	0	0	Physical	instant hit
+23989	Readiness	0	0	Physical	instant buff/other
+1317257	Strider Kick	0	0	Physical	instant hit
+1494	Track Beasts	0	0	Physical	utility
+19878	Track Demons	0	0	Physical	utility
+19879	Track Dragonkin	0	0	Physical	utility
+19880	Track Elementals	0	0	Physical	utility
+19882	Track Giants	0	0	Physical	utility
+19885	Track Hidden	0	0	Physical	utility
+19883	Track Humanoids	0	0	Physical	utility
+19884	Track Undead	0	0	Physical	utility
+2974	Wing Clip	0	0	Physical	instant hit
+14267	Wing Clip	0	0	Physical	instant hit
+14268	Wing Clip	0	0	Physical	instant hit
+1259416	Walk on Air	0	0	Nature	racial
+1308663	Walk on Air	0	0	Nature	racial
+1259686	Skysight	500	0	Nature	racial
+1259705	Read Leyline	500	0	Arcane	racial

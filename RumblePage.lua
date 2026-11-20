@@ -45,7 +45,12 @@ local GROUPS = {
         { "l", "death" }, { "l", "alive" } } },
     { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" },
-        { "l", "fishLand" }, { "l", "fishNibble" }, { "l", "fishBite" }, { "l", "fishCatch" } } },
+        { "l", "fishLand" }, { "l", "fishNibble" }, { "l", "fishBite" }, { "l", "fishCatch" },
+        { "l", "trapArmed" }, { "l", "trapSprung" }, { "l", "dazed" } } },
+    -- (a hunter's pet: Hunter.lua)
+    { key = "Pet", items = { { "l", "petArrive" }, { "l", "petDismiss" }, { "l", "petTamed" }, { "l", "petAttack" },
+        { "l", "petCommand" }, { "l", "petCrit" }, { "l", "petHurt" }, { "l", "petDeath" }, { "l", "petFeed" },
+        { "l", "petHappy" }, { "l", "petUnhappy" } } },
     { key = "Moving", items = { { "r", "jump" }, { "l", "landing" }, { "l", "fallDamage" }, { "l", "footsteps" }, { "l", "wading" }, { "l", "riding" }, { "l", "splash" },
         { "l", "underwater" }, { "l", "mount" }, { "l", "dismount" }, { "l", "taxi" } } },
     { key = "Care", items = { { "r", "eat" }, { "r", "drink" }, { "l", "bandage" }, { "l", "potion" }, { "l", "rested" } } },
