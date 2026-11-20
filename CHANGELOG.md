@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.67.8 — 2026-11-20
+
+- Back: L2 / R2 layers on L1, R1, L3, R3, Create, Options, PS and Mic, out of combat (0.67.6's). Blizzard's R2 bar was broken by Halo's chord relay, not by these
+
 ## 0.69.1 — 2026-11-20
 
 - **Fishing never leaves R2's modifier changed** (it could break Blizzard's R2 bar). While a pole is in hand R2 stops being the gamepad's Ctrl so it can cast; what it was is now kept for the whole account (it was per character: another character, or a reload while fishing, could leave R2 as None), and put back when the pole comes off, when R2 fishing is off, on every logout and /reload, and at login before anything else. Login fishes again only if a pole is in hand. A record left by 0.68.0 heals at login. If you changed R2 yourself meanwhile, yours stays. Interact's reach goes back the same way
