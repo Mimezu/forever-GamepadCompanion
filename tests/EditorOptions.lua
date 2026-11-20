@@ -98,6 +98,7 @@ local function click(label)
     end
     error("Missing button: " .. label)
 end
+ns.Shell.Select("tools") -- (pages are built when first shown)
 click("Spread view: Off")
 assert(spread)
 click("Spells"); click("Macros")

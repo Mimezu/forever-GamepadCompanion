@@ -376,6 +376,7 @@ assert(find("Edit in Edit Mode").attributes.macrotext == "/editmode")
 local printed = {}
 local realPrint = print
 print = function(message) printed[#printed + 1] = tostring(message) end
+ns.Shell.Select("tools") -- (pages are built when first shown)
 click("Gamepad options")
 assert(not opened and GamepadCompanionOptions:IsShown(), "gamepad UI: no settings call, window stays")
 assert(said("Game menu > Options > Gamepad"), "gamepad UI: the note is shown in the window")

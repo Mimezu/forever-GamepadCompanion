@@ -1,6 +1,6 @@
 -- The Gamepad Companion window: one Forever window, its pages on side tabs
--- (as in Forever Names). Pages register with Shell.AddPage; the window builds
--- them when first opened. Controller is the main page.
+-- (as in Forever Names). Pages register with Shell.AddPage; a page is built
+-- the first time it shows. Controller is the main page.
 local ADDON, ns = ...
 local S = ns.OptionsSkin
 local API = GamepadCompanionAPI
@@ -360,7 +360,8 @@ local function Build()
     -- Side tabs, outside the right edge
     for index, def in ipairs(defs) do Tab(def, index) end
     Shell.Relayout()
-    for _, def in ipairs(defs) do Page(def.key) end
+    -- (pages are built the first time they show: Shell.Select. All at once were
+    -- ~0.3 s on the first open of the window)
 
     -- Footer: status, version, Close
     window.status = S.Note(window, inset.left + 16, -(inset.top + HEADER + Shell.H + 14), Shell.W - 740, 1, 12, S.GREY)

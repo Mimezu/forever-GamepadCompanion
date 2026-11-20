@@ -11,6 +11,7 @@
 - Moments opens lighter: a moment's volume chip refreshes with its row, only on screen (it ran for all ~200 rows on every refresh)
 - **/gpc perf**: Moments timing, step by step, in chat (on / off)
 - Moments opens without the ~0.4 s freeze: a group's rows are built the first time that group shows (all 8 groups x 3 kinds at once were ~200 rows, laid out together on the first show)
+- The window opens faster: each page is built the first time it shows, not all on the first open (~0.3 s)
 
 ## 0.69.2 — 2026-11-20
 
