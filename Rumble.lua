@@ -1071,7 +1071,7 @@ function V.Play(key, loop, shape)
     end
     if loop then
         later(t, silence)
-        later(t + 0.12, function() V.Play(key, true) end)
+        later(t + 0.12, function() V.Play(key, true, shape) end)
     else
         later(t, function()
             silence()
