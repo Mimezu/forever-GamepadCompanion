@@ -200,6 +200,7 @@ end
 
 function Shell.Select(key)
     key = (Def(key) or defs[1]).key
+    local fresh = not built[key]
     local page = Page(key)
     for k, p in pairs(built) do
         local on = k == key
@@ -208,7 +209,9 @@ function Shell.Select(key)
         p.header:SetShown(on)
     end
     for k, tab in pairs(tabs) do tab.selected:SetShown(k == key); if tab.Paint then tab.Paint() end end
-    if current ~= key then S.FadeIn(page.frame, 0.12); S.FadeIn(page.header, 0.12) end
+    -- (no fade the first time a page shows: starting an alpha animation on a page
+    -- just built made the game lay all of it out in that call, ~400 ms for Moments)
+    if current ~= key and not fresh then S.FadeIn(page.frame, 0.12); S.FadeIn(page.header, 0.12) end
     current = key
     statusUntil = nil
     Shell.SetStatus("")

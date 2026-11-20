@@ -4,6 +4,7 @@
 
 - Moments opens lighter: a moment's volume chip refreshes with its row, only on screen (it ran for all ~200 rows on every refresh)
 - **/gpc perf**: Moments timing, step by step, in chat (on / off)
+- Moments opens without the ~0.4 s freeze: no fade-in the first time a page shows (the fade made the game lay out the whole new page in that one call)
 
 ## 0.69.2 — 2026-11-20
 
