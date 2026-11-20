@@ -11,7 +11,6 @@ local S, Shell, V, H, L, HUI = ns.OptionsSkin, ns.Shell, ns.Rumble, ns.Haptics, 
 local API = GamepadCompanionAPI
 local W, PH = Shell.W, Shell.H
 local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
-local RED = { 1, 0.48, 0.36 }
 local floor, max, min = math.floor, math.max, math.min
 
 local ui = { rows = {} }

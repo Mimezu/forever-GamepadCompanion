@@ -223,7 +223,7 @@ local function Wrap()
     local V = ns.Rumble
     if V and not V.debugWrapped then
         V.debugWrapped = true
-        local fire, endLoop = V.Fire, V.EndLoop
+        local fire = V.Fire
         V.Fire = function(key, ...)
             fire(key, ...)
             local ok, active = pcall(V.Active)
@@ -236,9 +236,6 @@ local function Wrap()
                 local okS, s = pcall(V.Settings)
                 D.Fight(key, label, PatternLabel(pattern), okS and s and s.intensity or 1, V.why1, V.why2, V.why3)
             end
-        end
-        V.EndLoop = function(key, ...)
-            endLoop(key, ...)
         end
     end
     if L and not L.debugWrapped then

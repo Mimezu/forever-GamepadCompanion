@@ -611,11 +611,6 @@ function V.ActionOf(key)
     if a and ACTION_KIND[a] == kind then return a, kind end
     return nil
 end
--- (gathering's only)
-function V.GatherOf(key)
-    local a, kind = V.ActionOf(key)
-    return kind == "gather" and a or nil
-end
 function V.GatherAction(action) return ACTION[action] end
 -- The moment a cast's cue goes as now: its action's own, else its kind
 function V.CastMomentKey()
@@ -946,7 +941,7 @@ local Resume
 -- (V.looping) goes on.
 local shaper = CreateFrame("Frame")
 shaper:Hide()
-local shapeFn, shapeOnce, shapeSent = nil, false, 0
+local shapeFn, shapeOnce = nil, false
 
 local function StopShape()
     shapeFn = nil
@@ -964,7 +959,7 @@ end
 local shapeScale = 1
 local function StartShape(fn, once, scale)
     V.Stop()
-    shapeFn, shapeOnce, shapeSent, shapeScale = fn, once, 0, scale or 1
+    shapeFn, shapeOnce, shapeScale = fn, once, scale or 1
     shaper:Show()
 end
 
@@ -984,7 +979,6 @@ end
 shaper:SetScript("OnUpdate", function()
     if not shapeFn then return shaper:Hide() end
     local now = GetTime()
-    shapeSent = now
     local low, high = shapeFn(now)
     if not low then
         local resume = shapeOnce and V.looping
@@ -2819,8 +2813,6 @@ function V.WeaponKind(slot)
     if not id or secret(id) then return "unarmed" end
     return KIND_OF_SWING[V.SwingPattern(slot or 16)] or "oneHand"
 end
-
-function V.HitKindLabel(kind) return ns.Timing.Label(kind) end
 
 local HANDS = { [16] = "main", [17] = "off" }
 local function HandOf(kind, hand) return hand or (kind == "ranged" and "ranged" or "main") end

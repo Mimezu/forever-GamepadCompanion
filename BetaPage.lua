@@ -11,7 +11,6 @@ local API = GamepadCompanionAPI
 local W, PH = Shell.W, Shell.H
 local GOLD, GREY, DIM, YELLOW = S.GOLD, S.GREY, S.DIM, S.YELLOW
 local RED = { 1, 0.48, 0.36 }
-local FONT = "Fonts\\FRIZQT__.TTF"
 local LEFT_C, RIGHT_C = { 1, 0.62, 0.2 }, { 0.35, 0.7, 1 }
 local floor, min, max = math.floor, math.min, math.max
 

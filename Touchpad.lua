@@ -151,10 +151,6 @@ end
 ---------------------------------------------------------------------------
 local chordLent   -- the modifier lent to the chord button now, or nil
 
-local function WindowOpen()
-    return GamepadUI() and WindowsShown() > 0
-end
-
 -- Give back a modifier an older version lent to the chord button (L1 + touchpad
 -- = Focus UI is gone: rebinding and lending broke bindings; Choose › Gamepad ›
 -- Focus UI puts it where you like)
@@ -476,8 +472,6 @@ local function FingerBinds()
     end
 end
 Touch.FingerBinds = FingerBinds
-function Touch.FingerZone() return fingerZone end
-function Touch.SetFingerZone(zone) fingerZone = zone; FingerBinds() end
 
 local function HasBinds()
     for _, set in ipairs({ settings.actions[settings.mode], settings.touchActions }) do
