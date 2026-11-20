@@ -674,10 +674,14 @@ end
 V.MOVED = { crit = { from = "tick", v = 1 }, critRanged = { from = "tick", v = 1 } }
 
 -- db.vibration = { enabled, intensity, events = { key = { on, pattern } } }
+local checked   -- (the vibration table last validated: the shaper asks every frame)
+function V.Recheck() checked = nil end
 function V.Settings()
+    local s = IF.db.vibration
+    if s and checked == s then return s end
     IF.db.fishLog, IF.db.eatLog = nil, nil   -- (logs of probes, since removed)
     IF.db.vibration = IF.db.vibration or {}
-    local s = IF.db.vibration
+    s = IF.db.vibration
     if s.enabled == nil then s.enabled = true end
     s.casts = s.casts or {}
     if type(s.gatherFeels) ~= "table" then s.gatherFeels = {} end
@@ -712,6 +716,7 @@ function V.Settings()
         if not (PATTERN[cfg.pattern] or (e.auto and cfg.pattern == "auto")
             or (type(cfg.pattern) == "string" and cfg.pattern:match("^x_"))) then cfg.pattern = e.pattern end
     end
+    checked = s
     return s
 end
 
@@ -851,6 +856,7 @@ function V.SetEventPattern(eventKey, patternKey)
     else
         cfg.on, cfg.pattern = true, patternKey
     end
+    V.Recheck()   -- (a pattern Settings checks)
 end
 
 ---------------------------------------------------------------------------

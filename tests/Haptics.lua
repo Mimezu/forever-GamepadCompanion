@@ -1995,14 +1995,17 @@ do
     ev.crit = { on = true, pattern = "tick" }
     ev.critRanged = { on = false, pattern = "pulse" }
     ev.haloOpen = { on = true, pattern = "tick" }
+    V.Recheck()
     V.Settings()
     assert(ev.crit.pattern == "critHit" and ev.crit.moved == 1, "a saved Tick moves to Crit")
     assert(ev.critRanged.pattern == "pulse", "a hand pick stays")
     assert(ev.haloOpen.pattern == "tick", "Halo open keeps Tick")
     ev.crit.pattern = "tick"
+    V.Recheck()
     V.Settings()
     assert(ev.crit.pattern == "tick", "once: Tick picked again by hand stays")
     ev.crit, ev.critRanged = nil, nil
+    V.Recheck()
     V.Settings()
     assert(ev.crit.pattern == "critHit" and ev.critRanged.pattern == "critHit", "new settings: Crit")
     io.write("PASS: crits: their own feel, saved defaults moved once" .. string.char(10))
@@ -3151,10 +3154,12 @@ do
     local s = V.Settings()
     s.ownTimingCleared = true
     s.strikes.mining = { period = 1.3, offset = 0.4, taps = 6 }
+    V.Recheck()
     V.Settings()
     assert(next(V.Settings().strikes) == nil and V.Settings().ownTimingCleared == 2, "H2-5: Lab's mining cleared, once")
     assert(select(4, V.StrikeTiming("mining")) ~= "synced", "mining: no longer synced")
     V.SetStrikeTiming("mining", 1.2, nil)
+    V.Recheck()
     V.Settings()
     assert(V.Settings().strikes.mining, "and only once")
     V.Settings().strikes.mining = nil
