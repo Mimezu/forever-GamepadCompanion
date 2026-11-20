@@ -1,5 +1,5 @@
--- OpenMap on the gamepad map: OpenMap's own controller view turned on once,
--- a later "off" kept, and what a map opening showed.
+-- OpenMap on the gamepad map, undone: OpenMap's controller view turned back off
+-- once where Companion turned it on, then OpenMap's own choice kept.
 -- lua5.1 tests/OpenMapPad.lua <addon folder>
 local root = arg[1] or "."
 local failures, checks = 0, 0
@@ -14,52 +14,30 @@ local ns = {}
 assert(loadfile(root .. "/OpenMapPad.lua"))("GamepadCompanion", ns)
 local O = ns.OpenMapPad
 
--- Turned on once, when OpenMap's setting is off
-local store, db = {}, { worldmap = { padView = false, enabled = true } }
-eq(O.TurnOn(store, db, 100), true, "off: turned on")
-eq(db.worldmap.padView, true, "OpenMap's switch on")
-eq(store.openMap.padViewOn, 100, "remembered")
+-- Companion turned it on: turned off once
+local store = { openMap = { padViewOn = 100, seen = { at = 1 }, opens = 3 } }
+local db = { worldmap = { padView = true, zoom = 3 } }
+eq(O.GiveBack(store, db), true, "turned off")
+eq(db.worldmap.padView, false, "OpenMap's switch off")
+eq(db.worldmap.zoom, 3, "other settings untouched")
+eq(store.openMap.seen, nil, "old notes dropped")
 
--- The user turns it off in OpenMap's menu: kept
-db.worldmap.padView = false
-eq(O.TurnOn(store, db, 200), false, "not again")
-eq(db.worldmap.padView, false, "user's off kept")
+-- Turned on again in OpenMap's menu: kept
+db.worldmap.padView = true
+eq(O.GiveBack(store, db), false, "not again")
+eq(db.worldmap.padView, true, "user's on kept")
 
--- Already on: nothing written, but done (a later off kept)
+-- Never turned on by Companion: untouched
 store, db = {}, { worldmap = { padView = true } }
-eq(O.TurnOn(store, db, 5), false, "already on: nothing to do")
-eq(store.openMap.padViewOn, 5, "already on: done")
-db.worldmap.padView = false
-eq(O.TurnOn(store, db, 6), false, "already on, then off: kept")
-eq(db.worldmap.padView, false, "off stays")
+eq(O.GiveBack(store, db), false, "not ours")
+eq(db.worldmap.padView, true, "not ours: kept")
 
--- OpenMap not loaded, or its settings not there yet: wait, not done
-store = {}
-eq(O.TurnOn(store, nil, 1), false, "no OpenMap")
-eq(store.openMap.padViewOn, nil, "no OpenMap: not done")
-eq(O.TurnOn(store, {}, 1), false, "no settings yet")
-eq(store.openMap.padViewOn, nil, "no settings: not done")
-db = { worldmap = { padView = false } }
-eq(O.TurnOn(store, db, 2), true, "settings later: turned on")
-
--- Other OpenMap settings untouched
-store, db = {}, { worldmap = { padView = false, padMap = false, zoom = 3 } }
-O.TurnOn(store, db, 1)
-eq(db.worldmap.padMap, false, "padMap untouched")
-eq(db.worldmap.zoom, 3, "zoom untouched")
-
--- What a map opening showed
-store = {}
-eq(O.Seen(store, true, 0, true, 10), true, "pad, see-through canvas: OpenMap's view")
-eq(store.openMap.seen.view, true, "seen: view")
-eq(store.openMap.opens, 1, "one opening")
-eq(O.Seen(store, true, 1, false, 11), false, "pad, canvas shown: Blizzard's map")
-eq(store.openMap.seen.padView, false, "seen: switch off")
-eq(O.Seen(store, false, 0, true, 12), false, "mouse mode: not the pad view")
-eq(store.openMap.seen.padUI, false, "seen: no Gamepad UI")
-eq(O.Seen(store, true, nil, true, 13), false, "no canvas: not the view")
-eq(store.openMap.opens, 4, "four openings")
-eq(store.openMap.seen.at, 13, "latest kept")
+-- OpenMap's settings not there yet: wait
+store = { openMap = { padViewOn = 1 } }
+eq(O.GiveBack(store, nil), false, "no OpenMap")
+eq(store.openMap.padViewBack, nil, "no OpenMap: not done")
+db = { worldmap = { padView = true } }
+eq(O.GiveBack(store, db), true, "settings later: turned off")
 
 io.write(("OpenMapPad: %d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
