@@ -235,9 +235,9 @@ local list = {}
 for key in src:match("C%.MOMENTS = (%b{})"):gmatch('{ "([%w:]+)", "%a+"') do list[#list + 1] = key end
 eq(list[92], "fallDamage", "92 Fall damage")
 eq(list[93], "fishLand", "93 Bobber lands")
-eq(list[94], "fishNibble", "94 Nibbles")
-eq(list[95], "fishBite", "95 Fish hooked")
-eq(list[96], "fishCatch", "96 Catch")
+eq(list[94], "fishBite", "94 Fish hooked")
+eq(list[95], "fishCatch", "95 Catch")
+eq(#list, 95, "95 the last moment: 96-127 are WoW Helper's markers (steps, emote voices, gathering, swings)")
 local lab = io.open(root .. "/HapticsLab.lua"):read("*a")
 for _, k in ipairs({ { "fishLand", "plop" }, { "fishNibble", "nibble" }, { "fishBite", "hooked" }, { "fishCatch", "reelIn" } }) do
     check(lab:find('key = "' .. k[1] .. '"[^\n]*feel = "' .. k[2] .. '"') ~= nil, k[1] .. " plays " .. k[2])

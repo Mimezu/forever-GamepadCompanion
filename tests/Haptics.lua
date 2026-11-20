@@ -1268,7 +1268,7 @@ end
 do
     local K, C = ns.HelperLink, ns.HelperCues
     -- the numbers are on the wire: pinned
-    assert(#C.MOMENTS <= 127, "moments fit 7 bits")
+    assert(#C.MOMENTS <= 95, "moments stop at 95: 96-127 are WoW Helper's markers")
     local PIN = { autoAttack = 1, crit = 3, hitTaken = 11, spell = 22, jump = 32, eat = 42, rain = 47, levelUp = 52,
         loot = 53, whisper = 60, haloClose = 68, critTaken = 69, halo = 75, haloUse = 67 }
     for key, n in pairs(PIN) do assert(C.MOMENT_N[key] == n, "moment number moved: " .. key) end
@@ -1276,7 +1276,7 @@ do
     for n, m in ipairs(C.MOMENTS) do assert(not seen[m[1]], "moment twice: " .. m[1]); seen[m[1]] = n end
     -- every moment on the Rumble tab has a number
     for _, g in ipairs(ns.RumblePage.GROUPS) do
-        for _, item in ipairs(g.items) do assert(C.MOMENT_N[item[2]], "no number: " .. item[2]) end
+        for _, item in ipairs(g.items) do assert(C.MOMENT_N[item[2]] or C.UNNUMBERED[item[2]], "no number: " .. item[2]) end
     end
     -- sounds: defaults, chosen, none, back to default
     assert(C.MomentSound("loot") == K.SOUNDS.coin and C.IsSoundDefault("loot"), "loot: coin by default")

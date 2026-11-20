@@ -60,13 +60,17 @@ C.MOMENTS = {
     { "craft:smelting", "Abilities", "craft" },
     -- a landing that hurts (its cue carries the race and sex: WoW Helper plays the character's yell), 92
     { "fallDamage", "Moving" },
-    -- fishing, after the cast (gather:fishing): the bobber landing, nibbles while you wait (a
-    -- stand-in), the bite (WoW Helper's: it hears it; never sent from here), the catch, 93-96
-    { "fishLand", "Abilities" }, { "fishNibble", "Abilities" }, { "fishBite", "Abilities" },
-    { "fishCatch", "Abilities" },
+    -- fishing, after the cast (gather:fishing): the bobber landing, the bite (WoW Helper's: it
+    -- hears it; never sent from here), the catch, 93-95. (Nibbles, a stand-in, go with no number:
+    -- 96-127 are WoW Helper's markers, steps 96-98, emote voices 99, gathering 100-109, swings
+    -- 110-126. 95 is the LAST moment number: a new moment needs a new field, not a number here)
+    { "fishLand", "Abilities" }, { "fishBite", "Abilities" }, { "fishCatch", "Abilities" },
 }
 C.MOMENT_N = {}
 for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
+-- Moments on the Rumble tab with no number (their cue goes as 0, its touch and sound as sent):
+-- 95 is the last number, 96-127 are WoW Helper's markers
+C.UNNUMBERED = { fishNibble = true }
 -- Light-only moments: no cue goes with their number (no sound row for them). A cast's cue goes
 -- as its kind's moment (Spell casting, Gathering, Crafting: 22-24), not as "cast" (72)
 C.LIGHT_ONLY = { critTaken = true, avoid = true, combat = true, cast = true, halo = true }

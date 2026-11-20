@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.68.1 — 2026-11-20
+
+- Fishing's moments renumbered before anyone used them: Bobber lands 93, **Fish hooked 94, Catch 95** (Catch was 96, which is WoW Helper's footstep marker "running": a catch would have read as a step). Nibbles goes with no number
+- **95 is the last moment number**: 96-127 are WoW Helper's markers (footsteps 96-98, emote voices 99, gathering 100-109, swings 110-126). A test now says so. A new moment needs another field on the strip
+
 ## 0.67.5 — 2026-11-20
 
 - Underwater bubbles reach WoW Helper: each bubble is an HD cue, so they're felt while WoW Helper drives the pad (before, only without HD)

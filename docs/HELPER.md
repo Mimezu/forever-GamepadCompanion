@@ -15,7 +15,7 @@ touch, sound, gain, level, side, intensity, seed, mic LED and a CRC-8. Spec:
 `C:\games\WowHelper\docs\PROTOCOL-V2.md`; addon side `K.EncodeV2` / `K.DecodeV2`, checked against
 the helper's `tests/fixtures/helperlink-v2-vectors.txt`. Fall damage's cue (moment 92) carries the race and sex in `seed`
 (bits 0-6 race id, bit 7 female: `K.RaceSexSeed`), checked against
-`tests/fixtures/helperlink-fall-vectors.txt`. Fishing's moments (93-96) and the R2 shapes WoW Helper plays
+`tests/fixtures/helperlink-fall-vectors.txt`. Fishing's moments (93-95) and the R2 shapes WoW Helper plays
 while the line is out (18-21): `tests/fixtures/helperlink-fishing-vectors.txt`. **HD link** off (Lab › Link)
 goes back to the v1 strip below (`GamepadCompanionHapticsDB.link.v1 = true`).
 

@@ -384,10 +384,10 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-trigger-vectors.txt") do
 end
 assert(trigcount == 61, "61 trigger vectors: " .. trigcount)
 
--- Fishing (WoW Helper's src/fishing.rs): the cues of moments 93-96 as any cue, and the trigger
+-- Fishing (WoW Helper's src/fishing.rs): the cues of moments 93-95 as any cue, and the trigger
 -- rows WoW Helper plays while the line is out (R2 one of shapes 18-21, L2 the addon's)
 do
-    local C = { fishLand = 93, fishNibble = 94, fishBite = 95, fishCatch = 96 }
+    local C = { fishLand = 93, fishBite = 94, fishCatch = 95 }
     local SHAPES = { flick = 18, tug = 19, reel = 20, line = 21 }
     local cues, trigs = 0, 0
     for row in io.lines(root .. "/tests/fixtures/helperlink-fishing-vectors.txt") do
@@ -420,7 +420,7 @@ do
             trigs = trigs + 1
         end
     end
-    assert(cues == 4 and trigs == 8, "fishing vectors: " .. cues .. " cues, " .. trigs .. " trigger rows")
+    assert(cues == 3 and trigs == 8, "fishing vectors: " .. cues .. " cues, " .. trigs .. " trigger rows")
 end
 
 -- One line (Lab › Strip, full-feel plan 4b): main 34, the light row from 34 (padded to 23,

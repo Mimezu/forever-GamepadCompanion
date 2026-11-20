@@ -5,7 +5,8 @@
 -- Felt (HapticsLab events, so each is a moment WoW Helper's full feels can override):
 --   the cast        Rumble's Fishing throw (gather:fishing), WoW Helper adds R2's own buzz
 --   Bobber lands    a soft plop, F.LAND_AT after the cast; WoW Helper adds the game's splash
---   Nibbles         faint, now and then while you wait: a stand-in, never the bite
+--   Nibbles         faint, now and then while you wait: a stand-in, never the bite (no
+--                   moment number: 96 and up are WoW Helper's markers)
 --   Fish hooked     never fired here: the game tells addons nothing when a fish bites (its
 --                   events, the bobber's soft target and its cursor all stay the same). WoW
 --                   Helper hears the bite's splash and plays it, with R2's reel resistance
