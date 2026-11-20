@@ -239,7 +239,8 @@ local function Target()
                 local action = ns.Touch.TakeCursor()
                 if action then ns.Keys.Set(key, l, action) end
             end,
-            editable = function() return true end,
+            -- (L1 / R1: Blizzard's target bars, locked)
+            editable = function() return ns.Keys.Allowed(key) end,
         }
     end
     return nil

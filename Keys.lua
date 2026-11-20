@@ -22,12 +22,15 @@ local T, Sh = ns.TouchModel, ns.Shared
 local Keys = {}
 ns.Keys = Keys
 
-Keys.KEYS = { "PADLSHOULDER", "PADRSHOULDER", "PADLSTICK", "PADRSTICK", "PADSOCIAL", "PADFORWARD", "PADSYSTEM", "PAD5" }
+-- (not L1 / R1: Blizzard's target bars live on them; taking them over is the
+-- risk that broke the R2 bar. Saved actions on them drop at load: Normalize)
+Keys.KEYS = { "PADLSTICK", "PADRSTICK", "PADSOCIAL", "PADFORWARD", "PADSYSTEM", "PAD5" }
+Keys.LOCKED = { PADLSHOULDER = true, PADRSHOULDER = true }
 local ALLOWED, CLICK_NAME = {}, {}
-for i, key in ipairs(Keys.KEYS) do
-    ALLOWED[key] = true
-    CLICK_NAME[key] = "p" .. i
-end
+-- (click names fixed by the pad's order, so they never shift)
+local ORDER = { "PADLSHOULDER", "PADRSHOULDER", "PADLSTICK", "PADRSTICK", "PADSOCIAL", "PADFORWARD", "PADSYSTEM", "PAD5" }
+for _, key in ipairs(Keys.KEYS) do ALLOWED[key] = true end
+for i, key in ipairs(ORDER) do CLICK_NAME[key] = "p" .. i end
 Keys.BUTTON = "GamepadCompanionKeys"
 
 local settings = {}

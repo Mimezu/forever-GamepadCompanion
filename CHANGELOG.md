@@ -2,6 +2,7 @@
 
 ## Unreleased (0.69.3)
 
+- L1 and R1 locked: Blizzard's target bars, on every layer (L1, R1, both together, with L2 / R2). Nothing of ours goes there; saved actions on them drop
 - Fixed: Focus UI on a touchpad zone stuck the whole pad on Focus UI. Blizzard functions (Focus UI, Radial) now go on buttons only, where their binding never moves; zones that had one are cleared, with a word in chat
 - **OpenMap on the gamepad map**: OpenMap's seamless map, its names, quests, Questie, dungeons and flight paths now draw over Blizzard's gamepad map. It's OpenMap's own controller view, turned on once: it reads the pad, binds nothing. Off: OpenMap's menu › The map
 - No automatic Focus UI chord on the touchpad: L1 + click is zones like any click, and L1 is no longer lent a modifier while a window is open (both broke bindings). Put Focus UI where you like: Choose › Gamepad › Focus UI. A modifier lent by an older version is given back once

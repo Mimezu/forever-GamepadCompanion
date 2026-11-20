@@ -730,5 +730,10 @@ do
     G.Set(5, nil)
 end
 
+-- L1 / R1: Blizzard's target bars, locked (no action of ours on any layer)
+check(not ns.Keys.Allowed("PADLSHOULDER") and not ns.Keys.Allowed("PADRSHOULDER"), "L1 / R1 locked")
+check(not ns.Keys.Set("PADRSHOULDER", "base", "text:/wave"), "R1 takes nothing")
+check(ns.Keys.Normalize({ PADLSHOULDER = { base = "text:/wave" } }).PADLSHOULDER == nil, "a saved L1 action drops at load")
+
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
