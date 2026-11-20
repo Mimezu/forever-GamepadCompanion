@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.69.0 — 2026-11-20
+
+- **Emote voices** (Rumble › Social, on): a voiced emote (/laugh, /cheer, /flirt, /joke, /bye, /no, /chicken... 48 in WoW Forever) by you or a player nearby plays the game's own voice on the pad's speaker, for that character's race and sex, the moment the game plays it. A voice only, no rumble; its Try plays your character's laugh. WoW Helper overrides it with a full feel, as any moment
+- Who: you, or a player the client knows (target, focus, mouseover, party, raid, nameplates, or its player cache); race or sex unknown, nothing. Which emote: its chat line, matched against the lines WoW Helper reads from the game in your client's language (WowHelperData.emoteVoices). Off with Hush, the speaker's switch, or the moment's
+- Sent as WoW Helper's marker 99 (an older WoW Helper ignores it): the emote id in side/gain/intensity/level, race and sex in the seed. Shared vectors: `tests/fixtures/helperlink-emote-vectors.txt`. At login, marker 99 with emote 0 has WoW Helper make your voices ready ahead
+
 ## 0.68.1 — 2026-11-20
 
 - Fishing's moments renumbered before anyone used them: Bobber lands 93, **Fish hooked 94, Catch 95** (Catch was 96, which is WoW Helper's footstep marker "running": a catch would have read as a step). Nibbles goes with no number

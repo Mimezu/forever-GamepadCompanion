@@ -1,10 +1,9 @@
 -- Button bindings: what L1, R1, L3, R3, Create, Options, PS and Mute run, on
 -- each layer, per character. One secure button runs them all ("k1", "k2" ...);
 -- a layer is a modified key (Shift / Ctrl, for keyboards). Forever's gamepad
--- bar takes L2 / R2 for itself (no Shift while L2 is held), so while L2 / R2
--- is held out of combat the bare key runs that layer's action, and goes back
--- to the base one on release. In combat: the base action (bindings can't
--- change there). Out of combat only; a change in combat applies after it.
+-- bar takes L2 / R2 for itself (no Shift while L2 is held), so on the pad
+-- these layers don't run yet (following the held trigger by rebinding broke
+-- Blizzard's R2 bar). Out of combat only; a change in combat applies after it.
 local _, ns = ...
 local T, Sh = ns.TouchModel, ns.Shared
 local Keys = {}
@@ -161,13 +160,7 @@ local function Used(layer)
     return false
 end
 Keys.Used = Used
-local since = 0
-events:SetScript("OnUpdate", function(_, elapsed)
-    since = since + elapsed
-    if since < 0.02 or not loaded then return end
-    since = 0
-    if InCombatLockdown and InCombatLockdown() then return end
-    local layer = Keys.HeldLayer()
-    if not Used(layer) then layer = "base" end
-    if layer ~= Keys.active then Keys.Apply(layer) end
-end)
+-- (no watcher: rebinding while L2 / R2 is held made the game drop Blizzard's
+-- own R2 bar, 2026-11-20. The layers on these keys wait for a way that never
+-- rebinds mid-press; Keys.HeldLayer / Keys.Apply(layer) stay for it)
+
