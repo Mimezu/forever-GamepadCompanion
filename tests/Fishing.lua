@@ -255,6 +255,7 @@ end
 local function Fresh()
     cvars.GamePadEmulateCtrl, cvars.SoftTargetInteractRange = "PADRTRIGGER", "10"
     GamepadCompanionDB = {}
+    GamepadCompanionHapticsDB = {}
 end
 
 -- 1. fishing through a reload (or a crash) never touches R2's modifier; the reach comes back
@@ -271,7 +272,7 @@ events.handler(events, "PLAYER_LOGIN")
 eq(cvars.SoftTargetInteractRange, "10", "after a crash with the line out: the reach as it was")
 eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "and R2's modifier as it was")
 eq(R2(), nil, "and R2 has no binding of ours")
-eq(next(GamepadCompanionDB.fishingCVars), nil, "the record emptied")
+eq(next(GamepadCompanionHapticsDB.fishingCVars), nil, "the record emptied")
 
 -- 2. logout with the line out: the reach back at once
 Fresh()
@@ -282,6 +283,17 @@ events.handler(events, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
 events.handler(events, "PLAYER_LOGOUT")
 eq(cvars.SoftTargetInteractRange, "10", "logout with the line out: the reach as it was")
 
+-- 2b. Core rebuilds GamepadCompanionDB mid-session (Save) with the line out: the record survives
+Fresh()
+hands = { [16] = 6367 }
+Reload(char)
+events.handler(events, "PLAYER_LOGIN")
+events.handler(events, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
+eq(cvars.SoftTargetInteractRange, "30", "the line out: the reach longer")
+GamepadCompanionDB = {}                        -- (what Core's Save does)
+events.handler(events, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
+eq(cvars.SoftTargetInteractRange, "10", "a Save with the line out: the reach back as the line comes in")
+
 -- 3. a record left by 0.69.1 (account-wide) or 0.68.0 (per character): R2's modifier back once
 Fresh()
 cvars.GamePadEmulateCtrl = "NONE"
@@ -290,7 +302,8 @@ hands = { [16] = 6367 }
 Reload(char)
 events.handler(events, "PLAYER_LOGIN")
 eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "0.69.1's record: R2 is Ctrl again at login, pole in hand or not")
-eq(GamepadCompanionDB.fishingCVars.GamePadEmulateCtrl, nil, "the record cleared")
+eq(GamepadCompanionDB.fishingCVars, nil, "0.69.x's record moved away")
+eq(GamepadCompanionHapticsDB.fishingCVars.GamePadEmulateCtrl, nil, "the record cleared")
 cvars.GamePadEmulateCtrl = "NONE"               -- (you set it so later: not ours to undo)
 Reload(char)
 events.handler(events, "PLAYER_LOGIN")

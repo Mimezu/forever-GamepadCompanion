@@ -82,16 +82,23 @@ end
 -- R2's modifiers off while it fishes (each kept, to put back)
 ---------------------------------------------------------------------------
 -- The one game setting fishing changes, Interact's reach, is account-wide, so
--- what it was is kept account-wide too (GamepadCompanionDB.fishingCVars, cvar
--- -> the value to put back), and put back when the line comes in, on every
--- logout and /reload, and at login before anything else. (R2's modifier: no
--- longer changed; a record of it from 0.68.0-0.69.1 is put back once at login.)
+-- what it was is kept account-wide too (GamepadCompanionHapticsDB.fishingCVars,
+-- cvar -> the value to put back: a table Core never rebuilds, no profile moves),
+-- and put back when the line comes in, on every logout and /reload, and at
+-- login before anything else. (R2's modifier: no longer changed; a record of it
+-- from 0.68.0-0.69.1 is put back once at login.)
 ---------------------------------------------------------------------------
 local function Record()
-    if type(GamepadCompanionDB) ~= "table" then GamepadCompanionDB = {} end
-    local db = GamepadCompanionDB
-    if type(db.fishingCVars) ~= "table" then db.fishingCVars = {} end
-    return db.fishingCVars
+    if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
+    local h = GamepadCompanionHapticsDB
+    if type(h.fishingCVars) ~= "table" then h.fishingCVars = {} end
+    -- (a record 0.69.x kept in GamepadCompanionDB: carried over once, then dropped)
+    local old = type(GamepadCompanionDB) == "table" and GamepadCompanionDB.fishingCVars
+    if type(old) == "table" then
+        for k, v in pairs(old) do if h.fishingCVars[k] == nil then h.fishingCVars[k] = v end end
+        GamepadCompanionDB.fishingCVars = nil
+    end
+    return h.fishingCVars
 end
 
 -- Change a setting, its old value kept (the first one: never a value fishing set)
