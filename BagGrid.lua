@@ -294,6 +294,13 @@ do
 
     local function DirectionName(directions)
         if type(directions) ~= "table" or #directions == 0 then return nil end
+        if #directions == 1 then
+            local d = directions[1]
+            for name, v in pairs(DIRS) do
+                if d.x == v[1] and d.y == v[2] then return name end
+            end
+            return ""
+        end
         local names = {}
         for _, d in ipairs(directions) do
             for name, v in pairs(DIRS) do
@@ -301,6 +308,38 @@ do
             end
         end
         return table.concat(names, "+")
+    end
+
+    -- Where a button is, from the bag's top left, in screen pixels:
+    -- "x,y wxh", and "+anchor" when its cursor point is set elsewhere
+    local function Where(button, bag)
+        if type(button) ~= "table" or not button.GetScaledRect then return nil end
+        local ok, l, b, w, h = pcall(button.GetScaledRect, button)
+        local okBag, bl, bb, bw, bh = pcall(bag.GetScaledRect, bag)
+        if not (ok and l and okBag and bl) then return "no rect" end
+        local text = ("%d,%d %dx%d"):format(l - bl, (bb + bh) - (b + h), w, h)
+        if button.smartNavigationCustomCursorAnchor then text = text .. " +anchor" end
+        return text
+    end
+
+    -- Blizzard's rules stored on a button: jump overrides per direction,
+    -- a focus group key, a custom cone, an ignore flag. Read only
+    local function Rules(button)
+        if type(button) ~= "table" then return nil end
+        local parts = {}
+        local data = rawget(button, "smartNavData")
+        local overrides = type(data) == "table" and data.navigationOverrides
+        if type(overrides) == "table" then
+            for key, target in pairs(overrides) do
+                parts[#parts + 1] = tostring(key) .. ">" .. (type(target) == "function" and "fn"
+                    or type(target) == "table" and Describe(target) or tostring(target))
+            end
+        end
+        if rawget(button, "smartNavigationFocusKey") ~= nil then parts[#parts + 1] = "group " .. tostring(button.smartNavigationFocusKey) end
+        if rawget(button, "smartNavigationDirectionBufferData") then parts[#parts + 1] = "cone" end
+        if rawget(button, "smartNavigationIgnored") or rawget(button, "smartNavigationIgnoredDontPropagate") then parts[#parts + 1] = "ignored" end
+        if #parts == 0 then return nil end
+        return table.concat(parts, ", ")
     end
 
     local watcher = CreateFrame("Frame")
@@ -316,38 +355,6 @@ do
         local current = nav.currentButton
         local direction = DirectionName(nav.currentDirections)
 
-        -- Where a button is, from the bag's top left, in screen pixels:
-        -- "x,y wxh", and "+anchor" when its cursor point is set elsewhere
-        local function Where(button)
-            if type(button) ~= "table" or not button.GetScaledRect then return nil end
-            local ok, l, b, w, h = pcall(button.GetScaledRect, button)
-            local okBag, bl, bb, bw, bh = pcall(bag.GetScaledRect, bag)
-            if not (ok and l and okBag and bl) then return "no rect" end
-            local text = ("%d,%d %dx%d"):format(l - bl, (bb + bh) - (b + h), w, h)
-            if button.smartNavigationCustomCursorAnchor then text = text .. " +anchor" end
-            return text
-        end
-
-        -- Blizzard's rules stored on a button: jump overrides per direction,
-        -- a focus group key, a custom cone, an ignore flag. Read only
-        local function Rules(button)
-            if type(button) ~= "table" then return nil end
-            local parts = {}
-            local data = rawget(button, "smartNavData")
-            local overrides = type(data) == "table" and data.navigationOverrides
-            if type(overrides) == "table" then
-                for key, target in pairs(overrides) do
-                    parts[#parts + 1] = tostring(key) .. ">" .. (type(target) == "function" and "fn"
-                        or type(target) == "table" and Describe(target) or tostring(target))
-                end
-            end
-            if rawget(button, "smartNavigationFocusKey") ~= nil then parts[#parts + 1] = "group " .. tostring(button.smartNavigationFocusKey) end
-            if rawget(button, "smartNavigationDirectionBufferData") then parts[#parts + 1] = "cone" end
-            if rawget(button, "smartNavigationIgnored") or rawget(button, "smartNavigationIgnoredDontPropagate") then parts[#parts + 1] = "ignored" end
-            if #parts == 0 then return nil end
-            return table.concat(parts, ", ")
-        end
-
         -- Once per bag opening: what besides item slots can the cursor go to?
         if not openLogged then
             local buttons, info = Candidates()
@@ -361,13 +368,13 @@ do
                         local okVisible, visible = pcall(b.IsVisible, b)
                         if okVisible and visible then
                             local rules = Rules(b)
-                            others[#others + 1] = Describe(b) .. " @" .. tostring(Where(b)) .. (rules and (" [" .. rules .. "]") or "")
+                            others[#others + 1] = Describe(b) .. " @" .. tostring(Where(b, bag)) .. (rules and (" [" .. rules .. "]") or "")
                         end
                     end
                 end
                 local missing = 0
                 for _, s in ipairs(slots) do if not inList[s.button] then missing = missing + 1 end end
-                local first = slots[1] and Where(slots[1].button)
+                local first = slots[1] and Where(slots[1].button, bag)
                 local ruled = {}
                 for _, s in ipairs(slots) do
                     local rules = Rules(s.button)
@@ -405,7 +412,7 @@ do
             local slots = Slots(bag)
             local dir = direction or lastDirection
             local entry = { kind = "move", dir = dir or "?", from = Describe(lastButton, slots), to = Describe(current, slots),
-                fromAt = Where(lastButton), toAt = Where(current), fromRules = Rules(lastButton) }
+                fromAt = Where(lastButton, bag), toAt = Where(current, bag), fromRules = Rules(lastButton) }
             -- Inside a focus group the cursor only sees that group's buttons
             local navInfo = nav.activeInfo
             local groups = navInfo and navInfo.buttonGroups
