@@ -147,6 +147,7 @@ end)
 -- Clips and sounds, cued by Rumble's and the Beta events (wrapped)
 ---------------------------------------------------------------------------
 -- each moment's sound unless chosen (built-in names)
+-- (a profile made with Profiles' FRESH takes its sounds first: false there is none)
 C.DEFAULT_SOUND = { loot = "coin", questDone = "chime", uiError = "error", whisper = "click", readyCheck = "chime" }
 
 
@@ -250,7 +251,9 @@ function C.MomentSound(key)
     local Of = ns.Rumble and ns.Rumble.ActionOf
     local parent = Of and select(2, Of(key))
     if parent and key ~= "gather:fishing" then return C.MomentSound(parent) end
-    local name = C.DEFAULT_SOUND[key]
+    local P = ns.Profiles
+    local name = P and P.FreshOf and P.FreshOf("sounds", key)
+    if name == nil then name = C.DEFAULT_SOUND[key] end
     return name and K.SOUNDS[name] or nil
 end
 

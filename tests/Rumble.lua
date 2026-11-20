@@ -497,12 +497,19 @@ do
     for _, class in ipairs({ "PALADIN", "ROGUE", "HUNTER" }) do
         P.state.class = class
         local rec = P.Recommended(class)
+        -- (the profile in use is the one Reset makes: stamped FRESH)
+        GamepadCompanionHapticsDB.fresh = rec.fresh
         for key, r in pairs(rec.events) do
+            -- (a feel only: on as the code has it)
+            local on = r.on
+            if on == nil then on = L.DefaultOn(key) end
             local s = L.EventSettings(key)
-            s.on = not r.on
+            s.on = not on
             assert(not L.IsEventDefault(key), class .. " " .. key .. ": not Recommended, Default lit")
             L.EventDefault(key)
-            assert(L.EventSettings(key).on == r.on and L.IsEventDefault(key), class .. " " .. key .. ": Default = the profile's Reset")
+            local now = L.EventSettings(key)
+            assert(now.on == on and now.feel == (r.feel or L.EVENT[key].feel) and L.IsEventDefault(key),
+                class .. " " .. key .. ": Default = the profile's Reset")
             n = n + 1
         end
         for key, r in pairs(rec.vibration.events) do
@@ -513,6 +520,15 @@ do
             n = n + 1
         end
     end
+    -- a profile made before FRESH keeps the code's own: nothing of Alberich's shows as changed
+    GamepadCompanionHapticsDB.fresh = nil
+    P.state.class = "PALADIN"
+    assert(L.DefaultOn("money") == L.EVENT.money.on and L.DefaultFeel("landing") == L.EVENT.landing.feel
+        and L.DefaultFeel("money") == L.EVENT.money.feel, "unstamped: the code's Money and Landing")
+    assert(P.RecommendedOn("vibration", "autoAttack") == nil and P.RecommendedOn("vibration", "jump") == nil,
+        "unstamped: swings and jumps as the code has them")
+    GamepadCompanionHapticsDB.fresh = P.FRESH.version
+    assert(L.DefaultOn("money") == true and L.DefaultFeel("landing") == "flick", "stamped: Alberich's")
     -- the row says so: Hit after Default is off and its Default greyed
     P.state.class = "PALADIN"
     page.SetKind("feel")

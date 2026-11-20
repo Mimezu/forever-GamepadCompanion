@@ -23,7 +23,7 @@ P.Copy = Copy
 -- Controls profile's bars leave account-wide
 ---------------------------------------------------------------------------
 P.FEEL_TABLES = { "events", "lightEvents", "lightBase", "lightStack", "triggerStack", "feelStack", "spells", "when" }
-P.FEEL_VALUES = { "light", "lightGameOnly", "landMin", "landMax", "landLong", "stepNudge", "triggers", "kick", "minPulse" }
+P.FEEL_VALUES = { "light", "lightGameOnly", "landMin", "landMax", "landLong", "stepNudge", "triggers", "kick", "minPulse", "fresh" }
 P.FEEL_NESTED = { { "link", "cues", "cues" }, { "link", "sounds", "sounds" }, { "link", "trigRules", "triggerRules" }, { "volume", "feel", "volumeFeel" },
     { "volume", "sound", "volumeSound" } }
 P.LEARNED = { "hitTiming", "strikes" }   -- inside vibration, but physical: account-wide
@@ -38,6 +38,34 @@ P.RECOMMENDED = {
         parry = false, missedYou = false, hitTaken = false, aggro = false, targetCast = false, gcd = false,
         combo = false, full = false, tension = false, heartbeat = false, rested = false, riding = false, oom = false },
 }
+-- What a new (or reset) Feel profile also gets: Alberich's choices. Stamped on the profile
+-- (`fresh`): only stamped profiles take these as their defaults, so a profile made before
+-- keeps the code's own, and none of its rows turns "changed".
+P.FRESH = {
+    version = 1,
+    events = { money = true },
+    feels = { landing = "flick", money = "gravel" },   -- (events' feels other than the code's own)
+    vibration = { autoAttack = true, jump = true },
+    intensity = 1,   -- Strength: full (the code's own is 80 %)
+    sounds = { loot = "thud", lowHp = "heartbeat_thump", money = "coin", uiError = false },   -- (false: none)
+    soundVolumes = { loot = 0.5, whisper = 0.7, money = 0.8, emoteVoice = 0.8 },
+    lightBase = { light = "ember", level = 0.375 },
+    lights = { combat = { on = true, light = 0, dots = "pass", mic = "on" } },   -- (In combat: the mic lit, the bar passes)
+}
+
+-- The profile in use was made with P.FRESH (its defaults are those)
+function P.Fresh()
+    local h = GamepadCompanionHapticsDB
+    return type(h) == "table" and type(h.fresh) == "number" and h.fresh >= 1 or false
+end
+
+-- A FRESH part's value for a stamped profile, else nil
+function P.FreshOf(part, key)
+    if not P.Fresh() then return nil end
+    local t = P.FRESH[part]
+    if type(t) ~= "table" then return nil end
+    return t[key]
+end
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
     DRUID = { events = { combo = true, comboFull = true } },
@@ -52,18 +80,29 @@ P.CLASS = {
 function P.Recommended(class)
     local feel = { events = {}, cues = {}, vibration = { events = {} } }
     local function Apply(r)
-        for key, on in pairs(r.events or {}) do feel.events[key] = { on = on } end
+        for key, on in pairs(r.events or {}) do
+            feel.events[key] = feel.events[key] or {}
+            feel.events[key].on = on
+        end
+        for key, f in pairs(r.feels or {}) do
+            feel.events[key] = feel.events[key] or {}
+            feel.events[key].feel = f
+        end
         for key, v in pairs(r.cues or {}) do feel.cues[key] = v end
         for key, on in pairs(r.vibration or {}) do feel.vibration.events[key] = { on = on } end
+        if r.intensity then feel.vibration.intensity = r.intensity end
     end
     Apply(P.RECOMMENDED)
+    Apply(P.FRESH)
+    feel.fresh = P.FRESH.version
     if class and P.CLASS[class] then Apply(P.CLASS[class]) end
     return feel
 end
 
 -- One meaning of Default: a row's Default and the profile's Reset both go to Recommended.
 -- A moment's Recommended on/off for this character's class, or nil where Recommended keeps
--- the code's own. part: "events" (the engine's moments) or "vibration" (Rumble's)
+-- the code's own. part: "events" (the engine's moments), "vibration" (Rumble's) or "feels".
+-- FRESH counts only for a profile made with it.
 function P.RecommendedOn(part, key)
     local function Of(r)
         local t = r and r[part]
@@ -72,6 +111,7 @@ function P.RecommendedOn(part, key)
     end
     local class = P.state and P.state.class
     local v = Of(class and P.CLASS[class])
+    if v == nil then v = P.FreshOf(part, key) end
     if v == nil then v = Of(P.RECOMMENDED) end
     return v
 end

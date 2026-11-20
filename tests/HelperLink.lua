@@ -746,6 +746,86 @@ do
     print("PASS: map row: 28 cells, " .. mapcount .. " vectors, flips rejected, stacked and one line (117), gated on mapRow 2")
 end
 
+-- Ultrawide: the strip in physical pixels at any width, height, UI scale and cell size. The
+-- frame's units turned back into pixels (units * effective scale * height / 768) must be whole
+-- cells from the bottom-left corner; the width never enters. The map row's centre past 4095
+-- (5120 px wide) rides on bits 70-71.
+local uwcount = 0
+do
+    local mains = {}
+    for _, f in ipairs(created) do
+        if f.kind == "Texture" and f.parent == K.frame and #mains < K.CELLS_V2 then mains[#mains + 1] = f end
+    end
+    assert(#mains == K.CELLS_V2, "main textures")
+    local db = GamepadCompanionHapticsDB.link
+    local keepCell = db.cell
+    for _, wh in ipairs({ { 3440, 1440 }, { 2560, 1080 }, { 5120, 1440 }, { 1920, 1080 }, { 3840, 2160 } }) do
+        physW, physH = wh[1], wh[2]
+        for _, eff in ipairs({ 0.64, 0.9, 1, 1.15 }) do
+            K.frame:SetScale(eff)
+            for cell = 1, 8 do
+                K.SetCellSize(cell)
+                local px = eff * physH / 768   -- frame units -> physical pixels
+                local function whole(v, want, what)
+                    assert(math.abs(v * px - want) < 1e-3, what .. ": " .. v * px .. " px, want " .. want
+                        .. " (" .. physW .. "x" .. physH .. " scale " .. eff .. " cell " .. cell .. ")")
+                end
+                assert(K.frame.points[1][1] == "BOTTOMLEFT" and K.frame.points[1][4] == 0 and K.frame.points[1][5] == 0, "bottom-left")
+                whole(K.frame.height, cell, "strip height")
+                whole(K.frame.width, K.CELLS_V2 * cell, "strip width")
+                for i, tex in ipairs(mains) do
+                    whole(tex.width, cell, "cell size")
+                    whole(tex.points[1][4], (i - 1) * cell, "cell " .. i .. " x")
+                end
+                for r, row in ipairs({ K.lightTextures, K.trigTextures, K.spellTextures, K.mapTextures }) do
+                    whole(row[1].points[1][5], r * cell, "stacked row " .. r)
+                end
+                uwcount = uwcount + 1
+            end
+        end
+    end
+    -- one line with the map row at the default cell: 117 cells, inside WoW Helper's 480 px box
+    WowHelperData = { stripOneLine = true, spellRow = true, mapRow = 2 }
+    K.SetStrip("oneline")
+    K.SetMap({ facing = 1, x = 4990, y = 140, radius = 131, yards = 467, rotates = false, tracking = 1 })
+    physW, physH = 5120, 1440
+    K.frame:SetScale(1)
+    db.cell = nil
+    K.Layout()
+    assert(math.abs(K.frame.width * physH / 768 - 117 * K.CELL) < 1e-3 and 117 * K.CELL <= 480, "one line in the box")
+    -- the minimap's centre on a 5120 px wide screen
+    for _, xy in ipairs({ { 4990, 140 }, { 4096, 4096 }, { 8191, 8191 }, { 4095, 1439 } }) do
+        local d = assert(K.DecodeMapRow(K.EncodeMapRow({ x = xy[1], y = xy[2], radius = 131, yards = 467, tracking = 1 })))
+        assert(d.x == xy[1] and d.y == xy[2], "map row x/y " .. xy[1] .. "," .. xy[2])
+    end
+    assert(K.DecodeMapRow(K.EncodeMapRow({ x = 9000, y = 140 })).x == 8191, "x clamps at 8191")
+    assert(K.map.x == 4990, "kept")
+    K.SetMap(nil)
+    K.SetStrip("stacked")
+    WowHelperData = nil
+    db.cell = keepCell
+    physW, physH = 2560, 1440
+    K.frame:SetScale(1)
+    K.Layout()
+    print("PASS: ultrawide: " .. uwcount .. " screen x scale x cell layouts pixel-exact; map row x past 4095")
+end
+
 K.SetEnabled(false)
+
+-- a fresh install: the link starts on once WoW Helper's data addon is here; off stays off
+do
+    local saved, data = GamepadCompanionHapticsDB, WowHelperData
+    GamepadCompanionHapticsDB, WowHelperData = {}, nil
+    K.AutoOn()
+    assert(not K.Enabled(), "fresh, no helper: off")
+    WowHelperData = {}
+    assert(not K.Enabled(), "only at load")
+    K.AutoOn()
+    assert(K.Enabled(), "fresh, helper data: on")
+    K.SetEnabled(false)
+    K.AutoOn()
+    assert(not K.Enabled(), "turned off: stays off")
+    GamepadCompanionHapticsDB, WowHelperData = saved, data
+end
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors)")

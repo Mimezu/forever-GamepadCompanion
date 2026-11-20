@@ -874,6 +874,7 @@ function L.EventSettings(key)
         s = { on = e.on, feel = e.feel }
         db[key] = s
     end
+    if s.on == nil then s.on = L.DefaultOn(key) end   -- (Recommended may give a feel only)
     if not H.Feel(s.feel) then s.feel = e.feel end
     return s
 end
@@ -886,17 +887,23 @@ function L.DefaultOn(key)
     return on
 end
 
--- An event back to Recommended: its feel as it ships, on or off as Recommended has it
+-- Its feel as Recommended (Profiles.lua), else as it ships
+function L.DefaultFeel(key)
+    local P = ns.Profiles
+    local feel = P and P.RecommendedOn and P.RecommendedOn("feels", key)
+    if not (type(feel) == "string" and H.Feel(feel)) then feel = EVENT[key].feel end
+    return feel
+end
+
+-- An event back to Recommended: its feel and on or off as Recommended has them
 function L.EventDefault(key)
-    local e = EVENT[key]
     local s = L.EventSettings(key)
-    s.on, s.feel = L.DefaultOn(key), e.feel
+    s.on, s.feel = L.DefaultOn(key), L.DefaultFeel(key)
 end
 
 function L.IsEventDefault(key)
-    local e = EVENT[key]
     local s = L.EventSettings(key)
-    return s.on == L.DefaultOn(key) and s.feel == e.feel
+    return s.on == L.DefaultOn(key) and s.feel == L.DefaultFeel(key)
 end
 
 local function Strength()

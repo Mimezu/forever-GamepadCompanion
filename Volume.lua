@@ -43,7 +43,10 @@ function Vol.FeelDefault(key)
 end
 function Vol.SoundDefault(key)
     local parent = Parent(key)
-    return parent and Vol.Sound(parent) or 1
+    if parent then return Vol.Sound(parent) end
+    -- (a profile made with Profiles' FRESH: its softer frequent sounds)
+    local P = ns.Profiles
+    return P and P.FreshOf and P.FreshOf("soundVolumes", key) or 1
 end
 function Vol.Feel(key)
     -- (a spell's own, "spell:instant:Frost Nova": its own volume over its

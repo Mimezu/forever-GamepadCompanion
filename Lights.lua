@@ -225,8 +225,11 @@ function LT.Base()
     local b = db.lightBase
     b.mode = b.mode or "class"
     b.color = PALETTE[b.color] and PALETTE[b.color].rgb and b.color or "blue"
-    b.level = tonumber(b.level) or 0.35
-    if b.light == nil then b.light = b.breathe and "breathe" or "steady" end   -- (0.27: breathe yes / no)
+    -- (a profile made with Profiles' FRESH starts from its base: Ember, 3/8)
+    local P = ns.Profiles
+    local fresh = P and P.Fresh and P.Fresh() and P.FRESH.lightBase or {}
+    b.level = tonumber(b.level) or fresh.level or 0.35
+    if b.light == nil then b.light = b.breathe and "breathe" or (b.breathe == nil and fresh.light) or "steady" end   -- (0.27: breathe yes / no)
     if not LT.LightByKey(b.light) then b.light = "steady" end
     b.breathe = nil
     -- the mic light: in combat by default (0.29 saved "off" without asking: once)
@@ -342,6 +345,18 @@ for _, e in ipairs(LT.EVENTS) do
     EVENT[e.key] = e
 end
 LT.EVENT = EVENT
+
+-- A moment's defaults: its definition's, with a FRESH profile's own on top (Profiles.lua)
+local function Start(key)
+    local e = EVENT[key]
+    local d = { on = e.on, light = LT.DefaultLight and LT.DefaultLight(key), color = e.color, strength = e.strength,
+        dots = e.dots, mic = e.mic }
+    local P = ns.Profiles
+    local f = P and P.FreshOf and P.FreshOf("lights", key)
+    if type(f) == "table" then for k, v in pairs(f) do d[k] = v end end
+    return d
+end
+LT.Start = Start
 
 -- A moment's definition: its own, or a sub-moment's (a spell's,
 -- ns.SubMoment: "spell:instant:Frost Nova") as its parent's, under its name
@@ -463,7 +478,8 @@ function LT.Settings(key)
     local e = EVENT[key]
     local s = db.lightEvents[key]
     if type(s) ~= "table" then
-        s = { on = e.on, light = LT.DefaultLight(key), color = e.color, strength = e.strength, dots = e.dots, mic = e.mic }
+        local d = Start(key)
+        s = { on = d.on, light = d.light, color = d.color, strength = d.strength, dots = d.dots, mic = d.mic }
         db.lightEvents[key] = s
     end
     if not DOTS[s.dots] then s.dots = e.dots end   -- (before 0.46: the preset's own, now data)
@@ -488,8 +504,9 @@ function LT.IsDefault(key)
     local _, name, O = Sub(key)
     if O then return O.Field(name, "light") == nil end
     local e, s = EVENT[key], LT.Settings(key)
-    return s.on == e.on and s.light == LT.DefaultLight(key) and s.color == e.color and s.strength == e.strength
-        and s.dots == e.dots and s.mic == e.mic
+    local d = Start(key)
+    return s.on == d.on and s.light == d.light and s.color == d.color and s.strength == d.strength
+        and s.dots == d.dots and s.mic == d.mic
 end
 
 -- A moment's dots and mic as the strip's codes
@@ -678,9 +695,9 @@ end
 Recommended = function()
     local rows = {}
     for _, key in ipairs(LT.STACK) do
-        local e = EVENT[key]
-        rows[#rows + 1] = { id = key, condition = key, on = e.on, light = LT.DefaultLight(key), color = e.color,
-            strength = e.strength, dots = e.dots, mic = e.mic }
+        local d = Start(key)
+        rows[#rows + 1] = { id = key, condition = key, on = d.on, light = d.light, color = d.color,
+            strength = d.strength, dots = d.dots, mic = d.mic }
     end
     return rows
 end

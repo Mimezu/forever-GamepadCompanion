@@ -1280,6 +1280,29 @@ do
     end
     -- sounds: defaults, chosen, none, back to default
     assert(C.MomentSound("loot") == K.SOUNDS.coin and C.IsSoundDefault("loot"), "loot: coin by default")
+    -- a profile made with FRESH (a new character): Alberich's sounds and levels are its defaults,
+    -- shown as Default; a profile made before keeps the code's
+    do
+        local P = ns.Profiles or (function()
+            assert(loadfile(root .. "/Profiles.lua"))("GamepadCompanion", ns)
+            return ns.Profiles
+        end)()
+        GamepadCompanionHapticsDB.fresh = P.FRESH.version
+        assert(C.MomentSound("loot") == K.SOUNDS.thud and C.IsSoundDefault("loot"), "fresh: loot thud, as Default")
+        assert(C.MomentSound("money") == K.SOUNDS.coin and C.MomentSound("uiError") == nil
+            and C.MomentSound("lowHp") == K.SOUNDS.heartbeat_thump, "fresh: money coin, Error none, low health heartbeat")
+        local Vol = ns.Volume
+        assert(math.abs(Vol.Sound("loot") - 0.5) < 1e-9 and math.abs(Vol.Sound("whisper") - 0.7) < 1e-9, "fresh: softer loot and whisper")
+        local LT = ns.Lights
+        local cs = LT.Start("combat")
+        assert(cs.on == true and cs.light == 0 and cs.mic == "on" and cs.dots == "pass", "fresh: In combat lit on the mic, the bar passes")
+        GamepadCompanionHapticsDB.fresh = nil
+        assert(LT.Start("combat").on == LT.EVENT.combat.on, "made before: In combat as the code has it")
+        GamepadCompanionHapticsDB.fresh = P.FRESH.version
+        GamepadCompanionHapticsDB.fresh = nil
+        assert(C.MomentSound("loot") == K.SOUNDS.coin and C.MomentSound("uiError") == K.SOUNDS.error
+            and Vol.Sound("loot") == 1, "made before: the code's own")
+    end
     assert(C.MomentSound("jump") == nil, "jump: none")
     C.SetMomentSound("jump", 900)
     assert(C.MomentSound("jump") == 900 and not C.IsSoundDefault("jump"), "a chosen sound")
@@ -2380,6 +2403,13 @@ do
     K.Enabled = function() return false end
     assert(math.abs(T.Lead() - 0.018) < 1e-9, "the game's vibration over USB: no Bluetooth part")
     K.Enabled = function() return true end
+    -- (USB: WoW Helper plays no HD there, the game's rumble is felt: a measured link doesn't count)
+    WowHelperData = { link = "usb", padDelay = 0.019, linkLatency = 0.045 }
+    T.LoadHelper()
+    assert(math.abs(T.Lead() - 0.019) < 1e-9, "USB: its pad delay, not the measured link")
+    WowHelperData = { link = "bt", padDelay = 0.04, linkLatency = 0.045 }
+    T.LoadHelper()
+    assert(math.abs(T.Lead() - 0.045) < 1e-9, "Bluetooth: the measured link")
     WowHelperData = { link = "bt", padDelay = 0.03 }
     T.LoadHelper()
     assert(T.Link() == "bt" and math.abs(T.Lead() - 0.03) < 1e-9, "Bluetooth: 30 ms")

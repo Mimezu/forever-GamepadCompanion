@@ -30,7 +30,7 @@ goes back to the v1 strip below (`GamepadCompanionHapticsDB.link.v1 = true`).
 - Frame: parent nil (shown with the UI hidden), strata `TOOLTIP`, shown only while the link is on.
 - Each colour channel is on or off: **>= 160 on, <= 96 off**, anything between is invalid (the
   whole frame is dropped). So 3 bits per cell (R, G, B), and gamma or brightness don't matter.
-- Cell 0 = magenta (1,0,1) and cell 1 = green (0,1,0) are markers. The helper scans 320 x 40 px in
+- Cell 0 = magenta (1,0,1) and cell 1 = green (0,1,0) are markers. The helper scans 480 x 40 px in
   the bottom-left corner first, then the top-left, for the magenta block's top-left corner, takes its width as S, checks the green
   cell, and samples every cell's centre (`x + i*S + S/2`, `y + S/2`).
 
