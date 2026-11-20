@@ -779,6 +779,10 @@ local commandHelp = {
 SlashCmdList.GAMEPADCOMPANION = function(message)
     local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
     command = command:lower()
+    if command == "hush" and ns.Hush then
+        ns.Hush.Command(rest)
+        return
+    end
     if command == "edit" and API.EditMode then
         API.EditMode.Command(rest)
         return

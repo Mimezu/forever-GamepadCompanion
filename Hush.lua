@@ -147,16 +147,6 @@ end
 BINDING_NAME_GAMEPADCOMPANION_HUSH = "Hush"
 function GamepadCompanion_Hush() Hu.Toggle(); Hu.Say(Hu.On()) end
 
--- /gpc hush [on | off | resting]
-if type(SlashCmdList) == "table" and SlashCmdList.GAMEPADCOMPANION then
-    local slash = SlashCmdList.GAMEPADCOMPANION
-    SlashCmdList.GAMEPADCOMPANION = function(message)
-        local command, rest = (message or ""):match("^%s*(%S*)%s*(.-)%s*$")
-        if command and command:lower() == "hush" then return Hu.Command(rest) end
-        return slash(message)
-    end
-end
-
 local frame = CreateFrame("Frame")
 pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")
 pcall(frame.RegisterEvent, frame, "PLAYER_UPDATE_RESTING")
