@@ -2505,7 +2505,11 @@ do
     WowHelperData = { timingDefaults = { mining = { first = 1.5, period = 1.3, crack = 3.1 }, run = { rate = 2.5, offset = 0.12, speed = 7 } } }
     local p, f = V.StrikeTiming("mining")
     assert(p == 1.3 and f == 1.5, "mining: the published default")
+    -- (a model with no rate of its own: a human man has one, from his stride)
+    local race = UnitRace
+    UnitRace = function() return "Skyborne", "Skyborne", 95 end
     local rate, offset = L.StepTiming(7)
+    UnitRace = race
     assert(math.abs(rate - 2.5) < 1e-9 and math.abs(offset - 0.12) < 1e-9, "running: the published default")
     WowHelperData = nil
     p, f = V.StrikeTiming("mining")
@@ -3957,4 +3961,23 @@ do
     assert(C.HelperSound("fishCatch") == nil, "a sound of its own: the helper adds none")
     C.SetMomentSound("fishCatch", nil)
     io.write("PASS: Just played names the game's sound WoW Helper adds" .. string.char(10))
+end
+
+-- Steps before anything is learned: the model's own rate; a model with none, the default, said once
+do
+    local L, T = ns.HapticsLab, ns.Timing
+    local race, sex = UnitRace, UnitSex
+    WowHelperData = nil
+    UnitRace, UnitSex = function() return "Human", "Human", 1 end, function() return 2 end
+    assert(math.abs(L.StepDefault("run").rate - 2.906) < 1e-9, "a human man's own run")
+    assert(math.abs(L.StepDefault("walk").rate - 1.923) < 1e-9, "and walk")
+    UnitRace = function() return "Tauren", "Tauren", 6 end
+    assert(math.abs(L.StepDefault("run").rate - 2.153) < 1e-9, "a tauren's long stride")
+    UnitRace, UnitSex = function() return "Skyborne", "Skyborne", 95 end, function() return 3 end
+    local before = #T.Store().log
+    assert(L.StepDefault("run").rate == 2.4, "a Skyborne: the default")
+    L.StepDefault("run")
+    assert(#T.Store().log == before + 1 and T.Store().log[#T.Store().log]:find("95%-3|run"), "said once")
+    UnitRace, UnitSex = race, sex
+    io.write("PASS: each model's own steps until learned; a model with none, the default, said once" .. string.char(10))
 end

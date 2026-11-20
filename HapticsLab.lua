@@ -1087,7 +1087,20 @@ local GUESS = { walk = { rate = 1.8, speed = 2.5, offset = 0.15 }, run = { rate 
 -- measured: the Undead male, heard at 3.23 steps/s running (his animation says 3.36, x 0.96). The
 -- Undead female's stride is longer (666 ms against his 600): 2.91 running, 1.92 walking.
 -- (WoW Helper publishes the same table: timingDefaults.models; this copy without it)
-L.STEP_MODELS = { ["5-3"] = { run = 2.906, walk = 1.919 } }
+-- (every race and sex, from the game's own models: WoW Helper's examples/model_timing.rs; a
+-- tauren's stride is long, a gnome's walk quick; all x 0.96 as the Undead male)
+L.STEP_MODELS = {
+    ["1-2"] = { run = 2.906, walk = 1.923 }, ["1-3"] = { run = 2.887, walk = 1.923 },
+    ["2-2"] = { run = 2.906, walk = 1.804 }, ["2-3"] = { run = 2.887, walk = 2.061 },
+    ["3-2"] = { run = 3.230, walk = 2.403 }, ["3-3"] = { run = 2.422, walk = 1.923 },
+    ["4-2"] = { run = 2.910, walk = 1.923 }, ["4-3"] = { run = 2.906, walk = 2.061 },
+    ["5-2"] = { run = 3.230, walk = 1.804 }, ["5-3"] = { run = 2.906, walk = 1.919 },
+    ["6-2"] = { run = 2.153, walk = 1.341 }, ["6-3"] = { run = 2.306, walk = 1.923 },
+    ["7-2"] = { run = 3.129, walk = 4.120 }, ["7-3"] = { run = 3.129, walk = 4.120 },
+    ["8-2"] = { run = 2.422, walk = 1.442 }, ["8-3"] = { run = 2.906, walk = 1.804 },
+}
+-- (a model with none, a Skyborne: the generic default, said once in Timing's log)
+local stepFallbackSaid = {}
 -- The default for a gait, this model's rate when it has one
 local function StepDefault(band)
     local d = ns.Timing and ns.Timing.Default(band)
@@ -1095,7 +1108,14 @@ local function StepDefault(band)
     local published = ns.Timing and ns.Timing.Default("models")
     local m = type(published) == "table" and published[Model()] or L.STEP_MODELS[Model()]
     local rate = type(m) == "table" and tonumber(m[band])
-    if not rate then return cal end
+    if not rate then
+        local said = Model() .. "|" .. band
+        if not stepFallbackSaid[said] and ns.Timing and ns.Timing.Log then
+            stepFallbackSaid[said] = true
+            ns.Timing.Log(("steps %s: no model of its own, the default %.2f steps/s"):format(said, tonumber(cal.rate) or 0))
+        end
+        return cal
+    end
     return { rate = rate, speed = cal.speed, offset = cal.offset }
 end
 L.StepDefault = StepDefault
