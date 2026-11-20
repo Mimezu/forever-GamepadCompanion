@@ -7,7 +7,9 @@
 -- toggle (an open window takes the pad, or gives it back to the world):
 --   chord (B)  the whole pad is zones while the world has the pad, even with
 --              windows open; a focused window gets the plain click back.
---              L1 + touchpad runs Blizzard's function, always, in combat too.
+--              L1 + touchpad runs Blizzard's function, out of combat (held
+--              L1 puts Focus UI on the click: Forever's gamepad bar keeps L1,
+--              so no modifier reaches a binding).
 --   split (A)  a gamepad config makes the right half its own button (PAD6),
 --              all zones; the left half stays Blizzard's, untouched.
 -- Pure logic: TouchModel.lua. Off by default: `/gpc touch on`.
@@ -151,6 +153,7 @@ end
 -- player's ask: L1 + touch for Focus UI, the click kept for zones.
 ---------------------------------------------------------------------------
 local chordLent   -- the modifier lent to the chord button now, or nil
+local chordHeld = false   -- the chord button held: the bare click runs Focus UI
 
 local function WindowOpen()
     return GamepadUI() and WindowsShown() > 0
@@ -743,8 +746,6 @@ local function BuildPreview()
         text:SetTextColor(r, g, b)
         return text
     end
-    f.title = Shadowed(13, 0.94, 0.86, 0.69)
-    f.title:SetPoint("TOPLEFT", 10, 0)
     f.layerText = Shadowed(12, 1, 0.82, 0)
     f.layerText:SetPoint("TOPRIGHT", -10, 0)
     -- The pad, drawn as on the Controller page (art/Touchpad.tga)
@@ -890,7 +891,6 @@ local function UpdatePreview(x, y, show)
     end
     preview.native.bg:SetColorTexture(onNative and 0.25 or 0, onNative and 0.4 or 0, onNative and 0.8 or 0, 0.35)
     preview.blizzard:SetShown(blizzard)
-    preview.title:SetText(Glyph("Shp_TouchpadL", 16) .. "  Touchpad")
     preview.layerText:SetText(blizzard and "Blizzard" or (layer ~= "base" and ns.ControllerModel
         and ns.ControllerModel.Combo(layer, nil, 16) or ""))
     preview.hint:SetText(mode == "chord" and (Glyph("Shp_LShoulder", 14) .. " + " .. Glyph("Shp_TouchpadL", 14) .. "  Focus UI")
@@ -927,6 +927,21 @@ watcher:SetScript("OnUpdate", function(_, elapsed)
         elseif not open and chordLent then
             Touch.LendChord(false)
             Touch.Apply()
+        end
+    end
+    -- (L1 held, out of combat: the click is Blizzard's Focus UI; Forever's
+    -- gamepad bar keeps L1 for itself, so no modifier reaches a binding)
+    if settings.mode == "chord" and not InCombat() then
+        local held = IsKeyDown and IsKeyDown(settings.chordButton) == true or false
+        if held ~= chordHeld then
+            chordHeld = held
+            if held then
+                for key in pairs(boundKeys) do
+                    if not key:find("-", 1, true) then SetOverrideBinding(binds, true, key, "TOGGLEUIFOCUS") end
+                end
+            else
+                Touch.Apply()
+            end
         end
     end
     -- (a zone runs a Blizzard binding: the touchpad's key follows the finger)
@@ -975,8 +990,10 @@ events:SetScript("OnEvent", function(_, event, arg)
     end
     if not loaded then return end
     if event == "PLAYER_REGEN_DISABLED" then
-        -- (the last moment bindings can change: the zone's key back to the button)
+        -- (the last moment bindings can change: the zone's key back to the button,
+        -- and the click back to zones if L1 was held)
         fingerZone = nil
+        if chordHeld then chordHeld = false; Touch.Apply() end
         FingerBinds()
         return
     end

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.67.4 — 2026-11-20
+
+- Fixed: L1 + touchpad never ran Focus UI (Forever's gamepad bar keeps L1: no modifier reaches a binding). Now, while L1 is held out of combat, the touchpad click is Focus UI; on release, the zones again
+- The touchpad preview: no title (the pad says it)
+
 ## 0.67.3 — 2026-11-20
 
 - Fixed: L2, R2 and L2 R2 actions on L1, R1, L3, R3, Create, Options, PS and Mic never ran (Forever's gamepad bar takes L2 / R2 for itself: no Shift or Ctrl reaches the binding). Now, while L2 / R2 is held out of combat, the button runs that layer's action; on release, its base one. In combat: the base action
