@@ -3425,10 +3425,6 @@ end
 local LOW_HP = 0.35   -- (as it ships: When.lua's; the game's warning is at 35 % too)
 local low = false
 
-local function Secret(v)
-    return issecretvalue ~= nil and issecretvalue(v) or false
-end
-
 -- The level it starts below (the row's When chip), and health as a fraction when it can be read
 local function LowBelow()
     local W = ns.When
@@ -3436,7 +3432,7 @@ local function LowBelow()
 end
 local function HealthNow()
     local hp, max = UnitHealth("player"), UnitHealthMax("player")
-    if Secret(hp) or Secret(max) or not max or max <= 0 then return nil end
+    if secret(hp) or secret(max) or not max or max <= 0 then return nil end
     return hp / max
 end
 
