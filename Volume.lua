@@ -27,8 +27,6 @@ end
 
 -- Defaults under full: moments that share a strong feel with a bigger one
 Vol.FEEL_DEFAULT = { mount = 0.5, dismount = 0.5 }
--- and sounds: the frequent ones softer
-Vol.SOUND_DEFAULT = { loot = 0.5, whisper = 0.7, money = 0.8, emoteVoice = 0.8 }
 
 -- A moment's feel / sound volume (its default unless set; full for most)
 -- (an action, "gather:mining", "craft:cooking": its kind's volumes until it has its own)
@@ -45,7 +43,10 @@ function Vol.FeelDefault(key)
 end
 function Vol.SoundDefault(key)
     local parent = Parent(key)
-    return parent and Vol.Sound(parent) or Vol.SOUND_DEFAULT[key] or 1
+    if parent then return Vol.Sound(parent) end
+    -- (a profile made with Profiles' FRESH: its softer frequent sounds)
+    local P = ns.Profiles
+    return P and P.FreshOf and P.FreshOf("soundVolumes", key) or 1
 end
 function Vol.Feel(key)
     -- (a spell's own, "spell:instant:Frost Nova": its own volume over its

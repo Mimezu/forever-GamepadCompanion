@@ -151,6 +151,7 @@ check(h.events.money.on == true and h.events.money.feel == "gravel" and h.events
     and h.events.landing.on == nil and h.events.combo.feel == nil, "Recommended feels; a feel alone leaves on to the code")
 local vib = GamepadCompanionCharDB.vibration
 check(vib.intensity == 1 and vib.events.autoAttack.on == true and vib.events.jump.on == true, "swings, jumps, full strength")
+check(h.fresh == P.FRESH.version and P.Fresh(), "stamped FRESH: its sounds, levels and lights are its defaults")
 check(type(GamepadCompanionCharDB) == "table" and GamepadCompanionCharDB.keys == nil, "fresh controls")
 Logout()
 P = Login("Brann", "Noir", "PALADIN")

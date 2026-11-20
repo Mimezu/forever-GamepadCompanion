@@ -497,6 +497,8 @@ do
     for _, class in ipairs({ "PALADIN", "ROGUE", "HUNTER" }) do
         P.state.class = class
         local rec = P.Recommended(class)
+        -- (the profile in use is the one Reset makes: stamped FRESH)
+        GamepadCompanionHapticsDB.fresh = rec.fresh
         for key, r in pairs(rec.events) do
             -- (a feel only: on as the code has it)
             local on = r.on
@@ -518,6 +520,15 @@ do
             n = n + 1
         end
     end
+    -- a profile made before FRESH keeps the code's own: nothing of Alberich's shows as changed
+    GamepadCompanionHapticsDB.fresh = nil
+    P.state.class = "PALADIN"
+    assert(L.DefaultOn("money") == L.EVENT.money.on and L.DefaultFeel("landing") == L.EVENT.landing.feel
+        and L.DefaultFeel("money") == L.EVENT.money.feel, "unstamped: the code's Money and Landing")
+    assert(P.RecommendedOn("vibration", "autoAttack") == nil and P.RecommendedOn("vibration", "jump") == nil,
+        "unstamped: swings and jumps as the code has them")
+    GamepadCompanionHapticsDB.fresh = P.FRESH.version
+    assert(L.DefaultOn("money") == true and L.DefaultFeel("landing") == "flick", "stamped: Alberich's")
     -- the row says so: Hit after Default is off and its Default greyed
     P.state.class = "PALADIN"
     page.SetKind("feel")
