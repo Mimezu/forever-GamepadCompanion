@@ -1,9 +1,12 @@
--- A paladin's feels: what the paladin spells the moves leave out play (Rumble's V.SpellRule asks
--- Of here, in the shape of V.MAGE's entries), and Consecration's ground felt each second you
--- stand in it. The moves already set (seals, blessings, Judgement, Consecration's laying down,
--- Hammer of Justice, Divine Shield, Lay on Hands, Purify, Cleanse) stay Rumble's.
--- tests/PaladinCoverage.lua lists every paladin spell of the client and what it plays.
+-- A paladin's feels: what the paladin spells the moves leave out play (Rumble's
+-- V.CLASS_SPELLS.PALADIN, as V.MAGE), its own patterns (V.AddPatterns), and Consecration's ground
+-- felt each second you stand in it. The moves already set (seals, blessings, Judgement,
+-- Consecration's laying down, Hammer of Justice, Divine Shield, Lay on Hands, Purify, Cleanse)
+-- stay Rumble's. docs/PALADIN.md; tests/PaladinCoverage.lua lists every paladin spell of the
+-- client and what it plays.
 local _, ns = ...
+local V = ns.Rumble
+if not V or not V.AddPatterns then return end
 local PD = {}
 ns.Paladin = PD
 
@@ -13,6 +16,52 @@ local function SpellName(id)
     if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
     return GetSpellInfo and (GetSpellInfo(id))
 end
+local function Pu(t, len, s, side) return { t, len, s, side or 0 } end
+
+---------------------------------------------------------------------------
+-- The gaps' own feels (every step 0.1 s or more, for the engine off)
+---------------------------------------------------------------------------
+PD.PATTERNS = {
+    -- (at the cast)
+    { key = "aura", label = "Aura", art = "radiance", move = true,   -- a warm ring spreading round you, settling
+        steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.15 }, { 0.1, 0.1, 0.15 } },
+        pulses = { Pu(0, 0.06, 0.1, -1), Pu(0, 0.06, 0.1, 1), Pu(0.12, 0.18, 0.28, -0.8), Pu(0.15, 0.18, 0.28, 0.8),
+            Pu(0.42, 0.1, 0.09) } },
+    { key = "wings", label = "Wings", art = "rise", move = true,      -- Avenging Wrath: light rushing up both arms, held, let go
+        steps = { { 0.15, 0.15, 0.1 }, { 0.35, 0.35, 0.1 }, { 0.7, 0.7, 0.12 }, { 1, 1, 0.3 }, { 0.3, 0.3, 0.15 },
+            { 0.1, 0.1, 0.15 } },
+        pulses = { Pu(0, 0.05, 0.15, -0.6), Pu(0.06, 0.05, 0.15, 0.6), Pu(0.14, 0.06, 0.35, -0.8), Pu(0.2, 0.06, 0.35, 0.8),
+            Pu(0.3, 0.08, 0.7), Pu(0.42, 0.3, 1), Pu(0.8, 0.1, 0.25, -0.5), Pu(0.8, 0.1, 0.25, 0.5), Pu(1, 0.05, 0.08) } },
+    -- (as they land)
+    { key = "avenger", label = "Avenger's Shield", art = "bash", move = true, -- the shield's hit, then two bounces away
+        steps = { { 0.85, 0.7, 0.12 }, { 0, 0, 0.1 }, { 0.35, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.2, 0.1 } },
+        pulses = { Pu(0, 0.1, 0.85, 0.2), Pu(0.28, 0.05, 0.35, -0.7), Pu(0.5, 0.05, 0.18, 0.7) } },
+    { key = "exorcism", label = "Exorcism", art = "radiance", move = true, -- a searing flare, burning off
+        steps = { { 0.5, 0.5, 0.1 }, { 0.9, 0.9, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.12, 0.12, 0.12 } },
+        pulses = { Pu(0, 0.05, 0.5), Pu(0.05, 0.12, 0.9), Pu(0.2, 0.05, 0.3, -0.4), Pu(0.28, 0.05, 0.25, 0.4),
+            Pu(0.4, 0.1, 0.1) } },
+    -- (Consecration's ground, once a second while you stand in it: faint, warm, uneven)
+    { key = "hallow", label = "Hallowed", art = "surge",
+        steps = { { 0.1, 0.12, 0.15 }, { 0.04, 0.04, 0.1 } },
+        pulses = { Pu(0, 0.12, 0.12, -0.3), Pu(0.08, 0.12, 0.12, 0.3), Pu(0.3, 0.05, 0.05) } },
+    -- (at a cast's release)
+    { key = "raise", label = "Redeemed", art = "rise",             -- Redemption: a soul drawn back, a soft bloom
+        steps = { { 0.1, 0.1, 0.12 }, { 0.2, 0.2, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.55, 0.55, 0.4 }, { 0.1, 0.1, 0.12 } },
+        pulses = { Pu(0, 0.05, 0.1), Pu(0.12, 0.05, 0.18), Pu(0.24, 0.08, 0.3), Pu(0.36, 0.4, 0.55), Pu(0.85, 0.05, 0.1) } },
+    { key = "turn", label = "Turn Undead", art = "burst",          -- a hard flash, pushing away
+        steps = { { 0.6, 0.6, 0.1 }, { 0.3, 0.3, 0.15 }, { 0.08, 0.08, 0.1 } },
+        pulses = { Pu(0, 0.05, 0.6), Pu(0.08, 0.15, 0.3), Pu(0.3, 0.05, 0.08) } },
+    { key = "hooves", label = "Hooves", art = "charge",            -- the steed there: hooves stamping, a toss of the head
+        steps = { { 0.35, 0.1, 0.1 }, { 0.1, 0.3, 0.1 }, { 0.25, 0.1, 0.1 }, { 0.1, 0.2, 0.1 }, { 0.08, 0.08, 0.12 } },
+        pulses = { Pu(0, 0.06, 0.35, -0.4), Pu(0.12, 0.06, 0.3, 0.4), Pu(0.3, 0.06, 0.25, -0.3), Pu(0.42, 0.06, 0.2, 0.3),
+            Pu(0.65, 0.12, 0.08) } },
+    -- (a cast's loop: the steed called, far hoofbeats in the light)
+    { key = "steed", label = "Steed", art = "shimmer",
+        steps = { { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.15 }, { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.2 } },
+        pulses = { cycle = 0.75, Pu(0, 0.05, 0.07, -0.3), Pu(0.12, 0.05, 0.05, 0.3), Pu(0.37, 0.05, 0.07, -0.3),
+            Pu(0.49, 0.05, 0.05, 0.3) } },
+}
+V.AddPatterns(PD.PATTERNS)
 
 ---------------------------------------------------------------------------
 -- What each spell plays, by its first rank's ID (every rank shares its name).
@@ -53,30 +102,10 @@ for move, ids in pairs(AT_HIT) do
     for _, id in ipairs(ids) do PD.SPELLS[id] = { move = move, when = "hit", magic = true } end
 end
 
-function PD.IsPaladin()
-    if not UnitClass then return false end
-    local _, class = UnitClass("player")
-    return class == "PALADIN"
-end
+V.CLASS_SPELLS.PALADIN = PD.SPELLS
 
--- A paladin spell's entry, by its ID, else (a paladin only) by its name; nil: none
-local byName
-function PD.Of(spellID, name)
-    if not spellID or secret(spellID) then return nil end
-    local e = PD.SPELLS[spellID]
-    if e then return e end
-    if not PD.IsPaladin() then return nil end
-    if not byName then
-        byName = {}
-        for id, entry in pairs(PD.SPELLS) do
-            local n = SpellName(id)
-            if n and not secret(n) and not byName[n] then byName[n] = entry end
-        end
-    end
-    name = name or SpellName(spellID)
-    if not name or secret(name) then return nil end
-    return byName[name]
-end
+-- A paladin spell's entry (Rumble's, every rank by its name, a paladin's only); nil: none
+function PD.Of(spellID, name) return V.ClassSpellOf(spellID, name) end
 
 ---------------------------------------------------------------------------
 -- Consecration: the ground hallowed round you for 8 s, felt once a second (its
@@ -114,8 +143,7 @@ function PD.HallowStart(rule)
 end
 
 local function Tick(k)
-    local V = ns.Rumble
-    if not (V and V.Active() and V.EventPattern("instant")) then return end
+    if not (V.Active() and V.EventPattern("instant")) then return end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then hallow = nil; return end
     if IsMounted and IsMounted() then hallow = nil; return end
     local g = PD.HallowGain(hallow)
@@ -153,8 +181,7 @@ f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:SetScript("OnEvent", function(_, event, _, _, spellID)
     if event == "PLAYER_ENTERING_WORLD" then hallow = nil; return end
     if not IsConsecration(spellID) then return end
-    local V = ns.Rumble
-    local rule = V and V.SpellRule(spellID, 0)
+    local rule = V.SpellRule(spellID, 0)
     if not rule or rule.off then return end
     PD.HallowStart(rule)
 end)

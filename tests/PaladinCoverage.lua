@@ -199,8 +199,8 @@ function methods:SetMaxLetters() end
 UnitName = function() return "Tester" end
 GetRealmName = function() return "Noir" end
 GamepadCompanionCharDB = { version = 1 }   -- (an existing character: the code's defaults, not Recommended)
-for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
-    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "Hunter.lua", "Paladin.lua", "FullFeel.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
+for _, file in ipairs({ "Profiles.lua", "Model.lua", "Shared.lua", "TouchModel.lua", "Gestures.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua", "Paladin.lua", "Haptics.lua", "Timing.lua", "Volume.lua",
+    "HapticsLab.lua", "HelperLink.lua", "TriggerRules.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua", "Hunter.lua", "FullFeel.lua", "TriggerStack.lua", "HapticsDebug.lua", "Battery.lua", "Staircase.lua", "HapticsUI.lua", "ProfileMenu.lua", "LightPicker.lua", "SpellOverrides.lua", "RumblePage.lua", "LearnedPage.lua", "BetaPage.lua", "SetupPage.lua", "GesturesPage.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local V, H, L = ns.Rumble, ns.Haptics, ns.HapticsLab
@@ -315,7 +315,7 @@ local function SetOf(id) return V.SpellRule(id, byId[id].cast / 1000).set end
 assert(SetOf(13819) == "feel:steed" and SetOf(23214) == "feel:steed", "the steed called")
 assert(SetOf(2878) == "holy" and SetOf(7328) == "holy", "Turn Undead and Redemption: Holy")
 -- (every new feel exists, rumble and HD; every step 0.1 s or more)
-for _, p in ipairs(V.PALADIN_PATTERNS) do
+for _, p in ipairs(PD.PATTERNS) do
     assert(V.PULSES[p.key] and H.Feel("r_" .. p.key), p.key .. ": pulses and its HD library feel")
     for _, st in ipairs(p.steps) do assert(st[3] >= 0.1, p.key .. ": every step 0.1 s or more") end
 end
@@ -473,11 +473,11 @@ for _, p in ipairs(V.PULSES.hallow) do assert(p[3] <= 0.15, "faint") end
 io.write("PASS: Consecration: Surge as laid down, then its ground each second for 8 s, by turns, fainter at its edge, none once out, mounted or off\n")
 
 ---------------------------------------------------------------------------
--- 4. Another class: by name, the paladin's only; by ID, any
+-- 4. Another class: none of the paladin's rules
 ---------------------------------------------------------------------------
 UnitClass = function() return "Mage", "MAGE" end
 assert(PD.Of(10293) == nil, "a mage: no paladin rule by name")
-assert(PD.Of(465) ~= nil, "by its ID: any")
+assert(PD.Of(465) == nil, "nor by its ID")
 UnitClass = function() return "Paladin", "PALADIN" end
 assert(PD.Of(10293) ~= nil, "a paladin: by name, every rank")
 C.Feel, C.Moment, V.Play, V.Fire = cFeel, cMoment, vplay, vfire

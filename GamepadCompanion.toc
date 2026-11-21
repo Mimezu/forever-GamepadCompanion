@@ -20,6 +20,11 @@ When.lua
 Core.lua
 CameraPitch.lua
 Rumble.lua
+ComboPoints.lua
+Forms.lua
+Shaman.lua
+Druid.lua
+Paladin.lua
 Haptics.lua
 Timing.lua
 Volume.lua
@@ -33,7 +38,6 @@ LightPresets.lua
 Lights.lua
 HelperCues.lua
 Hunter.lua
-Paladin.lua
 FullFeel.lua
 TriggerStack.lua
 HapticsDebug.lua

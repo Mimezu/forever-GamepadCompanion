@@ -1,8 +1,8 @@
 # Paladin
 
 What a paladin feels, spell by spell (2026-11-20). The feels a paladin had before stay as they
-were; this pass filled the gaps. Data: `Paladin.lua` (`PD.SPELLS`), the paladin patterns in
-`Rumble.lua` (`V.PALADIN_PATTERNS`); HD: WoW Helper's `assets/hd/feels.txt`. `tests/PaladinCoverage.lua`
+were; this pass filled the gaps. Data: `Paladin.lua` (`PD.SPELLS`), its own patterns (`PD.PATTERNS`,
+registered with `V.AddPatterns`) and `V.CLASS_SPELLS.PALADIN`; HD: WoW Helper's `assets/hd/feels.txt`. `tests/PaladinCoverage.lua`
 checks all 253 paladin spell IDs of the client (every rank, the runes, the class mounts).
 
 ## Kept
