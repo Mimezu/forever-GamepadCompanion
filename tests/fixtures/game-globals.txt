@@ -78,6 +78,7 @@ GetSpellBookItemName
 GetSpellBookItemTexture
 GetSpellCooldown
 GetSpellInfo
+GetSpellSubtext
 GetSpellTabInfo
 GetSpellTexture
 GetTime
@@ -109,6 +110,7 @@ IsPassiveSpell
 IsResting
 IsShiftKeyDown
 IsSpellHelpful
+IsSpellKnown
 IsStealthed
 IsSubmerged
 IsSwimming

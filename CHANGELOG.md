@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (0.70.1)
+## Unreleased (0.71.1)
 
+- **Spell ranks**: a pad slot at a spell's top rank moves up to each rank you train. A lower rank stays, whoever put it there. Choose under the Controller card: Rank  < Highest >. Nothing moves on a character's first login
 - Fixed: L1 / R1 change tabs in the window (they went to the game's modifier highlight). The pad legend no longer overlaps; L1 / R1 on the controller read "Modifier"
 - **Pad in the window**: the window has the pad as soon as it opens, like Blizzard's. L1 / R1 change tabs at once, glyphs by the side tabs; a new tab starts on its first control. Left / right change a value row
 - **Hunter**: every hunter spell has its own feel (tests/Hunter.lua lists all 76). Aimed Shot draws the string, then the arrow lands as a shot; Multi-Shot fans two more arrows; stings and Black Arrow creep in after the shot; Concussive and Scatter Shot daze; Volley rains small arrows over both hands; Feign Death drops, Disengage leaps, aspects breathe in
