@@ -152,7 +152,7 @@ do
     eq(T.SwipeOf(0, 0, 0.1, 0.1), nil, "short move: a tap")
     eq(T.SwipeOf(-0.5, 0, 0.5, 0.2), "swipe-right", "swipe right")
     eq(T.SwipeOf(0, 0.5, 0.1, -0.5), "swipe-down", "swipe down")
-    eq(T.LayerOf(true, true), "both", "both triggers")
+    eq(ns.Shared.LayerOf(true, true), "both", "both triggers")
     eq(#T.Prefixes(), 8, "eight modifier prefixes")
     eq(T.ModifierFor("PADLSHOULDER", { CTRL = "PADLSHOULDER" }), "CTRL", "L1 emulates Ctrl")
 end

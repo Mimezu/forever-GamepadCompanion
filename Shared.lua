@@ -25,6 +25,51 @@ function Sh.LayerPrefix(layer)
     return ""
 end
 
+-- The pad ----------------------------------------------------------------------
+-- The one place "is a pad button down" is read: the pad's own state
+-- (C_GamePad.GetDeviceMappedState), what the secure snippets read as
+-- GetGamePadState. Never IsKeyDown on a binding's key: the game's key state
+-- is the bindings' (a release a window ate leaves it down, and Blizzard's
+-- sets rebind the triggers' keys), which bound Focus UI to Create with L2 up
+-- (2026-11-21). nil: no pad to read.
+function Sh.PadButtons()
+    local P = C_GamePad
+    if not (P and P.GetDeviceMappedState) then return nil end
+    local okId, id = pcall(P.GetActiveDeviceID)
+    local ok, state = pcall(P.GetDeviceMappedState, okId and id or nil)
+    return ok and type(state) == "table" and type(state.buttons) == "table" and state.buttons or nil
+end
+
+-- Is key ("PADLTRIGGER") down in buttons (Sh.PadButtons()); nil when unknown
+function Sh.PadDown(buttons, key)
+    local P = C_GamePad
+    if not (buttons and P and P.ButtonBindingToIndex) then return nil end
+    local ok, index = pcall(P.ButtonBindingToIndex, key)
+    if not ok or type(index) ~= "number" then return nil end
+    return buttons[index + 1] and true or false
+end
+
+-- L2, R2 down now: true / false each; nil, nil without a pad to read
+function Sh.Held()
+    local buttons = Sh.PadButtons()
+    local lt, rt = Sh.PadDown(buttons, "PADLTRIGGER"), Sh.PadDown(buttons, "PADRTRIGGER")
+    if lt == nil or rt == nil then return nil, nil end
+    return lt, rt
+end
+
+-- The layer the triggers held make
+function Sh.LayerOf(lt, rt)
+    return (lt and rt and "both") or (lt and "lt") or (rt and "rt") or "base"
+end
+
+-- The layer L2 / R2 hold now, from the pad; nil without one (callers fall
+-- back to Base: nothing of a held layer is ever bound on a guess)
+function Sh.Layer()
+    local lt, rt = Sh.Held()
+    if lt == nil then return nil end
+    return Sh.LayerOf(lt, rt)
+end
+
 -- Halo rings (when Halo is loaded) --------------------------------------------
 function Sh.HaloRings()
     local H = _G.Halo

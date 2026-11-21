@@ -103,17 +103,9 @@ local function GameBinding(key, layer)
     return C.BLIZZARD[key]
 end
 
-local function PadState()
-    local id = C_GamePad and Call(C_GamePad.GetActiveDeviceID)
-    if not id then return nil end
-    local state = Call(C_GamePad.GetDeviceMappedState, id)
-    return state and state.buttons
-end
-
-local function Down(buttons, key)
-    local index = buttons and C_GamePad and Call(C_GamePad.ButtonBindingToIndex, key)
-    return C.PadDown(buttons, index)
-end
+-- (the pad's own state, Shared.lua: what the key watcher and the secure clicks read)
+local PadState = Sh.PadButtons
+local function Down(buttons, key) return Sh.PadDown(buttons, key) == true end
 
 -- Targets ------------------------------------------------------------------------
 -- What the card edits: a bar slot, a button, or a touchpad zone. Each gives,
@@ -1001,7 +993,7 @@ local function Build(frame, header)
         if wait > 0 then return end
         wait = 0.05
         local buttons = PadState()
-        local held = buttons and C.LayerOf(Down(buttons, "PADLTRIGGER"), Down(buttons, "PADRTRIGGER")) or "base"
+        local held = Sh.LayerOf(Down(buttons, "PADLTRIGGER"), Down(buttons, "PADRTRIGGER"))
         held = held ~= "base" and held or nil
         if held ~= heldLayer then heldLayer = held; Refresh() end
         for _, b in ipairs(ui.slots) do b.pressed:SetShown(Down(buttons, b.info.key)) end

@@ -54,30 +54,6 @@ local function QueueRefresh()
     end)
 end
 
-local function ReadHeld(action)
-    if not GetBindingKey or not IsKeyDown then return nil end
-    local ok, first, second = pcall(GetBindingKey, action, 1)
-    if not ok then return nil end
-    local known = false
-    if M.Readable(first) and type(first) == "string" then
-        local held = SafeCall(IsKeyDown, first)
-        if type(held) == "boolean" then
-            known = true
-            if held then return true end
-        end
-    end
-    if M.Readable(second) and type(second) == "string" then
-        local held = SafeCall(IsKeyDown, second)
-        if type(held) == "boolean" then
-            known = true
-            if held then return true end
-        end
-    end
-    if known then return false end
-end
--- (held: true / false, nil when it can't be read; Keys reads L2 / R2 by it)
-M.Held = ReadHeld
-
 local function ReadState()
     local page = PageUnit()
     local available = page ~= nil and type(page.actionBars) == "table" and GamepadMode ~= nil
@@ -94,12 +70,13 @@ local function ReadState()
     result.compact = page ~= nil and SafeCall(page.ShouldUseCompactLayout, page) == true
     result.mode = result.compact and "compact" or "standard"
     if not enabled then return result end
-    result.ltHeld, result.rtHeld = ReadHeld("GAMEPADLEFTMOD"), ReadHeld("GAMEPADRIGHTMOD")
+    -- (held: the pad's own state, Shared.lua; nil when it can't be read)
+    local Sh = ns.Shared
+    local buttons = Sh.PadButtons()
+    result.ltHeld, result.rtHeld = Sh.PadDown(buttons, "PADLTRIGGER"), Sh.PadDown(buttons, "PADRTRIGGER")
     if result.ltHeld ~= nil and result.rtHeld ~= nil then result.bothHeld = result.ltHeld and result.rtHeld end
-    local leftShoulder = SafeCall(IsKeyDown, "PADLSHOULDER")
-    local rightShoulder = SafeCall(IsKeyDown, "PADRSHOULDER")
-    if type(leftShoulder) == "boolean" then result.leftShoulderHeld = leftShoulder end
-    if type(rightShoulder) == "boolean" then result.rightShoulderHeld = rightShoulder end
+    result.leftShoulderHeld = Sh.PadDown(buttons, "PADLSHOULDER")
+    result.rightShoulderHeld = Sh.PadDown(buttons, "PADRSHOULDER")
     if result.leftShoulderHeld ~= nil and result.rightShoulderHeld ~= nil then
         result.bothShouldersHeld = result.leftShoulderHeld and result.rightShoulderHeld
     end

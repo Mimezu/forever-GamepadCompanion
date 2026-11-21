@@ -97,7 +97,7 @@ C_GamePad = {
     GetConfig = function() end, SetConfig = function() end, DeleteConfig = function() end, ApplyConfigs = function() end,
 }
 InputUtil = { IsGamepadUIEnabled = function() return true end }
-GamepadMode = { FrameControlsManager = { isUIFocused = false } }
+GamepadMode = { FrameControlsManager = { isUIFocused = false }, OnCrossBarModifierChanged = function() end }
 GamepadSharedUtility = { InputBindingManager = { IsOnlyCoreBindingSetActive = function() return true end } }
 C_Texture = { GetAtlasInfo = function() return { file = 1, width = 64, height = 64, leftTexCoord = 0, rightTexCoord = 1,
     topTexCoord = 0, bottomTexCoord = 1 } end }
@@ -156,7 +156,12 @@ C_GamePad.GetDeviceMappedState = function()
 end
 
 local hooks = {}
-function hooksecurefunc(name, fn) hooks[name] = hooks[name] or {}; table.insert(hooks[name], fn) end
+-- (a global's hook, or a table's: hooksecurefunc(GamepadMode, "OnCrossBarModifierChanged", fn))
+function hooksecurefunc(a, b, c)
+    local name, fn = a, b
+    if c then name, fn = b, c end
+    hooks[name] = hooks[name] or {}; table.insert(hooks[name], fn)
+end
 -- Bindings keep the clicked button's name
 function SetOverrideBindingClick(owner, _, key, name, button)
     overrides[key] = { owner = owner, action = "CLICK " .. name .. ":" .. (button or "LeftButton") }
@@ -249,11 +254,15 @@ eq(C.StorageSlot(2, "base", 1, k), 128, "page 2 starts 28 on")
 eq(C.StorageSlot(3, "both", 8, k), 183, "last slot")
 eq(C.StorageSlot(4, "base", 1, k), nil, "no page 4")
 eq(C.PageUnitSlot("rt", 3), 19, "R2 right is page unit slot 19")
-eq(C.LayerOf(true, true), "both", "both triggers")
-eq(C.PadDown({ false, true }, 1), true, "binding index 1 is buttons[2]")
-eq(C.PadDown({ true, false }, 1), false, "buttons[1] is binding index 0")
-eq(C.PadDown(nil, 1), false, "no state")
-eq(C.PadDown({ true }, nil), false, "no index")
+-- The pad's state, the one source for held buttons (Shared.lua): 0-based binding indexes
+eq(ns.Shared.LayerOf(true, true), "both", "both triggers")
+eq(ns.Shared.LayerOf(false, true), "rt", "R2 alone")
+eq(ns.Shared.PadDown({ false, true }, "PAD1"), false, "cross up (binding index 0 is buttons[1])")
+pressed.PAD1 = true
+eq(ns.Shared.PadDown(ns.Shared.PadButtons(), "PAD1"), true, "cross down")
+pressed.PAD1 = nil
+eq(ns.Shared.PadDown(nil, "PAD1"), nil, "no state: unknown")
+eq(ns.Shared.PadDown({ true }, "PADPADDLE4"), nil, "a button the pad hasn't: unknown")
 eq(C.Fixed("base", 8).name, "Jump", "base cross is jump")
 eq(C.Fixed("lt", 8), nil, "L2 cross is a slot")
 eq(C.CommandName("OPENRADIAL"), "Radial", "command names")
@@ -551,13 +560,17 @@ local function Count(owner) if owner == keyOwner then changes = changes + 1 end 
 ClearOverrideBindings = function(owner, ...) Count(owner); return clear(owner, ...) end
 SetOverrideBinding = function(owner, ...) Count(owner); return set(owner, ...) end
 SetOverrideBindingClick = function(owner, ...) Count(owner); return setClick(owner, ...) end
--- The triggers as the watcher reads them (Blizzard's bar keeps them: IsKeyDown on their keys)
-local modelHeld = ns.Model.Held
-local heldL, heldR = false, false
-ns.Model.Held = function(action)
-    if action == "GAMEPADLEFTMOD" then return heldL end
-    if action == "GAMEPADRIGHTMOD" then return heldR end
-    return false
+-- The triggers as the watcher reads them: the pad itself (pressed, through
+-- C_GamePad.GetDeviceMappedState), never the game's key state. IsKeyDown says
+-- L2 is down the whole time here (as it did with L2 up, 2026-11-21): it must
+-- change nothing
+local keyDown = { PADLTRIGGER = true }
+IsKeyDown = function(key) return keyDown[key] or false end
+local bindingKey = GetBindingKey
+GetBindingKey = function(command, ...)
+    if command == "GAMEPADLEFTMOD" then return "PADLTRIGGER" end
+    if command == "GAMEPADRIGHTMOD" then return "PADRTRIGGER" end
+    return bindingKey(command, ...)
 end
 local layerOwner = _G.GamepadCompanionKeyLayers
 -- Options is Blizzard's Radial (a Blizzard function runs only from its binding): kept;
@@ -571,19 +584,19 @@ ui.buttons.options.scripts.OnClick(ui.buttons.options)
 ui.layers.lt.scripts.OnClick(ui.layers.lt)
 eq(ui.kind.text, "Typed macro · out of combat", "card: a short note")
 ui.layers.base.scripts.OnClick(ui.layers.base)
-heldL = true; Keys.Watch()
+pressed.PADLTRIGGER = true; Keys.Watch()
 eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "CLICK GamepadCompanionKeys:p6", "L2 held: Options on the click")
 eq(PressKey("PADFORWARD", true), "/randompet", "L2 + Options: Random pet")
-heldL = false; Keys.Watch()
+pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(overrides.PADFORWARD, nil, "L2 released: Radial again")
 changes = 0
-heldR = true; Keys.Watch()
+pressed.PADRTRIGGER = true; Keys.Watch()
 local layerChanged = overrides.PADFORWARD ~= nil
-heldR = false; Keys.Watch()
+pressed.PADRTRIGGER = nil; Keys.Watch()
 check(not layerChanged, "R2 held, nothing on R2: Options untouched (Blizzard's R2 bar left alone)")
-combat = true; heldL = true; Keys.Watch()
+combat = true; pressed.PADLTRIGGER = true; Keys.Watch()
 eq(overrides.PADFORWARD, nil, "in combat: Options stays Radial")
-combat = false; heldL = false
+combat = false; pressed.PADLTRIGGER = nil
 -- A Base of ours: every layer runs, picked by the triggers at the press
 check(Keys.Set("PADFORWARD", "base", "text:/sit"), "Options: a macro")
 eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "CLICK GamepadCompanionKeys:p6", "Options on the secure click")
@@ -604,10 +617,41 @@ Keys.Set("PADFORWARD", "rt", "bind:focus")
 runs, why = Keys.Runs("PADFORWARD", "rt")
 check(runs == true and why == "out of combat", "R2 + Options: Focus UI, out of combat")
 eq(PressKey("PADFORWARD", false, true), nil, "R2 + Options from the click: nothing")
-heldR = true; Keys.Watch()
+pressed.PADRTRIGGER = true; Keys.Watch()
 eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "TOGGLEUIFOCUS", "R2 held: Focus UI on Options")
-heldR = false; Keys.Watch()
+pressed.PADRTRIGGER = nil; Keys.Watch()
 check(not (overrides.PADFORWARD and overrides.PADFORWARD.owner == layerOwner), "R2 released: the watcher's binding off")
+-- Create: the game's World Map; L2 + Create = Focus UI (the player's setup, 2026-11-21).
+-- The game's key state says L2 is down (IsKeyDown above) while the pad says it is up:
+-- Create stays the map. Only the pad's L2 puts Focus UI on it, and a release takes it off
+bindings.PADSOCIAL = "TOGGLEWORLDMAP"
+-- (what Create runs: an override of ours, else the game's binding)
+local function CreateRuns() return overrides.PADSOCIAL and overrides.PADSOCIAL.action or bindings.PADSOCIAL end
+check(Keys.Set("PADSOCIAL", "lt", "bind:focus"), "L2 + Create: Focus UI")
+eq(overrides.PADSOCIAL, nil, "Create stays the game's World Map")
+Keys.Watch()
+eq(CreateRuns(), "TOGGLEWORLDMAP", "L2 up on the pad (down for IsKeyDown): Create is the map")
+pressed.PADLTRIGGER = true; Keys.Watch()
+eq(CreateRuns(), "TOGGLEUIFOCUS", "L2 held on the pad: Focus UI on Create")
+-- (the release, seen by Blizzard's modifier handler before the next tick: off at once)
+pressed.PADLTRIGGER = nil
+for _, fn in ipairs(hooks.OnCrossBarModifierChanged or {}) do fn("left", false) end
+eq(CreateRuns(), "TOGGLEWORLDMAP", "L2 released: the map again, before the watcher's tick")
+-- (no pad to read: nothing of a layer stays bound)
+pressed.PADLTRIGGER = true; Keys.Watch()
+local padState = C_GamePad.GetDeviceMappedState
+C_GamePad.GetDeviceMappedState = function() return nil end
+Keys.Watch()
+eq(CreateRuns(), "TOGGLEWORLDMAP", "the pad can't be read: Focus UI off Create")
+C_GamePad.GetDeviceMappedState = padState
+-- (another pad while L2 is held: off until it is read)
+Keys.Watch()
+eq(CreateRuns(), "TOGGLEUIFOCUS", "L2 held again")
+Fire("GAME_PAD_ACTIVE_CHANGED")
+eq(CreateRuns(), "TOGGLEWORLDMAP", "pad changed: Focus UI off Create")
+pressed.PADLTRIGGER = nil; Keys.Watch()
+Keys.Set("PADSOCIAL", "lt", nil)
+bindings.PADSOCIAL = nil
 Keys.Apply(true)
 -- Nothing rebinds while a trigger is held: presses, macro and spell changes
 changes = 0
@@ -626,15 +670,15 @@ for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, 
 Keys.Set("PAD5", "lt", nil)
 eq(overrides.PADFORWARD, nil, "Options: Blizzard's again")
 eq(overrides.PAD5, nil, "Mute: unbound")
--- No layer action anywhere: the watcher reads no trigger
-local heldCalls, counting = 0, ns.Model.Held
-ns.Model.Held = function(action) heldCalls = heldCalls + 1; return counting(action) end
-heldL = true; Keys.Watch(); heldL = false; Keys.Watch()
-eq(heldCalls, 0, "no layer action: the watcher reads nothing")
-ns.Model.Held = counting
+-- No layer action anywhere: the watcher reads no pad
+local reads, mapped = 0, C_GamePad.GetDeviceMappedState
+C_GamePad.GetDeviceMappedState = function(...) reads = reads + 1; return mapped(...) end
+pressed.PADLTRIGGER = true; Keys.Watch(); pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(reads, 0, "no layer action: the watcher reads nothing")
+C_GamePad.GetDeviceMappedState = mapped
 ClearOverrideBindings, SetOverrideBinding, SetOverrideBindingClick = clear, set, setClick
 bindings.PADFORWARD = nil
-ns.Model.Held = modelHeld
+IsKeyDown, GetBindingKey = nil, bindingKey
 ui.buttons.l2.scripts.OnClick(ui.buttons.l2)
 check(ui.layers.lt.selected, "L2 on the art picks the L2 bar")
 check(ui.showLayer:IsShown(), "card: show layer")

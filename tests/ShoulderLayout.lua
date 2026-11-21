@@ -46,6 +46,7 @@ local function frame(parent, relative, x, y, point)
 end
 function CreateFrame() return frame() end
 function InCombatLockdown() return combat end
+function hooksecurefunc() end
 GamepadMode = {}
 InputUtil = { IsGamepadUIEnabled = function() return true end }
 GamepadSharedUtility = { InputBindingManager = { IsOnlyCoreBindingSetActive = function() return true end } }
@@ -86,13 +87,24 @@ function page:GetCurrentPage() return 1 end
 page.active = page.actionBars.topBar
 GamepadMainActionBarFrame = { PageUnit = page }
 assert(loadfile(root .. "/Model.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Shared.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Core.lua"))("GamepadCompanion", ns)
 local api, bars = GamepadCompanionAPI, page.actionBars
 ns.EventFrame.OnEvent(nil, "ADDON_LOADED", "GamepadCompanion")
 for _, callback in ipairs(timers) do callback() end
 assert(writes == 0, "neutral settings must not touch native geometry")
+-- The shoulders, from the pad itself (a button the pad hasn't: unknown, nil)
 local held = { PADLSHOULDER = true, PADRSHOULDER = false }
-IsKeyDown = function(key) return held[key] end
+local INDEX = { PADLSHOULDER = 4, PADRSHOULDER = 5 }
+C_GamePad = {
+    GetActiveDeviceID = function() return 1 end,
+    ButtonBindingToIndex = function(key) return held[key] ~= nil and INDEX[key] or nil end,
+    GetDeviceMappedState = function()
+        local buttons = {}
+        for key, index in pairs(INDEX) do buttons[index + 1] = held[key] or false end
+        return { buttons = buttons }
+    end,
+}
 ns.Refresh()
 assert(api.GetState().leftShoulderHeld == true and api.GetState().rightShoulderHeld == false)
 assert(api.GetState().bothShouldersHeld == false)

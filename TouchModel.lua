@@ -239,12 +239,6 @@ function T.SwipeOf(x0, y0, x, y, min)
     return dy > 0 and "swipe-up" or "swipe-down"
 end
 
--- The layer from the triggers held
-function T.LayerOf(lt, rt)
-    if lt and rt then return "both" end
-    return lt and "lt" or (rt and "rt" or "base")
-end
-
 -- Every prefix of the three modifiers ("", "ALT-", ..., "ALT-CTRL-SHIFT-")
 function T.Prefixes()
     local list = {}

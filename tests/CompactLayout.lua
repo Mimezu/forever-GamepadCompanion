@@ -34,6 +34,7 @@ end
 function CreateFrame() return frame() end
 function InCombatLockdown() return combat end
 function hooksecurefunc(target, method, hook)
+    if type(target) ~= "table" then return end   -- (a global's hook: Shared.lua's)
     local original = target[method]
     target[method] = function(...) original(...); hook(...) end
     hooks[#hooks + 1] = method
@@ -87,6 +88,7 @@ GamepadCompanionDB = { version = 1, enabled = true, bars = {
     rt = { x = -80, y = -32, scale = 1, zoom = 1 }, both = { x = 0, y = 12, scale = 1, zoom = 1 },
     stance = { x = -80, y = -32, scale = 1, zoom = 1 } } }
 assert(loadfile(root .. "/Model.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Shared.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Core.lua"))("GamepadCompanion", ns)
 local api, bars = GamepadCompanionAPI, page.actionBars
 ns.EventFrame.OnEvent(nil, "ADDON_LOADED", "GamepadCompanion")

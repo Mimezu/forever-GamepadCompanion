@@ -17,6 +17,12 @@
 -- the Blizzard function's binding) and takes it off on release: only for a
 -- layer that has one, on its own binding owner. In combat those wait: the key
 -- runs its Base. Keys.Runs says which run where.
+--
+-- The watcher reads L2 / R2 from the pad itself (Sh.Held), the same state the
+-- secure click reads: never the game's key state, which said L2 was down with
+-- L2 up and left Focus UI on Create (2026-11-21). No pad to read, combat, a
+-- pad change: the extras come off. Blizzard's own L2 / R2 handler is hooked
+-- too, so a release clears them at once, not at the next tick.
 local _, ns = ...
 local T, Sh = ns.TouchModel, ns.Shared
 local Keys = {}
@@ -240,12 +246,10 @@ end
 -- can't reach. Keys whose Base is ours never change here.
 ---------------------------------------------------------------------------
 
--- The layer L2 / R2 hold now: "base", "lt", "rt" or "both"
+-- The layer L2 / R2 hold now, from the pad: "base", "lt", "rt" or "both"
+-- (no pad to read: "base", so nothing of a layer stays bound on a guess)
 function Keys.HeldLayer()
-    local held = ns.Model and ns.Model.Held
-    if type(held) ~= "function" then return "base" end
-    local lt, rt = held("GAMEPADLEFTMOD") == true, held("GAMEPADRIGHTMOD") == true
-    return lt and rt and "both" or lt and "lt" or rt and "rt" or "base"
+    return Sh.Layer() or "base"
 end
 
 -- key -> command, for a held layer: a Blizzard function on it (its binding),
@@ -318,10 +322,12 @@ events:SetScript("OnEvent", function(_, event, arg)
         return
     end
     if event == "GAME_PAD_ACTIVE_CHANGED" or event == "GAME_PAD_CONNECTED" then
-        -- (another pad: the triggers' indexes again; the bindings stay)
+        -- (another pad: the triggers' indexes again; the bindings stay, the
+        -- held layer's extras come off until the new pad is read)
         if InCombatLockdown and InCombatLockdown() then pending = true; return end
         button:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
         button:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
+        SetExtras({})
         return
     end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
@@ -336,3 +342,9 @@ events:SetScript("OnUpdate", function(_, elapsed)
     since = 0
     Keys.Watch()
 end)
+-- (Blizzard's own L2 / R2 handler, GAMEPADLEFTMOD / GAMEPADRIGHTMOD: a look at
+-- the pad the moment a trigger moves, so a release clears the extras before
+-- the next press can land on them)
+if type(GamepadMode) == "table" and type(GamepadMode.OnCrossBarModifierChanged) == "function" then
+    hooksecurefunc(GamepadMode, "OnCrossBarModifierChanged", function() Keys.Watch() end)
+end
