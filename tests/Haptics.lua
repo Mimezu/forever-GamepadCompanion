@@ -3179,6 +3179,7 @@ do
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "g9", 2575)
     assert(K.queue[1] and K.queue[1].moment == 100 and K.queue[2] and K.queue[2].moment == 109 and K.queue[2].seed == 2,
         "the start, then its node (Tin Vein: 2)")
+    assert(K.queue[2].touch == 320, "and the cast's length, 3.2 s in 10 ms steps")
     assert(T.NodeIndex("mining", "Copper Vein") == 1 and T.NodeIndex("mining", "Kupferader") == 0, "by name; unknown: 0")
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "g9")
     UnitCastingInfo = nil
