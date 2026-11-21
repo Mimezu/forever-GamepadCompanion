@@ -724,6 +724,14 @@ check(Keys.Heal(), "Mute: a leftover of ours")
 eq(GetBindingAction("PAD5", true), "FRAMEGAMBIT_TOGGLE_CINEMATIC_CAMERA", "Mute: the game's own again")
 Push("PAD5", { owner = other, action = "SOMETHING_ELSE" })
 check(not Keys.Heal(), "another addon's binding on Mute: left alone")
+-- In game a Blizzard function on Base (Options: Radial) reads back empty: not a key to heal
+-- (it was: 4 heals a second, every key rebound each time, 2026-11-21)
+check(Keys.Set("PADFORWARD", "base", "bind:radial"), "Options: Radial")
+local engineRead = GetBindingAction
+GetBindingAction = function(key, override) if key == "PADFORWARD" then return "" end return engineRead(key, override) end
+check(not Keys.Heal(), "Radial reading empty: nothing to heal")
+check(not Keys.Heal(), "and again: still nothing (no churn)")
+GetBindingAction = engineRead
 ClearOverrideBindings(other)
 ClearOverrideBindings(UIParent)
 for _, l in ipairs({ "base", "lt" }) do Keys.Set("PADSOCIAL", l, nil); Keys.Set("PADFORWARD", l, nil) end

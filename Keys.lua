@@ -287,13 +287,28 @@ end
 -- "No interface frame to focus!" (what each key reads, the pad's L2 / R2, the
 -- game's own key state). Focus UI kept firing on Create, PS and Mute with L2 up
 -- (2026-11-21) after two fixes; this says which side is wrong. 200 lines.
-local function Trace(line)
-    -- (its own saved table: nothing else reads it, no profile copies it)
+local lastLine
+local function Trace(line, list)
+    -- (its own saved table: nothing else reads it, no profile copies it; the
+    -- error snapshots in their own list, never pushed out by the rest; a line
+    -- the same as the last one not written twice)
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
-    local t = GamepadCompanionTraceDB.focus
-    if type(t) ~= "table" then t = {}; GamepadCompanionTraceDB.focus = t end
+    list = list or "focus"
+    if list == "focus" and line == lastLine then return end
+    if list == "focus" then lastLine = line end
+    local t = GamepadCompanionTraceDB[list]
+    if type(t) ~= "table" then t = {}; GamepadCompanionTraceDB[list] = t end
     t[#t + 1] = ("%.2f %s"):format(GetTime and GetTime() or 0, line)
     while #t > 200 do table.remove(t, 1) end
+end
+-- Every pad button down now (the one that just ran a binding among them)
+local PAD_NAMES = { "PAD1", "PAD2", "PAD3", "PAD4", "PAD5", "PAD6", "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER",
+    "PADRTRIGGER", "PADLSTICK", "PADRSTICK", "PADFORWARD", "PADBACK", "PADSYSTEM", "PADSOCIAL", "PADDUP", "PADDDOWN",
+    "PADDLEFT", "PADDRIGHT" }
+local function Down()
+    local buttons, out = Sh.PadButtons(), {}
+    for _, key in ipairs(PAD_NAMES) do if Sh.PadDown(buttons, key) then out[#out + 1] = key end end
+    return #out > 0 and table.concat(out, "+") or "none"
 end
 local function PadState()
     local lt, rt = Sh.Held()
@@ -308,8 +323,22 @@ function Keys.Snapshot(why)
             tostring(GetBindingAction and GetBindingAction(key, false)), tostring(extras[key]), tostring(bound[key]))
     end
     local focus = GamepadMode and GamepadMode.FrameControlsManager
-    Trace(("%s; layer %s; %s; focused %s; %s"):format(why, tostring(Sh.Layer()), PadState(),
-        tostring(focus and focus.isUIFocused), table.concat(parts, " ")))
+    local focusKeys = { GetBindingKey and GetBindingKey("TOGGLEUIFOCUS") }
+    local line = ("%s; down %s; layer %s; %s; focused %s; Focus UI keys %s; %s"):format(why, Down(), tostring(Sh.Layer()),
+        PadState(), tostring(focus and focus.isUIFocused), #focusKeys > 0 and table.concat(focusKeys, ",") or "none",
+        table.concat(parts, " "))
+    Trace(line, why == "NO FRAME TO FOCUS" and "errors" or "focus")
+end
+
+-- The red message, however the game shows it (its error event, or straight
+-- into the error frame)
+local function Said(text)
+    if text == ERROR_NO_FRAME_TO_FOCUS or text == "No interface frame to focus!" then Keys.Snapshot("NO FRAME TO FOCUS") end
+end
+if UIErrorsFrame then
+    for _, method in ipairs({ "AddMessage", "AddExternalErrorMessage" }) do
+        if type(UIErrorsFrame[method]) == "function" then hooksecurefunc(UIErrorsFrame, method, function(_, text) Said(text) end) end
+    end
 end
 
 SetExtras = function(want)
@@ -361,7 +390,11 @@ function Keys.Heal()
         local actual = GetBindingAction(key, true) or ""
         local should = extras[key] or bound[key]
         if should then
-            if actual ~= should then stale = true end
+            -- (a Blizzard function, Radial on Options, reads back empty in game:
+            -- 4 heals a second, every key rebound each time, 2026-11-21. Only
+            -- our own click, or another command in its place, is wrong)
+            local ourClick = should:find("^CLICK " .. Keys.BUTTON .. ":") ~= nil
+            if actual ~= should and (ourClick or actual ~= "") then stale = true end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
             stale = true
         end
@@ -372,7 +405,8 @@ function Keys.Heal()
     ClearOverrideBindings(layerOwner)
     wipe(extras)
     for _, key in ipairs(Keys.KEYS) do
-        if bound[key] and (GetBindingAction(key, true) or "") ~= bound[key] then Keys.Apply(true); break end
+        local actual = GetBindingAction(key, true) or ""
+        if bound[key] and actual ~= bound[key] and (bound[key]:find("^CLICK " .. Keys.BUTTON .. ":") or actual ~= "") then Keys.Apply(true); break end
     end
     Keys.Watch()
     return true
@@ -431,8 +465,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     if not loaded then return end
     if event == "UI_ERROR_MESSAGE" then
         -- (the trace: what every key reads the moment Focus UI found nothing)
-        local text = msg or arg   -- (errorType, message)
-        if text == ERROR_NO_FRAME_TO_FOCUS or text == "No interface frame to focus!" then Keys.Snapshot("NO FRAME TO FOCUS") end
+        Said(msg or arg)   -- (errorType, message)
         return
     end
     if event == "PLAYER_REGEN_DISABLED" then
