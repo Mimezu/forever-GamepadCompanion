@@ -23,6 +23,7 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 | Touchpad PADBACK / PAD6, 8 prefixes | Touchpad.lua `binds` | always the zones' secure click; a 0.5 s watcher and Sh.Claim take it back |
 | R2 with a pole in hand | Fishing.lua `owner` | cast / catch; changed only with R2 up |
 | PAD3 at the bank | BankMove.lua | while the bank is open |
+| D-pad, L1 R1, A B Y at a flight master | FlightList.lua's panel | pad buttons on its own frame (as the window, Focus.lua), one press at a time, out of combat, while the list shows; no binding changed |
 | Ctrl+Shift+Alt+F1-12 | Gestures.lua | WoW Helper's keys |
 | L1 R1 | nobody | Blizzard's target bars; the window reads them as pad buttons (Focus.lua) |
 

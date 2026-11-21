@@ -57,6 +57,7 @@ BankMove.lua
 MailOpenAll.lua
 OpenMapPad.lua
 BagGrid.lua
+FlightList.lua
 AutorunTurn.lua
 ControllerModel.lua
 Touchpad.lua
