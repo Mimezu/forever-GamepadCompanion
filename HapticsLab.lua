@@ -1578,8 +1578,10 @@ handlers.QUEST_ACCEPTED = function() L.Fire("questAccepted") end
 handlers.QUEST_TURNED_IN = function() L.Fire("questDone") end
 handlers.CHAT_MSG_SKILL = function() L.Fire("skillUp") end
 handlers.PLAYER_DEAD = function() L.Fire("death"); live.heart = false end
-handlers.PLAYER_UNGHOST = function() L.Fire("alive") end
-handlers.PLAYER_ALIVE = function() if not call(UnitIsGhost, "player") then L.Fire("alive") end end
+-- (a shaman's Reincarnation plays its own breath back: Shaman.lua)
+local function Reborn() return ns.Shaman and ns.Shaman.RebornLately and ns.Shaman.RebornLately() end
+handlers.PLAYER_UNGHOST = function() if not Reborn() then L.Fire("alive") end end
+handlers.PLAYER_ALIVE = function() if not call(UnitIsGhost, "player") and not Reborn() then L.Fire("alive") end end
 handlers.PLAYER_UPDATE_RESTING = function()
     local r = call(IsResting)
     if r and resting == false then L.Fire("rested") end
@@ -1869,6 +1871,9 @@ local function Poll()
     local swimming = call(IsSwimming) and true or false
     local taxi = call(UnitOnTaxi, "player") and true or false
     local mounted = call(IsMounted) and true or false
+    -- (a beast form, a druid's or Ghost Wolf: no feet of yours; travel form and Ghost Wolf ride)
+    local beast, rides = false, false
+    if ns.Forms and ns.Forms.Beast then beast, rides = ns.Forms.Beast() end
     -- (into water: once; a jump into it splashed on landing already)
     if swimming and not was.swimming and was.mounted ~= nil and not L.SplashedLately(now) then L.Fire("splash") end
     if was.taxi ~= nil and taxi ~= was.taxi then L.Fire("taxi") end
@@ -1877,14 +1882,15 @@ local function Poll()
     local speed = call(GetUnitSpeed, "player") or 0
     if secret(speed) then speed = 0 end
     live.speed = speed
-    live.mounted = mounted
+    live.mounted = mounted or rides
+    mounted = live.mounted
     live.moving = speed > 0 and not falling and not swimming and not flying and not taxi
     live.swimming = swimming and speed > 0
     L.water = L.WaterState()
     live.wading = L.water.wading
-    L.StepMarkers(now, live.moving and not mounted, speed)
-    if live.moving and not mounted and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
-    if live.moving and not mounted and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
+    L.StepMarkers(now, live.moving and not mounted and not beast, speed)
+    if live.moving and not mounted and not beast and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
+    if live.moving and not mounted and not beast and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
     if live.moving and mounted then StartLive("riding", Gallop) else H.Stop("live_riding") end
     -- Heartbeat: under half health when it can be read, else the game's warning
     local hp = HealthFraction("player")

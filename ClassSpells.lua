@@ -43,6 +43,8 @@ function CS.Register(class, rules)
     for _, r in ipairs(rules) do
         local entry = r[1]
         if entry.set then entry.classSet = true end
+        -- (a bolt of several schools: its wound is all of them, Chaos Bolt's 124; Rumble's window)
+        if entry.schools then entry.multiSchool = true end
         for _, id in ipairs(r[2]) do
             if r.any then
                 entry.byId = true
@@ -68,17 +70,20 @@ function CS.AddDots(class, list)
     for id, school in pairs(list) do CS.DOTS[class][id] = school end
 end
 
-local dotNames, dotClass
+local dotNames, dotClass, dotFull, dotAt
+CS.RETRY = 10
+-- (names read again: a test, a new client's names)
+function CS.ForgetDots() dotNames = nil end
 local function DotNames()
     local class = CS.PlayerClass()
-    if dotNames and dotClass == class then return dotNames end
+    if dotNames and dotClass == class and (dotFull or Now() - dotAt < CS.RETRY) then return dotNames end
     local names, full = {}, true
     for id, school in pairs(CS.DOTS[class] or {}) do
         local n = SpellName(id)
         if n and not secret(n) then names[n] = school else full = false end
     end
-    -- (a name not loaded yet: asked again next time)
-    if full then dotNames, dotClass = names, class end
+    -- (a name not loaded yet at login: read again, at most every CS.RETRY s, until all are)
+    dotNames, dotClass, dotFull, dotAt = names, class, full, Now()
     return names
 end
 

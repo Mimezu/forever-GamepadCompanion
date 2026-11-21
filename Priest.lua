@@ -198,7 +198,11 @@ function PR.ChannelStarted(spellID)
     if not spellID or (issecretvalue and issecretvalue(spellID)) then return end
     local m = PR.Of(spellID)
     if not (m and m.first and m.tick and V) then return end
-    if V.Active and V.Active() and V.Play then V.Play(m.tick, false) end
+    -- (Your spells: off, its own set instead, or its volume)
+    local rule = V.SpellRule and V.SpellRule(spellID, 1)
+    if rule and (rule.off or (rule.own and rule.set ~= rule.ruleSet)) then return end
+    local gain = rule and rule.volume or 1
+    if V.Active and V.Active() and V.Play then V.Play(m.tick, false, gain < 1 and { strength = gain } or nil) end
     if V.TickHD then V.TickHD(m.tick, 0, m.alternate) end
 end
 

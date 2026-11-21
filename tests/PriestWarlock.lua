@@ -694,5 +694,64 @@ for _, c in ipairs({ "PRIEST", "WARLOCK" }) do
     assert(r and r.events.oom and r.vibration.shot and r.vibration.autoAttack == false, c .. ": low mana, the wand on, swings off")
     assert(not (r.events.petCrit or r.events.petHurt or r.events.dotTick), c .. ": the pet's blows and DoT ticks stay off")
 end
+---------------------------------------------------------------------------
+-- 7. Review: windows of several schools only for the class spells that ask; Penance's first bolt
+-- as you set it; names not loaded retried at most every 10 s
+---------------------------------------------------------------------------
+UnitCanAttack = function() return true end
+-- (a mage's fire window and a paladin's holy window: as on main, a wound of another mix is not theirs)
+local function window(action, multi, school)
+    now = now + 5
+    V.CastImpactWindow(action, 1, "fireball", multi)
+    now = now + 0.4
+    local claimed = V.ClaimsResult("WOUND", school)
+    now = now + 5
+    return claimed
+end
+assert(not window("fire", nil, 20), "Frostfire's fire window: a school-20 wound is not its own")
+assert(not window("fire", nil, 124), "a fire window: someone's chaos wound is not its own")
+assert(not window("holy", nil, 3), "a paladin's holy window: a school-3 wound is not its own")
+assert(window("fire", nil, 4) and window("holy", nil, 2), "its own school: its own")
+assert(window("fire", true, 124), "Chaos Bolt's window (a class spell of every school): its wound")
+assert(V.MageOf(401502) and not V.MageOf(401502).multiSchool, "Frostfire Bolt: one school's window")
+class = "WARLOCK"
+assert(V.MageOf(403629).multiSchool, "Chaos Bolt asks for it")
+-- Penance: its first bolt off when you turned it off, at your volume when you set one
+class = "PRIEST"
+local O = ns.SpellOverrides
+local get = O.Get
+local hdSent, playOpts = {}, {}
+local cFeel2, vplay2 = C.Feel, V.Play
+C.Feel = function(key) hdSent[#hdSent + 1] = key end
+V.Play = function(key, loop, opts) playOpts[#playOpts + 1] = { key = key, opts = opts }; return vplay2(key, loop, opts) end
+O.Get = function(name) if name == "Penance" then return { on = false } end end
+PR.ChannelStarted(402174)
+assert(#hdSent == 0 and #playOpts == 0, "Penance off: no first bolt")
+O.Get = function(name) if name == "Penance" then return { volume = 0.5 } end end
+PR.ChannelStarted(402174)
+assert(#playOpts == 1 and playOpts[1].opts and playOpts[1].opts.strength == 0.5, "Penance at half: its first bolt at half")
+O.Get = get
+C.Feel, V.Play = cFeel2, vplay2
+-- DoT names: one never loaded is read again at most every 10 s, not on every aura change
+local asked = 0
+local spellName = C_Spell and C_Spell.GetSpellName
+local gsi = GetSpellInfo
+GetSpellInfo = function(id) asked = asked + 1; if id == 589 then return nil end; return gsi(id) end
+if C_Spell then C_Spell.GetSpellName = nil end
+class = "PRIEST"
+now = now + 20
+CS.ForgetDots()
+ev("PLAYER_TARGET_CHANGED")
+local first = asked
+for _ = 1, 20 do ev("UNIT_AURA", "target") end
+assert(asked == first, "a missing name: not read again on every aura (" .. (asked - first) .. ")")
+now = now + 11
+ev("UNIT_AURA", "target")
+assert(asked > first, "read again after 10 s")
+GetSpellInfo = gsi
+if C_Spell then C_Spell.GetSpellName = spellName end
+now = now + 11
+ev("UNIT_AURA", "target")
+io.write("PASS: review: a mage's and a paladin's windows as before, Chaos Bolt's its own; Penance off or at your volume; missing names retried every 10 s\n")
 C.Feel, C.Moment, L.Fire = cFeel, cMoment, lFire
 io.write("PASS: P.CLASS.PRIEST and WARLOCK: cloth, the wand on, swings, pet blows and DoT ticks off\n")

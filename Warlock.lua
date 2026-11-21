@@ -132,7 +132,7 @@ WL.RULES = {
     { { impact = "shadowBolt" }, { 686 } },
     { { impact = "soulFire" }, { 6353 } },
     { { impact = "incinerate" }, { 412758 } },
-    { { impact = "chaosBolt" }, { 403629 } },
+    { { impact = "chaosBolt", schools = true }, { 403629 } }, -- (every school: its wound too)
     { { impact = "haunt" }, { 403501 } },
     -- Casts at their release
     { { burst = "immolate" }, { 348 } },

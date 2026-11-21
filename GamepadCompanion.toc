@@ -23,6 +23,10 @@ Rumble.lua
 ClassSpells.lua
 Priest.lua
 Warlock.lua
+ComboPoints.lua
+Forms.lua
+Shaman.lua
+Druid.lua
 Haptics.lua
 Timing.lua
 Volume.lua

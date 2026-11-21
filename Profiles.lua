@@ -68,7 +68,10 @@ function P.FreshOf(part, key)
 end
 P.CLASS = {
     ROGUE = { events = { combo = true, comboFull = true } },
-    DRUID = { events = { combo = true, comboFull = true } },
+    -- (a druid: the combo points of a cat; low mana for the casting shapes)
+    DRUID = { events = { combo = true, comboFull = true, oom = true } },
+    -- (a shaman: low mana; an enemy's cast, for Earth Shock's interrupt)
+    SHAMAN = { events = { oom = true, targetCast = true } },
     -- (a hunter: every shot felt, its crits too: a hunter's big moments are ranged)
     HUNTER = { vibration = { shot = true, critRanged = true } },
     -- (a mage: low mana, an enemy's cast (Counterspell's moment) and aggro matter to cloth;

@@ -670,7 +670,9 @@ V.PULSES = PULSES
 -- pulses, as the mage's: in the palette, the library and Rumble's grid alike
 function V.AddPatterns(list)
     for _, p in ipairs(list) do
-        p.action, p.mage = true, true
+        -- (a swing's pattern is a weapon's, as Rumble's own swings: action, never a spell's mage flag)
+        p.action = true
+        if not p.swing then p.mage = true end
         if not p.move and not p.group and not p.swing then p.group = "Spells" end
         p.icon = VIBE_ICONS .. (p.art or p.key)
         V.PATTERNS[#V.PATTERNS + 1] = p
@@ -1068,6 +1070,9 @@ local SWING_PATTERNS = { [0] = "swAxe", [1] = "swAxe2", [4] = "swMace", [5] = "s
     [7] = "swSword", [8] = "swSword2", [10] = "swStaff", [13] = "swFist", [15] = "swDagger" }
 
 function V.SwingPattern(slot)
+    -- (a form's own swipes: Forms.lua)
+    local own = V.FormSwing and V.FormSwing()
+    if own then return own end
     local id = GetInventoryItemID and GetInventoryItemID("player", slot or 16)
     local info = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
     if id and info then
@@ -2635,7 +2640,7 @@ local function CastReleased()
     end
     -- (a damaging spell, its family's set: felt as it lands; a mage's bolt, its own impact)
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
-        and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact) then return end
+        and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact, mage and mage.multiSchool) then return end
     -- (the cast done before the crack's time (the server's end a touch early: 3.14 s against
     -- 3.2): the crack's HD now, as the ore breaks loose; else it never went)
     local tm = cast.timing
@@ -2914,16 +2919,19 @@ end
 V.CLASS_SPELLS = {}
 -- (every rank by its name, per class; a do block: Rumble's main chunk is at Lua's 200 locals)
 do
-local classByName = {}
+local classByName, classTried = {}, {}
+-- (names read again: a test, a new client's names)
+function V.ForgetClassSpells() classByName, classTried = {}, {} end
 function V.ClassSpellOf(spellID, name)
     if not UnitClass then return nil end
     local _, class = UnitClass("player")
     local own = class and not secret(class) and V.CLASS_SPELLS[class]
     if not own then return nil end
     if own[spellID] then return own[spellID] end
+    -- (built once; a name not loaded yet at login: built again, at most every 10 s, until all are)
     local names = classByName[class]
-    if not names then
-        -- (kept once every name is known: one not loaded yet at login, built again next time)
+    local tried = classTried[class]
+    if not names or (not tried.full and GetTime() - tried.at >= 10) then
         local full = true
         names = {}
         for id, m in pairs(own) do
@@ -2934,7 +2942,7 @@ function V.ClassSpellOf(spellID, name)
                 full = false
             end
         end
-        if full then classByName[class] = names end
+        classByName[class], classTried[class] = names, { at = GetTime(), full = full }
     end
     name = name or SpellName(spellID)
     if not name or secret(name) then return nil end
@@ -3038,11 +3046,15 @@ function V.SpellRule(spellID, castTime)
                 if own.magic then r.magicOnly = true end
                 if not own.move then r.moment, r.when = "quiet", "none" end
             elseif NextSwing(spellID) then
-                r.move, r.when, r.next = move or "slash", "hit", true
+                -- (a class's own: Maul's paw)
+                r.move, r.when, r.next = mage and mage.move or move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
             elseif mage and mage.move then
                 -- (a mage's own: at the cast, or as it lands)
                 r.move, r.when, r.mage = mage.move, mage.when or "cast", mage
+                if mage.melee then r.how = { melee = true } end
+                if mage.magic then r.magicOnly = true end
+                if mage.avoidOnly then r.avoidOnly = true end
                 r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ")
                     .. (PATTERN[mage.move] and PATTERN[mage.move].label or mage.move)
             elseif summon then
@@ -3147,7 +3159,8 @@ end
 function V.FireSpell(rule)
     if not (rule and rule.pattern) then return end
     V.instantMove = rule.pattern
-    V.fireGain = rule.volume < 1 and rule.volume or nil
+    local gain = V.RuleGain(rule)
+    V.fireGain = gain < 1 and gain or nil
     FireAs(rule.name, "instant")
     V.fireGain = nil
 end
@@ -3571,7 +3584,7 @@ function V.AbilityCast(move, spellID, nextSwing, how, rule)
     local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
     pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
-        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1,
+        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and V.RuleGain(rule) or 1,
         avoidOnly = rule and rule.avoidOnly or nil, magicOnly = rule and rule.magicOnly or nil,
         name = rule and rule.name or nil }
 end
@@ -3629,9 +3642,9 @@ local function Pending(action, school)
         if pending.avoidOnly then return nil end
         if secret(school) then school = nil end
         if pending.magicOnly and (school == nil or school == PHYSICAL) then return nil end
-        -- (a spell of several schools wounds with them all: Chaos Bolt's 124 is its fire window's)
+        -- (a class spell of several schools wounds with them all: Chaos Bolt's 124 is its fire window's)
         if pending.school and school and school ~= pending.school
-            and not (school > pending.school and math.floor(school / pending.school) % 2 == 1) then return nil end
+            and not (pending.multi and school > pending.school and math.floor(school / pending.school) % 2 == 1) then return nil end
         if pending.notBefore and GetTime() < pending.notBefore then return nil end
     end
     local can = UnitCanAttack and UnitCanAttack("player", "target")
@@ -3773,12 +3786,13 @@ end
 V.CAST_IMPACT = { fire = { "shock", 4 }, frostSpells = { "shock", 16 }, arcaneSpells = { "judge", 64 },
     shadowSpells = { "shock", 32 }, holy = { "judge", 2 }, nature = { "shock", 8 } }
 V.CAST_WINDOW = 2.5
-function V.CastImpactWindow(action, gain, move)
+-- multi: a class spell of several schools (ClassSpells.lua: Chaos Bolt), its wound all of them
+function V.CastImpactWindow(action, gain, move, multi)
     local f = V.CAST_IMPACT[action]
     if not f then return false end
     local now = GetTime()
     pending = { move = move or f[1], school = f[2], at = now, until_ = now + V.CAST_WINDOW, notBefore = now + 0.15,
-        spell = true, gain = gain or 1 }
+        spell = true, gain = gain or 1, multi = multi or nil }
     return true
 end
 
