@@ -160,7 +160,12 @@ check(type(L.Celebrate) == "function" and pcall(L.Celebrate), "a point: the cele
 w = L.Whisper(120, 95, 75, 75, 75, 0, nil, false)
 eq(w, "Train to learn more", "at the cap: train")
 w = L.Whisper(120, nil, nil, 120, 150, 1, nil, true)
-eq(w, "Strong fish here", "a fish got away here")
+eq(w, "Skill too low here", "fish keep getting away here")
+eq(L.Wary({ 10 }, 20), false, "one escape: nothing said (an early press loses a fish too)")
+eq(L.Wary({ 10, 50 }, 60), false, "two: still nothing")
+eq(L.Wary({ 10, 50, 90 }, 100), true, "three within 10 minutes: skill too low")
+eq(L.Wary({ 10, 50, 90 }, 700), false, "ten minutes after the first: two left, nothing said")
+eq(L.Wary(nil, 100), false, "none")
 w, c = L.Whisper(120, nil, nil, 120, 150, 1, 2, false)
 eq(w, "Fishing 120  " .. dot .. "  2 fish a point", "otherwise: the skill and the pace")
 eq(c[1] .. "," .. c[2], "1,1", "coloured by its odds (yellow at 120)")
@@ -194,7 +199,10 @@ eq(char.fishing.pace[#char.fishing.pace], 2, "that point took 2 fish")
 ERR_FISH_ESCAPED = "Your fish got away!"
 ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
 now = now + 30
-eq(L.WhisperNow(now), "Strong fish here", "a fish lost here: strong fish")
+eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "one fish lost: nothing about it")
+ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
+ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
+eq(L.WhisperNow(now), "Skill too low here", "three lost here: skill too low")
 GetSubZoneText = function() return "The Sepulcher" end
 eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "another water: the skill and the pace")
 

@@ -440,13 +440,15 @@ end
 
 -- The quiet line (pure): text and colour, or nil. wiserAt / rank: the last
 -- skill-up (GetTime) and its skill; skill, max: now; since: fish since the last
--- point; pace: fish a point took lately; wary: a fish got away in this water
+-- point; pace: fish a point took lately; wary: fish keep getting away in
+-- this water (L.Wary: one escape says little, an early or late press loses a
+-- fish too)
 local TRAIN = { 1, 0.82, 0.45 }
 local WARY = { 0.85, 0.55, 0.40 }
 function L.Whisper(now, wiserAt, rank, skill, max, since, pace, wary)
     if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, now - wiserAt < 2.5 and BRIGHT or WISE end
     if L.AtCap(skill, max, since) then return "Train to learn more", TRAIN end
-    if wary then return "Strong fish here", WARY end
+    if wary then return "Skill too low here", WARY end
     if skill then
         local text = "Fishing " .. skill
         if pace then text = text .. "  \194\183  " .. pace .. " fish a point" end
@@ -455,12 +457,21 @@ function L.Whisper(now, wiserAt, rank, skill, max, since, pace, wary)
 end
 
 local wiserAt, wiserRank
-local wary = {}   -- waters where a fish got away (this session)
+local wary = {}   -- water -> the times fish got away there (this session)
+
+-- Fish keep getting away here: 3 within 10 minutes, the last within 10
+L.WARY_COUNT, L.WARY_WINDOW = 3, 600
+function L.Wary(times, now)
+    if type(times) ~= "table" then return false end
+    local recent = 0
+    for _, t in ipairs(times) do if now - t <= L.WARY_WINDOW then recent = recent + 1 end end
+    return recent >= L.WARY_COUNT
+end
 function L.WhisperNow(now)
     local s = L.Setting()
     local skill, max = L.SkillInfo()
     skill = skill or tonumber(s.skill)
-    local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), wary[L.Water()])
+    local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), L.Wary(wary[L.Water()], now))
     whisper:SetText(text or "")
     if color then whisper:SetTextColor(color[1], color[2], color[3]) end
     return text
@@ -545,7 +556,11 @@ events:SetScript("OnEvent", function(_, event, unit, message)
         if not (PoleOn() and type(text) == "string") then return end
         local lost = ERR_FISH_ESCAPED or "Your fish got away!"
         if text ~= lost then return end
-        wary[L.Water()] = true
+        local key, at = L.Water(), GetTime and GetTime() or 0
+        local times = wary[key] or {}
+        times[#times + 1] = at
+        while #times > L.WARY_COUNT do table.remove(times, 1) end
+        wary[key] = times
     end
     L.Show(PoleOn())
     if shown then L.Refresh() end
