@@ -10,10 +10,9 @@ ns = ns or {}
 local T = {}
 ns.TouchModel = T
 
--- Two ways to share the pad with Blizzard's own touchpad function
--- (TOGGLEUIFOCUS: an open window takes or gives back the pad):
---   chord: the whole pad is zones while the world has the pad (no L1 chord:
---          Focus UI goes where you put it, Choose › Gamepad).
+-- Two modes; Blizzard's touchpad function (TOGGLEUIFOCUS) never has the
+-- whole pad (Focus UI goes where you put it, Choose › Gamepad):
+--   chord: the whole pad is zones, always.
 --   split: the right half becomes button PAD6 (a gamepad config) and is all
 --          zones; the left half stays Blizzard's PADBACK, untouched.
 T.MODES = { chord = true, split = true }
@@ -99,25 +98,7 @@ T.OLD_ZONES = {
 T.PAD_STICK = 4            -- the touchpad's finger position (PStick)
 T.PAD_KEY = "PADBACK"      -- the touchpad click, both halves by default
 T.SPLIT_KEY = "PAD6"       -- the right half, in split mode (unused by the game)
-T.NATIVE_ACTION = "TOGGLEUIFOCUS"
 
--- Only core binding sets on Blizzard's gamepad stack (the world has the pad).
--- `stack`: the manager's bindingSetStack (read only); `assume`: its
--- assumeCoreBindingsUsable; `wheelOnScreen`: the Main Menu wheel is visible.
--- The wheel's set ("RadialBindings") only counts while the wheel is visible:
--- Blizzard can leave it on the stack with the wheel gone (2026-11-21 BindProbe:
--- 41 s with no wheel, every touchpad click Blizzard's "No interface frame to
--- focus!"), and it goes when the wheel's OnHide runs.
-function T.CoreOnly(stack, assume, wheelOnScreen)
-    if assume then return true end
-    for _, set in ipairs(stack or {}) do
-        if type(set) == "table" and not set.treatBindsAsCore then
-            local name = type(set.name) == "string" and set.name or ""
-            if wheelOnScreen or not name:find("^RadialBindings") then return false end
-        end
-    end
-    return true
-end
 T.DEFAULT_CHORD_BUTTON = "PADLSHOULDER"
 
 -- Modifier prefixes in the game's order; the CVar that makes a pad button act as each
@@ -163,7 +144,6 @@ function T.Normalize(raw)
         touchActions = {},
         tapMs = Clamp(raw.tapMs, T.TAP_MS.min, T.TAP_MS.max, T.TAP_MS.default),
         tapMsSaved = raw.tapMsSaved,
-        overWindows = raw.overWindows ~= false,
         tapSaved = raw.tapSaved,
         -- (a modifier lent to the chord button while a window was open: given back at login)
         chordSaved = type(raw.chordSaved) == "table" and raw.chordSaved or nil,
@@ -287,11 +267,10 @@ end
 
 --[[ The bindings wanted now. env:
   padStyle   "Shapes" for a PlayStation pad
-  ours       chord mode: the world has the pad (nothing focused), so the plain click is zones
   conflict   another addon's touchpad zones are on (Improved Forever): chord mode yields
   emulate    { ALT = button, CTRL = button, SHIFT = button } (the GamePadEmulate CVars)
   splitReady split mode: PAD6 is in place
-Returns { { key, click = true } | { key, action = "TOGGLEUIFOCUS" } }, and a note. ]]
+Returns { { key, click = true, mouse } }, and a note. ]]
 function T.BindingPlan(settings, env)
     local plan = {}
     if not settings.enabled then return plan, nil end
@@ -308,14 +287,9 @@ function T.BindingPlan(settings, env)
     for _, prefix in ipairs(T.Prefixes()) do
         local key = prefix .. T.PAD_KEY
         local clickKey = dual and (prefix .. T.SPLIT_KEY) or nil
-        if env.ours then
-            -- (dual: the touch is the left button, the click the right one)
-            plan[#plan + 1] = { key = key, click = true, mouse = dual and "LeftButton" or nil }
-            if clickKey then plan[#plan + 1] = { key = clickKey, click = true, mouse = "RightButton" } end
-        elseif clickKey then
-            -- (a window has the pad: the moved click still does Blizzard's)
-            plan[#plan + 1] = { key = clickKey, action = T.NATIVE_ACTION }
-        end
+        -- (always: never Blizzard's Focus UI; dual: the touch is the left button, the click the right one)
+        plan[#plan + 1] = { key = key, click = true, mouse = dual and "LeftButton" or nil }
+        if clickKey then plan[#plan + 1] = { key = clickKey, click = true, mouse = "RightButton" } end
     end
     -- (no chord for Blizzard's Focus UI: put it where you like, Choose › Gamepad › Focus UI)
     local why = nil

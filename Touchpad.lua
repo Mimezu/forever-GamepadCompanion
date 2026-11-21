@@ -3,12 +3,10 @@
 -- with layers for L2, R2 and both, like the crossbar. The click is a real
 -- button press, so the zone's macro runs untainted, in combat too.
 --
--- Two modes share the pad with Blizzard's own touchpad function, the focus
--- toggle (an open window takes the pad, or gives it back to the world):
---   chord (B)  the whole pad is zones while the world has the pad, even with
---              windows open; a focused window gets the plain click back.
---              No L1 chord: Focus UI goes where you put it (Choose ›
---              Gamepad › Focus UI); automatic chords broke bindings.
+-- Two modes. Blizzard's own touchpad function, Focus UI, never has the
+-- whole pad: Focus UI goes on the button picked in Choose › Gamepad › Focus UI.
+--   chord (B)  the whole pad is zones, always: windows open or focused, the
+--              Main Menu wheel up, any binding set on Blizzard's stack.
 --   split (A)  a gamepad config makes the right half its own button (PAD6),
 --              all zones; the left half stays Blizzard's, untouched.
 -- Pure logic: TouchModel.lua. Off by default: `/gpc touch on`.
@@ -24,7 +22,6 @@ local settings = T.Normalize()
 local loaded = false
 local pending = false        -- a change waiting for the end of combat
 local boundKeys = {}         -- key -> the action we bound it to
-local lastOurs = nil         -- chord mode: was the plain click ours at the last apply
 local note = nil             -- why something isn't bound (status)
 local debug = false
 
@@ -92,8 +89,7 @@ local function TriggersHeld()
 end
 
 ---------------------------------------------------------------------------
--- Who has the plain click (chord mode). Read only: never a call that changes
--- Blizzard's gamepad state, never a callback in its lists.
+-- The gamepad UI (the probe only)
 ---------------------------------------------------------------------------
 local function GamepadUI()
     if not (InputUtil and InputUtil.IsGamepadUIEnabled) then return false end
@@ -101,56 +97,9 @@ local function GamepadUI()
     return ok and on == true
 end
 
--- The Main Menu wheel is on screen (shown, its parents too). Alpha is not
--- read: DialogueUI fades UIParent to 0 with the wheel still in use.
-local function WheelOnScreen()
-    local wheel = _G.GamepadRadial
-    if not (wheel and wheel.IsVisible) then return false end
-    local ok, visible = pcall(wheel.IsVisible, wheel)
-    return ok and visible == true
-end
-
-local function WheelState()
-    local wheel = _G.GamepadRadial
-    if not (wheel and wheel.IsShown) then return "none" end
-    local okA, alpha = pcall(function() return wheel:GetEffectiveAlpha() end)
-    return ("shown=%s visible=%s alpha=%s"):format(tostring(wheel:IsShown()), tostring(wheel:IsVisible()),
-        okA and ("%.2f"):format(alpha or -1) or "?")
-end
-
-local function CoreOnly()
-    local shared = GamepadSharedUtility
-    local manager = shared and (shared.InputBindingManager or (shared.BindingStack and shared.BindingStack.InputBindingManager))
-    -- (the stack read, never written; a leftover wheel set with no wheel is the world's)
-    if manager and type(manager.bindingSetStack) == "table" then
-        return T.CoreOnly(manager.bindingSetStack, manager.assumeCoreBindingsUsable == true, WheelOnScreen())
-    end
-    if not (manager and manager.IsOnlyCoreBindingSetActive) then return nil end
-    local ok, only = pcall(manager.IsOnlyCoreBindingSetActive, manager)
-    if ok and type(only) == "boolean" then return only end
-end
-
-local function UIFocused()
-    local manager = GamepadMode and GamepadMode.FrameControlsManager
-    return manager ~= nil and manager.isUIFocused == true
-end
-
-local function WindowsShown()
-    local manager = GamepadMode and GamepadMode.FrameControlsManager
-    if not (manager and manager.GetShownFrameCount) then return 0 end
-    local ok, count = pcall(manager.GetShownFrameCount, manager)
-    return ok and tonumber(count) or 0
-end
-
--- The plain click is zones: no gamepad panel (radial, HUD mode, bar editing)
--- on the binding stack, and no window focused. Over windows (default): an
--- open window keeps the zones too (its own binding set doesn't count), so a
--- zone opens, closes or swaps windows.
-function Touch.WorldHasPad()
-    if not GamepadUI() then return true end
-    if settings.overWindows and WindowsShown() > 0 then return true end
-    return CoreOnly() ~= false and not UIFocused()
-end
+-- The touchpad never gives its click to Blizzard's Focus UI (2026-11-21, the
+-- player's ask: "the only accepted UI focus action should be the button we
+-- decide to map it to in GPC"). No wheel, window or binding set takes it.
 
 -- Improved Forever's touchpad corners are on (both would bind PADBACK)
 function Touch.Conflict()
@@ -511,7 +460,6 @@ end
 local function Env()
     return {
         padStyle = PadStyle(),
-        ours = Touch.WorldHasPad(),
         conflict = Touch.Conflict(),
         emulate = Emulate(),
         splitReady = false,
@@ -591,7 +539,6 @@ function Touch.Apply()
             boundKeys[entry.key] = entry.action
         end
     end
-    lastOurs = env.ours
     note = splitNote or planNote
     lastPlan = plan
     hasBinds = settings.enabled and HasBinds()
@@ -601,6 +548,17 @@ function Touch.Apply()
 end
 
 function Touch.BindsKeys() return next(boundKeys) ~= nil end
+
+-- Should Apply run again: a key of ours taken by anything (a binding set, a
+-- window's click binding), or nothing bound yet though the plan binds (at
+-- login the pad can read before or after the first apply)
+function Touch.Taken()
+    if not (loaded and settings.enabled) then return false end
+    for key, action in pairs(boundKeys) do
+        if GetBindingAction and GetBindingAction(key, true) ~= action then return true end
+    end
+    return next(boundKeys) == nil and #(T.BindingPlan(settings, Env())) > 0
+end
 
 -- Blizzard's core set binds the touchpad (TOGGLEUIFOCUS) again at login and
 -- whenever one of its panels closes; the most recent priority binding wins.
@@ -767,10 +725,6 @@ local function BuildPreview()
     f.native.label = f.native:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.native.label:SetPoint("CENTER")
     f.native.label:SetText(Glyph("Shp_TouchpadL", 18) .. "\nBlizzard")
-    -- Blizzard has the pad (a window is open, chord mode)
-    f.blizzard = f.pad:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.blizzard:SetPoint("CENTER")
-    f.blizzard:SetText("Focus UI")
     -- The finger: a soft glow and a bright core
     f.halo = f.pad:CreateTexture(nil, "OVERLAY", nil, 5)
     f.halo:SetSize(22, 22)
@@ -882,18 +836,14 @@ local function UpdatePreview(x, y, show)
     end
     local mode = settings.mode
     local onNative = mode == "split" and x < 0
-    local blizzard = mode == "chord" and not lastOurs
     local zone = not onNative and T.ZoneAt(mode, x, y, T.Grid(settings, mode)) or nil
     for z, c in pairs(preview.cells) do
-        local lit = z == zone and preview.zones[z] and not blizzard
+        local lit = z == zone and preview.zones[z]
         c.glow:SetShown(lit and true or false)
         c.label:SetTextColor(lit and 1 or 0.94, lit and 0.82 or 0.86, lit and 0 or 0.69)
-        c:SetAlpha(blizzard and 0.3 or 1)
     end
     preview.native.bg:SetColorTexture(onNative and 0.25 or 0, onNative and 0.4 or 0, onNative and 0.8 or 0, 0.35)
-    preview.blizzard:SetShown(blizzard)
-    preview.layerText:SetText(blizzard and "Blizzard" or (layer ~= "base" and ns.ControllerModel
-        and ns.ControllerModel.Combo(layer, nil, 16) or ""))
+    preview.layerText:SetText(layer ~= "base" and ns.ControllerModel and ns.ControllerModel.Combo(layer, nil, 16) or "")
     preview.hint:SetText(mode == "chord" and "" or "Left half  ·  Focus UI")
     local inner = PAD_W - 2 * INSET
     preview.halo:ClearAllPoints()
@@ -911,13 +861,15 @@ end
 -- Watching: who has the plain click (chord), the finger (preview)
 ---------------------------------------------------------------------------
 local watcher = CreateFrame("Frame")
-local wait, lastX, lastY, movedAt = 0, nil, nil, -math.huge
+local wait, healAt, lastX, lastY, movedAt = 0, 0, nil, nil, -math.huge
 watcher:SetScript("OnUpdate", function(_, elapsed)
     wait = wait - elapsed
     if wait > 0 or not loaded or not settings.enabled then return end
     wait = 0.05
-    if settings.mode == "chord" and Touch.WorldHasPad() ~= lastOurs then
-        if InCombat() then pending = true else Touch.Apply() end
+    -- (the zones kept on the click: bound once the pad reads, put back if anything took a key)
+    if GetTime() >= healAt and not InCombat() then
+        healAt = GetTime() + 0.5
+        if Touch.Taken() then Touch.Apply() end
     end
     -- (the pad read once a tick, only when something here needs it)
     local follow = hasBinds and not InCombat()
@@ -1023,10 +975,8 @@ function Touch.Status()
     return {
         enabled = settings.enabled, mode = settings.mode, preview = settings.preview, chordButton = settings.chordButton,
         input = settings.input,
-        padStyle = env.padStyle, ours = env.ours, conflict = env.conflict, note = note, pending = pending,
+        padStyle = env.padStyle, conflict = env.conflict, note = note, pending = pending,
         bound = T.Copy(boundKeys),
-        windows = WindowsShown(), uiFocused = UIFocused(), coreOnly = CoreOnly(), lastOurs = lastOurs,
-        wheel = WheelState(),
     }
 end
 
@@ -1039,11 +989,8 @@ local function PrintStatus()
     for key in pairs(s.bound) do keys[#keys + 1] = key end
     table.sort(keys)
     Say("bound: " .. (#keys > 0 and table.concat(keys, " ") or "nothing")
-        .. (s.mode == "chord" and s.enabled and ("; plain click is " .. (s.ours and "zones" or "Blizzard's")) or ""))
+)
     if s.note then Say("note: " .. s.note) end
-    -- (why the click is whose: what WorldHasPad reads)
-    Say(("windows %d, focus %s, core set only %s, applied as %s"):format(s.windows,
-        s.uiFocused and "on" or "off", tostring(s.coreOnly), s.lastOurs == nil and "-" or (s.lastOurs and "zones" or "Blizzard's")))
 end
 
 local function PrintList()
@@ -1091,8 +1038,8 @@ local function Probe()
         tostring(id and id.vendorID), tostring(id and id.productID), tostring(state and state.labelStyle),
         tostring(state and state.stickCount), tostring(state and state.buttonCount)))
     local power = C_GamePad and C_GamePad.GetPowerLevel and select(2, pcall(C_GamePad.GetPowerLevel, C_GamePad.GetActiveDeviceID()))
-    Say(("probe: power %s, gamepad UI %s, core set only %s, window focused %s, Improved Forever corners %s"):format(
-        tostring(power), tostring(GamepadUI()), tostring(CoreOnly()), tostring(UIFocused()), tostring(Touch.Conflict())))
+    Say(("probe: power %s, gamepad UI %s, Improved Forever corners %s"):format(
+        tostring(power), tostring(GamepadUI()), tostring(Touch.Conflict())))
     for _, key in ipairs({ "PADBACK", "CTRL-PADBACK", "SHIFT-PADBACK", "PAD6" }) do
         Say(("probe: %s -> %s"):format(key, tostring(GetBindingAction and GetBindingAction(key, true))))
     end
@@ -1151,7 +1098,6 @@ function Touch.SetTapTime(ms)
     return true
 end
 function Touch.SetTap(value) return Touch.SetInput(value == true and "tap" or "click") end
-function Touch.SetOverWindows(value) settings.overWindows = value == true; Update() end
 -- Move the preview: shown and draggable until moved again (Done)
 function Touch.MovePreview(on)
     if on == nil then on = not (preview and preview.moving) end
@@ -1271,9 +1217,6 @@ function Touch.Command(text)
         if not settings.preview then UpdatePreview(0, 0, false) end
         Touch.Notify()
         return Say("Preview " .. (settings.preview and "on" or "off"))
-    elseif command == "windows-over" or command == "over" then
-        Touch.SetOverWindows((words[2] or ""):lower() ~= "off")
-        return Say("Over windows " .. (settings.overWindows and "on" or "off"))
     elseif command == "tap" then
         Touch.SetTap((words[2] or ""):lower() ~= "off")
         return Say("Tap to click " .. (settings.input == "tap" and "on" or "off"))

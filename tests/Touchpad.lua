@@ -160,7 +160,7 @@ end
 -- Binding plans
 do
     local s = T.Normalize({ enabled = true })
-    local env = { padStyle = "Shapes", ours = true, emulate = { CTRL = "PADLSHOULDER", SHIFT = "PADLTRIGGER" } }
+    local env = { padStyle = "Shapes", emulate = { CTRL = "PADLSHOULDER", SHIFT = "PADLTRIGGER" } }
     local plan = T.BindingPlan(s, env)
     local byKey = {}
     for _, e in ipairs(plan) do byKey[e.key] = e end
@@ -169,10 +169,7 @@ do
     check(byKey["SHIFT-PADBACK"] and byKey["SHIFT-PADBACK"].click, "chord: L2 + click is zones (LT layer)")
     check(byKey["CTRL-PADBACK"] and byKey["CTRL-PADBACK"].click, "no chord: L1 (as Ctrl) + click is zones too")
     for _, e in ipairs(plan) do check(e.action ~= "TOGGLEUIFOCUS", "no Focus UI put anywhere by itself") end
-    env.ours = false
-    plan = T.BindingPlan(s, env)
-    eq(#plan, 0, "window focused: nothing bound, the click is Blizzard's")
-    env.ours, env.conflict = true, true
+    env.conflict = true
     local _, why = T.BindingPlan(s, env)
     eq(#T.BindingPlan(s, env), 0, "chord yields to Improved Forever")
     check(why ~= nil, "conflict has a note")
@@ -370,92 +367,30 @@ Tick()
 eq(Press(-0.8, 0.6), "/click CharacterMicroButton", "lost release: the next press still works")
 
 
--- Over windows (default): an open, focused window keeps the zones
+-- Never Blizzard's Focus UI (the player's ask, 2026-11-21): windows open or
+-- focused, the Main Menu wheel up, any binding set on the stack: the click
+-- stays the zones'. Focus UI only on the button picked in GPC.
+local ZONES = "CLICK GamepadCompanionTouchClick:LeftButton"
 shownWindows, uiFocused, coreOnly = 1, true, false
-Tick()
-eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "over windows: zones with a window focused")
-check(GetBindingAction("CTRL-PADBACK") ~= "TOGGLEUIFOCUS", "over windows: no L1 chord")
+local wheel = { IsShown = function() return true end, IsVisible = function() return true end }
+GamepadRadial = wheel
+GamepadSharedUtility.InputBindingManager.bindingSetStack = { { name = "RadialBindings_66" }, { name = "GamepadHudModeBindings_7" } }
+for _ = 1, 3 do Tick() end
+eq(GetBindingAction("PADBACK"), ZONES, "window focused, wheel up, panels on the stack: still the zones")
+for _, key in ipairs({ "PADBACK", "CTRL-PADBACK", "SHIFT-PADBACK", "PAD6" }) do
+    check(GetBindingAction(key) ~= "TOGGLEUIFOCUS", key .. ": never Focus UI")
+end
+-- a window's click binding (a search box) and Blizzard's core set: taken back
 SetOverrideBindingClick(UIParent, true, "PADBACK", "SearchBoxButton", "LeftButton")
 RunTimers()
-eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "a window's click binding is taken back")
-shownWindows = 0
-Tick()
-eq(GetBindingAction("PADBACK"), "", "no window, a gamepad panel up: Blizzard's")
-coreOnly, uiFocused = true, false
-Tick()
-Touch.SetOverWindows(false)
-shownWindows = 1
-
--- A window takes focus: the plain click goes back to Blizzard
-uiFocused = true
-Tick()
-eq(GetBindingAction("PADBACK"), "", "focused window: plain click is Blizzard's again")
-check(GetBindingAction("CTRL-PADBACK") ~= "TOGGLEUIFOCUS", "focused window: no chord of ours")
-uiFocused = false
-Tick()
-eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "back in the world: zones again")
-
--- The Main Menu wheel's binding set: Blizzard's only while the wheel is on screen
-do
-    local core = { name = "CompactRaidFrameManagerExpand_61", treatBindsAsCore = true }
-    local wheelSet = { name = "RadialBindings_66" }
-    local other = { name = "GamepadHudModeBindings_7" }
-    local TM = ns.TouchModel
-    eq(TM.CoreOnly({ core }, false, false), true, "core only: ours")
-    eq(TM.CoreOnly({ core, wheelSet }, false, true), false, "wheel set, wheel shown: Blizzard's")
-    eq(TM.CoreOnly({ core, wheelSet }, false, false), true, "wheel set left, no wheel: ours")
-    eq(TM.CoreOnly({ core, wheelSet, other }, false, false), false, "another panel with it: Blizzard's")
-    eq(TM.CoreOnly({ core, other }, true, false), true, "manager assumes core: ours")
-    eq(TM.CoreOnly(nil, false, false), true, "empty stack: ours")
-
-    -- Driven: the stack read from the manager, the wheel's own shown state
-    local saved = GamepadSharedUtility.InputBindingManager
-    local manager = { bindingSetStack = { core, wheelSet } }
-    GamepadSharedUtility.InputBindingManager = manager
-    local wheel = { shown = true, alpha = 1 }
-    function wheel.IsShown(self) return self.shown end
-    function wheel.IsVisible(self) return self.shown end
-    function wheel.GetEffectiveAlpha(self) return self.alpha end
-    GamepadRadial = wheel
-    Tick()
-    eq(GetBindingAction("PADBACK"), "", "wheel open: the click is Blizzard's")
-    wheel.shown = false
-    Tick()
-    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "wheel gone, its set left: zones again at once")
-    wheel.shown, wheel.alpha = true, 0
-    Tick()
-    eq(GetBindingAction("PADBACK"), "", "wheel up under a faded UIParent (DialogueUI): still Blizzard's")
-    wheel.alpha = 1
-    manager.bindingSetStack = { core }
-    wheel.shown = false
-    Tick()
-    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "core only: zones")
-    for _, set in ipairs(manager.bindingSetStack) do check(set == core, "the stack never written") end
-    -- in combat: nothing changes until after
-    manager.bindingSetStack = { core, wheelSet }
-    wheel.shown = true
-    combat = true
-    Tick()
-    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "combat: no binding change")
-    combat = false
-    Fire("PLAYER_REGEN_ENABLED")
-    eq(GetBindingAction("PADBACK"), "", "after combat: wheel open, Blizzard's")
-    wheel.shown = false
-    Tick()
-    GamepadSharedUtility.InputBindingManager = saved
-    GamepadRadial = nil
-    Tick()
-end
-
--- In combat the ownership freezes; it catches up after
-combat = true
-uiFocused = true
-Tick()
-eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "combat: no binding changes")
-combat = false
-Fire("PLAYER_REGEN_ENABLED")
-eq(GetBindingAction("PADBACK"), "", "after combat: caught up")
-uiFocused = false
+eq(GetBindingAction("PADBACK"), ZONES, "a window's click binding is taken back")
+-- taken without the hook seeing it (another owner): the watcher puts it back within half a second
+SetOverrideBinding({}, true, "PADBACK", "TOGGLEUIFOCUS")
+for _ = 1, 6 do Tick() end
+eq(GetBindingAction("PADBACK"), ZONES, "taken by another owner: put back by the watcher")
+GamepadRadial = nil
+GamepadSharedUtility.InputBindingManager.bindingSetStack = nil
+shownWindows, uiFocused, coreOnly = 0, false, true
 Tick()
 
 -- Blizzard's core set takes PADBACK back: put ours on top again
@@ -530,7 +465,6 @@ end
 -- Dual input: a light tap runs the zone's Touch action, a full click its Click action
 do
     Touch.Command("on")
-    Touch.SetOverWindows(true)
     shownWindows, uiFocused, coreOnly = 0, false, true
     configs["1356:3302"] = nil
     cvars.GamePadTouchTapButtons = "0"
@@ -572,14 +506,12 @@ do
     -- An empty Touch zone does nothing (no fallback to the click action)
     Do("LeftButton", true, 0.8, -0.6)
     eq(Do("LeftButton", false, 0.8, -0.6), nil, "empty touch zone: nothing")
-    -- A window has the pad (Over windows off): the click does Blizzard's
-    Touch.SetOverWindows(false)
+    -- A window focused: the click stays ours, never Focus UI
     uiFocused = true
     Tick()
-    eq(GetBindingAction("PAD6"), "TOGGLEUIFOCUS", "window focused: click is Blizzard's")
+    eq(GetBindingAction("PAD6"), "CLICK GamepadCompanionTouchClick:RightButton", "window focused: the click stays ours")
     uiFocused = false
     Tick()
-    Touch.SetOverWindows(true)
     -- Right half mode swaps the config kind; back to click input removes it
     Touch.SetMode("split")
     check(T.IsSplit(configs["1356:3302"]) and not T.IsClickMoved(configs["1356:3302"]), "split: right half, click not moved")
@@ -630,6 +562,17 @@ do
     Touch.SetZone("lt", "r1c1", "none")
     pad.x, pad.y = 0, 0; Tick()
     pad.x, pad.y = 0, 0
+end
+
+-- Login: the pad reads after the first apply (nothing bound yet); the watcher
+-- binds the zones by itself within half a second
+do
+    pad.labelStyle = "Letters"
+    Touch.Apply()
+    eq(GetBindingAction("PADBACK"), "", "the pad not read yet: nothing bound")
+    pad.labelStyle = "Shapes"
+    for _ = 1, 6 do Tick() end
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "the pad read late: zones bound by the watcher")
 end
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))

@@ -751,8 +751,6 @@ local function BuildTouchPanel(card)
     tp.tapPlus = S.NewButton(p, "+", 118, -122, 24, function() Touch.SetTapTime(Settings().tapMs + T.TAP_MS.step) end, nil, 13, 24)
     S.Tooltip(tp.tapMinus, "Shorter tap")
     S.Tooltip(tp.tapPlus, "Longer tap")
-    tp.over = S.NewCheck(p, "Over UI", 150, -121, function(self) Touch.SetOverWindows(self:GetChecked() == true) end, 60)
-    S.Tooltip(tp.over, "Over windows", "Off: an open window takes the pad")
 
     -- The picked zone's heading and slot, then swipes
     local rule = p:CreateTexture(nil, "ARTWORK")
@@ -806,8 +804,6 @@ local function RefreshTouchPanel()
     tp.tapTime:SetText(s.tapMs .. " ms")
     tp.tapMinus:SetEnabled(s.tapMs > T.TAP_MS.min)
     tp.tapPlus:SetEnabled(s.tapMs < T.TAP_MS.max)
-    tp.over:SetChecked(s.overWindows)
-    tp.over:SetShown(s.mode == "chord")
     local dual = s.mode == "chord" and s.input == "dual"
     local swipe = T.GESTURE_LABELS[tpZone] ~= nil
     tp.zoneTitle:SetText((swipe and T.GESTURE_LABELS[tpZone] or T.ZoneLabel(tpZone, grid)) .. " · " .. T.LAYER_LABELS[layer])

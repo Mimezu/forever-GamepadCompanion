@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed for good: the touchpad never switches to Focus UI ("No interface frame to focus!"). Its click is always your zones: at login, with windows open, with the Main Menu wheel up. Focus UI is only the button you pick in Choose › Gamepad › Focus UI. The Over UI box is gone
 - **Fishing**: while the line is out and R2 catches, the game's prompt over your bobber shows R2 (Blizzard's own R2 glyph for your controller, in its place) instead of the Interact button. Every other prompt stays as the game draws it
 - Fixed: a fish caught with R2 now loots itself when auto loot is on (R2 is also the pad's Ctrl, which turned auto loot off for that catch)
 - Fixed: after the Main Menu wheel, touchpad zones could stay off until a reload (each click "No interface frame to focus!"). The wheel's leftover binding set only counts while the wheel is on screen
