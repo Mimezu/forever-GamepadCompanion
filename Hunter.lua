@@ -214,7 +214,9 @@ function HN.PetChanged()
     local now = Now()
     -- (a flight path sends the pet away and back: quiet on it and a few seconds after)
     if call(UnitOnTaxi, "player") then pet.quietUntil = math.max(pet.quietUntil, now + HN.TAXI_QUIET) end
-    local quiet = now < pet.quietUntil
+    -- (a warlock summoning or sacrificing a demon: its own feel says it, Warlock.lua)
+    local WLQ = ns.Warlock
+    local quiet = now < pet.quietUntil or (WLQ ~= nil and WLQ.QuietPet ~= nil and WLQ.QuietPet())
     if guid and not pet.guid then
         -- (a new pet: tamed just now, or called; a loading screen's: none)
         if not quiet and not dead then

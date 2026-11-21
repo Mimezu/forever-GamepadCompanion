@@ -666,6 +666,43 @@ for key, list in pairs(PULSES) do
     end
 end
 V.PULSES = PULSES
+-- A class's own patterns (Shaman.lua, Druid.lua: loaded right after this file), each with its
+-- pulses, as the mage's: in the palette, the library and Rumble's grid alike
+function V.AddPatterns(list)
+    for _, p in ipairs(list) do
+        p.action, p.mage = true, true
+        if not p.move and not p.group and not p.swing then p.group = "Spells" end
+        p.icon = VIBE_ICONS .. (p.art or p.key)
+        V.PATTERNS[#V.PATTERNS + 1] = p
+        PATTERN[p.key] = p
+        -- (the steps for the engine off: from the pulses, each its strength per hand, a rest between)
+        if p.pulses and not p.steps then
+            local steps, at = {}, 0
+            for _, u in ipairs(p.pulses) do
+                if u[1] > at + 0.02 then steps[#steps + 1] = { 0, 0, u[1] - at } end
+                local side = u[4] or 0
+                local len = math.max(0.1, u[2])
+                local l, r = u[3] * math.min(1, 1 - side), u[3] * math.min(1, 1 + side)
+                local last = steps[#steps]
+                if last and u[1] < at - 0.001 then
+                    -- (together with the one before: one step, the stronger per hand)
+                    last[1], last[2] = math.max(last[1], l), math.max(last[2], r)
+                else
+                    steps[#steps + 1] = { l, r, len }
+                    at = u[1] + len
+                end
+            end
+            p.steps = steps
+        end
+        if p.pulses then
+            PULSES[p.key] = p.pulses
+            local pulses = {}
+            for i, pulse in ipairs(p.pulses) do pulses[i] = pulse end
+            local cycle = p.pulses.cycle
+            p.feel = { pulses = pulses, length = cycle, gap = cycle and 0 or nil, label = p.label, icon = p.icon }
+        end
+    end
+end
 
 -- The events, by group (Easy Controller's groups and naming), each with its
 -- default state and pattern
@@ -2516,6 +2553,8 @@ local function CastStarted(event, _, guid, spellID)
     V.castSet = rule and rule.own and rule.set or nil
     cast.off = rule and rule.off or false
     if V.castKind == "spell" and not V.castAction and rule and rule.schoolSet then V.castAction = rule.schoolSet end
+    -- (a class spell's own loop before its family's: a summoning circle, a stone forming)
+    if V.castKind == "spell" and rule and rule.classSet then V.castAction = rule.classSet end
     cast.gain = rule and rule.volume or 1
     cast.ended, cast.shaped = false, false
     cast.guid = guid
@@ -2852,7 +2891,8 @@ function V.MageOf(spellID, name)
         if m.mageOnly and not V.IsMage() then return nil end
         return m
     end
-    if not V.IsMage() then return nil end
+    -- (another class's own: V.CLASS_SPELLS, by its ID, else its name)
+    if not V.IsMage() then return V.ClassSpellOf(spellID, name) end
     if not mageByName then
         mageByName = {}
         for id, m in pairs(V.MAGE) do
@@ -2865,6 +2905,50 @@ function V.MageOf(spellID, name)
     -- (a rune engraved: an enchanting's shimmer, not the fallback; English names)
     if name:find("^Engrave ") then return V.MAGE_ENGRAVE end
     return mageByName[name]
+end
+
+-- Other classes' own spells (Shaman.lua, Druid.lua), as V.MAGE: V.CLASS_SPELLS[class token] =
+-- { [first rank's ID] = entry }; every rank by its name, only for that class. Entries may add
+-- melee (a weapon's blow: timed as a swing) and scale (a function: the feel's strength now,
+-- 0..1: a finisher by its points)
+V.CLASS_SPELLS = {}
+-- (every rank by its name, per class; a do block: Rumble's main chunk is at Lua's 200 locals)
+do
+local classByName = {}
+function V.ClassSpellOf(spellID, name)
+    if not UnitClass then return nil end
+    local _, class = UnitClass("player")
+    local own = class and not secret(class) and V.CLASS_SPELLS[class]
+    if not own then return nil end
+    if own[spellID] then return own[spellID] end
+    local names = classByName[class]
+    if not names then
+        -- (kept once every name is known: one not loaded yet at login, built again next time)
+        local full = true
+        names = {}
+        for id, m in pairs(own) do
+            local n = SpellName(id)
+            if n and not secret(n) then
+                if not names[n] then names[n] = m end
+            else
+                full = false
+            end
+        end
+        if full then classByName[class] = names end
+    end
+    name = name or SpellName(spellID)
+    if not name or secret(name) then return nil end
+    -- (a rune engraved: an enchanting's shimmer, as a mage's)
+    if name:find("^Engrave ") then return V.MAGE_ENGRAVE end
+    return names[name]
+end
+end
+-- A rule's strength now (its own scale: a finisher's points), times its volume
+function V.RuleGain(rule)
+    local g = rule and rule.volume or 1
+    local m = rule and rule.mage
+    if m and type(m.scale) == "function" then g = g * math.max(0, math.min(1, m.scale() or 1)) end
+    return g
 end
 
 -- castTime: known by the caller (a cast started: > 0; an instant: 0)
@@ -2911,6 +2995,8 @@ function V.SpellRule(spellID, castTime)
                 local preset = PRESET[V.CastPreset("spell")]
                 if preset and preset.auto then
                     -- (not listed: its school's set; a heal: Healing; a summon: Summoning)
+                    -- (a class spell's own loop, before its family's set: ClassSpells.lua)
+                    if mage and mage.set and mage.classSet then action, r.classSet = mage.set, mage.set end
                     if not action then
                         local kinds = V.SpellKinds(spellID)
                         local b = kinds and SchoolOf(kinds.school)
@@ -3543,7 +3629,9 @@ local function Pending(action, school)
         if pending.avoidOnly then return nil end
         if secret(school) then school = nil end
         if pending.magicOnly and (school == nil or school == PHYSICAL) then return nil end
-        if pending.school and school and school ~= pending.school then return nil end
+        -- (a spell of several schools wounds with them all: Chaos Bolt's 124 is its fire window's)
+        if pending.school and school and school ~= pending.school
+            and not (school > pending.school and math.floor(school / pending.school) % 2 == 1) then return nil end
         if pending.notBefore and GetTime() < pending.notBefore then return nil end
     end
     local can = UnitCanAttack and UnitCanAttack("player", "target")

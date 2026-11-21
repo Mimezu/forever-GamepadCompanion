@@ -1,0 +1,335 @@
+# Every castable priest spell rank in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds, 2026-11-20),
+# the rune abilities and the class's items. id, name, line, school mask, cast ms, channel,
+# helpful (no effect on an enemy), kinds letters, kinds tick (s). Rewrite: WowHelper work/pw-data/make_fixture.py
+1277455	Confounding Flash	Discipline	2	500	0	0	nc	
+1277462	Contingency Plan	Discipline	2	0	0	1		
+1277634	Contingency Plan	Discipline	2	0	0	1		
+1277638	Contingency Plan	Discipline	2	0	0	1		
+1277639	Contingency Plan	Discipline	2	0	0	1		
+1277640	Contingency Plan	Discipline	2	0	0	1		
+527	Dispel Magic	Discipline	2	0	0	1		
+988	Dispel Magic	Discipline	2	0	0	1		
+14752	Divine Spirit	Discipline	2	0	0	1		
+14818	Divine Spirit	Discipline	2	0	0	1		
+14819	Divine Spirit	Discipline	2	0	0	1		
+27841	Divine Spirit	Discipline	2	0	0	1		
+2651	Elune's Grace	Discipline	2	0	0	1		
+13896	Feedback	Discipline	32	0	0	1		
+19271	Feedback	Discipline	32	0	0	1		
+19273	Feedback	Discipline	32	0	0	1		
+19274	Feedback	Discipline	32	0	0	1		
+19275	Feedback	Discipline	32	0	0	1		
+27828	Focused Casting	Discipline	2	0	0	1		
+588	Inner Fire	Discipline	2	0	0	1		
+7128	Inner Fire	Discipline	2	0	0	1		
+602	Inner Fire	Discipline	2	0	0	1		
+1006	Inner Fire	Discipline	2	0	0	1		
+10951	Inner Fire	Discipline	2	0	0	1		
+10952	Inner Fire	Discipline	2	0	0	1		
+14751	Inner Focus	Discipline	1	0	0	1		
+1706	Levitate	Discipline	2	0	0	1		
+8129	Mana Burn	Discipline	32	3000	0	0	h	
+8131	Mana Burn	Discipline	32	3000	0	0	h	
+10874	Mana Burn	Discipline	32	3000	0	0	h	
+10875	Mana Burn	Discipline	32	3000	0	0	h	
+10876	Mana Burn	Discipline	32	3000	0	0	h	
+402004	Pain Suppression	Discipline	2	0	0	1		
+402289	Penance	Discipline	2	0	0	0		
+402284	Penance	Discipline	2	0	0	0	h	
+402174	Penance	Discipline	2	0	1	1		
+1240720	Penance	Discipline	2	0	1	1		
+1240727	Penance	Discipline	2	0	0	0	h	
+1240723	Penance	Discipline	2	0	0	0		
+1240721	Penance	Discipline	2	0	1	1		
+1240730	Penance	Discipline	2	0	0	0	h	
+1240724	Penance	Discipline	2	0	0	0		
+1316995	Penance	Discipline	2	0	1	1		
+1316993	Penance	Discipline	2	0	0	0	h	
+1316991	Penance	Discipline	2	0	0	0		
+10060	Power Infusion	Discipline	2	0	0	1		
+425207	Power Word: Barrier	Discipline	2	0	0	1		
+1243	Power Word: Fortitude	Discipline	2	0	0	1		
+1244	Power Word: Fortitude	Discipline	2	0	0	1		
+1245	Power Word: Fortitude	Discipline	2	0	0	1		
+2791	Power Word: Fortitude	Discipline	2	0	0	1		
+10937	Power Word: Fortitude	Discipline	2	0	0	1		
+10938	Power Word: Fortitude	Discipline	2	0	0	1		
+17	Power Word: Shield	Discipline	2	0	0	1		
+592	Power Word: Shield	Discipline	2	0	0	1		
+600	Power Word: Shield	Discipline	2	0	0	1		
+3747	Power Word: Shield	Discipline	2	0	0	1		
+6065	Power Word: Shield	Discipline	2	0	0	1		
+6066	Power Word: Shield	Discipline	2	0	0	1		
+10898	Power Word: Shield	Discipline	2	0	0	1		
+10899	Power Word: Shield	Discipline	2	0	0	1		
+10900	Power Word: Shield	Discipline	2	0	0	1		
+10901	Power Word: Shield	Discipline	2	0	0	1		
+21562	Prayer of Fortitude	Discipline	2	0	0	1		
+21564	Prayer of Fortitude	Discipline	2	0	0	1		
+27681	Prayer of Spirit	Discipline	2	0	0	1		
+9484	Shackle Undead	Discipline	2	1500	0	0	nc	
+9485	Shackle Undead	Discipline	2	1500	0	0	nc	
+10955	Shackle Undead	Discipline	2	1500	0	0	nc	
+10797	Starshards	Discipline	64	0	1	0	h	1.0
+19296	Starshards	Discipline	64	0	1	0	h	1.0
+19299	Starshards	Discipline	64	0	1	0	h	1.0
+19302	Starshards	Discipline	64	0	1	0	h	1.0
+19303	Starshards	Discipline	64	0	1	0	h	1.0
+19304	Starshards	Discipline	64	0	1	0	h	1.0
+19305	Starshards	Discipline	64	0	1	0	h	1.0
+425309	Engrave Belt - Empowered Renew	Engraving	1	3000	0	1		
+431663	Engrave Belt - Mind Spike	Engraving	1	3000	0	1		
+425310	Engrave Belt - Renewed Hope	Engraving	1	3000	0	1		
+425314	Engrave Boots - Dispersion	Engraving	1	3000	0	1		
+402855	Engrave Boots - Pain Suppression	Engraving	1	3000	0	1		
+425312	Engrave Boots - Spirit of the Redeemer	Engraving	1	3000	0	1		
+425216	Engrave Boots - Void Plague	Engraving	1	3000	0	1		
+431673	Engrave Bracers - Despair	Engraving	1	3000	0	1		
+425213	Engrave Bracers - Power Word: Barrier	Engraving	1	3000	0	1		
+431669	Engrave Bracers - Surge of Light	Engraving	1	3000	0	1		
+431705	Engrave Bracers - Void Zone	Engraving	1	3000	0	1		
+415995	Engrave Chest - Serendipity	Engraving	1	3000	0	1		
+415997	Engrave Chest - Strength of Soul	Engraving	1	3000	0	1		
+425215	Engrave Chest - Twisted Faith	Engraving	1	3000	0	1		
+402853	Engrave Cloak - Binding Heal	Engraving	1	3000	0	1		
+402850	Engrave Cloak - Soul Warding	Engraving	1	3000	0	1		
+402857	Engrave Cloak - Vampiric Touch	Engraving	1	3000	0	1		
+402859	Engrave Gloves - Circle of Healing	Engraving	1	3000	0	1		
+415996	Engrave Gloves - Mind Sear	Engraving	1	3000	0	1		
+402862	Engrave Gloves - Penance	Engraving	1	3000	0	1		
+402849	Engrave Gloves - Shadow Word: Death	Engraving	1	3000	0	1		
+431650	Engrave Helm - Divine Aegis	Engraving	1	3000	0	1		
+402864	Engrave Helm - Eye of the Void	Engraving	1	3000	0	1		
+415991	Engrave Helm - Pain and Suffering	Engraving	1	3000	0	1		
+402852	Engrave Pants - Homunculi	Engraving	1	3000	0	1		
+402848	Engrave Pants - Prayer of Mending	Engraving	1	3000	0	1		
+402861	Engrave Pants - Shadowfiend	Engraving	1	3000	0	1		
+402854	Engrave Pants - Shared Pain	Engraving	1	3000	0	1		
+552	Abolish Disease	Holy	2	0	0	1		
+27813	Blessed Recovery	Holy	2	0	0	1		
+1277331	Chastise	Holy	2	0	0	0	h	
+1277332	Chastise	Holy	2	0	0	0	h	
+1277333	Chastise	Holy	2	0	0	0	h	
+1277334	Chastise	Holy	2	0	0	0	h	
+1277335	Chastise	Holy	2	0	0	0	h	
+401946	Circle of Healing	Holy	2	0	0	1		
+528	Cure Disease	Holy	2	0	0	1		
+13908	Desperate Prayer	Holy	2	0	0	1		
+19236	Desperate Prayer	Holy	2	0	0	1		
+19238	Desperate Prayer	Holy	2	0	0	1		
+19240	Desperate Prayer	Holy	2	0	0	1		
+19241	Desperate Prayer	Holy	2	0	0	1		
+19242	Desperate Prayer	Holy	2	0	0	1		
+19243	Desperate Prayer	Holy	2	0	0	1		
+1277370	Divine Grace	Holy	2	0	0	1		
+1277371	Divine Grace	Holy	2	0	0	1		
+1277372	Divine Grace	Holy	2	0	0	1		
+1277374	Divine Grace	Holy	2	0	0	1		
+1277376	Divine Grace	Holy	2	0	0	1		
+1277377	Divine Grace	Holy	2	0	0	1		
+1277378	Divine Grace	Holy	2	0	0	1		
+6346	Fear Ward	Holy	2	0	0	1		
+2061	Flash Heal	Holy	2	1500	0	1		
+9472	Flash Heal	Holy	2	1500	0	1		
+9473	Flash Heal	Holy	2	1500	0	1		
+9474	Flash Heal	Holy	2	1500	0	1		
+10915	Flash Heal	Holy	2	1500	0	1		
+10916	Flash Heal	Holy	2	1500	0	1		
+10917	Flash Heal	Holy	2	1500	0	1		
+2060	Greater Heal	Holy	2	3000	0	1		
+10963	Greater Heal	Holy	2	3000	0	1		
+10964	Greater Heal	Holy	2	3000	0	1		
+10965	Greater Heal	Holy	2	3000	0	1		
+25314	Greater Heal	Holy	2	3000	0	1		
+2054	Heal	Holy	2	3000	0	1		
+2055	Heal	Holy	2	3000	0	1		
+6063	Heal	Holy	2	3000	0	1		
+6064	Heal	Holy	2	3000	0	1		
+14914	Holy Fire	Holy	2	3500	0	0	h	
+15262	Holy Fire	Holy	2	3500	0	0	h	
+15263	Holy Fire	Holy	2	3500	0	0	h	
+15264	Holy Fire	Holy	2	3500	0	0	h	
+15265	Holy Fire	Holy	2	3500	0	0	h	
+15266	Holy Fire	Holy	2	3500	0	0	h	
+15267	Holy Fire	Holy	2	3500	0	0	h	
+15261	Holy Fire	Holy	2	3500	0	0	h	
+15237	Holy Nova	Holy	2	0	0	0	ha	
+23455	Holy Nova	Holy	2	0	0	1		
+15430	Holy Nova	Holy	2	0	0	0	ha	
+23458	Holy Nova	Holy	2	0	0	1		
+15431	Holy Nova	Holy	2	0	0	0	ha	
+23459	Holy Nova	Holy	2	0	0	1		
+27799	Holy Nova	Holy	2	0	0	0	ha	
+27803	Holy Nova	Holy	2	0	0	1		
+27800	Holy Nova	Holy	2	0	0	0	ha	
+27804	Holy Nova	Holy	2	0	0	1		
+27801	Holy Nova	Holy	2	0	0	0	ha	
+27805	Holy Nova	Holy	2	0	0	1		
+2050	Lesser Heal	Holy	2	1500	0	1		
+2052	Lesser Heal	Holy	2	2000	0	1		
+2053	Lesser Heal	Holy	2	2500	0	1		
+724	Lightwell	Holy	2	1500	0	1	sg	
+27870	Lightwell	Holy	2	1500	0	1	sg	
+27871	Lightwell	Holy	2	1500	0	1	sg	
+7001	Lightwell Renew	Holy	2	0	0	1		
+27873	Lightwell Renew	Holy	2	0	0	1		
+27874	Lightwell Renew	Holy	2	0	0	1		
+596	Prayer of Healing	Holy	2	3000	0	1		
+996	Prayer of Healing	Holy	2	3000	0	1		
+10960	Prayer of Healing	Holy	2	3000	0	1		
+10961	Prayer of Healing	Holy	2	3000	0	1		
+25316	Prayer of Healing	Holy	2	3000	0	1		
+401863	Prayer of Mending	Holy	2	0	0	1		
+401859	Prayer of Mending	Holy	2	0	0	1		
+1240826	Prayer of Mending	Holy	2	0	0	1		
+1240827	Prayer of Mending	Holy	2	0	0	1		
+139	Renew	Holy	2	0	0	1		
+425268	Renew	Holy	2	0	0	1		
+6074	Renew	Holy	2	0	0	1		
+425269	Renew	Holy	2	0	0	1		
+6075	Renew	Holy	2	0	0	1		
+425270	Renew	Holy	2	0	0	1		
+6076	Renew	Holy	2	0	0	1		
+425271	Renew	Holy	2	0	0	1		
+6077	Renew	Holy	2	0	0	1		
+425272	Renew	Holy	2	0	0	1		
+6078	Renew	Holy	2	0	0	1		
+425273	Renew	Holy	2	0	0	1		
+10927	Renew	Holy	2	0	0	1		
+425274	Renew	Holy	2	0	0	1		
+10928	Renew	Holy	2	0	0	1		
+425275	Renew	Holy	2	0	0	1		
+10929	Renew	Holy	2	0	0	1		
+425276	Renew	Holy	2	0	0	1		
+25315	Renew	Holy	2	0	0	1		
+425277	Renew	Holy	2	0	0	1		
+2006	Resurrection	Holy	2	10000	0	1		
+2010	Resurrection	Holy	2	10000	0	1		
+10880	Resurrection	Holy	2	10000	0	1		
+10881	Resurrection	Holy	2	10000	0	1		
+20770	Resurrection	Holy	2	10000	0	1		
+585	Smite	Holy	2	1500	0	0	h	
+591	Smite	Holy	2	2000	0	0	h	
+598	Smite	Holy	2	2500	0	0	h	
+984	Smite	Holy	2	2500	0	0	h	
+1004	Smite	Holy	2	2500	0	0	h	
+6060	Smite	Holy	2	2500	0	0	h	
+10933	Smite	Holy	2	2500	0	0	h	
+10934	Smite	Holy	2	2500	0	0	h	
+417346	Bracer Rune Ability	Runes	1	0	0	1		
+399954	Chest Rune Ability	Runes	1	0	0	1		
+417347	Cloak Rune Ability	Runes	1	0	0	1		
+415450	Feet Rune Ability	Runes	1	0	0	1		
+399967	Hands Rune Ability	Runes	1	0	0	1		
+417345	Helm Rune Ability	Runes	1	0	0	1		
+399966	Legs Rune Ability	Runes	1	0	0	1		
+459695	Priest Racial Ability	Runes	1	0	0	1		
+1219274	Priest Racial Ability RAQ	Runes	1	0	0	1		
+417348	Shoulder Rune Ability	Runes	1	0	0	1		
+1219955	Soul Engraving	Runes	1	0	0	1		
+415449	Waist Rune Ability	Runes	1	0	0	1		
+1277324	Dark Sacrifice	Shadow Magic	32	0	0	1		
+1277325	Dark Sacrifice	Shadow Magic	32	0	0	1		
+1277326	Dark Sacrifice	Shadow Magic	32	0	0	1		
+1277327	Dark Sacrifice	Shadow Magic	32	0	0	1		
+1277328	Dark Sacrifice	Shadow Magic	32	0	0	1		
+2944	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+19276	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+19277	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+19278	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+19279	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+19280	Devouring Plague	Shadow Magic	32	0	0	0	nd	
+425294	Dispersion	Shadow Magic	1	0	0	1		
+402789	Eye of the Void	Shadow Magic	32	0	0	1	sp	
+586	Fade	Shadow Magic	32	0	0	1		
+9578	Fade	Shadow Magic	32	0	0	1		
+9579	Fade	Shadow Magic	32	0	0	1		
+9592	Fade	Shadow Magic	32	0	0	1		
+10941	Fade	Shadow Magic	32	0	0	1		
+10942	Fade	Shadow Magic	32	0	0	1		
+9035	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+19281	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+19282	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+19283	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+19284	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+19285	Hex of Weakness	Shadow Magic	32	0	0	0	nd	
+402799	Homunculi	Shadow Magic	32	0	0	0	sp	
+8092	Mind Blast	Shadow Magic	32	1500	0	0	h	
+8102	Mind Blast	Shadow Magic	32	1500	0	0	h	
+8103	Mind Blast	Shadow Magic	32	1500	0	0	h	
+8104	Mind Blast	Shadow Magic	32	1500	0	0	h	
+8105	Mind Blast	Shadow Magic	32	1500	0	0	h	
+8106	Mind Blast	Shadow Magic	32	1500	0	0	h	
+10945	Mind Blast	Shadow Magic	32	1500	0	0	h	
+10946	Mind Blast	Shadow Magic	32	1500	0	0	h	
+10947	Mind Blast	Shadow Magic	32	1500	0	0	h	
+605	Mind Control	Shadow Magic	32	3000	1	0		
+10911	Mind Control	Shadow Magic	32	3000	1	0		
+10912	Mind Control	Shadow Magic	32	3000	1	0		
+15407	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+17311	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+17312	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+17313	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+17314	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+18807	Mind Flay	Shadow Magic	32	0	1	0	h	1.0
+413260	Mind Sear	Shadow Magic	32	0	0	0	h	
+413259	Mind Sear	Shadow Magic	32	0	1	0	h	1.0
+453	Mind Soothe	Shadow Magic	32	0	0	0	nd	
+8192	Mind Soothe	Shadow Magic	32	0	0	0	nd	
+10953	Mind Soothe	Shadow Magic	32	0	0	0	nd	
+431655	Mind Spike	Shadow Magic	48	1500	0	0	h	
+2096	Mind Vision	Shadow Magic	32	0	1	1		
+10909	Mind Vision	Shadow Magic	32	0	1	1		
+27683	Prayer of Shadow Protection	Shadow Magic	2	0	0	1		
+8122	Psychic Scream	Shadow Magic	32	0	0	0	nca	
+8124	Psychic Scream	Shadow Magic	32	0	0	0	nca	
+10888	Psychic Scream	Shadow Magic	32	0	0	0	nca	
+10890	Psychic Scream	Shadow Magic	32	0	0	0	nca	
+976	Shadow Protection	Shadow Magic	32	0	0	1		
+10957	Shadow Protection	Shadow Magic	32	0	0	1		
+10958	Shadow Protection	Shadow Magic	32	0	0	1		
+401955	Shadow Word: Death	Shadow Magic	32	0	0	0	h	
+1309595	Shadow Word: Death	Shadow Magic	32	0	0	0	h	
+1309633	Shadow Word: Death	Shadow Magic	32	0	0	0	h	
+1309635	Shadow Word: Death	Shadow Magic	32	0	0	0	h	
+1309636	Shadow Word: Death	Shadow Magic	32	0	0	0	h	
+589	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+594	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+970	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+992	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+2767	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+10892	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+10893	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+10894	Shadow Word: Pain	Shadow Magic	32	0	0	0	nd	
+401977	Shadowfiend	Shadow Magic	32	0	0	0	sp	
+15473	Shadowform	Shadow Magic	32	0	0	1		
+18137	Shadowguard	Shadow Magic	32	0	0	1		
+28377	Shadowguard	Shadow Magic	32	0	0	0	h	
+19308	Shadowguard	Shadow Magic	32	0	0	1		
+28378	Shadowguard	Shadow Magic	32	0	0	0	h	
+19309	Shadowguard	Shadow Magic	32	0	0	1		
+28379	Shadowguard	Shadow Magic	32	0	0	0	h	
+19310	Shadowguard	Shadow Magic	32	0	0	1		
+28380	Shadowguard	Shadow Magic	32	0	0	0	h	
+19311	Shadowguard	Shadow Magic	32	0	0	1		
+28381	Shadowguard	Shadow Magic	32	0	0	0	h	
+19312	Shadowguard	Shadow Magic	32	0	0	1		
+28382	Shadowguard	Shadow Magic	32	0	0	0	h	
+15487	Silence	Shadow Magic	32	0	0	0	nc	
+2652	Touch of Weakness	Shadow Magic	32	0	0	1		
+2943	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+19261	Touch of Weakness	Shadow Magic	32	0	0	1		
+19249	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+19262	Touch of Weakness	Shadow Magic	32	0	0	1		
+19251	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+19264	Touch of Weakness	Shadow Magic	32	0	0	1		
+19252	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+19265	Touch of Weakness	Shadow Magic	32	0	0	1		
+19253	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+19266	Touch of Weakness	Shadow Magic	32	0	0	1		
+19254	Touch of Weakness	Shadow Magic	32	0	0	0	h	
+15286	Vampiric Embrace	Shadow Magic	32	0	0	0	nd	
+402668	Vampiric Touch	Shadow Magic	32	1500	0	0	nd	
+425204	Void Plague	Shadow Magic	32	0	0	0	nd	
+401937	Binding Heal	Rune	2	1500	0	1		
+431681	Void Zone	Rune	32	2000	0	0		

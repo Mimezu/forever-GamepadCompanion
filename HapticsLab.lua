@@ -788,6 +788,9 @@ L.EVENTS = {
     { key = "trapSprung", icon = ART .. "vibe_latch", group = "Abilities", label = "Trap sprung", feel = "jaws", on = true },
     { key = "dazed", icon = ART .. "vibe_whirl", group = "Abilities", label = "Dazed", feel = "wobble", on = true,
         tip = "In Cheetah or Pack" },
+    -- A warlock's Soul Shard gained; your DoTs' ticks, faint and off (ClassSpells.lua, Warlock.lua)
+    { key = "soulShard", icon = ART .. "vibe_double", group = "Abilities", label = "Soul Shard", feel = "r_soulShard", on = true },
+    { key = "dotTick", icon = ART .. "vibe_micro", group = "Abilities", label = "DoT ticks", feel = "r_dotTick", on = false },
     -- Your pet (Hunter.lua): fainter than your own
     { key = "petArrive", icon = ART .. "vibe_charge", group = "Pet", label = "Pet arrives", feel = "pawsIn", on = true },
     { key = "petDismiss", icon = ART .. "vibe_fade", group = "Pet", label = "Pet leaves", feel = "pawsOut", on = true },

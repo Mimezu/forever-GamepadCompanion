@@ -20,6 +20,9 @@ When.lua
 Core.lua
 CameraPitch.lua
 Rumble.lua
+ClassSpells.lua
+Priest.lua
+Warlock.lua
 Haptics.lua
 Timing.lua
 Volume.lua
