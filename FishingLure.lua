@@ -257,7 +257,7 @@ local MIST = { 0.66, 0.74, 0.72 }
 
 local float = CreateFrame("Frame", "GamepadCompanionLure", UIParent)
 float:SetSize(240, SIZE + 8)
-L.HOME = { 36, 210 }   -- its spot (bottom-left, UIParent units) until moved in Edit Mode
+L.HOME = { 41, 224 }   -- its spot (bottom-left, UIParent units) until moved in Edit Mode
 float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L.HOME[1], L.HOME[2])
 float:SetMovable(true)
 float:SetClampedToScreen(true)
