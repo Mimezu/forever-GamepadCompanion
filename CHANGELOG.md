@@ -4,6 +4,7 @@
 
 - **Fishing lure**: with a pole in hand, L2 puts your lure on it, the way R2 casts. Setup › Fishing: R2 casts, L2 lure, and the lure (Auto: the best your skill allows, or one from your bags)
 - **The float**: while the pole is in hand, a small float at the bottom left: the lure on dark water in a brass rim, the water closing over it as its time runs out, a slow bob, a ripple now and then
+- The float says when you get wiser (“Wiser · Fishing 76”, a moment) and when a water has nothing more to teach (more fish here since your last point than a point usually takes)
 - Fishing: the bobber shows the game's R2 at 64 (the trigger's shape in a silver rim; the 32 one read pixellated)
 - Fixed for good: L2 / R2 layers on the small buttons (L2 + Create = Focus UI) read the pad itself, never the game's key state, which left Focus UI on Create with L2 up. A release takes it off at once. One source for every held button: docs/PAD-BINDINGS.md
 - Fixed for good: the touchpad never switches to Focus UI ("No interface frame to focus!"). Its click is always your zones: at login, with windows open, with the Main Menu wheel up. Focus UI is only the button you pick in Choose › Gamepad › Focus UI. The Over UI box is gone

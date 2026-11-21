@@ -205,3 +205,5 @@ GetNumSkillLines
 GetSkillLineInfo
 PROFESSIONS_FISHING
 GetWeaponEnchantInfo
+GetSubZoneText
+SKILL_RANK_UP

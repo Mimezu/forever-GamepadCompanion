@@ -133,9 +133,46 @@ function L.Setting()
     return char.fishing
 end
 
--- The lure L2 puts on now, or nil
+-- The lure L2 puts on now, or nil (the skill: the list's, else the last
+-- skill-up's word)
 function L.Current()
-    return L.Pick(L.Setting().lure or "auto", L.Bags(), L.Skill())
+    return L.Pick(L.Setting().lure or "auto", L.Bags(), L.Skill() or tonumber(L.Setting().skill))
+end
+
+---------------------------------------------------------------------------
+-- What the water teaches (pure: tests/FishingLure.lua). The game says nothing
+-- of a water being too easy, and guides disagree on whether Classic's zones
+-- matter, so it's measured: the fish caught here since the last skill-up,
+-- against the fish a point usually takes at this skill
+---------------------------------------------------------------------------
+-- The fish one point of Fishing usually takes at this skill
+function L.PerPoint(skill)
+    skill = tonumber(skill) or 0
+    if skill < 100 then return 1 elseif skill < 200 then return 1.6 elseif skill < 300 then return 1.9 end
+    return 3.6
+end
+
+-- Has this water stopped teaching: many more fish here than a point takes
+function L.Taught(since, skill)
+    since = tonumber(since) or 0
+    return since >= math.max(12, math.ceil(4 * L.PerPoint(skill)))
+end
+
+-- A skill-up message's new Fishing skill, or nil. fmt: the game's
+-- SKILL_RANK_UP ("Your skill in %s has increased to %d.")
+function L.SkillUp(message, fmt, fishing)
+    if type(message) ~= "string" then return nil end
+    fmt = type(fmt) == "string" and fmt or "Your skill in %s has increased to %d."
+    local pattern = fmt:gsub("([%(%)%.%[%]%*%+%-%?%^%$])", "%%%1"):gsub("%%s", "(.+)"):gsub("%%d", "(%%d+)")
+    local name, rank = message:match(pattern)
+    if not name then return nil end
+    if name:lower() ~= (fishing or PROFESSIONS_FISHING or "Fishing"):lower() then return nil end
+    return tonumber(rank)
+end
+
+-- This stretch of water: the zone and the place in it
+function L.Water()
+    return (Call(GetZoneText) or "") .. "/" .. (Call(GetSubZoneText) or "")
 end
 
 -- The pole's lure: seconds left, or nil
@@ -251,6 +288,16 @@ sub:SetTextColor(MIST[1], MIST[2], MIST[3])
 sub:SetPoint("TOPLEFT", medal, "RIGHT", 11, -3)
 sub:SetJustifyH("LEFT")
 
+-- a quiet line under it, now and then: a skill-up, or a water with nothing
+-- more to teach
+local whisper = float:CreateFontString(nil, "OVERLAY")
+whisper:SetFont(BODY_FONT, 10, "")
+whisper:SetShadowColor(0, 0, 0, 0.9)
+whisper:SetShadowOffset(1, -1)
+whisper:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", 0, -5)
+whisper:SetJustifyH("LEFT")
+local WISE = { 0.96, 0.80, 0.42 }
+
 -- fade in and out
 local fadeIn = float:CreateAnimationGroup()
 local a1 = fadeIn:CreateAnimation("Alpha"); a1:SetFromAlpha(0); a1:SetToAlpha(1); a1:SetDuration(0.9); a1:SetSmoothing("OUT")
@@ -296,9 +343,28 @@ function L.Words(left, spent, worn, pick)
     return "No lure", "None in bags", false
 end
 
+-- The quiet line (pure): text and colour, or nil. wiserAt: when the last
+-- skill-up came (GetTime), rank: its new skill; since: fish caught here
+-- since; skill: the skill now
+function L.Whisper(now, wiserAt, rank, since, skill)
+    if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, WISE end
+    if L.Taught(since, skill) then return "These waters teach no more", MIST end
+end
+
+local wiserAt, wiserRank
+local function Whisper(now)
+    local s = L.Setting()
+    local waters = type(s.waters) == "table" and s.waters or {}
+    local text, color = L.Whisper(now, wiserAt, wiserRank, waters[L.Water()], L.Skill() or tonumber(s.skill))
+    whisper:SetText(text or "")
+    if color then whisper:SetTextColor(color[1], color[2], color[3]) end
+    return text
+end
+
 function L.Refresh()
     local left = Left()
     local now = GetTime and GetTime() or 0
+    Whisper(now)
     if left then
         total = L.Total(total, before, left)
         before, spentAt = left, nil
@@ -342,11 +408,27 @@ local function PoleOn()
 end
 
 local events = CreateFrame("Frame")
-for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "BAG_UPDATE_DELAYED", "SKILL_LINES_CHANGED" }) do
+for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "BAG_UPDATE_DELAYED",
+    "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "LOOT_OPENED", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA" }) do
     pcall(events.RegisterEvent, events, ev)
 end
 events:SetScript("OnEvent", function(_, event, unit)
     if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
+    if event == "CHAT_MSG_SKILL" then
+        -- (a point of Fishing: said a moment, every water counts again from here)
+        local rank = L.SkillUp(unit, SKILL_RANK_UP)
+        if not rank then return end
+        local s = L.Setting()
+        s.skill, s.waters = rank, {}
+        wiserAt, wiserRank = GetTime and GetTime() or 0, rank
+    elseif event == "LOOT_OPENED" then
+        -- (a fish caught here: one more for this water)
+        if not (PoleOn() and Call(IsFishingLoot)) then return end
+        local s = L.Setting()
+        if type(s.waters) ~= "table" then s.waters = {} end
+        local key = L.Water()
+        s.waters[key] = (tonumber(s.waters[key]) or 0) + 1
+    end
     L.Show(PoleOn())
     if shown then L.Refresh() end
 end)

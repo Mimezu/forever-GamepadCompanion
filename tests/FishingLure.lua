@@ -129,5 +129,38 @@ t, line = L.Refresh()
 eq(t, "No lure", "a moment later: no lure")
 check(line:find("Nightcrawlers", 1, true) ~= nil, "and L2's lure named")
 
+-- What the water teaches -------------------------------------------------------------
+eq(L.SkillUp("Your skill in Fishing has increased to 76."), 76, "a Fishing skill-up read")
+eq(L.SkillUp("Your skill in Mining has increased to 76."), nil, "another skill: not ours")
+eq(L.SkillUp("Tu habilidad en Pesca ha aumentado a 12.", "Tu habilidad en %s ha aumentado a %d.", "Pesca"), 12, "another language, from its own format")
+eq(L.SkillUp(nil), nil, "no message")
+eq(L.PerPoint(50) .. "/" .. L.PerPoint(150) .. "/" .. L.PerPoint(250) .. "/" .. L.PerPoint(320), "1/1.6/1.9/3.6", "fish per point by skill")
+eq(L.Taught(11, 76), false, "11 fish here since a skill-up: still learning")
+eq(L.Taught(12, 76), true, "12: these waters teach no more")
+eq(L.Taught(14, 320), false, "at 320 a point takes longer: 14 isn't enough")
+eq(L.Taught(15, 320), true, "15 at 320: taught")
+local w, c = L.Whisper(100, 95, 76, 30, 76)
+eq(w, "Wiser  ·  Fishing 76", "a skill-up: said for a while, over the water's word")
+w = L.Whisper(120, 95, 76, 30, 76)
+eq(w, "These waters teach no more", "later: the water's word")
+eq(L.Whisper(120, nil, nil, 3, 76), nil, "a few fish since: nothing to say")
+-- Driven: a skill-up message, then fish caught in one water
+GetZoneText = function() return "Westfall" end
+GetSubZoneText = function() return "The Dagger Hills" end
+IsFishingLoot = function() return true end
+SKILL_RANK_UP = "Your skill in %s has increased to %d."
+local ev
+for _, f in ipairs(frames) do local sc = rawget(f, "scripts"); if sc and sc.OnEvent then ev = sc.OnEvent end end
+check(ev ~= nil, "the float listens")
+ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 80.")
+eq(char.fishing.skill, 80, "the skill kept from the message (Forever's list can't be read)")
+for _ = 1, 12 do ev(nil, "LOOT_OPENED") end
+eq(char.fishing.waters["Westfall/The Dagger Hills"], 12, "12 fish counted in this water")
+now = now + 30
+L.Refresh()
+eq(L.Whisper(now, nil, nil, char.fishing.waters[L.Water()], 80), "These waters teach no more", "taught here")
+ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 81.")
+eq(next(char.fishing.waters), nil, "a skill-up: every water counts again")
+
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
