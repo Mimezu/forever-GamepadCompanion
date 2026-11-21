@@ -37,7 +37,8 @@ C_Item = {
     GetItemIconByID = function(id) return "icon" .. id end,
 }
 C_TooltipInfo = { GetItemByID = function(id) local t = tooltips[id]; return t and { lines = t } or nil end }
-GetNumSkillLines = function() return 2 end
+local skillRead = true
+GetNumSkillLines = function() return skillRead and 2 or 0 end
 GetSkillLineInfo = function(i)
     if i == 1 then return "Secondary Skills", true end
     return "Fishing", false, nil, skill
@@ -58,6 +59,9 @@ eq(L.Pick("auto", items, 10).id, 6529, "low skill: Shiny Bauble")
 eq(L.Pick("6529", items, 120).id, 6529, "chosen: that one, even with a better in the bags")
 eq(L.Pick(6533, items, 120), nil, "chosen but not in the bags: none")
 eq(L.Pick("auto", {}, 120), nil, "no lures: none")
+eq(L.Pick("auto", items, nil).id, 6532, "skill unreadable: the best (the game's word decides)")
+local red = { { id = 6532, bonus = 75, skill = 100, count = 2, usable = false }, { id = 6530, bonus = 50, skill = 50, count = 9 } }
+eq(L.Pick("auto", red, nil).id, 6530, "skill unreadable: one the game says you can't use is passed over")
 local tie = { { id = 6811, bonus = 50, skill = 50, count = 2 }, { id = 6530, bonus = 50, skill = 50, count = 9 } }
 eq(L.Pick("auto", tie, 75).id, 6530, "same bonus: the bigger stack")
 
@@ -89,6 +93,13 @@ eq(L.Current().id, 6530, "skill 55: Nightcrawlers")
 char.fishing = { lure = 6530 }
 skill = 75
 eq(L.Current().id, 6530, "chosen Nightcrawlers")
+-- Forever's skill list empty (the case in game): the lure still found
+char.fishing = {}
+skillRead = false
+eq(L.Skill(), nil, "no skill list: unknown, not 0")
+eq(L.Current() and L.Current().id, 999, "no skill list: the best lure in the bags, not none")
+skillRead = true
+char.fishing = { lure = 6530 }
 
 -- The float's words ------------------------------------------------------------------
 local glyph = "|A:Gamepad_Shp_LTrigger_64:14:14|a"

@@ -28,17 +28,19 @@ L.LURES = {
     [6533] = { bonus = 100, skill = 100 },  -- Aquadynamic Fish Attractor
 }
 
--- The lure to put on: setting "auto" (or nil) the best the skill allows, else
--- that item while it's in the bags. items: { { id, bonus, skill, count } }
+-- The lure to put on: setting "auto" (or nil) the best you can use, else that
+-- item while it's in the bags. items: { { id, bonus, skill, count, usable } }.
+-- usable: the game's own word (false: not yet, red in the bags); skill: the
+-- Fishing skill when it could be read (nil: only the game's word counts)
 function L.Pick(setting, items, skill)
-    skill = tonumber(skill) or 0
+    skill = tonumber(skill)
     if setting ~= nil and setting ~= "auto" then
         for _, item in ipairs(items) do if item.id == tonumber(setting) then return item end end
         return nil
     end
     local best
     for _, item in ipairs(items) do
-        if (item.skill or 0) <= skill then
+        if item.usable ~= false and (not skill or (item.skill or 0) <= skill) then
             if not best or item.bonus > best.bonus
                 or (item.bonus == best.bonus and (item.count or 0) > (best.count or 0))
                 or (item.bonus == best.bonus and (item.count or 0) == (best.count or 0) and item.id < best.id) then
@@ -103,7 +105,8 @@ function L.Bags()
                     seen[id].count = seen[id].count + (info.stackCount or 1)
                 else
                     seen[id] = { id = id, bonus = known.bonus, skill = known.skill or 0, count = info.stackCount or 1,
-                        icon = info.iconFileID, name = Call(C_Item.GetItemNameByID, id) }
+                        icon = info.iconFileID, name = Call(C_Item.GetItemNameByID, id),
+                        usable = Call(C_Item.IsUsableItem, id) ~= false }
                     items[#items + 1] = seen[id]
                 end
             end
@@ -112,14 +115,16 @@ function L.Bags()
     return items
 end
 
+-- The Fishing skill, or nil when it can't be read (Forever's skill list can
+-- come back empty: then the game's "usable" decides alone)
 function L.Skill()
-    if not (GetNumSkillLines and GetSkillLineInfo) then return 0 end
+    if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
     local fishing = (PROFESSIONS_FISHING or "Fishing"):lower()
     for i = 1, tonumber((Call(GetNumSkillLines))) or 0 do
         local name, header, _, rank = Call(GetSkillLineInfo, i)
-        if not header and type(name) == "string" and name:lower() == fishing then return tonumber(rank) or 0 end
+        if not header and type(name) == "string" and name:lower() == fishing then return tonumber(rank) end
     end
-    return 0
+    return nil
 end
 
 function L.Setting()
