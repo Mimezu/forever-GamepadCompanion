@@ -59,8 +59,8 @@ function L.CastLeft(startMs, endMs, now)
     return math.max(0, math.min(1, (endMs / 1000 - now) / ((endMs - startMs) / 1000)))
 end
 
--- Each bead's brightness (0-1) for the share left: the beads from the top,
--- clockwise, up to it are lit, the last one partly (a smooth glide)
+-- Each piece of the ring (0-1) for the share left: the pieces from the top,
+-- clockwise, up to it are drawn, the last one partly (a smooth glide)
 function L.Beads(left, n)
     local out, lit = {}, (left or 0) * n
     for i = 1, n do out[i] = math.max(0, math.min(1, lit - (i - 1))) end
@@ -327,51 +327,52 @@ local function Ripple(delay)
 end
 local ripples = { Ripple(0.4), Ripple(2.6) }
 
--- The cast ring, in place of Blizzard's cast bar while you fish: a thin line
--- of pale moonlight around the float, drained clockwise from the top as the
--- line's time runs out, a brighter glint at its tip. Small soft beads close
--- enough to read as one line (so it bobs with the float and never covers it)
-local BEADS, RING_R = 64, SIZE / 2 + 6
-local MOON = { 0.80, 0.90, 0.95 }
-local beads = {}
-for i = 1, BEADS do
-    local a = (i - 1) / BEADS * 2 * math.pi
-    local b = medal:CreateTexture(nil, "OVERLAY", nil, 3)
-    b:SetTexture(MASK)
-    b:SetSize(3.4, 3.4)
-    b:SetPoint("CENTER", medal, "CENTER", RING_R * math.sin(a), RING_R * math.cos(a))
-    b:SetVertexColor(MOON[1], MOON[2], MOON[3], 0)
-    b:SetBlendMode("ADD")
-    beads[i] = b
+-- The cast ring, in place of Blizzard's cast bar while you fish: one clean
+-- thin line of pale blue around the float, drained clockwise from the top as
+-- the line's time runs out, its light breathing slowly. Drawn as short line
+-- pieces on the float itself (so it bobs with it and never covers the lure)
+local PIECES, RING_R = 72, SIZE / 2 + 6
+local PALE = { 0.62, 0.82, 0.95 }
+local BREATH = 3.2   -- s, one slow breath
+local pieces = {}
+local function Spot(share) -- a point on the ring, share 0-1 clockwise from the top
+    local a = share * 2 * math.pi
+    return RING_R * math.sin(a), RING_R * math.cos(a)
 end
-local glint = medal:CreateTexture(nil, "OVERLAY", nil, 4)
-glint:SetTexture(MASK)
-glint:SetSize(9, 9)
-glint:SetVertexColor(1, 0.97, 0.88, 0)
-glint:SetBlendMode("ADD")
+for i = 1, PIECES do
+    local line = medal.CreateLine and medal:CreateLine(nil, "OVERLAY", nil, 3)
+    if line then
+        line:SetThickness(1.5)
+        line:SetColorTexture(PALE[1], PALE[2], PALE[3], 1)
+        line:SetAlpha(0)
+        pieces[i] = line
+    end
+end
 local ringAlpha, ringWant, cast = 0, 0, nil   -- cast: { start, end } ms, the line out
+local lastLeft = 1                           -- (the share shown last: kept as the ring fades out)
 
 local function DrawRing(now, elapsed)
     -- (fade in on the cast, out when the line comes in)
     local step = (elapsed or 0) / 0.5
     ringAlpha = ringWant > ringAlpha and math.min(ringWant, ringAlpha + step) or math.max(ringWant, ringAlpha - step)
-    local left = cast and L.CastLeft(cast[1], cast[2], now) or 0
-    local shares = L.Beads(cast and left or 1, BEADS)
-    local tip
-    for i, b in ipairs(beads) do
+    if cast then lastLeft = L.CastLeft(cast[1], cast[2], now) or lastLeft end
+    local shares = L.Beads(lastLeft, PIECES)
+    -- (its light breathing: 0.55-0.9 of full, slow)
+    local breath = 0.725 + 0.175 * math.sin(now * 2 * math.pi / BREATH)
+    for i, line in ipairs(pieces) do
         local v = shares[i]
-        b:SetVertexColor(MOON[1], MOON[2], MOON[3], ringAlpha * (0.18 + 0.62 * v))
-        if v > 0 then tip = i end
-    end
-    if tip and cast then
-        local a = (tip - 1 + shares[tip]) / BEADS * 2 * math.pi
-        glint:ClearAllPoints()
-        glint:SetPoint("CENTER", medal, "CENTER", RING_R * math.sin(a), RING_R * math.cos(a))
-        glint:SetVertexColor(1, 0.97, 0.88, ringAlpha * 0.85)
-    else
-        glint:SetVertexColor(1, 0.97, 0.88, 0)
+        if v > 0 and ringAlpha > 0 then
+            local x1, y1 = Spot((i - 1) / PIECES)
+            local x2, y2 = Spot((i - 1 + v) / PIECES)
+            line:SetStartPoint("CENTER", medal, x1, y1)
+            line:SetEndPoint("CENTER", medal, x2, y2)
+            line:SetAlpha(ringAlpha * breath)
+        else
+            line:SetAlpha(0)
+        end
     end
 end
+
 
 -- the bob: a breath down and up, slow
 local bob = medal:CreateAnimationGroup()
