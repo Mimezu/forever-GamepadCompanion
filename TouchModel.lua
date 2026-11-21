@@ -100,6 +100,24 @@ T.PAD_STICK = 4            -- the touchpad's finger position (PStick)
 T.PAD_KEY = "PADBACK"      -- the touchpad click, both halves by default
 T.SPLIT_KEY = "PAD6"       -- the right half, in split mode (unused by the game)
 T.NATIVE_ACTION = "TOGGLEUIFOCUS"
+
+-- Only core binding sets on Blizzard's gamepad stack (the world has the pad).
+-- `stack`: the manager's bindingSetStack (read only); `assume`: its
+-- assumeCoreBindingsUsable; `wheelOnScreen`: the Main Menu wheel is visible.
+-- The wheel's set ("RadialBindings") only counts while the wheel is visible:
+-- Blizzard can leave it on the stack with the wheel gone (2026-11-21 BindProbe:
+-- 41 s with no wheel, every touchpad click Blizzard's "No interface frame to
+-- focus!"), and it goes when the wheel's OnHide runs.
+function T.CoreOnly(stack, assume, wheelOnScreen)
+    if assume then return true end
+    for _, set in ipairs(stack or {}) do
+        if type(set) == "table" and not set.treatBindsAsCore then
+            local name = type(set.name) == "string" and set.name or ""
+            if wheelOnScreen or not name:find("^RadialBindings") then return false end
+        end
+    end
+    return true
+end
 T.DEFAULT_CHORD_BUTTON = "PADLSHOULDER"
 
 -- Modifier prefixes in the game's order; the CVar that makes a pad button act as each

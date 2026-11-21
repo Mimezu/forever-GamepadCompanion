@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (0.73.0)
+## Unreleased (0.73.1)
 
+- Fixed: after the Main Menu wheel, touchpad zones could stay off until a reload (each click "No interface frame to focus!"). The wheel's leftover binding set only counts while the wheel is on screen
 - Spell ranks: a slot the game refused no longer leaves the others behind, and empty bars at login no longer skip a rank
 - **Spell ranks**: a pad slot at a spell's top rank moves up to each rank you train. A lower rank stays, whoever put it there. Choose under the Controller card: Rank  < Highest >. Nothing moves on a character's first login
 - Fixed: L1 / R1 change tabs in the window (they went to the game's modifier highlight). The pad legend no longer overlaps; L1 / R1 on the controller read "Modifier"
