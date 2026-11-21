@@ -756,11 +756,11 @@ io.write("PASS: review: a mage's and a paladin's windows as before, Chaos Bolt's
 C.Feel, C.Moment, L.Fire = cFeel, cMoment, lFire
 io.write("PASS: P.CLASS.PRIEST and WARLOCK: cloth, the wand on, swings, pet blows and DoT ticks off\n")
 
--- WoW Helper's plans (SpellPlans.lua): Penance, its first bolt on the rumble, two more on its ticks
+-- WoW Helper's plans (SpellPlans.lua): Penance, its first bolt as it starts (HD too), two more on its ticks
 do
     class = "PRIEST"
     assert(loadfile(root .. "/SpellPlans.lua"))("GamepadCompanion", ns)
     local p = ns.SpellPlans.Plan(402174)
-    assert(p and p.tick == "r_penance" and p.n == 2 and p.first and p.rumble and p.rumble[1] == "penance", "Penance's plan")
-    io.write("PASS: Penance's plan for WoW Helper: a first bolt (rumble), then its ticks\n")
+    assert(p and p.tick == "r_penance" and p.n == 2 and p.first and not p.rumble, "Penance's plan")
+    io.write("PASS: Penance's plan for WoW Helper: a first bolt as it starts, then its ticks\n")
 end

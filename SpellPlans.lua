@@ -13,11 +13,11 @@
 --   d     as it lands: seconds after the cast (the hit timing as play has it)
 --   imp   a cast's impact feel (as its wound lands, after the flight)
 --   tick, last, n, alt   a channel's tick feel (HD), the last tick's, how many, by turns from
---         either hand; first: one more as the channel starts (Penance: pad rumble only, below)
+--         either hand; first: one more as the channel starts (Penance), its tick 0
 --   aft, an, ae   after the cast, n more of feel aft every ae s (Consecration's ground)
 --   sc    a finisher's strength at a middling 3 combo points (1: as designed)
---   rumble  what plays on the pad's rumble only, no HD (a burst at the release, Penance's first
---         bolt, a released hook: a poison's coat, a lock giving), by pattern
+--   rumble  what plays on the pad's rumble only, no HD (a burst at the release, a released
+--         hook: a poison's coat, a lock giving), by pattern
 --   tail  a shot's tail feel (Multi-Shot's other arrows, a sting)
 --   vol   its volume (1: as designed); off: your choice, nothing of the addon's plays
 -- export.spellBook: the IDs this character knows (its ranks)
@@ -67,7 +67,8 @@ function P.Plan(id)
         p.tick, p.last = L.FeelFor(m.tick), L.FeelFor(m.last or m.tick)
         p.n = m.rankTicks and m.rankTicks[id] or m.ticks or 1
         p.alt = m.alternate and true or nil
-        if m.first then p.first = true; rumble[#rumble + 1] = m.tick end
+        -- (Penance: one more as the channel starts, in HD too: Priest.lua's V.TickHD(tick, 0))
+        if m.first then p.first = true end
     end
     -- a cast's end, as play does it (CastReleased): a class's hook, a burst (rumble), else its
     -- impact by the cast's action; none under your own set
