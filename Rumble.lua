@@ -2558,6 +2558,8 @@ local function CastStarted(event, _, guid, spellID)
     V.castSet = rule and rule.own and rule.set or nil
     cast.off = rule and rule.off or false
     if V.castKind == "spell" and not V.castAction and rule and rule.schoolSet then V.castAction = rule.schoolSet end
+    -- (a class spell's own loop before its family's: a summoning circle, a stone forming)
+    if V.castKind == "spell" and rule and rule.classSet then V.castAction = rule.classSet end
     cast.gain = rule and rule.volume or 1
     cast.ended, cast.shaped = false, false
     cast.guid = guid
@@ -2638,7 +2640,7 @@ local function CastReleased()
     end
     -- (a damaging spell, its family's set: felt as it lands; a mage's bolt, its own impact)
     if V.castKind == "spell" and not V.castSet and cast.timing and not cast.timing.channel
-        and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact) then return end
+        and V.CastImpactWindow(V.castAction, cast.gain, mage and mage.impact, mage and mage.multiSchool) then return end
     -- (the cast done before the crack's time (the server's end a touch early: 3.14 s against
     -- 3.2): the crack's HD now, as the ore breaks loose; else it never went)
     local tm = cast.timing
@@ -3001,6 +3003,8 @@ function V.SpellRule(spellID, castTime)
                 local preset = PRESET[V.CastPreset("spell")]
                 if preset and preset.auto then
                     -- (not listed: its school's set; a heal: Healing; a summon: Summoning)
+                    -- (a class spell's own loop, before its family's set: ClassSpells.lua)
+                    if mage and mage.set and mage.classSet then action, r.classSet = mage.set, mage.set end
                     if not action then
                         local kinds = V.SpellKinds(spellID)
                         local b = kinds and SchoolOf(kinds.school)
@@ -3638,7 +3642,9 @@ local function Pending(action, school)
         if pending.avoidOnly then return nil end
         if secret(school) then school = nil end
         if pending.magicOnly and (school == nil or school == PHYSICAL) then return nil end
-        if pending.school and school and school ~= pending.school then return nil end
+        -- (a class spell of several schools wounds with them all: Chaos Bolt's 124 is its fire window's)
+        if pending.school and school and school ~= pending.school
+            and not (pending.multi and school > pending.school and math.floor(school / pending.school) % 2 == 1) then return nil end
         if pending.notBefore and GetTime() < pending.notBefore then return nil end
     end
     local can = UnitCanAttack and UnitCanAttack("player", "target")
@@ -3780,12 +3786,13 @@ end
 V.CAST_IMPACT = { fire = { "shock", 4 }, frostSpells = { "shock", 16 }, arcaneSpells = { "judge", 64 },
     shadowSpells = { "shock", 32 }, holy = { "judge", 2 }, nature = { "shock", 8 } }
 V.CAST_WINDOW = 2.5
-function V.CastImpactWindow(action, gain, move)
+-- multi: a class spell of several schools (ClassSpells.lua: Chaos Bolt), its wound all of them
+function V.CastImpactWindow(action, gain, move, multi)
     local f = V.CAST_IMPACT[action]
     if not f then return false end
     local now = GetTime()
     pending = { move = move or f[1], school = f[2], at = now, until_ = now + V.CAST_WINDOW, notBefore = now + 0.15,
-        spell = true, gain = gain or 1 }
+        spell = true, gain = gain or 1, multi = multi or nil }
     return true
 end
 
