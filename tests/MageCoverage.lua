@@ -652,6 +652,7 @@ do
     local e = L.Export()
     assert(e.spellPlans and e.spellPlans[25345] and e.spellPlans[25345].tick == "r_missile", "in the export")
     assert(e.spellPlans[999001] and e.spellPlans[999001].f == "r_bash", "another character's kept")
+    assert(e.spellBook and #e.spellBook == #book and e.spellBook[1] == 25345, "the ranks this character knows")
     assert(e.moments, "the moments still there (HelperCues' wrap)")
     io.write("PASS: spell plans: each book spell's rule exported for WoW Helper, other characters' kept\n")
 end

@@ -20,6 +20,7 @@
 --         bolt, a released hook: a poison's coat, a lock giving), by pattern
 --   tail  a shot's tail feel (Multi-Shot's other arrows, a sting)
 --   vol   its volume (1: as designed); off: your choice, nothing of the addon's plays
+-- export.spellBook: the IDs this character knows (its ranks)
 -- Plans of other characters stay (one account, several classes): a spell's plan is replaced when
 -- its character exports again.
 local _, ns = ...
@@ -91,18 +92,21 @@ function P.Plan(id)
     return p
 end
 
--- Every spell in the book, added to the plans kept
+-- Every spell in the book, added to the plans kept; and the book's IDs (the ranks this
+-- character knows: WoW Helper picks their plans first)
 function P.Export(plans)
     plans = type(plans) == "table" and plans or {}
+    local ids = {}
     local R = ns.SpellRanks
-    if not (R and R.EachBookSpell) then return plans end
+    if not (R and R.EachBookSpell) then return plans, ids end
     R.EachBookSpell(function(id)
         if type(id) == "number" and not secret(id) then
             local p = P.Plan(id)
             if p then plans[id] = p end
+            ids[#ids + 1] = id
         end
     end)
-    return plans
+    return plans, ids
 end
 
 -- Wrap the export (HapticsLab's L.Export, as HelperCues does for the moments): the plans kept
@@ -118,8 +122,9 @@ local function Wrap()
         local e = export(...)
         if type(e) == "table" then
             -- (a failure here never costs the export, nor the plans kept)
-            local okp, plans = pcall(P.Export, kept)
+            local okp, plans, ids = pcall(P.Export, kept)
             e.spellPlans = okp and plans or kept
+            e.spellBook = okp and ids or nil
         end
         return e
     end
