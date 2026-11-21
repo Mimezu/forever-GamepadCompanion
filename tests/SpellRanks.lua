@@ -170,12 +170,16 @@ R.OnEvent("PLAYER_REGEN_ENABLED"); RunTimers()
 eq(actions[207].id, 9474, "after combat: upgraded")
 
 -- A placement the game refuses: not retried until the spellbook changes ---------
+-- (two slots at Flash Heal 4: one refused, the other moves and is not stranded)
+actions[210] = { kind = "spell", id = 9474 }
 known[9475] = true; SPELLS[9475] = { "Flash Heal", 5, 3 }
 refuse[207] = true
 R.OnEvent("SPELLS_CHANGED"); RunTimers()
 eq(actions[207].id, 9474, "refused: slot unchanged")
+eq(actions[210].id, 9475, "refused elsewhere: the other slot moves")
 eq(cursor, nil, "refused: nothing on the cursor")
-eq(top["Flash Heal#3"], 9474, "refused: the old top kept (so it is retried)")
+eq(top["Flash Heal#3"], 9475, "refused: the new top recorded all the same")
+eq(GamepadCompanionRanksDB.retry[207], 9474, "refused: the slot is owed its move")
 local p1 = placed
 local tries = 0
 local place = PlaceAction
@@ -190,6 +194,23 @@ check(tries >= 1, "book changed: retried")
 eq(actions[207].id, 9475, "book changed: upgraded")
 PlaceAction = place
 check(placed > p1, "placed after the retry")
+eq(GamepadCompanionRanksDB.retry[207], nil, "retried: nothing owed")
+known[9476] = true; SPELLS[9476] = { "Flash Heal", 6, 3 }
+Learn(9476)
+eq(actions[210].id, 9476, "the slot that moved first is not stranded: follows rank 6")
+eq(actions[207].id, 9476, "the retried slot follows rank 6 too")
+-- An owed slot changed by hand: forgotten
+refuse[211] = true
+actions[211] = { kind = "spell", id = 9476 }
+known[9477] = true; SPELLS[9477] = { "Flash Heal", 7, 3 }
+Learn(9477)
+eq(GamepadCompanionRanksDB.retry[211], 9476, "refused: owed")
+refuse[211] = nil
+actions[211] = { kind = "spell", id = 2061 }
+SPELLS[1460] = { "Arcane Intellect", 2, 4 }
+Learn(1460)
+eq(actions[211].id, 2061, "owed slot changed by hand: left as you put it")
+eq(GamepadCompanionRanksDB.retry[211], nil, "owed slot changed by hand: forgotten")
 
 -- Per character, never in a Controls profile ------------------------------------
 -- (ns.Shared.CharDB errors when read: getting here means it never was)
@@ -244,6 +265,23 @@ R = Load()
 R.OnEvent("PLAYER_ENTERING_WORLD"); RunTimers()
 eq(actions[200].id, 7300, "another character's first login: nothing moves")
 check(GamepadCompanionRanksDB ~= saved, "another character: its own table")
+
+-- Bars still empty when the login wait runs out: no new top recorded ----------
+GamepadCompanionRanksDB = saved
+local oldTop = saved.top["Frost Armor#1"]
+actions = { [200] = { kind = "spell", id = oldTop } }
+known[7322] = true; SPELLS[7322] = { "Frost Armor", 7, 1 }   -- (learned, never passed before logout)
+barsLoaded = false
+timers = {}
+R = Load()
+R.OnEvent("PLAYER_ENTERING_WORLD")
+for _ = 1, 40 do RunTimers() end
+check(R.ready, "empty bars: ready after the wait")
+eq(saved.top["Frost Armor#1"], oldTop, "empty bars: the old top kept")
+barsLoaded = true
+R.OnEvent("SPELLS_CHANGED"); RunTimers()
+eq(actions[200].id, 7322, "bars in later: the top slot still follows")
+eq(saved.top["Frost Armor#1"], 7322, "bars in later: the new top recorded")
 
 io.write(("SpellRanks: %d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

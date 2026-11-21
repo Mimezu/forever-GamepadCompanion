@@ -17,8 +17,9 @@
 -- Passes: after a spell is learned, and once after login when the bars have
 -- loaded. Out of combat only (deferred to its end), never with something on
 -- the cursor (retried when it is free); the replaced rank never stays on the
--- cursor. A placement the game refuses is not retried until the spellbook
--- changes, and its spell's top rank is not moved on (so it is retried then).
+-- cursor. A placement the game refuses is kept owed to that slot
+-- (db.retry) and retried once the spellbook changes; the other slots move on.
+-- A pass that finds every gamepad slot empty records no new top ranks.
 local _, ns = ...
 local R = {}
 ns.SpellRanks = R
@@ -227,11 +228,12 @@ end
 -- Pass -----------------------------------------------------------------------------
 
 local pending = false
-local failed = {}         -- slot -> { id = the rank refused, sig = the book then }
+local refusedAt = {}      -- slot -> the book when the game refused it (retried once it changes)
 local lastSig             -- the book at the last whole pass
 R.ready = false
 
--- Moves up every slot that held its spell's previous top rank. Returns the
+-- Moves up every slot that held its spell's previous top rank, and every slot
+-- refused before (db.retry[slot] = the rank it still holds). Returns the
 -- slots changed, or nil when it had to wait (combat, or the cursor busy).
 function R.Upgrade()
     if InCombat() or Cursor() then pending = true; return nil end
@@ -240,33 +242,37 @@ function R.Upgrade()
     local sig = signature
     if sig == lastSig then return {} end    -- (the spells known didn't change)
     local db = DB()
-    local top, changed, held = db.top, {}, {}
-    if db.seeded then
-        for _, slot in ipairs(Slots()) do
-            local id = SpellAt(slot)
-            local name = id and RankOf(id) and Family(id)
-            if name and top[name] == id then
-                local higher = R.Higher(id)
-                local refused = failed[slot]
-                if higher and refused and refused.id == higher and refused.sig == sig then
-                    held[name] = true     -- (refused already: wait for the book to change)
-                elseif higher then
-                    if Put(slot, higher) then
-                        changed[#changed + 1] = slot
-                        failed[slot] = nil
-                    else
-                        failed[slot] = { id = higher, sig = sig }
-                        held[name] = true
-                    end
-                    if Cursor() then pending = true; return changed end
+    if type(db.retry) ~= "table" then db.retry = {} end
+    local top, retry, changed, any = db.top, db.retry, {}, false
+    for _, slot in ipairs(Slots()) do
+        if Call(GetActionInfo, slot) then any = true end
+        local id = SpellAt(slot)
+        local name = id and RankOf(id) and Family(id)
+        -- (a refused slot still holding its old rank: retried; anything else there: forgotten)
+        local owed = retry[slot] ~= nil and retry[slot] == id
+        if retry[slot] ~= nil and not owed then retry[slot], refusedAt[slot] = nil, nil end
+        if db.seeded and name and (owed or top[name] == id) then
+            local higher = R.Higher(id)
+            if higher and owed and refusedAt[slot] == sig then
+                -- (refused in this same book: wait for it to change)
+            elseif higher then
+                if Put(slot, higher) then
+                    changed[#changed + 1] = slot
+                    retry[slot], refusedAt[slot] = nil, nil
+                else
+                    retry[slot], refusedAt[slot] = id, sig
                 end
+                if Cursor() then pending = true; return changed end
+            elseif owed then
+                retry[slot], refusedAt[slot] = nil, nil
             end
         end
     end
-    -- the top ranks now known (a spell whose slot was refused keeps its old one)
-    for key, list in pairs(spells) do
-        if not held[key] then top[key] = list[#list] end
-    end
+    -- Empty bars (not loaded, or none set): record nothing, so no slot is
+    -- stranded behind a top it never saw
+    if not any then return changed end
+    -- the top ranks now known (a refused slot is owed its move in db.retry)
+    for key, list in pairs(spells) do top[key] = list[#list] end
     db.seeded = true
     lastSig = sig
     if #changed > 0 and ns.Refresh then pcall(ns.Refresh) end
