@@ -133,6 +133,11 @@ eq(FL.Start(rows, nil), 1, "none yet: the first")
 eq(FL.Start({}, nil), nil, "empty: none")
 
 -- Settings ----------------------------------------------------------------------------------
+eq(FL.Wanted(true, true, true), true, "shown: on, gamepad UI, map open")
+eq(FL.Wanted(true, false, true), false, "not with mouse and keyboard")
+eq(FL.Wanted(true, nil, true), false, "gamepad UI unknown: not shown")
+eq(FL.Wanted(false, true, true), false, "off")
+eq(FL.Wanted(true, true, false), false, "map closed")
 eq(FL.Enabled(), true, "on by default")
 db.flightList = false
 eq(FL.Enabled(), false, "off")

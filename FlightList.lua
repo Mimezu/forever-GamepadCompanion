@@ -133,6 +133,11 @@ end
 
 -- Settings (per character, as the bag grid) ----------------------------------
 function FL.Enabled() return Sh.CharDB().flightList ~= false end
+
+-- Shown: on, in the gamepad UI only, while the flight map is open
+function FL.Wanted(enabled, gamepadUI, mapShown)
+    return enabled and gamepadUI == true and mapShown and true or false
+end
 function FL.Sorting() return Sh.CharDB().flightSort == "name" and "name" or "near" end
 function FL.LastFrom(here)
     local t = Sh.CharDB().flightLast
@@ -541,16 +546,16 @@ local function Legend()
     return legend or nil
 end
 
+-- (gamepad mode only: unknown counts as off)
 local function GamepadUI()
     local util = _G.InputUtil
-    if util and util.IsGamepadUIEnabled then return Call(util.IsGamepadUIEnabled) and true or false end
-    return true
+    return util and util.IsGamepadUIEnabled and Call(util.IsGamepadUIEnabled) == true or false
 end
 
 local function LegendText()
     local l = Legend()
     if not (l and sortPrompt) then return end
-    l:SetShown(GamepadUI())
+    l:Show()
     Call(sortPrompt.SetPromptText, sortPrompt, FL.Sorting() == "near" and "A-Z" or "Nearest")
     Call(l.ApplyDefaultPromptPositioning, l)
     l:ClearAllPoints()
@@ -639,7 +644,7 @@ end
 
 function FL.Open()
     local taxi = _G.TaxiFrame
-    if not (FL.Enabled() and taxi and taxi:IsShown()) then return FL.Close() end
+    if not FL.Wanted(FL.Enabled(), GamepadUI(), taxi and taxi:IsShown()) then return FL.Close() end
     Layout(taxi)
     state.here, state.list = FL.Read(Api())
     FL.Sort(state.list, FL.Sorting())

@@ -1,6 +1,6 @@
 # Flight list
 
-At a flight master, a list beside the game's flight map: every place you can
+At a flight master, in the gamepad UI only, a list beside the game's flight map: every place you can
 fly to from here, chosen with the pad. The map stays the game's; it only
 reflects the row you are on.
 
