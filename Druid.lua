@@ -75,7 +75,7 @@ DR.PATTERNS = {
     P("faerie", "Faerie Fire", "shimmer", true, { Pu(0, 0.05, 0.08, -0.3), Pu(0.1, 0.05, 0.06, 0.3) }),
     -- (roots creaking up and gripping)
     P("roots", "Roots", "rise", true, { Pu(0, 0.05, 0.12, -0.3), Pu(0.1, 0.05, 0.18, 0.3), Pu(0.2, 0.05, 0.25),
-        Pu(0.3, 0.15, 0.45), Pu(0.5, 0.05, 0.1) }),
+        Pu(0.3, 0.15, 0.6), Pu(0.5, 0.05, 0.1) }),
     P("sleep", "Slumber", "fade", true, { Pu(0, 0.2, 0.12), Pu(0.3, 0.2, 0.06) }),
     P("bark", "Barkskin", "ward", true, { Pu(0, 0.05, 0.15, -0.4), Pu(0.08, 0.05, 0.18, 0.4), Pu(0.16, 0.2, 0.4) }),
     P("thorns", "Thorns", "hex", true, { Pu(0, 0.05, 0.1, -0.6), Pu(0.06, 0.05, 0.12, 0.6), Pu(0.12, 0.05, 0.1, -0.2),

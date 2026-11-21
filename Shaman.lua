@@ -69,8 +69,8 @@ SH.PATTERNS = {
     P("ghostWolf", "Ghost Wolf", "charge", true, { Pu(0, 0.15, 0.5), Pu(0.22, 0.05, 0.18, -0.6), Pu(0.3, 0.05, 0.18, 0.6),
         Pu(0.42, 0.05, 0.12, -0.6), Pu(0.5, 0.05, 0.12, 0.6) }),
     -- (a heartbeat coming back, then breath filling you: Reincarnation, a resurrection)
-    P("ankh", "Rebirth", "heart", true, { Pu(0, 0.08, 0.4), Pu(0.18, 0.08, 0.25), Pu(0.6, 0.08, 0.4), Pu(0.78, 0.08, 0.25),
-        Pu(1.1, 0.3, 0.6) }),
+    P("ankh", "Rebirth", "heart", true, { Pu(0, 0.08, 0.5), Pu(0.18, 0.08, 0.3), Pu(0.6, 0.08, 0.5), Pu(0.78, 0.08, 0.3),
+        Pu(1.1, 0.3, 0.7) }),
     P("purge", "Purge", "shock", true, { Pu(0, 0.05, 0.2, -0.5), Pu(0.06, 0.08, 0.5, 0.5), Pu(0.2, 0.05, 0.06) }),
     -- (heals: faint; rain drops scattered, a heal hopping on)
     P("healingRain", "Healing Rain", "mend", false, { Pu(0, 0.05, 0.08, -0.6), Pu(0.11, 0.05, 0.06, 0.5), Pu(0.2, 0.05, 0.07, -0.2),
