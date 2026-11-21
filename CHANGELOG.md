@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.71.2)
+## Unreleased (0.73.0)
 
 - Spell ranks: a slot the game refused no longer leaves the others behind, and empty bars at login no longer skip a rank
 - **Spell ranks**: a pad slot at a spell's top rank moves up to each rank you train. A lower rank stays, whoever put it there. Choose under the Controller card: Rank  < Highest >. Nothing moves on a character's first login
