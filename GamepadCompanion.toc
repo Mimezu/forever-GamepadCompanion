@@ -20,6 +20,10 @@ When.lua
 Core.lua
 CameraPitch.lua
 Rumble.lua
+ComboPoints.lua
+Forms.lua
+Shaman.lua
+Druid.lua
 Haptics.lua
 Timing.lua
 Volume.lua

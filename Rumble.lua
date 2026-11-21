@@ -666,6 +666,45 @@ for key, list in pairs(PULSES) do
     end
 end
 V.PULSES = PULSES
+-- A class's own patterns (Shaman.lua, Druid.lua: loaded right after this file), each with its
+-- pulses, as the mage's: in the palette, the library and Rumble's grid alike
+function V.AddPatterns(list)
+    for _, p in ipairs(list) do
+        -- (a swing's pattern is a weapon's, as Rumble's own swings: action, never a spell's mage flag)
+        p.action = true
+        if not p.swing then p.mage = true end
+        if not p.move and not p.group and not p.swing then p.group = "Spells" end
+        p.icon = VIBE_ICONS .. (p.art or p.key)
+        V.PATTERNS[#V.PATTERNS + 1] = p
+        PATTERN[p.key] = p
+        -- (the steps for the engine off: from the pulses, each its strength per hand, a rest between)
+        if p.pulses and not p.steps then
+            local steps, at = {}, 0
+            for _, u in ipairs(p.pulses) do
+                if u[1] > at + 0.02 then steps[#steps + 1] = { 0, 0, u[1] - at } end
+                local side = u[4] or 0
+                local len = math.max(0.1, u[2])
+                local l, r = u[3] * math.min(1, 1 - side), u[3] * math.min(1, 1 + side)
+                local last = steps[#steps]
+                if last and u[1] < at - 0.001 then
+                    -- (together with the one before: one step, the stronger per hand)
+                    last[1], last[2] = math.max(last[1], l), math.max(last[2], r)
+                else
+                    steps[#steps + 1] = { l, r, len }
+                    at = u[1] + len
+                end
+            end
+            p.steps = steps
+        end
+        if p.pulses then
+            PULSES[p.key] = p.pulses
+            local pulses = {}
+            for i, pulse in ipairs(p.pulses) do pulses[i] = pulse end
+            local cycle = p.pulses.cycle
+            p.feel = { pulses = pulses, length = cycle, gap = cycle and 0 or nil, label = p.label, icon = p.icon }
+        end
+    end
+end
 
 -- The events, by group (Easy Controller's groups and naming), each with its
 -- default state and pattern
@@ -1031,6 +1070,9 @@ local SWING_PATTERNS = { [0] = "swAxe", [1] = "swAxe2", [4] = "swMace", [5] = "s
     [7] = "swSword", [8] = "swSword2", [10] = "swStaff", [13] = "swFist", [15] = "swDagger" }
 
 function V.SwingPattern(slot)
+    -- (a form's own swipes: Forms.lua)
+    local own = V.FormSwing and V.FormSwing()
+    if own then return own end
     local id = GetInventoryItemID and GetInventoryItemID("player", slot or 16)
     local info = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
     if id and info then
@@ -2852,7 +2894,8 @@ function V.MageOf(spellID, name)
         if m.mageOnly and not V.IsMage() then return nil end
         return m
     end
-    if not V.IsMage() then return nil end
+    -- (another class's own: V.CLASS_SPELLS, by its ID, else its name)
+    if not V.IsMage() then return V.ClassSpellOf(spellID, name) end
     if not mageByName then
         mageByName = {}
         for id, m in pairs(V.MAGE) do
@@ -2865,6 +2908,53 @@ function V.MageOf(spellID, name)
     -- (a rune engraved: an enchanting's shimmer, not the fallback; English names)
     if name:find("^Engrave ") then return V.MAGE_ENGRAVE end
     return mageByName[name]
+end
+
+-- Other classes' own spells (Shaman.lua, Druid.lua), as V.MAGE: V.CLASS_SPELLS[class token] =
+-- { [first rank's ID] = entry }; every rank by its name, only for that class. Entries may add
+-- melee (a weapon's blow: timed as a swing) and scale (a function: the feel's strength now,
+-- 0..1: a finisher by its points)
+V.CLASS_SPELLS = {}
+-- (every rank by its name, per class; a do block: Rumble's main chunk is at Lua's 200 locals)
+do
+local classByName, classTried = {}, {}
+-- (names read again: a test, a new client's names)
+function V.ForgetClassSpells() classByName, classTried = {}, {} end
+function V.ClassSpellOf(spellID, name)
+    if not UnitClass then return nil end
+    local _, class = UnitClass("player")
+    local own = class and not secret(class) and V.CLASS_SPELLS[class]
+    if not own then return nil end
+    if own[spellID] then return own[spellID] end
+    -- (built once; a name not loaded yet at login: built again, at most every 10 s, until all are)
+    local names = classByName[class]
+    local tried = classTried[class]
+    if not names or (not tried.full and GetTime() - tried.at >= 10) then
+        local full = true
+        names = {}
+        for id, m in pairs(own) do
+            local n = SpellName(id)
+            if n and not secret(n) then
+                if not names[n] then names[n] = m end
+            else
+                full = false
+            end
+        end
+        classByName[class], classTried[class] = names, { at = GetTime(), full = full }
+    end
+    name = name or SpellName(spellID)
+    if not name or secret(name) then return nil end
+    -- (a rune engraved: an enchanting's shimmer, as a mage's)
+    if name:find("^Engrave ") then return V.MAGE_ENGRAVE end
+    return names[name]
+end
+end
+-- A rule's strength now (its own scale: a finisher's points), times its volume
+function V.RuleGain(rule)
+    local g = rule and rule.volume or 1
+    local m = rule and rule.mage
+    if m and type(m.scale) == "function" then g = g * math.max(0, math.min(1, m.scale() or 1)) end
+    return g
 end
 
 -- castTime: known by the caller (a cast started: > 0; an instant: 0)
@@ -2952,11 +3042,15 @@ function V.SpellRule(spellID, castTime)
                 if own.magic then r.magicOnly = true end
                 if not own.move then r.moment, r.when = "quiet", "none" end
             elseif NextSwing(spellID) then
-                r.move, r.when, r.next = move or "slash", "hit", true
+                -- (a class's own: Maul's paw)
+                r.move, r.when, r.next = mage and mage.move or move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
             elseif mage and mage.move then
                 -- (a mage's own: at the cast, or as it lands)
                 r.move, r.when, r.mage = mage.move, mage.when or "cast", mage
+                if mage.melee then r.how = { melee = true } end
+                if mage.magic then r.magicOnly = true end
+                if mage.avoidOnly then r.avoidOnly = true end
                 r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ")
                     .. (PATTERN[mage.move] and PATTERN[mage.move].label or mage.move)
             elseif summon then
@@ -3061,7 +3155,8 @@ end
 function V.FireSpell(rule)
     if not (rule and rule.pattern) then return end
     V.instantMove = rule.pattern
-    V.fireGain = rule.volume < 1 and rule.volume or nil
+    local gain = V.RuleGain(rule)
+    V.fireGain = gain < 1 and gain or nil
     FireAs(rule.name, "instant")
     V.fireGain = nil
 end
@@ -3485,7 +3580,7 @@ function V.AbilityCast(move, spellID, nextSwing, how, rule)
     local window = nextSwing and ((Speeds()) + 0.5) or (ranged or spell) and V.ABILITY_WINDOW_FAR
         or move and V.ABILITY_WINDOW or V.ABILITY_WINDOW_UNKNOWN
     pending = { move = move or "blow", guessed = rule and rule.guessed or (not rule and move == nil), at = now,
-        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and rule.volume or 1,
+        until_ = now + window, ranged = ranged, next = nextSwing, spell = spell, gain = rule and V.RuleGain(rule) or 1,
         avoidOnly = rule and rule.avoidOnly or nil, magicOnly = rule and rule.magicOnly or nil,
         name = rule and rule.name or nil }
 end
