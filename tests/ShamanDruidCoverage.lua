@@ -354,6 +354,31 @@ UnitClass = function() return "Mage", "MAGE" end
 assert(V.ClassSpellOf(8042) == nil, "Earth Shock: a shaman's only")
 UnitClass = function() return "Rogue", "ROGUE" end
 assert(V.ClassSpellOf(1082) == nil, "Claw: a druid's only")
+-- (a name that never loads: the map built again at most every 10 s, not on every cast)
+UnitClass = function() return "Druid", "DRUID" end
+now = now + 20
+V.ClassSpellOf(1082)
+local asked, info = 0, GetSpellInfo
+local getName = C_Spell and C_Spell.GetSpellName
+local function count(id) asked = asked + 1; if id == 768 then return nil end; return (info(id)) end
+GetSpellInfo = count
+if getName then C_Spell.GetSpellName = count end
+V.ForgetClassSpells()
+now = now + 20
+V.ClassSpellOf(9830); local first = asked
+V.ClassSpellOf(9830); V.ClassSpellOf(9896)
+assert(first > 20 and asked - first < 5, "no rebuild on every call: " .. first .. " then " .. (asked - first))
+now = now + 11
+V.ClassSpellOf(9830)
+assert(asked - first > 20, "tried again after 10 s")
+GetSpellInfo = info
+if getName then C_Spell.GetSpellName = getName end
+now = now + 20
+V.ClassSpellOf(9830)
+-- (a form's swings are a weapon's patterns, never a spell's)
+for _, p in ipairs(V.PATTERNS) do
+    if p.key == "swClaw" or p.key == "swPaw" then assert(p.swing and not p.mage, p.key .. ": a swing") end
+end
 
 ---------------------------------------------------------------------------
 -- 2. Play: the iconic spells as they happen (events in, rumble and HD out)

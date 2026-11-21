@@ -670,7 +670,9 @@ V.PULSES = PULSES
 -- pulses, as the mage's: in the palette, the library and Rumble's grid alike
 function V.AddPatterns(list)
     for _, p in ipairs(list) do
-        p.action, p.mage = true, true
+        -- (a swing's pattern is a weapon's, as Rumble's own swings: action, never a spell's mage flag)
+        p.action = true
+        if not p.swing then p.mage = true end
         if not p.move and not p.group and not p.swing then p.group = "Spells" end
         p.icon = VIBE_ICONS .. (p.art or p.key)
         V.PATTERNS[#V.PATTERNS + 1] = p
@@ -2915,16 +2917,19 @@ end
 V.CLASS_SPELLS = {}
 -- (every rank by its name, per class; a do block: Rumble's main chunk is at Lua's 200 locals)
 do
-local classByName = {}
+local classByName, classTried = {}, {}
+-- (names read again: a test, a new client's names)
+function V.ForgetClassSpells() classByName, classTried = {}, {} end
 function V.ClassSpellOf(spellID, name)
     if not UnitClass then return nil end
     local _, class = UnitClass("player")
     local own = class and not secret(class) and V.CLASS_SPELLS[class]
     if not own then return nil end
     if own[spellID] then return own[spellID] end
+    -- (built once; a name not loaded yet at login: built again, at most every 10 s, until all are)
     local names = classByName[class]
-    if not names then
-        -- (kept once every name is known: one not loaded yet at login, built again next time)
+    local tried = classTried[class]
+    if not names or (not tried.full and GetTime() - tried.at >= 10) then
         local full = true
         names = {}
         for id, m in pairs(own) do
@@ -2935,7 +2940,7 @@ function V.ClassSpellOf(spellID, name)
                 full = false
             end
         end
-        if full then classByName[class] = names end
+        classByName[class], classTried[class] = names, { at = GetTime(), full = full }
     end
     name = name or SpellName(spellID)
     if not name or secret(name) then return nil end

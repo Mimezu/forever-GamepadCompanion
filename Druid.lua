@@ -4,7 +4,7 @@
 -- tree's creak); a cat's claws and bites, its finishers by the points they spend; a bear's
 -- swipe sweeping across both hands; moon and sun from above, Hurricane gust by gust,
 -- Tranquility breath by breath; heals over time barely there. docs/SHAMAN-DRUID.md;
--- tests/DruidCoverage.lua. As Shaman.lua: Rumble's V.CLASS_SPELLS.DRUID.
+-- tests/ShamanDruidCoverage.lua. As Shaman.lua: Rumble's V.CLASS_SPELLS.DRUID.
 local _, ns = ...
 local V = ns.Rumble
 if not V or not V.AddPatterns then return end

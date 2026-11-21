@@ -2,7 +2,7 @@
 -- dwarves). Each spell its own: lightning cracking on the target (Chain Lightning hop by hop),
 -- shocks by their element, totems set into the ground by theirs (earth a stone thud, fire
 -- embers, water a slosh, air a breath), weapons imbued, Ghost Wolf dropping to all fours,
--- Reincarnation's breath back. docs/SHAMAN-DRUID.md; tests/ShamanCoverage.lua.
+-- Reincarnation's breath back. docs/SHAMAN-DRUID.md; tests/ShamanDruidCoverage.lua.
 -- Rumble's V.CLASS_SPELLS.SHAMAN as V.MAGE: impact (a cast's, at its wound), burst (at the
 -- release), move + when (an instant's, at the cast or as it lands), set (a cast's loop),
 -- melee (a weapon's blow, timed as a swing), magic (only a magic wound is its).
