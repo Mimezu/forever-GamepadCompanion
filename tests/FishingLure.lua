@@ -206,5 +206,38 @@ eq(L.WhisperNow(now), "Skill too low here", "three lost here: skill too low")
 GetSubZoneText = function() return "The Sepulcher" end
 eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "another water: the skill and the pace")
 
+-- The cast ring ------------------------------------------------------------------------
+eq(L.CastLeft(100000, 130000, 100), 1, "the cast begins: all of it left")
+eq(L.CastLeft(100000, 130000, 115), 0.5, "halfway")
+eq(L.CastLeft(100000, 130000, 140), 0, "over: none, never below")
+eq(L.CastLeft(nil, 130000, 115), nil, "no channel: nothing")
+local beads = L.Beads(0.5, 8)
+eq(table.concat(beads, ","), "1,1,1,1,0,0,0,0", "half left: the first half of the beads lit")
+beads = L.Beads(0.3, 10)
+eq(beads[3], 1, "the beads up to the share lit")
+check(math.abs(beads[4]) < 1e-9, "the next one dark (exact share)")
+beads = L.Beads(0.35, 10)
+check(math.abs(beads[4] - 0.5) < 1e-9, "the tip glides: the last bead half lit")
+-- Driven: a cast hides Blizzard's bar (its alpha only), the line in lets it be
+local bar = { alpha = 1, hooks = {} }
+function bar:SetAlpha(a) self.alpha = a end
+function bar:HookScript(name, f) self.hooks[name] = f end
+PlayerCastingBarFrame = bar
+UnitChannelInfo = function() return "Fishing", nil, nil, now * 1000, (now + 30) * 1000 end
+ev(nil, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
+eq(bar.alpha, 0, "fishing: Blizzard's cast bar unseen")
+bar.alpha = 1; bar.hooks.OnEvent(bar)
+eq(bar.alpha, 0, "its own handler shows it again mid-cast: unseen again")
+ev(nil, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
+bar.alpha = 1; bar.hooks.OnEvent(bar)
+eq(bar.alpha, 1, "the line in: the next cast's bar shows as the game draws it")
+ev(nil, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 133)
+eq(bar.alpha, 1, "another channel: the bar untouched")
+char.fishing.castRing = false
+ev(nil, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
+eq(bar.alpha, 1, "Cast ring off: Blizzard's bar as it is")
+char.fishing.castRing = nil
+ev(nil, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
+
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

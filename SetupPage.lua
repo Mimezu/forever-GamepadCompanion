@@ -416,10 +416,12 @@ local function BuildFishing(frame)
     local cw = W - X3
     local card = S.Card(frame, "Fishing", X3, -330, cw, 150, "Interface\\Icons\\Trade_Fishing")
     local function Changed() F.Apply(); FL.Refresh(); Refresh() end
-    local r2 = S.NewCheck(card, "R2 casts", 12, -38, function(self) F.Settings().r2 = self:GetChecked() == true; Changed() end, 110)
+    local r2 = S.NewCheck(card, "R2 casts", 12, -38, function(self) F.Settings().r2 = self:GetChecked() == true; Changed() end, 95)
     S.Tooltip(r2, "R2 casts", "With a pole: cast, then catch")
-    local l2 = S.NewCheck(card, "L2 lure", 150, -38, function(self) F.Settings().l2 = self:GetChecked() == true; Changed() end, 110)
+    local l2 = S.NewCheck(card, "L2 lure", 120, -38, function(self) F.Settings().l2 = self:GetChecked() == true; Changed() end, 95)
     S.Tooltip(l2, "L2 lure", "With a pole: the lure on it")
+    local ring = S.NewCheck(card, "Cast ring", 228, -38, function(self) FL.Setting().castRing = self:GetChecked() == true; Changed() end, 95)
+    S.Tooltip(ring, "Cast ring", "Replaces the cast bar")
     -- the lure: Auto (the best the skill allows) or one from the bags
     S.Text(card, "Lure", 14, -82, 60, 12, GOLD)
     local icon = card:CreateTexture(nil, "ARTWORK")
@@ -455,6 +457,7 @@ local function BuildFishing(frame)
         local s = F.Settings()
         r2:SetChecked(s.r2 ~= false)
         l2:SetChecked(s.l2 ~= false)
+        ring:SetChecked(FL.Setting().castRing ~= false)
         local setting = FL.Setting().lure or "auto"
         local pick = FL.Current()
         if setting == "auto" then

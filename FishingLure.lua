@@ -51,6 +51,22 @@ function L.Pick(setting, items, skill)
     return best
 end
 
+-- The cast ring (pure): the share of the cast left, 0-1, from the channel's
+-- start and end (ms, as UnitChannelInfo gives them) and now (s)
+function L.CastLeft(startMs, endMs, now)
+    startMs, endMs = tonumber(startMs), tonumber(endMs)
+    if not (startMs and endMs) or endMs <= startMs then return nil end
+    return math.max(0, math.min(1, (endMs / 1000 - now) / ((endMs - startMs) / 1000)))
+end
+
+-- Each bead's brightness (0-1) for the share left: the beads from the top,
+-- clockwise, up to it are lit, the last one partly (a smooth glide)
+function L.Beads(left, n)
+    local out, lit = {}, (left or 0) * n
+    for i = 1, n do out[i] = math.max(0, math.min(1, lit - (i - 1))) end
+    return out
+end
+
 -- Time left as a few quiet words: "9 min", "40 s"
 function L.TimeText(seconds)
     seconds = math.max(0, math.floor((tonumber(seconds) or 0) + 0.5))
@@ -311,6 +327,52 @@ local function Ripple(delay)
 end
 local ripples = { Ripple(0.4), Ripple(2.6) }
 
+-- The cast ring, in place of Blizzard's cast bar while you fish: a thin line
+-- of pale moonlight around the float, drained clockwise from the top as the
+-- line's time runs out, a brighter glint at its tip. Small soft beads close
+-- enough to read as one line (so it bobs with the float and never covers it)
+local BEADS, RING_R = 64, SIZE / 2 + 6
+local MOON = { 0.80, 0.90, 0.95 }
+local beads = {}
+for i = 1, BEADS do
+    local a = (i - 1) / BEADS * 2 * math.pi
+    local b = medal:CreateTexture(nil, "OVERLAY", nil, 3)
+    b:SetTexture(MASK)
+    b:SetSize(3.4, 3.4)
+    b:SetPoint("CENTER", medal, "CENTER", RING_R * math.sin(a), RING_R * math.cos(a))
+    b:SetVertexColor(MOON[1], MOON[2], MOON[3], 0)
+    b:SetBlendMode("ADD")
+    beads[i] = b
+end
+local glint = medal:CreateTexture(nil, "OVERLAY", nil, 4)
+glint:SetTexture(MASK)
+glint:SetSize(9, 9)
+glint:SetVertexColor(1, 0.97, 0.88, 0)
+glint:SetBlendMode("ADD")
+local ringAlpha, ringWant, cast = 0, 0, nil   -- cast: { start, end } ms, the line out
+
+local function DrawRing(now, elapsed)
+    -- (fade in on the cast, out when the line comes in)
+    local step = (elapsed or 0) / 0.5
+    ringAlpha = ringWant > ringAlpha and math.min(ringWant, ringAlpha + step) or math.max(ringWant, ringAlpha - step)
+    local left = cast and L.CastLeft(cast[1], cast[2], now) or 0
+    local shares = L.Beads(cast and left or 1, BEADS)
+    local tip
+    for i, b in ipairs(beads) do
+        local v = shares[i]
+        b:SetVertexColor(MOON[1], MOON[2], MOON[3], ringAlpha * (0.18 + 0.62 * v))
+        if v > 0 then tip = i end
+    end
+    if tip and cast then
+        local a = (tip - 1 + shares[tip]) / BEADS * 2 * math.pi
+        glint:ClearAllPoints()
+        glint:SetPoint("CENTER", medal, "CENTER", RING_R * math.sin(a), RING_R * math.cos(a))
+        glint:SetVertexColor(1, 0.97, 0.88, ringAlpha * 0.85)
+    else
+        glint:SetVertexColor(1, 0.97, 0.88, 0)
+    end
+end
+
 -- the bob: a breath down and up, slow
 local bob = medal:CreateAnimationGroup()
 bob:SetLooping("BOUNCE")
@@ -523,14 +585,57 @@ local function PoleOn()
     return lib and lib.PoleEquipped and Call(lib.PoleEquipped) == true or false
 end
 
+-- Blizzard's cast bar, unseen while you fish (its alpha only: never hidden or
+-- moved; its own handler sets it back on the next cast). Setup > Fishing > Cast ring
+local function CastBars()
+    return { _G.PlayerCastingBarFrame, _G.CastingBarFrame }
+end
+local function Fishing()
+    return cast ~= nil and L.Setting().castRing ~= false
+end
+local hooked = {}
+local function HookBars()
+    for _, bar in ipairs(CastBars()) do
+        if bar and not hooked[bar] and bar.HookScript then
+            hooked[bar] = true
+            bar:HookScript("OnEvent", function(self) if Fishing() then self:SetAlpha(0) end end)
+            bar:HookScript("OnShow", function(self) if Fishing() then self:SetAlpha(0) end end)
+        end
+    end
+end
+
+-- The line out (UNIT_SPELLCAST_CHANNEL_*), Fishing every rank
+local FISHING = { [7620] = true, [7731] = true, [7732] = true, [18248] = true }
+function L.Cast(on)
+    if on then
+        local _, _, _, startMs, endMs = Call(UnitChannelInfo, "player")
+        cast = startMs and endMs and { startMs, endMs } or nil
+    else
+        cast = nil
+    end
+    ringWant = (cast and L.Setting().castRing ~= false) and 1 or 0
+    HookBars()
+    if Fishing() then for _, bar in ipairs(CastBars()) do if bar then bar:SetAlpha(0) end end end
+end
+
 local events = CreateFrame("Frame")
 for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "BAG_UPDATE_DELAYED",
     "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "LOOT_OPENED", "UI_ERROR_MESSAGE", "UI_INFO_MESSAGE", "ZONE_CHANGED",
     "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA" }) do
     pcall(events.RegisterEvent, events, ev)
 end
-events:SetScript("OnEvent", function(_, event, unit, message)
+for _, ev in ipairs({ "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
+    if not pcall(events.RegisterUnitEvent, events, ev, "player") then pcall(events.RegisterEvent, events, ev) end
+end
+events:SetScript("OnEvent", function(_, event, unit, message, spellID)
     if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
+    if event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
+        if unit == "player" and FISHING[spellID] then L.Cast(true) end
+        return
+    elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+        if unit == "player" and cast then L.Cast(false) end
+        return
+    end
     if event == "CHAT_MSG_SKILL" then
         -- (a point of Fishing: said a moment; the count starts again)
         local rank = L.SkillUp(unit, SKILL_RANK_UP)
@@ -569,6 +674,7 @@ end)
 -- the words once a second while shown (the tide runs by itself)
 local tick = 0
 float:SetScript("OnUpdate", function(_, elapsed)
+    if ringWant > 0 or ringAlpha > 0 then DrawRing(GetTime and GetTime() or 0, elapsed) end
     tick = tick - elapsed
     if tick > 0 then return end
     tick = 1
