@@ -231,6 +231,16 @@ function Shell.Step(dir)
     if #list > 0 then Shell.Select(list[(at - 1 + dir) % #list + 1]) end
 end
 
+-- The first and last shown side tabs (the pad's L1 / R1 glyphs sit there)
+function Shell.TabEnds()
+    local first, last
+    for _, def in ipairs(defs) do
+        local tab = tabs[def.key]
+        if tab and tab:IsShown() then first = first or tab; last = tab end
+    end
+    return first, last
+end
+
 function Shell.Refresh()
     if not (window and window:IsShown() and current) then return end
     local page = built[current]

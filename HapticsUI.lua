@@ -78,6 +78,8 @@ function HUI.Stepper(pg, parent, label, x, y, opts)
     end
     row:EnableMouseWheel(true)
     row:SetScript("OnMouseWheel", function(_, delta) if row.enabled ~= false then change(delta) end end)
+    -- (the pad: one focus stop, left / right change it; Focus.lua)
+    row.gpcNudge = change
     function row:Update()
         local v = opts.get()
         local text

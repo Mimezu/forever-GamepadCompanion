@@ -66,12 +66,15 @@ action.attrs = { type = "macro", macrotext = "/editmode" }
 function methods:GetAttribute(k) return self.attrs and self.attrs[k] end
 
 local current, stepped = "moments", 0
+local popup
+local tabTop, tabBottom = Frame("Button"), Frame("Button")
 local window = Frame("Frame")
 window.status = Frame("Frame")
 local ns = {
-    OptionsSkin = { TopPopup = function() return nil end, Text = function() return Frame("FontString") end, GREY = {} },
+    OptionsSkin = { TopPopup = function() return popup end, Text = function() return Frame("FontString") end, GREY = {} },
     Shell = { Current = function() return current end, PageFrames = function() return page, header end,
-        Step = function(dir) stepped = stepped + dir end, Window = function() return window end },
+        Step = function(dir) stepped = stepped + dir end, Window = function() return window end,
+        TabEnds = function() return tabTop, tabBottom end },
 }
 assert(loadfile(root .. "/Focus.lua"))("GamepadCompanion", ns)
 local F = ns.Focus
@@ -116,6 +119,9 @@ assert(row1.try.clicked == 1 and row1.default.clicked == 1, "X / Y: its Try and 
 assert(F.Press(window, "PADRSHOULDER") == false and stepped == 0, "R1 down: the game's")
 F.Release("PADRSHOULDER")
 assert(stepped == 1, "R1 released: the next tab")
+assert(F.state.focus == nil, "the old page's focus let go")
+for _, fn in ipairs(queued) do fn() end; queued = {}
+assert(F.state.focus == seg, "the new page: its first control")
 F.Press(window, "PADLSHOULDER"); F.Press(window, "PADBACK"); F.Release("PADLSHOULDER")
 assert(stepped == 1, "L1 + touchpad: the Focus UI chord, no tab step")
 -- the triggers: only where the page has a step
@@ -145,4 +151,62 @@ assert(window.pad == true and not F.state.active, "after the fight: the pad's bu
 -- the window gone: the ring and legend too
 window:Hide()
 assert(window.pad == false and not F.state.active, "closed: the pad let go")
+
+-- the tab strip's L1 / R1 glyphs: shown while the pad is in use
+window:Show()
+window.scripts.OnShow(window)
+F.Press(window, "PADDDOWN")
+assert(window.padTabUp and window.padTabUp.shown and window.padTabDown.shown, "pad in use: L1 / R1 by the tabs")
+assert(window.padLegend.shown and window.status.alpha == 0, "pad in use: the legend over the status")
+F.SetActive(false)
+assert(not window.padTabUp.shown and not window.padTabDown.shown, "not in use: the glyphs hidden")
+F.SetActive(true)
+
+-- a value row (a stepper): one stop, left / right change it, its - / + out of the ring
+local value = 5
+local stepper = Frame("Frame", page, 300, 250)
+local minus, plus = Frame("Button", stepper, 260, 250), Frame("Button", stepper, 380, 250)
+stepper.gpcNudge = function(dir) value = value + dir end
+has = {}
+for _, c in ipairs(F.Controls()) do has[c] = true end
+assert(has[stepper] and not has[minus] and not has[plus], "a value row: one stop, its buttons the mouse's")
+F.Set(plate2)
+F.Press(window, "PADDDOWN")
+assert(F.state.focus == stepper, "down: the value row")
+F.Press(window, "PADDRIGHT"); F.Press(window, "PADDRIGHT")
+assert(value == 7 and F.state.focus == stepper, "right: up a step, the focus stays")
+F.Press(window, "PADDLEFT")
+assert(value == 6, "left: down a step")
+assert(F.Press(window, "PAD1") == true and value == 6, "A on a value row: nothing, no error")
+F.Press(window, "PADDUP")
+assert(F.state.focus == plate2, "up: off the row")
+stepper.enabled = false
+has = {}
+for _, c in ipairs(F.Controls()) do has[c] = true end
+assert(not has[stepper], "a disabled value row: skipped")
+stepper.enabled = nil
+
+-- B: the popup first, else the window
+popup = Frame("Frame")
+local inPopup = Frame("Button", popup, 100, 100)
+assert(F.Controls()[1] == inPopup and #F.Controls() == 1, "a popup open: only its controls")
+F.Press(window, "PAD2")
+assert(popup.shown == false and window.shown ~= false, "B: the popup closes, the window stays")
+popup = nil
+F.Press(window, "PAD2")
+assert(window.shown == false and not F.state.active, "B again: the window closes")
+
+-- combat: every pad button passes on to the game, nothing handled
+window:Show(); window.scripts.OnShow(window)
+F.Press(window, "PADDDOWN")
+fighting = true
+for _, b in ipairs({ "PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT", "PAD1", "PAD2", "PADLTRIGGER" }) do
+    local before = window.propagate
+    assert(F.Press(window, b) == false, b .. " in combat: the game's")
+    assert(window.propagate == before, b .. " in combat: propagation untouched")
+end
+F.Press(window, "PADRSHOULDER"); F.Release("PADRSHOULDER")
+assert(stepped == 1 and window.shown ~= false, "in combat: no tab step, no close")
+fighting = false
+
 io.write("PASS: the pad's focus ring: engaged by the d-pad, never action buttons, shoulders on release, never in combat" .. string.char(10))

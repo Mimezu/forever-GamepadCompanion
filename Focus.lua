@@ -10,13 +10,17 @@
 --
 -- The d-pad moves to the nearest control that way; A picks (a click); B
 -- closes the popup, else the window; X is the focused row's Try, Y its
--- Default; L1 / R1 the side tabs; L2 / R2 the page's own (Moments: the
--- group). While the pad is in use a legend of glyphs replaces the status
--- line; the mouse hides it again.
+-- Default; L1 / R1 the side tabs (the focus starts on the new page's first
+-- control); L2 / R2 the page's own (Moments: the group). Left / right on a
+-- value row (a stepper) change its value. While the pad is in use a legend
+-- of glyphs replaces the status line and L1 / R1 glyphs sit at the tab
+-- strip's ends; the mouse hides them again.
 --
 -- Hooks for pages: a control or any frame above it may carry gpcTry /
 -- gpcDefault (functions) or .try / .default (buttons: a MomentRow's);
--- gpcFocusSkip = true keeps a frame out of the ring; Focus.SetTrigger(page,
+-- gpcFocusSkip = true keeps a frame out of the ring; gpcNudge = fn(dir) makes
+-- a frame one value row (focused whole, its own buttons out of the ring, left /
+-- right call it with -1 / 1; .enabled = false: skipped); Focus.SetTrigger(page,
 -- fn(dir)) gives a page its L2 / R2; Focus.SetProvider(page, fn() -> list of
 -- controls) replaces the scan for a page; Focus.OnFocus(fn(control)).
 local _, ns = ...
@@ -37,8 +41,15 @@ end
 ---------------------------------------------------------------------------
 -- What can take the focus: visible, enabled, clickable, not protected
 ---------------------------------------------------------------------------
+local function Nudger(f) return type(rawget(f, "gpcNudge")) == "function" end
+
 local function Focusable(f)
     if rawget(f, "gpcFocusSkip") then return false end
+    if Nudger(f) then
+        if rawget(f, "enabled") == false then return false end
+        if type(f.IsVisible) == "function" and not f:IsVisible() then return false end
+        return not (type(f.GetAlpha) == "function" and (f:GetAlpha() or 1) < 0.05)
+    end
     if not (type(f.IsObjectType) == "function" and (f:IsObjectType("Button") or f:IsObjectType("CheckButton"))) then return false end
     if type(f.IsVisible) == "function" and not f:IsVisible() then return false end
     if type(f.IsMouseEnabled) == "function" and not f:IsMouseEnabled() then return false end
@@ -61,7 +72,8 @@ local function Collect(root, out)
     for _, child in ipairs({ root:GetChildren() }) do
         if type(child) == "table" and not rawget(child, "gpcFocusSkip") and (type(child.IsShown) ~= "function" or child:IsShown()) then
             if Focusable(child) then out[#out + 1] = child end
-            Collect(child, out)
+            -- (a value row is one stop: its - / + stay the mouse's)
+            if not Nudger(child) then Collect(child, out) end
         end
     end
     return out
@@ -164,8 +176,17 @@ local function Legend(show)
         w.padLegend:ClearAllPoints()
         w.padLegend:SetPoint("LEFT", w.status, "LEFT", 0, 0)
         w.padLegend:SetText(G("Shp_Cross") .. " Pick    " .. G("Shp_Circle") .. " Back    " .. G("Shp_Square") .. " Try    "
-            .. G("Shp_Triangle") .. " Default    " .. G("Shp_LShoulder") .. G("Shp_RShoulder") .. " Tabs    "
-            .. G("Shp_LTrigger") .. G("Shp_RTrigger") .. " Groups")
+            .. G("Shp_Triangle") .. " Default    " .. G("Shp_LTrigger") .. G("Shp_RTrigger") .. " Groups")
+        -- L1 above the side tabs, R1 below them
+        w.padTabUp = S.Text(w, G("Shp_LShoulder"), 0, 0, 24, 12, S.GREY)
+        w.padTabDown = S.Text(w, G("Shp_RShoulder"), 0, 0, 24, 12, S.GREY)
+    end
+    local first, last
+    if Shell.TabEnds then first, last = Shell.TabEnds() end
+    for _, e in ipairs({ { w.padTabUp, first, "BOTTOM", "TOP", 4 }, { w.padTabDown, last, "TOP", "BOTTOM", -4 } }) do
+        e[1]:ClearAllPoints()
+        if e[2] then e[1]:SetPoint(e[3], e[2], e[4], 0, e[5]) end
+        e[1]:SetShown(show and e[2] ~= nil)
     end
     -- (after the Undo when one is offered, not over it)
     local offer = rawget(w, "offer")
@@ -216,7 +237,10 @@ local function Valid(c)
     return false
 end
 
+local NUDGE = { left = -1, right = 1 }
 local function Move(dir)
+    local f = state.focus
+    if NUDGE[dir] and f and Nudger(f) and Valid(f) then f.gpcNudge(NUDGE[dir]); return end
     local pts = Points()
     local from
     -- (a focus not among the points leaves from nil)
@@ -245,7 +269,9 @@ local ACTIONS = {
     PADDUP = function() Move("up") end, PADDDOWN = function() Move("down") end,
     PADDLEFT = function() Move("left") end, PADDRIGHT = function() Move("right") end,
     PAD1 = function()
-        if Valid(state.focus) then state.focus:Click() else Move("down") end
+        local f = state.focus
+        if not Valid(f) then Move("down")
+        elseif type(f.Click) == "function" then f:Click() end
     end,
     PAD2 = function()
         local top = S.TopPopup and S.TopPopup()
@@ -314,7 +340,10 @@ function Focus.Release(button)
     state.shoulder, state.chord = nil, false
     if chord or Fighting() or not state.active then return end
     if Shell.Step then Shell.Step(dir) end
-    Focus.Set(nil)
+    -- (the new page's first control, once its frames have their places)
+    state.focus = nil
+    if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
+    else Focus.Rescope() end
 end
 
 -- A popup opened or closed: the focus starts again where the pad can reach

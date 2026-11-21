@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (0.69.3)
+## Unreleased (0.70.0)
 
+- **Pad in the window**: L1 / R1 glyphs by the side tabs; a new tab starts on its first control. Left / right change a value row
 - **Hunter**: every hunter spell has its own feel (tests/Hunter.lua lists all 76). Aimed Shot draws the string, then the arrow lands as a shot; Multi-Shot fans two more arrows; stings and Black Arrow creep in after the shot; Concussive and Scatter Shot daze; Volley rains small arrows over both hands; Feign Death drops, Disengage leaps, aspects breathe in
 - **Traps**: laid, armed 2 s later, a snap when one springs on an enemy
 - **Pet** (new group): arrives, leaves, tamed, attack / follow / stay, its death, eating, happier or less. All fainter than your own. Its crit and a heavy blow on it: off by default. Its plain hits: never felt
