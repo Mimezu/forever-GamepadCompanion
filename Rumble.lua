@@ -3082,15 +3082,17 @@ end
 
 -- The node a gathering cast is aimed at (the cast's target, as sent):
 -- moment 109, seed = its number in Timing's list (0: unknown, not sent); touch =
--- the cast's length as the game gives it, in 10 ms steps (0: unknown): WoW Helper
--- puts the crack at the cast's real end when it's sped up or slowed.
+-- 128 + the cast's length as the game gives it, in 10 ms steps (0: unknown; up to
+-- 39.67 s): WoW Helper moves the crack when a cast is sped up or slowed. (K.Marker
+-- zeroes a touch of 1-127, so the length rides above it: short casts too.)
 -- (touch on this marker plays nothing: WoW Helper reads 109 apart, old ones too)
+V.NODE_LEN_BASE = 128
 function V.GatherNode(action, name, length)
     local K = ns.HelperLink
     local n = ns.Timing and ns.Timing.NodeIndex(action, name) or 0
     local steps = 0
     if type(length) == "number" and not secret(length) and length > 0 then
-        steps = math.min(4095, math.floor(length / 0.01 + 0.5))
+        steps = V.NODE_LEN_BASE + math.min(4095 - V.NODE_LEN_BASE, math.floor(length / 0.01 + 0.5))
     end
     if n == 0 or not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
     return K.Marker({ moment = 109, seed = n, side = 0, level = 0, touch = steps })
