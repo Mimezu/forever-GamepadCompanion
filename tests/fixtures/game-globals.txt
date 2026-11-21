@@ -221,3 +221,4 @@ TaxiNodeGetType
 TaxiNodeName
 TaxiNodePosition
 RegisterStateDriver
+ERROR_NO_FRAME_TO_FOCUS

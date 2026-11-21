@@ -282,6 +282,36 @@ function Keys.Extras(layer)
     return out
 end
 
+-- A trace of the layer's bindings, kept in the saved settings (read after a
+-- /reload): each change of the extras, and a snapshot whenever the game says
+-- "No interface frame to focus!" (what each key reads, the pad's L2 / R2, the
+-- game's own key state). Focus UI kept firing on Create, PS and Mute with L2 up
+-- (2026-11-21) after two fixes; this says which side is wrong. 200 lines.
+local function Trace(line)
+    -- (its own saved table: nothing else reads it, no profile copies it)
+    if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
+    local t = GamepadCompanionTraceDB.focus
+    if type(t) ~= "table" then t = {}; GamepadCompanionTraceDB.focus = t end
+    t[#t + 1] = ("%.2f %s"):format(GetTime and GetTime() or 0, line)
+    while #t > 200 do table.remove(t, 1) end
+end
+local function PadState()
+    local lt, rt = Sh.Held()
+    local k1 = GetBindingKey and GetBindingKey("GAMEPADLEFTMOD")
+    local down = k1 and IsKeyDown and IsKeyDown(k1)
+    return ("pad L2 %s R2 %s, game L2 key %s down %s"):format(tostring(lt), tostring(rt), tostring(k1), tostring(down))
+end
+function Keys.Snapshot(why)
+    local parts = {}
+    for _, key in ipairs(Keys.KEYS) do
+        parts[#parts + 1] = ("%s=%s/%s{%s|%s}"):format(key, tostring(GetBindingAction and GetBindingAction(key, true)),
+            tostring(GetBindingAction and GetBindingAction(key, false)), tostring(extras[key]), tostring(bound[key]))
+    end
+    local focus = GamepadMode and GamepadMode.FrameControlsManager
+    Trace(("%s; layer %s; %s; focused %s; %s"):format(why, tostring(Sh.Layer()), PadState(),
+        tostring(focus and focus.isUIFocused), table.concat(parts, " ")))
+end
+
 SetExtras = function(want)
     local same = true
     for key, command in pairs(want) do if extras[key] ~= command then same = false end end
@@ -289,6 +319,9 @@ SetExtras = function(want)
     if same then return end
     ClearOverrideBindings(layerOwner)
     wipe(extras)
+    local list = {}
+    for key, command in pairs(want) do list[#list + 1] = key .. "=" .. command end
+    Trace("extras " .. (#list > 0 and table.concat(list, " ") or "none") .. "; " .. PadState())
     for key, command in pairs(want) do
         local name = command:match("^CLICK " .. Keys.BUTTON .. ":(%w+)$")
         if name then SetOverrideBindingClick(layerOwner, true, key, Keys.BUTTON, name)
@@ -334,6 +367,7 @@ function Keys.Heal()
         end
     end
     if not stale then return false end
+    Keys.Snapshot("heal")
     -- (layerOwner emptied outright: a leftover there may not be in extras)
     ClearOverrideBindings(layerOwner)
     wipe(extras)
@@ -380,10 +414,11 @@ HookBlizzard()
 
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
-    "PLAYER_REGEN_DISABLED", "UPDATE_MACROS", "SPELLS_CHANGED", "GAME_PAD_ACTIVE_CHANGED", "GAME_PAD_CONNECTED" }) do
+    "PLAYER_REGEN_DISABLED", "UPDATE_MACROS", "SPELLS_CHANGED", "GAME_PAD_ACTIVE_CHANGED", "GAME_PAD_CONNECTED",
+    "UI_ERROR_MESSAGE" }) do
     pcall(events.RegisterEvent, events, event)
 end
-events:SetScript("OnEvent", function(_, event, arg)
+events:SetScript("OnEvent", function(_, event, arg, msg)
     if event == "ADDON_LOADED" then
         if arg ~= "GamepadCompanion" then return end
         local char = Sh.CharDB()
@@ -394,6 +429,12 @@ events:SetScript("OnEvent", function(_, event, arg)
         return
     end
     if not loaded then return end
+    if event == "UI_ERROR_MESSAGE" then
+        -- (the trace: what every key reads the moment Focus UI found nothing)
+        local text = msg or arg   -- (errorType, message)
+        if text == ERROR_NO_FRAME_TO_FOCUS or text == "No interface frame to focus!" then Keys.Snapshot("NO FRAME TO FOCUS") end
+        return
+    end
     if event == "PLAYER_REGEN_DISABLED" then
         -- (the last moment bindings can change: the held layer's extras off)
         SetExtras({})

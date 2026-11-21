@@ -4,7 +4,7 @@
 ## Author: Mimezu
 ## Version: 0.75.0
 ## X-GamepadCompanion-Client: Forever
-## SavedVariables: GamepadCompanionDB, GamepadCompanionEditModeDB, GamepadCompanionFormNames, GamepadCompanionTouchDB, GamepadCompanionHapticsDB
+## SavedVariables: GamepadCompanionDB, GamepadCompanionEditModeDB, GamepadCompanionFormNames, GamepadCompanionTouchDB, GamepadCompanionHapticsDB, GamepadCompanionTraceDB
 ## SavedVariablesPerCharacter: GamepadCompanionCharDB, GamepadCompanionRanksDB
 ## LoadSavedVariablesFirst: 1
 ## OptionalDeps: WowHelperData
