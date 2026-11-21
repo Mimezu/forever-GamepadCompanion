@@ -538,7 +538,7 @@ do
     near((L.StepTiming(7)), 2.95, 1e-6, "WoW Helper's published table first")
     UnitRace = function() return "Undead", "Scourge", 5 end
     UnitSex = function() return 2 end
-    near((L.StepTiming(7)), 2.4, 1e-6, "the Undead male: the default (his is learned)")
+    near((L.StepTiming(7)), 3.23, 1e-6, "the Undead male: his own stride, as heard (a table without him: the addon's)")
     UnitSex = function() return 3 end
     -- (her swings: her one-hand and staff animations are the Undead male's lengths: the kinds' defaults)
     local T = ns.Timing

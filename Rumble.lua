@@ -2542,7 +2542,7 @@ local function CastStarted(event, _, guid, spellID)
         timed = V.GatherMarker(V.castAction, "start")
         gatherOpen = { action = V.castAction, guid = guid }
         -- (its node, right after: WoW Helper learns per ore and herb too)
-        V.GatherNode(V.castAction, V.sentTarget)
+        V.GatherNode(V.castAction, V.sentTarget, start and finish and finish > start and (finish - start) or nil)
     end
     -- (a striking cast, mining: its HD goes with each strike, from Strikes)
     local striking = V.castKind == "gather" and STRIKES[V.castAction] ~= nil
@@ -3081,12 +3081,21 @@ end
 
 
 -- The node a gathering cast is aimed at (the cast's target, as sent):
--- moment 109, seed = its number in Timing's list (0: unknown, not sent)
-function V.GatherNode(action, name)
+-- moment 109, seed = its number in Timing's list (0: unknown, not sent); touch =
+-- 128 + the cast's length as the game gives it, in 10 ms steps (0: unknown; up to
+-- 39.67 s): WoW Helper moves the crack when a cast is sped up or slowed. (K.Marker
+-- zeroes a touch of 1-127, so the length rides above it: short casts too.)
+-- (touch on this marker plays nothing: WoW Helper reads 109 apart, old ones too)
+V.NODE_LEN_BASE = 128
+function V.GatherNode(action, name, length)
     local K = ns.HelperLink
     local n = ns.Timing and ns.Timing.NodeIndex(action, name) or 0
+    local steps = 0
+    if type(length) == "number" and not secret(length) and length > 0 then
+        steps = V.NODE_LEN_BASE + math.min(4095 - V.NODE_LEN_BASE, math.floor(length / 0.01 + 0.5))
+    end
     if n == 0 or not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
-    return K.Marker({ moment = 109, seed = n, side = 0, level = 0 })
+    return K.Marker({ moment = 109, seed = n, side = 0, level = 0, touch = steps })
 end
 
 -- A shot loosed (an instant shot, Auto Shot, an aimed shot's release): Shooting at its impact,

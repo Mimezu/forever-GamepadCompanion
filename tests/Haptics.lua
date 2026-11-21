@@ -1879,10 +1879,10 @@ do
     for _ = 1, V.HIT_TRY_SWINGS do now = now + 3.6; rev("UNIT_COMBAT", "target", "WOUND", "", 100, 1); land() end
     assert(not V.HitTrying(), "a few swings, then done")
     assert(select(2, T.FitDelay({ 0.1, 0.1 })) == "few", "few")
-    -- faster than the animation: the impact in proportion
+    -- the news comes at the hit frame: hasted or slowed, the impact as long after it
     T.Set("twoHand", "main", 0.4)
-    assert(math.abs(T.Impact("twoHand", "main", 3.6) - 0.4) < 1e-9 and math.abs(T.Impact("twoHand", "main", 0.75) - 0.2) < 1e-9,
-        "in proportion when the swing comes round sooner than the animation")
+    assert(math.abs(T.Impact("twoHand", "main", 3.6) - 0.4) < 1e-9 and math.abs(T.Impact("twoHand", "main", 0.75) - 0.4) < 1e-9
+        and math.abs(T.Impact("twoHand", "main", 5.2) - 0.4) < 1e-9, "faster or slower: the same delay")
     -- per model and form: a cat's swipes are their own
     GetShapeshiftFormID = function() return 1 end
     assert(V.WeaponKind(16) == "form" and T.Key("form", "main"):find("%-f1|form|main$"), T.Key("form", "main"))
@@ -2369,6 +2369,21 @@ do
     GetShapeshiftFormID = function() return 1 end
     assert(T.Offset("form", "main") == 0.15, "a cat's: the helper's key without the form")
     GetShapeshiftFormID = nil
+    -- nothing learned for a key: its other hand's; else this machine's sound path from the
+    -- other melee keys (the kinds' difference kept); ranged never; each said once
+    T.Store().set = {}
+    T.ForgetSaid()
+    local logged = #T.Store().log
+    assert(T.Offset("twoHand", "off") == 0.28 and select(2, T.Offset("twoHand", "off")) == "guess", "its other hand's, not 'learned'")
+    T.Offset("twoHand", "off")
+    assert(#T.Store().log == logged + 1 and T.Store().log[#T.Store().log]:find("other hand"), "said once")
+    -- (twoHand 0.28 is +0.115 on its default, form 0.15 +0.01: the median +0.0625 on a dagger's 0.14)
+    assert(math.abs(T.Offset("dagger", "main") - (0.14 + 0.0625)) < 1e-9, "a dagger: the sound path learned")
+    assert(T.Offset("ranged", "ranged") == 0, "ranged: its own default, never a swing's")
+    assert(math.abs(T.Offset("mace?", "main") - (0.14 + 0.0625)) < 1e-9, "an unknown kind: a one-hander's")
+    WowHelperData = {}
+    T.LoadHelper()
+    assert(T.Offset("dagger", "main") == 0.14 and T.Offset("twoHand", "main") == 0.165, "nothing learned: the defaults")
     WowHelperData = nil
     T.Store().set, T.Store().learned, T.Store().linkLatency = {}, {}, nil
     K.Enabled, K.Cue = enabled, cue
@@ -2505,7 +2520,11 @@ do
     WowHelperData = { timingDefaults = { mining = { first = 1.5, period = 1.3, crack = 3.1 }, run = { rate = 2.5, offset = 0.12, speed = 7 } } }
     local p, f = V.StrikeTiming("mining")
     assert(p == 1.3 and f == 1.5, "mining: the published default")
+    -- (a model with no rate of its own: a human man has one, from his stride)
+    local race = UnitRace
+    UnitRace = function() return "Skyborne", "Skyborne", 95 end
     local rate, offset = L.StepTiming(7)
+    UnitRace = race
     assert(math.abs(rate - 2.5) < 1e-9 and math.abs(offset - 0.12) < 1e-9, "running: the published default")
     WowHelperData = nil
     p, f = V.StrikeTiming("mining")
@@ -3160,6 +3179,10 @@ do
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_START", "player", "g9", 2575)
     assert(K.queue[1] and K.queue[1].moment == 100 and K.queue[2] and K.queue[2].moment == 109 and K.queue[2].seed == 2,
         "the start, then its node (Tin Vein: 2)")
+    assert(K.queue[2].touch == 128 + 320, "and the cast's length, 3.2 s in 10 ms steps above 128")
+    wipe(K.queue)
+    V.GatherNode("mining", "Tin Vein", 0.9)
+    assert(K.queue[1] and K.queue[1].touch == 128 + 90, "a short cast's length kept (K.Marker zeroes 1-127)")
     assert(T.NodeIndex("mining", "Copper Vein") == 1 and T.NodeIndex("mining", "Kupferader") == 0, "by name; unknown: 0")
     rf.scripts.OnEvent(rf, "UNIT_SPELLCAST_INTERRUPTED", "player", "g9")
     UnitCastingInfo = nil
@@ -3961,4 +3984,23 @@ do
     assert(C.HelperSound("fishCatch") == nil, "a sound of its own: the helper adds none")
     C.SetMomentSound("fishCatch", nil)
     io.write("PASS: Just played names the game's sound WoW Helper adds" .. string.char(10))
+end
+
+-- Steps before anything is learned: the model's own rate; a model with none, the default, said once
+do
+    local L, T = ns.HapticsLab, ns.Timing
+    local race, sex = UnitRace, UnitSex
+    WowHelperData = nil
+    UnitRace, UnitSex = function() return "Human", "Human", 1 end, function() return 2 end
+    assert(math.abs(L.StepDefault("run").rate - 2.906) < 1e-9, "a human man's own run")
+    assert(math.abs(L.StepDefault("walk").rate - 1.923) < 1e-9, "and walk")
+    UnitRace = function() return "Tauren", "Tauren", 6 end
+    assert(math.abs(L.StepDefault("run").rate - 2.153) < 1e-9, "a tauren's long stride")
+    UnitRace, UnitSex = function() return "Skyborne", "Skyborne", 95 end, function() return 3 end
+    local before = #T.Store().log
+    assert(L.StepDefault("run").rate == 2.4, "a Skyborne: the default")
+    L.StepDefault("run")
+    assert(#T.Store().log == before + 1 and T.Store().log[#T.Store().log]:find("95%-3|run"), "said once")
+    UnitRace, UnitSex = race, sex
+    io.write("PASS: each model's own steps until learned; a model with none, the default, said once" .. string.char(10))
 end
