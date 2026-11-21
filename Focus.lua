@@ -13,10 +13,16 @@
 -- once on the first control. Opened from the mouse, the first pad press
 -- wakes them. L1 / R1 always step the tabs.
 --
+-- L1 / R1 are the window's alone while it is open: Forever's gamepad UI binds
+-- them (its core binding set: SetOverrideBindingClick to
+-- InputFunctionBindingButton_PADLSHOULDER, the modifier highlight). A press
+-- passed on goes to that binding, and its release follows it there, never to
+-- this frame. So the press is taken (it stops here) and the tab steps on it.
+--
 -- The d-pad moves to the nearest control that way; A picks (a click); B
 -- closes the popup, else the window; X is the focused row's Try, Y its
--- Default; L1 / R1 the side tabs (the focus starts on the new page's first
--- control); L2 / R2 the page's own (Moments: the group). Left / right on a
+-- Default; L1 / R1 the side tabs, on the press (the focus starts on the new
+-- page's first control); L2 / R2 the page's own (Moments: the group). Left / right on a
 -- value row (a stepper) change its value. While the pad is in use a legend
 -- of glyphs replaces the status line and L1 / R1 glyphs sit at the tab
 -- strip's ends; the mouse hides them again.
@@ -171,17 +177,48 @@ end
 local state = { focus = nil, active = false }
 Focus.state = state
 
+-- The legend: each glyph a texture and each word its own text, placed one
+-- after the other (inline glyph markup drew the trigger glyphs over the words)
+local LEGEND = {
+    { { "Shp_Cross" }, "Pick" }, { { "Shp_Circle" }, "Back" }, { { "Shp_Square" }, "Try" },
+    { { "Shp_Triangle" }, "Default" }, { { "Shp_LTrigger", "Shp_RTrigger" }, "Groups", trigger = true },
+}
+Focus.LEGEND = LEGEND
+local function BuildLegend(w, C)
+    local bar = CreateFrame("Frame", nil, w)
+    bar:SetSize(640, 18)
+    bar.items = {}
+    local previous
+    for i, item in ipairs(LEGEND) do
+        local glyphs = {}
+        for j, name in ipairs(item[1]) do
+            local t = bar:CreateTexture(nil, "ARTWORK")
+            t:SetSize(16, 16)
+            if C and C.GlyphAtlas then pcall(t.SetAtlas, t, C.GlyphAtlas(name, 16)) end
+            if j > 1 then t:SetPoint("LEFT", glyphs[j - 1], "RIGHT", 1, 0)
+            elseif previous then t:SetPoint("LEFT", previous, "RIGHT", 14, 0)
+            else t:SetPoint("LEFT", bar, "LEFT", 0, 0) end
+            glyphs[j] = t
+        end
+        local label = S.Text(bar, item[2], 0, 0, 80, 12, S.GREY)
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", glyphs[#glyphs], "RIGHT", 4, 0)
+        Call(label, "SetWordWrap", false)
+        local ok, width = Call(label, "GetStringWidth")
+        if ok and type(width) == "number" and width > 0 then label:SetWidth(math.ceil(width) + 2) end
+        bar.items[i] = { glyphs = glyphs, label = label, trigger = item.trigger }
+        previous = label
+    end
+    return bar
+end
+
 local function Legend(show)
     local w = Shell.Window and Shell.Window()
     if not (w and w.status) then return end
     if not w.padLegend then
         local C = ns.ControllerModel
         local function G(name) return C and C.Glyph and C.Glyph(name, 16) or "" end
-        w.padLegend = S.Text(w, "", 0, 0, 640, 12, S.GREY)
-        w.padLegend:ClearAllPoints()
-        w.padLegend:SetPoint("LEFT", w.status, "LEFT", 0, 0)
-        w.padLegend:SetText(G("Shp_Cross") .. " Pick    " .. G("Shp_Circle") .. " Back    " .. G("Shp_Square") .. " Try    "
-            .. G("Shp_Triangle") .. " Default    " .. G("Shp_LTrigger") .. G("Shp_RTrigger") .. " Groups")
+        w.padLegend = BuildLegend(w, C)
         -- L1 above the side tabs, R1 below them
         w.padTabUp = S.Text(w, G("Shp_LShoulder"), 0, 0, 24, 12, S.GREY)
         w.padTabDown = S.Text(w, G("Shp_RShoulder"), 0, 0, 24, 12, S.GREY)
@@ -199,6 +236,14 @@ local function Legend(show)
     if offer and offer:IsShown() then w.padLegend:SetPoint("LEFT", offer, "RIGHT", 14, 0)
     else w.padLegend:SetPoint("LEFT", w.status, "LEFT", 0, 0) end
     w.padLegend:SetShown(show)
+    -- (Groups: only where the page has L2 / R2)
+    local groups = triggers[Shell.Current and Shell.Current()] ~= nil
+    for _, item in ipairs(w.padLegend.items) do
+        if item.trigger then
+            for _, t in ipairs(item.glyphs) do t:SetShown(groups) end
+            item.label:SetShown(groups)
+        end
+    end
     w.status:SetAlpha(show and 0 or 1)
     if w.statusDot then w.statusDot:SetAlpha(show and 0 or 1) end
 end
@@ -270,7 +315,20 @@ local function RowAction(which)
     return false
 end
 
+-- L1 / R1: the side tabs (a popup open on the old page closes first); the
+-- focus on the new page's first control, once its frames have their places
+local function Tab(dir)
+    local top = S.TopPopup and S.TopPopup()
+    if top then top:Hide() end
+    if Shell.Step then Shell.Step(dir) end
+    Focus.Set(nil)
+    Legend(state.active)
+    if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
+    else Focus.Rescope() end
+end
+
 local ACTIONS = {
+    PADLSHOULDER = function() Tab(-1) end, PADRSHOULDER = function() Tab(1) end,
     PADDUP = function() Move("up") end, PADDDOWN = function() Move("down") end,
     PADDLEFT = function() Move("left") end, PADDRIGHT = function() Move("right") end,
     PAD1 = function()
@@ -289,7 +347,6 @@ local ACTIONS = {
 }
 Focus.ACTIONS = ACTIONS
 
-local SHOULDER = { PADLSHOULDER = -1, PADRSHOULDER = 1 }
 local WAKE_ONLY = { PAD1 = true, PAD3 = true, PAD4 = true }
 
 -- (the mouse moved since the last press: the player is back on the mouse)
@@ -306,19 +363,12 @@ end
 -- One press: handled here (it stops) or passed on to the game. Never in combat.
 -- While the window is open: A, B, X, Y and the d-pad (the first press wakes the
 -- ring if asleep, the focus on the first control); L2 / R2 only where the page
--- uses them; L1 / R1 never taken (they step the tabs when released, unless the
--- touchpad came with them: Blizzard's Focus UI chord). Every other button (the
--- sticks' clicks, Start...) passes on; the sticks never reach here, so the
+-- uses them; L1 / R1 taken too, the tabs stepping on the press (see the top).
+-- Every other button (the touchpad, the sticks' clicks, Start...) passes on; the sticks never reach here, so the
 -- character still moves. The mouse moved: the ring sleeps.
 function Focus.Press(frame, button)
     if Fighting() then return false end
     if state.active and MouseMoved() then Focus.SetActive(false) end
-    if SHOULDER[button] then
-        state.shoulder, state.chord = button, false
-        return false
-    end
-    -- (the touchpad: part of a chord, the game's; the ring stays)
-    if button == "PADBACK" then state.chord = true; return false end
     local act = ACTIONS[button]
     if not act then return false end
     if (button == "PADLTRIGGER" or button == "PADRTRIGGER") and not triggers[Shell.Current()] then return false end
@@ -336,22 +386,6 @@ function Focus.Press(frame, button)
     act()
     if state.active and state.focus then Focus.Set(state.focus) end
     return true
-end
-
--- L1 / R1 released: the side tabs, unless the touchpad came with them
-function Focus.Release(button)
-    local dir = SHOULDER[button]
-    if not dir or state.shoulder ~= button then return end
-    local chord = state.chord
-    state.shoulder, state.chord = nil, false
-    if chord or Fighting() then return end
-    if Shell.Step then Shell.Step(dir) end
-    if not state.active then Focus.SetActive(true) end
-    state.cx, state.cy = Cursor()
-    -- (the new page's first control, once its frames have their places)
-    Focus.Set(nil)
-    if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
-    else Focus.Rescope() end
 end
 
 -- A popup opened or closed: the focus starts again where the pad can reach
@@ -384,7 +418,6 @@ function Focus.Attach(window)
     window:HookScript("OnShow", function() Take(true); Wake() end)
     window:HookScript("OnHide", function() Take(false); Focus.SetActive(false); state.focus = nil end)
     window:SetScript("OnGamePadButtonDown", function(self, button) Focus.Press(self, button) end)
-    window:SetScript("OnGamePadButtonUp", function(_, button) Focus.Release(button) end)
     local events = CreateFrame("Frame")
     for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "GLOBAL_MOUSE_DOWN" }) do
         pcall(events.RegisterEvent, events, e)

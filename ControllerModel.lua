@@ -19,9 +19,10 @@ C.SLOTS_PER_BAR = 8
 C.SQUARE, C.CIRCLE = 72, 78
 
 -- A Blizzard gamepad glyph as text
+function C.GlyphAtlas(name, size) return ("Gamepad_%s_%d"):format(name, (size or 16) > 20 and 64 or 32) end
 function C.Glyph(name, size)
     size = size or 16
-    return ("|A:Gamepad_%s_%d:%d:%d|a"):format(name, size > 20 and 64 or 32, size, size)
+    return ("|A:%s:%d:%d|a"):format(C.GlyphAtlas(name, size), size, size)
 end
 C.LAYER_GLYPHS = { base = nil, lt = { "Shp_LTrigger" }, rt = { "Shp_RTrigger" }, both = { "Shp_LTrigger", "Shp_RTrigger" } }
 
@@ -82,6 +83,8 @@ C.BLIZZARD = {
     PADLSHOULDER = "Enemy targets", PADRSHOULDER = "Friendly targets",
     PADFORWARD = "Game menu", PADBACK = "Focus UI", PADLSTICK = "Auto-run", PADRSTICK = "Ping",
 }
+-- Forever's gamepad UI function bindings, by key (the shoulders: its modifier highlight)
+C.FUNCTION_NAMES = { PADLSHOULDER = "Modifier", PADRSHOULDER = "Modifier" }
 -- Commands looked up by key too, for bindings GetBindingAction doesn't report
 C.LOOKUP_COMMANDS = {
     "GAMEPADLEFTMOD", "GAMEPADRIGHTMOD", "GAMEPADLEFTTARGETMODIFIER", "GAMEPADRIGHTTARGETMODIFIER",
@@ -159,6 +162,9 @@ function C.CommandName(command)
     local global = _G["BINDING_NAME_" .. command]
     if type(global) == "string" and global ~= "" then return global end
     if command:match("^CLICK GamepadCompanionTouch") then return "Touchpad zones" end
+    -- (Forever's gamepad UI: its core set's function buttons, one per key)
+    local fkey = command:match("^CLICK InputFunctionBindingButton_([%u%d]+)")
+    if fkey then return C.FUNCTION_NAMES[fkey] or C.BLIZZARD[fkey] or "Blizzard" end
     local frame = command:match("^CLICK ([^:]+)")
     if frame then
         frame = frame:gsub("Button$", ""):gsub("(%l)(%u)", "%1 %2")

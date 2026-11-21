@@ -35,14 +35,19 @@ function methods:HookScript(k, fn) local p = self.scripts[k]; self.scripts[k] = 
 function methods:SetPropagateKeyboardInput(v) self.propagate = v end
 function methods:EnableGamePadButton(v) self.pad = v end
 function methods:RegisterEvent() end
-function methods:CreateTexture() return setmetatable({}, { __index = function() return function() end end }) end
+local noop = function() end
+local textureMeta = { __index = function(_, k) return methods[k] or noop end }
+function methods:CreateTexture() return setmetatable(Frame("Texture"), textureMeta) end
 function methods:SetFrameStrata() end
 function methods:SetText(v) self.text = v end
 function methods:SetShown(v) self.shown = v and true or false end
 function methods:SetAlpha(v) self.alpha = v end
 function methods:EnableMouse() end
-function methods:ClearAllPoints() end
-function methods:SetPoint() end
+function methods:ClearAllPoints() self.points = {} end
+function methods:SetPoint(...) self.points = rawget(self, "points") or {}; self.points[#self.points + 1] = { ... } end
+function methods:SetSize() end
+function methods:SetWidth(v) self.width = v end
+function methods:GetStringWidth() return self.text and 6 * #self.text or 0 end
 local lastFrame
 CreateFrame = function(kind, _, parent) lastFrame = Frame(kind, parent); return lastFrame end
 cursor = { 0, 0 }
@@ -73,7 +78,7 @@ local tabTop, tabBottom = Frame("Button"), Frame("Button")
 local window = Frame("Frame")
 window.status = Frame("Frame")
 local ns = {
-    OptionsSkin = { TopPopup = function() return popup end, Text = function() return Frame("FontString") end, GREY = {} },
+    OptionsSkin = { TopPopup = function() return popup end, Text = function(_, v) local f = Frame("FontString"); f.text = v; return f end, GREY = {} },
     Shell = { Current = function() return current end, PageFrames = function() return page, header end,
         Step = function(dir) stepped = stepped + dir end, Window = function() return window end,
         TabEnds = function() return tabTop, tabBottom end, PadPresent = function() return padThere end },
@@ -119,15 +124,23 @@ F.Set(plate1)
 F.Press(window, "PAD3")
 F.Press(window, "PAD4")
 assert(row1.try.clicked == 1 and row1.default.clicked == 1, "X / Y: its Try and Default buttons")
--- the shoulders: never taken; the tab steps on release, not with the touchpad (Focus UI chord)
-assert(F.Press(window, "PADRSHOULDER") == false and stepped == 0, "R1 down: the game's")
-F.Release("PADRSHOULDER")
-assert(stepped == 1, "R1 released: the next tab")
+-- the shoulders: the window's (Forever binds them to its modifier highlight); the tab steps on the press
+assert(F.Press(window, "PADRSHOULDER") == true and stepped == 1, "R1: taken, the next tab at once")
+assert(window.propagate == false, "R1: stops here (the game's binding never sees it)")
 assert(F.state.focus == nil, "the old page's focus let go")
 for _, fn in ipairs(queued) do fn() end; queued = {}
-assert(F.state.focus == seg, "the new page: its first control")
-F.Press(window, "PADLSHOULDER"); F.Press(window, "PADBACK"); F.Release("PADLSHOULDER")
-assert(stepped == 1, "L1 + touchpad: the Focus UI chord, no tab step")
+assert(window.propagate == true and F.state.focus == seg, "the new page: its first control; presses pass again")
+assert(F.Press(window, "PADLSHOULDER") == true and stepped == 0, "L1: the previous tab")
+for _, fn in ipairs(queued) do fn() end; queued = {}
+assert(F.Press(window, "PADBACK") == false and window.propagate == true, "the touchpad: the game's")
+-- a popup open: L1 / R1 close it, then step
+popup = Frame("Frame")
+assert(F.Press(window, "PADRSHOULDER") == true and popup.shown == false and stepped == 1, "R1 with a popup: closed, then the next tab")
+popup = nil
+for _, fn in ipairs(queued) do fn() end; queued = {}
+F.Press(window, "PADLSHOULDER")
+for _, fn in ipairs(queued) do fn() end; queued = {}
+assert(stepped == 0, "back to the first tab")
 -- the triggers: only where the page has a step
 current = "setup"
 assert(F.Press(window, "PADLTRIGGER") == false, "L2 on a page without a step: the game's")
@@ -163,9 +176,8 @@ window.scripts.OnShow(window)
 for _, fn in ipairs(queued) do fn() end; queued = {}
 assert(not F.state.active and not window.padTabUp.shown, "opened by a click: the ring asleep")
 local before = stepped
-assert(F.Press(window, "PADLSHOULDER") == false, "L1 down: the game's")
-F.Release("PADLSHOULDER")
-assert(stepped == before - 1 and F.state.active, "L1 released, no d-pad first: the previous tab, the ring awake")
+assert(F.Press(window, "PADLSHOULDER") == true, "L1, no d-pad first: taken")
+assert(stepped == before - 1 and F.state.active, "L1, no d-pad first: the previous tab, the ring awake")
 for _, fn in ipairs(queued) do fn() end; queued = {}
 assert(F.state.focus == seg, "the new page: its first control")
 -- no pad there: the window opens asleep too
@@ -178,6 +190,29 @@ assert(F.Press(window, "PADDDOWN") == true and F.state.active and F.state.focus 
 -- the tab strip's L1 / R1 glyphs: shown while the pad is in use
 assert(window.padTabUp and window.padTabUp.shown and window.padTabDown.shown, "pad in use: L1 / R1 by the tabs")
 assert(window.padLegend.shown and window.status.alpha == 0, "pad in use: the legend over the status")
+-- the legend: each glyph and word placed after the one before, never over it
+local items = window.padLegend.items
+assert(#items == #F.LEGEND, "one item each")
+for i, item in ipairs(items) do
+    local p = item.label.points[1]
+    assert(p[2] == item.glyphs[#item.glyphs] and p[3] == "RIGHT" and p[4] > 0, "word " .. i .. ": right of its glyphs")
+    assert(item.label.width and item.label.width >= 6 * #F.LEGEND[i][2], "word " .. i .. ": as wide as its text")
+    for j = 2, #item.glyphs do
+        local g = item.glyphs[j].points[1]
+        assert(g[2] == item.glyphs[j - 1] and g[3] == "RIGHT", "glyph " .. j .. " of " .. i .. ": after the one before")
+    end
+    if i > 1 then
+        local g = item.glyphs[1].points[1]
+        assert(g[2] == items[i - 1].label and g[3] == "RIGHT" and g[4] >= 10, "item " .. i .. ": after the word before, a gap")
+    end
+end
+local groups = items[#items]
+assert(groups.trigger and groups.label.text == "Groups", "the last item: Groups (L2 / R2)")
+current = "moments"; F.SetActive(true)
+assert(groups.label.shown and groups.glyphs[2].shown, "Moments: Groups shown")
+current = "setup"; F.SetActive(true)
+assert(not groups.label.shown and not groups.glyphs[1].shown, "a page without L2 / R2: Groups hidden")
+current = "moments"
 F.SetActive(false)
 assert(not window.padTabUp.shown and not window.padTabDown.shown, "not in use: the glyphs hidden")
 F.SetActive(true)
@@ -226,8 +261,8 @@ for _, b in ipairs({ "PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT", "PAD1", "PAD
     assert(window.propagate == before, b .. " in combat: propagation untouched")
 end
 local steps = stepped
-F.Press(window, "PADRSHOULDER"); F.Release("PADRSHOULDER")
+assert(F.Press(window, "PADRSHOULDER") == false and F.Press(window, "PADLSHOULDER") == false, "L1 / R1 in combat: the game's")
 assert(stepped == steps and window.shown ~= false, "in combat: no tab step, no close")
 fighting = false
 
-io.write("PASS: the pad's focus ring: the pad from the window's open, L1 / R1 at once, never action buttons, shoulders on release, never in combat" .. string.char(10))
+io.write("PASS: the pad's focus ring: the pad from the window's open, L1 / R1 at once, never action buttons, L1 / R1 taken on the press, a legend that never overlaps, never in combat" .. string.char(10))
