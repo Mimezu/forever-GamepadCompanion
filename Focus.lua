@@ -8,6 +8,11 @@
 -- one press at a time (each handled press stops there, every other one passes
 -- on to the game), and lets go of the pad entirely when a fight starts.
 --
+-- Like Blizzard's windows, it has the pad from the moment it opens: with a
+-- pad there (and no mouse click just before), the ring and legend show at
+-- once on the first control. Opened from the mouse, the first pad press
+-- wakes them. L1 / R1 always step the tabs.
+--
 -- The d-pad moves to the nearest control that way; A picks (a click); B
 -- closes the popup, else the window; X is the focused row's Try, Y its
 -- Default; L1 / R1 the side tabs (the focus starts on the new page's first
@@ -284,8 +289,8 @@ local ACTIONS = {
 }
 Focus.ACTIONS = ACTIONS
 
-local DPAD = { PADDUP = true, PADDDOWN = true, PADDLEFT = true, PADDRIGHT = true }
 local SHOULDER = { PADLSHOULDER = -1, PADRSHOULDER = 1 }
+local WAKE_ONLY = { PAD1 = true, PAD3 = true, PAD4 = true }
 
 -- (the mouse moved since the last press: the player is back on the mouse)
 local function Cursor()
@@ -299,33 +304,34 @@ local function MouseMoved()
 end
 
 -- One press: handled here (it stops) or passed on to the game. Never in combat.
--- Nothing is taken until the d-pad engages the ring: the window open, the pad
--- still plays. Once engaged: A, B, X, Y and the d-pad; L2 / R2 only where the
--- page uses them; L1 / R1 never taken (they step the tabs when released, unless
--- the touchpad came with them: Blizzard's Focus UI chord). Any other button,
--- or the mouse moved, gives it all back.
+-- While the window is open: A, B, X, Y and the d-pad (the first press wakes the
+-- ring if asleep, the focus on the first control); L2 / R2 only where the page
+-- uses them; L1 / R1 never taken (they step the tabs when released, unless the
+-- touchpad came with them: Blizzard's Focus UI chord). Every other button (the
+-- sticks' clicks, Start...) passes on; the sticks never reach here, so the
+-- character still moves. The mouse moved: the ring sleeps.
 function Focus.Press(frame, button)
     if Fighting() then return false end
     if state.active and MouseMoved() then Focus.SetActive(false) end
     if SHOULDER[button] then
-        if state.active then state.shoulder, state.chord = button, false end
+        state.shoulder, state.chord = button, false
         return false
     end
     -- (the touchpad: part of a chord, the game's; the ring stays)
     if button == "PADBACK" then state.chord = true; return false end
     local act = ACTIONS[button]
-    if not act then
-        if state.active then Focus.SetActive(false) end
-        return false
-    end
-    if not state.active and not DPAD[button] then return false end
+    if not act then return false end
     if (button == "PADLTRIGGER" or button == "PADRTRIGGER") and not triggers[Shell.Current()] then return false end
     -- (this press stops here; from the next frame on, presses pass again)
     Call(frame, "SetPropagateKeyboardInput", false)
     if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
         C_Timer.After(0, function() if not Fighting() then Call(frame, "SetPropagateKeyboardInput", true) end end)
     end
-    if not state.active then Focus.SetActive(true) end
+    -- (asleep: A, X and Y only wake the ring, on the first control; they never click unseen)
+    if not state.active then
+        Focus.SetActive(true)
+        if WAKE_ONLY[button] then act = function() if not Valid(state.focus) then Move("down") end end end
+    end
     state.cx, state.cy = Cursor()
     act()
     if state.active and state.focus then Focus.Set(state.focus) end
@@ -338,8 +344,10 @@ function Focus.Release(button)
     if not dir or state.shoulder ~= button then return end
     local chord = state.chord
     state.shoulder, state.chord = nil, false
-    if chord or Fighting() or not state.active then return end
+    if chord or Fighting() then return end
     if Shell.Step then Shell.Step(dir) end
+    if not state.active then Focus.SetActive(true) end
+    state.cx, state.cy = Cursor()
     -- (the new page's first control, once its frames have their places)
     Focus.Set(nil)
     if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
@@ -362,7 +370,18 @@ function Focus.Attach(window)
         Call(window, "EnableGamePadButton", on)
         state.taking = on
     end
-    window:HookScript("OnShow", function() Take(true) end)
+    -- (open with a pad there: the ring at once, unless a click just opened it)
+    local function Wake()
+        if Fighting() or not (Shell.PadPresent and Shell.PadPresent()) then return end
+        local now = type(GetTime) == "function" and GetTime() or nil
+        if now and state.clickAt and now - state.clickAt < 0.5 then return end
+        Focus.SetActive(true)
+        state.cx, state.cy = Cursor()
+        Focus.Set(nil)
+        if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
+        else Focus.Rescope() end
+    end
+    window:HookScript("OnShow", function() Take(true); Wake() end)
     window:HookScript("OnHide", function() Take(false); Focus.SetActive(false); state.focus = nil end)
     window:SetScript("OnGamePadButtonDown", function(self, button) Focus.Press(self, button) end)
     window:SetScript("OnGamePadButtonUp", function(_, button) Focus.Release(button) end)
@@ -373,7 +392,10 @@ function Focus.Attach(window)
     events:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_REGEN_DISABLED" then Take(false); Focus.SetActive(false)
         elseif event == "PLAYER_REGEN_ENABLED" then if window:IsShown() then Take(true) end
-        elseif state.active then Focus.SetActive(false) end
+        else
+            state.clickAt = type(GetTime) == "function" and GetTime() or nil
+            if state.active then Focus.SetActive(false) end
+        end
     end)
 end
 
