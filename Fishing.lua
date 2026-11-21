@@ -161,6 +161,13 @@ end
 
 -- What R2 runs now (nil: yours)
 local current
+local listeners = {}
+
+-- R2 catches now (bound to Interact: the line out, a pole in hand)
+function F.Catching() return current == "catch" end
+
+-- Called whenever what R2 runs changes (BobberPrompt.lua: the bobber's prompt)
+function F.OnChange(fn) listeners[#listeners + 1] = fn end
 local waiter = CreateFrame("Frame")
 waiter:Hide()
 
@@ -193,6 +200,7 @@ function F.Apply()
     local was = mode
     mode = want ~= nil
     if mode ~= was then Note(mode and "R2 casts" or "R2 is back") end
+    for _, fn in ipairs(listeners) do pcall(fn) end
     return true
 end
 

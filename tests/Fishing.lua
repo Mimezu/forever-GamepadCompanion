@@ -168,6 +168,9 @@ eq(F.Want(true, true, false), "cast", "a pole: R2 casts")
 eq(F.Want(true, true, true), "catch", "the line out: R2 catches")
 eq(F.Want(false, true, true), nil, "switched off: R2 is yours")
 
+local changes = 0
+F.OnChange(function() changes = changes + 1 end)
+
 local events
 for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
 local binds = _G.GamepadCompanionFishingBinds
@@ -194,6 +197,8 @@ eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "still held: still waiting"
 r2Down = false
 Tick()
 eq(R2(), "INTERACTTARGET", "R2 released: the line out, R2 interacts")
+eq(F.Catching(), true, "R2 catches (the bobber's prompt shows R2)")
+check(changes >= 2, "R2's job changes are told (" .. changes .. ")")
 Advance(F.LAND_AT)
 eq(fired[1] and fired[1].key, "fishLand", "the bobber lands")
 for _ = 1, 40 do Advance(0.5) end
@@ -211,6 +216,7 @@ eq(cvars.SoftTargetInteractRange, "10", "Interact's reach back")
 r2Down = false
 Tick()
 eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "R2 released: it casts again")
+eq(F.Catching(), false, "the line in: R2 no longer catches (the bobber's prompt back)")
 -- the same pole, the hands changing nothing: no rebinding at all
 local before = overrides[binds]
 r2Down = true
