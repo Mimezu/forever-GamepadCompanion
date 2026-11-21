@@ -346,6 +346,53 @@ whisper:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", 0, -5)
 whisper:SetJustifyH("LEFT")
 local WISE = { 0.96, 0.80, 0.42 }
 
+-- A point of Fishing, celebrated quietly (about two seconds, no sound): a warm
+-- bloom swells from the float like sun catching the water, a few motes of light
+-- rise off it, and the line comes up into place in bright gold, then settles
+local celebration = {}
+do
+    local bloom = Disc(float, "OVERLAY", 6, SIZE, 1, 0.82, 0.45, 0)
+    bloom:ClearAllPoints()
+    bloom:SetPoint("CENTER", medal, "CENTER")
+    bloom:SetBlendMode("ADD")
+    local g = bloom:CreateAnimationGroup()
+    local grow = g:CreateAnimation("Scale")
+    if grow.SetScaleFrom then grow:SetScaleFrom(0.8, 0.8); grow:SetScaleTo(1.8, 1.8) else grow:SetScale(2.2, 2.2) end
+    grow:SetDuration(1.4); grow:SetSmoothing("OUT")
+    local rise = g:CreateAnimation("Alpha"); rise:SetFromAlpha(0); rise:SetToAlpha(0.55); rise:SetDuration(0.25); rise:SetSmoothing("OUT")
+    local fade = g:CreateAnimation("Alpha"); fade:SetFromAlpha(0.55); fade:SetToAlpha(0); fade:SetDuration(1.15)
+    fade:SetStartDelay(0.25); fade:SetSmoothing("IN")
+    celebration[#celebration + 1] = g
+    -- the motes: small soft lights drifting up and away, each its own path
+    local paths = { { -14, 34, 0.05 }, { 6, 44, 0.2 }, { 18, 30, 0.35 }, { -4, 52, 0.5 }, { 12, 38, 0.7 } }
+    for _, path in ipairs(paths) do
+        local mote = Disc(float, "OVERLAY", 7, 5, 1, 0.88, 0.55, 0)
+        mote:ClearAllPoints()
+        mote:SetPoint("CENTER", medal, "CENTER", path[1] * 0.4, 4)
+        mote:SetBlendMode("ADD")
+        local m = mote:CreateAnimationGroup()
+        local up = m:CreateAnimation("Translation"); up:SetOffset(path[1], path[2]); up:SetDuration(1.7)
+        up:SetStartDelay(path[3]); up:SetSmoothing("OUT")
+        local on = m:CreateAnimation("Alpha"); on:SetFromAlpha(0); on:SetToAlpha(0.9); on:SetDuration(0.3); on:SetStartDelay(path[3])
+        local off = m:CreateAnimation("Alpha"); off:SetFromAlpha(0.9); off:SetToAlpha(0); off:SetDuration(1.4)
+        off:SetStartDelay(path[3] + 0.3); off:SetSmoothing("IN")
+        celebration[#celebration + 1] = m
+    end
+    -- the line: up into place
+    local w = whisper:CreateAnimationGroup()
+    local lift = w:CreateAnimation("Translation"); lift:SetOffset(0, 5); lift:SetDuration(0.01); lift:SetOrder(1)
+    local settle = w:CreateAnimation("Translation"); settle:SetOffset(0, -5); settle:SetDuration(0.9); settle:SetOrder(2)
+    settle:SetSmoothing("OUT")
+    local show = w:CreateAnimation("Alpha"); show:SetFromAlpha(0); show:SetToAlpha(1); show:SetDuration(0.9); show:SetOrder(2)
+    celebration[#celebration + 1] = w
+end
+local BRIGHT = { 1, 0.90, 0.58 }
+
+function L.Celebrate()
+    if not float:IsShown() then return end
+    for _, g in ipairs(celebration) do g:Stop(); g:Play() end
+end
+
 -- fade in and out
 local fadeIn = float:CreateAnimationGroup()
 local a1 = fadeIn:CreateAnimation("Alpha"); a1:SetFromAlpha(0); a1:SetToAlpha(1); a1:SetDuration(0.9); a1:SetSmoothing("OUT")
@@ -397,7 +444,7 @@ end
 local TRAIN = { 1, 0.82, 0.45 }
 local WARY = { 0.85, 0.55, 0.40 }
 function L.Whisper(now, wiserAt, rank, skill, max, since, pace, wary)
-    if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, WISE end
+    if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, now - wiserAt < 2.5 and BRIGHT or WISE end
     if L.AtCap(skill, max, since) then return "Train to learn more", TRAIN end
     if wary then return "Strong fish here", WARY end
     if skill then
@@ -486,6 +533,7 @@ events:SetScript("OnEvent", function(_, event, unit, message)
         end
         s.skill, s.since, s.waters = rank, 0, nil
         wiserAt, wiserRank = GetTime and GetTime() or 0, rank
+        if shown then L.Refresh(); L.Celebrate() end
     elseif event == "LOOT_OPENED" then
         -- (a fish caught: one more since the last point)
         if not (PoleOn() and Call(IsFishingLoot)) then return end
