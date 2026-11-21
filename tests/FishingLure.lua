@@ -129,38 +129,71 @@ t, line = L.Refresh()
 eq(t, "No lure", "a moment later: no lure")
 check(line:find("Nightcrawlers", 1, true) ~= nil, "and L2's lure named")
 
--- What the water teaches -------------------------------------------------------------
+-- The skill's road -------------------------------------------------------------------
 eq(L.SkillUp("Your skill in Fishing has increased to 76."), 76, "a Fishing skill-up read")
 eq(L.SkillUp("Your skill in Mining has increased to 76."), nil, "another skill: not ours")
 eq(L.SkillUp("Tu habilidad en Pesca ha aumentado a 12.", "Tu habilidad en %s ha aumentado a %d.", "Pesca"), 12, "another language, from its own format")
 eq(L.SkillUp(nil), nil, "no message")
-eq(L.PerPoint(50) .. "/" .. L.PerPoint(150) .. "/" .. L.PerPoint(250) .. "/" .. L.PerPoint(320), "1/1.6/1.9/3.6", "fish per point by skill")
-eq(L.Taught(5, 76), false, "5 fish here since a skill-up: still learning")
-eq(L.Taught(6, 76), true, "6: these waters teach no more")
-eq(L.Taught(10, 320), false, "at 320 a point takes longer: 10 isn't enough")
-eq(L.Taught(11, 320), true, "11 at 320: taught")
-local w, c = L.Whisper(100, 95, 76, 30, 76)
-eq(w, "Wiser  ·  Fishing 76", "a skill-up: said for a while, over the water's word")
-w = L.Whisper(120, 95, 76, 30, 76)
-eq(w, "These waters teach no more", "later: the water's word")
-eq(L.Whisper(120, nil, nil, 3, 76), nil, "a few fish since: nothing to say")
--- Driven: a skill-up message, then fish caught in one water
-GetZoneText = function() return "Westfall" end
-GetSubZoneText = function() return "The Dagger Hills" end
+eq(L.Odds(40), 1, "below 75: every catch")
+eq(L.Odds(100), 0.5, "100: one in two")
+eq(L.Odds(300), 0.1, "300: one in ten")
+eq(L.OddsColour(1)[2], 0.50, "every catch: orange")
+eq(L.OddsColour(0.5)[2], 1, "one in two: yellow")
+eq(L.OddsColour(0.2)[1], 0.25, "one in five: green")
+eq(L.OddsColour(0.1)[1], 0.55, "one in ten: grey")
+eq(L.AtCap(75, 75, 0), true, "75 of 75: train")
+eq(L.AtCap(300, 300, 0), false, "300 of 300: nothing more to train")
+eq(L.AtCap(74, 75, 9), false, "74 of 75: not yet")
+eq(L.AtCap(75, nil, 2), false, "no cap to read, 75, 2 fish: too soon to say")
+eq(L.AtCap(75, nil, 3), true, "no cap to read, 75, 3 fish with no point (every catch counts at 75): train")
+eq(L.AtCap(150, nil, 11), false, "no cap to read, 150: a point is one in four, 11 isn't enough")
+eq(L.AtCap(150, nil, 12), true, "150, 12 fish: train")
+eq(L.AtCap(nil, nil, 50), false, "no skill known: nothing said")
+eq(L.Pace({ 1, 2, 2 }), 2, "the fish a point took lately")
+eq(L.Pace({}), nil, "no points yet")
+local dot = "\194\183"
+local w, c = L.Whisper(100, 95, 76, 76, 150, 0, nil, false)
+eq(w, "Wiser  " .. dot .. "  Fishing 76", "a skill-up: said a moment, first")
+w = L.Whisper(120, 95, 75, 75, 75, 0, nil, false)
+eq(w, "Train to learn more", "at the cap: train")
+w = L.Whisper(120, nil, nil, 120, 150, 1, nil, true)
+eq(w, "Strong fish here", "a fish got away here")
+w, c = L.Whisper(120, nil, nil, 120, 150, 1, 2, false)
+eq(w, "Fishing 120  " .. dot .. "  2 fish a point", "otherwise: the skill and the pace")
+eq(c[1] .. "," .. c[2], "1,1", "coloured by its odds (yellow at 120)")
+eq(L.Whisper(120, nil, nil, nil, nil, 3, nil, false), nil, "nothing known: nothing said")
+
+-- Driven: the skill read from C_SkillInfo (Forever's list), skill-ups, catches, a lost fish
+C_SkillInfo = {
+    GetNumSkillLines = function() return 2 end,
+    GetSkillLineInfo = function(i)
+        if i == 1 then return { name = "Professions", isHeader = true } end
+        return { name = "Fishing", rank = 75, maxRank = 75 }
+    end,
+}
+local r, m = L.SkillInfo()
+eq(tostring(r) .. "/" .. tostring(m), "75/75", "Forever's list read: 75 of 75")
+GetZoneText = function() return "Silverpine Forest" end
+GetSubZoneText = function() return "North Tide's Run" end
 IsFishingLoot = function() return true end
 SKILL_RANK_UP = "Your skill in %s has increased to %d."
 local ev
 for _, f in ipairs(frames) do local sc = rawget(f, "scripts"); if sc and sc.OnEvent then ev = sc.OnEvent end end
 check(ev ~= nil, "the float listens")
-ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 80.")
-eq(char.fishing.skill, 80, "the skill kept from the message (Forever's list can't be read)")
-for _ = 1, 12 do ev(nil, "LOOT_OPENED") end
-eq(char.fishing.waters["Westfall/The Dagger Hills"], 12, "12 fish counted in this water")
+eq(L.WhisperNow(now), "Train to learn more", "75 of 75 read: train")
+C_SkillInfo, skillRead = nil, false   -- (no list to read: the skill-up messages tell it)
+ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 120.")
+for _ = 1, 2 do ev(nil, "LOOT_OPENED") end
+ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 121.")
+eq(char.fishing.skill, 121, "the skill kept from the message")
+eq(char.fishing.since, 0, "the count starts again")
+eq(char.fishing.pace[#char.fishing.pace], 2, "that point took 2 fish")
+ERR_FISH_ESCAPED = "Your fish got away!"
+ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
 now = now + 30
-L.Refresh()
-eq(L.Whisper(now, nil, nil, char.fishing.waters[L.Water()], 80), "These waters teach no more", "taught here")
-ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 81.")
-eq(next(char.fishing.waters), nil, "a skill-up: every water counts again")
+eq(L.WhisperNow(now), "Strong fish here", "a fish lost here: strong fish")
+GetSubZoneText = function() return "The Sepulcher" end
+eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "another water: the skill and the pace")
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

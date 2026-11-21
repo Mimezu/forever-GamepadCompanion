@@ -115,17 +115,42 @@ function L.Bags()
     return items
 end
 
--- The Fishing skill, or nil when it can't be read (Forever's skill list can
--- come back empty: then the game's "usable" decides alone)
-function L.Skill()
-    if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
+-- The Fishing skill and its cap (the rank's: 75, 150, 225, 300), each nil when
+-- it can't be read. Forever's list is C_SkillInfo (a table a line, as Companion
+-- Journal reads it); then the professions; then Classic's own list
+function L.SkillInfo()
     local fishing = (PROFESSIONS_FISHING or "Fishing"):lower()
-    for i = 1, tonumber((Call(GetNumSkillLines))) or 0 do
-        local name, header, _, rank = Call(GetSkillLineInfo, i)
-        if not header and type(name) == "string" and name:lower() == fishing then return tonumber(rank) end
+    local function Is(name) return type(name) == "string" and name:lower() == fishing end
+    local info = C_SkillInfo
+    if info and info.GetNumSkillLines and info.GetSkillLineInfo then
+        for i = 1, tonumber((Call(info.GetNumSkillLines))) or 0 do
+            local line = Call(info.GetSkillLineInfo, i)
+            if type(line) == "table" and not line.isHeader and Is(line.name) then
+                return tonumber(line.rank or line.skillRank),
+                    tonumber(line.maxRank or line.max or line.skillMaxRank or line.maxSkillRank)
+            end
+        end
     end
-    return nil
+    if GetProfessions and GetProfessionInfo then
+        local list = { Call(GetProfessions) }
+        for k = 1, 6 do
+            local index = list[k]
+            if index then
+                local name, _, rank, max = Call(GetProfessionInfo, index)
+                if Is(name) then return tonumber(rank), tonumber(max) end
+            end
+        end
+    end
+    if GetNumSkillLines and GetSkillLineInfo then
+        for i = 1, tonumber((Call(GetNumSkillLines))) or 0 do
+            local name, header, _, rank, _, _, max = Call(GetSkillLineInfo, i)
+            if not header and Is(name) then return tonumber(rank), tonumber(max) end
+        end
+    end
 end
+
+-- The Fishing skill, or nil (then the game's "usable" decides alone)
+function L.Skill() return (L.SkillInfo()) end
 
 function L.Setting()
     local char = Sh.CharDB()
@@ -140,23 +165,45 @@ function L.Current()
 end
 
 ---------------------------------------------------------------------------
--- What the water teaches (pure: tests/FishingLure.lua). The game says nothing
--- of a water being too easy, and guides disagree on whether Classic's zones
--- matter, so it's measured: the fish caught here since the last skill-up,
--- against the fish a point usually takes at this skill
+-- The skill's road (pure: tests/FishingLure.lua). The game tells the client
+-- nothing of a water's level or the odds of a point: the server rolls them.
+-- Vanilla's server (as rebuilt by MaNGOS) rolls from the skill alone, every
+-- catch below 75, then 25 / (skill - 50); the water only decides whether a
+-- fish gets away. So: the odds, coloured as a recipe's; the fish your points
+-- really take; the rank's cap; a fish lost here
 ---------------------------------------------------------------------------
--- The fish one point of Fishing usually takes at this skill
-function L.PerPoint(skill)
-    skill = tonumber(skill) or 0
-    if skill < 100 then return 1 elseif skill < 200 then return 1.6 elseif skill < 300 then return 1.9 end
-    return 3.6
+-- The odds of a point on a catch (0-1)
+function L.Odds(rank)
+    rank = tonumber(rank)
+    if not rank then return nil end
+    if rank < 75 then return 1 end
+    return math.min(1, 25 / (rank - 50))
 end
 
--- Has this water stopped teaching: three times the fish a point takes, six at
--- least (below 200 a point takes one or two: six in a row with none is plain)
-function L.Taught(since, skill)
-    since = tonumber(since) or 0
-    return since >= math.max(6, math.ceil(3 * L.PerPoint(skill)))
+-- Coloured as a recipe: orange, yellow, green, grey
+L.ODDS_COLOURS = {
+    { 0.99, { 1, 0.50, 0.25 } }, { 0.30, { 1, 1, 0 } }, { 0.12, { 0.25, 0.75, 0.25 } }, { 0, { 0.55, 0.55, 0.55 } },
+}
+function L.OddsColour(odds)
+    for _, c in ipairs(L.ODDS_COLOURS) do if (odds or 0) >= c[1] then return c[2] end end
+end
+
+-- At the rank's cap: the cap known and reached; else (no cap to read) a cap's
+-- number reached and more fish since than its odds explain (3 points' worth)
+L.CAPS = { [75] = true, [150] = true, [225] = true }
+function L.AtCap(rank, max, since)
+    rank, max, since = tonumber(rank), tonumber(max), tonumber(since) or 0
+    if not rank then return false end
+    if max then return rank >= max and max < 300 end
+    return L.CAPS[rank] == true and since >= math.ceil(3 / L.Odds(rank))
+end
+
+-- The fish a point took lately: the last few points' average, whole
+function L.Pace(list)
+    if type(list) ~= "table" or #list == 0 then return nil end
+    local sum = 0
+    for _, n in ipairs(list) do sum = sum + n end
+    return math.max(1, math.floor(sum / #list + 0.5))
 end
 
 -- A skill-up message's new Fishing skill, or nil. fmt: the game's
@@ -171,7 +218,7 @@ function L.SkillUp(message, fmt, fishing)
     return tonumber(rank)
 end
 
--- This stretch of water: the zone and the place in it
+-- This stretch of water: the zone and the place in it (a fish lost here)
 function L.Water()
     return (Call(GetZoneText) or "") .. "/" .. (Call(GetSubZoneText) or "")
 end
@@ -344,19 +391,29 @@ function L.Words(left, spent, worn, pick)
     return "No lure", "None in bags", false
 end
 
--- The quiet line (pure): text and colour, or nil. wiserAt: when the last
--- skill-up came (GetTime), rank: its new skill; since: fish caught here
--- since; skill: the skill now
-function L.Whisper(now, wiserAt, rank, since, skill)
+-- The quiet line (pure): text and colour, or nil. wiserAt / rank: the last
+-- skill-up (GetTime) and its skill; skill, max: now; since: fish since the last
+-- point; pace: fish a point took lately; wary: a fish got away in this water
+local TRAIN = { 1, 0.82, 0.45 }
+local WARY = { 0.85, 0.55, 0.40 }
+function L.Whisper(now, wiserAt, rank, skill, max, since, pace, wary)
     if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, WISE end
-    if L.Taught(since, skill) then return "These waters teach no more", MIST end
+    if L.AtCap(skill, max, since) then return "Train to learn more", TRAIN end
+    if wary then return "Strong fish here", WARY end
+    if skill then
+        local text = "Fishing " .. skill
+        if pace then text = text .. "  \194\183  " .. pace .. " fish a point" end
+        return text, L.OddsColour(L.Odds(skill))
+    end
 end
 
 local wiserAt, wiserRank
-local function Whisper(now)
+local wary = {}   -- waters where a fish got away (this session)
+function L.WhisperNow(now)
     local s = L.Setting()
-    local waters = type(s.waters) == "table" and s.waters or {}
-    local text, color = L.Whisper(now, wiserAt, wiserRank, waters[L.Water()], L.Skill() or tonumber(s.skill))
+    local skill, max = L.SkillInfo()
+    skill = skill or tonumber(s.skill)
+    local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), wary[L.Water()])
     whisper:SetText(text or "")
     if color then whisper:SetTextColor(color[1], color[2], color[3]) end
     return text
@@ -365,7 +422,7 @@ end
 function L.Refresh()
     local left = Left()
     local now = GetTime and GetTime() or 0
-    Whisper(now)
+    L.WhisperNow(now)
     if left then
         total = L.Total(total, before, left)
         before, spentAt = left, nil
@@ -410,25 +467,37 @@ end
 
 local events = CreateFrame("Frame")
 for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "BAG_UPDATE_DELAYED",
-    "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "LOOT_OPENED", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA" }) do
+    "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "LOOT_OPENED", "UI_ERROR_MESSAGE", "UI_INFO_MESSAGE", "ZONE_CHANGED",
+    "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA" }) do
     pcall(events.RegisterEvent, events, ev)
 end
-events:SetScript("OnEvent", function(_, event, unit)
+events:SetScript("OnEvent", function(_, event, unit, message)
     if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
     if event == "CHAT_MSG_SKILL" then
-        -- (a point of Fishing: said a moment, every water counts again from here)
+        -- (a point of Fishing: said a moment; the count starts again)
         local rank = L.SkillUp(unit, SKILL_RANK_UP)
         if not rank then return end
         local s = L.Setting()
-        s.skill, s.waters = rank, {}
+        -- (the fish that point took, kept for the pace: the last five)
+        if type(s.pace) ~= "table" then s.pace = {} end
+        if tonumber(s.since) and s.since > 0 then
+            table.insert(s.pace, s.since)
+            while #s.pace > 5 do table.remove(s.pace, 1) end
+        end
+        s.skill, s.since, s.waters = rank, 0, nil
         wiserAt, wiserRank = GetTime and GetTime() or 0, rank
     elseif event == "LOOT_OPENED" then
-        -- (a fish caught here: one more for this water)
+        -- (a fish caught: one more since the last point)
         if not (PoleOn() and Call(IsFishingLoot)) then return end
         local s = L.Setting()
-        if type(s.waters) ~= "table" then s.waters = {} end
-        local key = L.Water()
-        s.waters[key] = (tonumber(s.waters[key]) or 0) + 1
+        s.since = (tonumber(s.since) or 0) + 1
+    elseif event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE" then
+        -- (a fish got away: this water is stronger than the skill)
+        local text = type(message) == "string" and message or unit
+        if not (PoleOn() and type(text) == "string") then return end
+        local lost = ERR_FISH_ESCAPED or "Your fish got away!"
+        if text ~= lost then return end
+        wary[L.Water()] = true
     end
     L.Show(PoleOn())
     if shown then L.Refresh() end

@@ -207,3 +207,7 @@ PROFESSIONS_FISHING
 GetWeaponEnchantInfo
 GetSubZoneText
 SKILL_RANK_UP
+C_SkillInfo
+ERR_FISH_ESCAPED
+GetProfessionInfo
+GetProfessions
