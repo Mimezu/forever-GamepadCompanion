@@ -383,18 +383,28 @@ local function BuildCamera(frame)
 end
 
 ---------------------------------------------------------------------------
--- Bags: the combined bag as a plain grid for the d-pad
+-- Windows: the combined bag as a plain grid for the d-pad; the flight list
 ---------------------------------------------------------------------------
 local function BuildBags(frame)
-    local BG = ns.BagGrid
-    if not BG then return end
-    local card = S.Card(frame, "Bags", 0, -450, COL, 110, "Interface\\Icons\\INV_Misc_Bag_08")
-    local check = S.NewCheck(card, "Bag grid", 12, -38, function(self)
-        BG.SetEnabled(self:GetChecked() == true)
-    end, COL - 60)
-    S.Tooltip(check, "Bag grid", "D-pad moves item by item")
-    pg.bagGrid = check
-    pg.refresh[#pg.refresh + 1] = function() check:SetChecked(BG.Enabled()) end
+    local BG, FLT = ns.BagGrid, ns.FlightList
+    if not (BG or FLT) then return end
+    local card = S.Card(frame, "Windows", 0, -450, COL, 110, "Interface\\Icons\\INV_Misc_Bag_08")
+    if BG then
+        local check = S.NewCheck(card, "Bag grid", 12, -38, function(self)
+            BG.SetEnabled(self:GetChecked() == true)
+        end, COL - 60)
+        S.Tooltip(check, "Bag grid", "D-pad moves item by item")
+        pg.bagGrid = check
+        pg.refresh[#pg.refresh + 1] = function() check:SetChecked(BG.Enabled()) end
+    end
+    if FLT then
+        local check = S.NewCheck(card, "Flight list", 12, -66, function(self)
+            FLT.SetEnabled(self:GetChecked() == true)
+        end, COL - 60)
+        S.Tooltip(check, "Flight list", "Beside the flight map")
+        pg.flightList = check
+        pg.refresh[#pg.refresh + 1] = function() check:SetChecked(FLT.Enabled()) end
+    end
 end
 
 ---------------------------------------------------------------------------

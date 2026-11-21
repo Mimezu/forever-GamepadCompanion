@@ -211,3 +211,12 @@ C_SkillInfo
 ERR_FISH_ESCAPED
 GetProfessionInfo
 GetProfessions
+CloseTaxiMap
+GetNumRoutes
+NumTaxiNodes
+TakeTaxiNode
+TaxiGetNodeSlot
+TaxiNodeCost
+TaxiNodeGetType
+TaxiNodeName
+TaxiNodePosition
