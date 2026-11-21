@@ -201,3 +201,7 @@ PetWait
 UnitAura
 GetNumLootItems
 LootSlot
+GetNumSkillLines
+GetSkillLineInfo
+PROFESSIONS_FISHING
+GetWeaponEnchantInfo

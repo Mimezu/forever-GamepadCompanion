@@ -81,11 +81,11 @@ function CreateFrame(_, name)
 end
 UIParent = {}
 -- the pad: R2 held or not (GetDeviceMappedState, ButtonBindingToIndex 0-based)
-local r2Down = false
+local r2Down, l2Down = false, false
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
-    GetDeviceMappedState = function() return { buttons = { false, false, false, false, false, false, false, r2Down } } end,
-    ButtonBindingToIndex = function(key) return key == "PADRTRIGGER" and 7 or nil end,
+    GetDeviceMappedState = function() return { buttons = { false, false, false, false, false, false, l2Down, r2Down } } end,
+    ButtonBindingToIndex = function(key) return (key == "PADRTRIGGER" and 7) or (key == "PADLTRIGGER" and 6) or nil end,
 }
 -- run the frames' OnUpdate once (the release watcher)
 local function Tick() for _, f in ipairs(frames) do if f.shown and f.onUpdate then f.onUpdate(f, 0.02) end end end
@@ -377,6 +377,57 @@ local lab = io.open(root .. "/HapticsLab.lua"):read("*a")
 for _, k in ipairs({ { "fishLand", "plop" }, { "fishNibble", "nibble" }, { "fishBite", "hooked" }, { "fishCatch", "reelIn" } }) do
     check(lab:find('key = "' .. k[1] .. '"[^\n]*feel = "' .. k[2] .. '"') ~= nil, k[1] .. " plays " .. k[2])
     check(lab:find('{ "' .. k[2] .. '", ') ~= nil, k[2] .. " is in the library")
+end
+
+-- L2: the lure on the pole, as R2 casts ---------------------------------------------------
+eq(F.LureMacro(true, true, 6530), "/use item:6530\n/use 16", "L2's macro: the lure, then the main hand")
+eq(F.LureMacro(true, false, 6530), nil, "no pole: L2 is yours")
+eq(F.LureMacro(true, true, nil), nil, "no lure in the bags: L2 is yours")
+eq(F.LureMacro(false, true, 6530), nil, "L2 lure off: L2 is yours")
+do
+    Fresh()
+    combat, r2Down, l2Down = false, false, false
+    local lchar = {}
+    local F2 = Reload(lchar)
+    local lure = { id = 6530 }
+    -- (FishingLure.lua's pick, as Fishing asks it)
+    local nsL = { Shared = { CharDB = function() return lchar end, Claim = function() end }, HapticsLab = { Fire = function() end },
+        FishingLure = { Current = function() return lure end } }
+    for _, f in ipairs(frames) do f.handler, f.onUpdate = nil, nil end
+    frames, overrides = {}, {}
+    assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", nsL)
+    F2 = nsL.Fishing
+    for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
+    binds = _G.GamepadCompanionFishingBinds
+    local function L2() return overrides[binds] and overrides[binds].PADLTRIGGER end
+    hands, bags = { [16] = 6367 }, {}
+    events.handler(events, "PLAYER_LOGIN")
+    eq(L2(), "CLICK GamepadCompanionLureButton:LeftButton", "a pole and a lure: L2 puts it on")
+    eq(_G.GamepadCompanionLureButton.attrs.macrotext, "/use item:6530\n/use 16", "the lure button's macro")
+    eq(F2.Lure(), 6530, "the lure L2 puts on")
+    eq(notes[#notes], "R2 casts, L2 lure", "a word for both")
+    -- the bags change while L2 is held: nothing moves until it's released
+    l2Down, lure = true, { id = 6532 }
+    events.handler(events, "BAG_UPDATE_DELAYED")
+    eq(_G.GamepadCompanionLureButton.attrs.macrotext, "/use item:6530\n/use 16", "L2 held: no change mid-press")
+    l2Down = false
+    Tick()
+    eq(_G.GamepadCompanionLureButton.attrs.macrotext, "/use item:6532\n/use 16", "L2 released: the new lure")
+    -- the press names the lure for the float
+    local pre = _G.GamepadCompanionLureButton.handler   -- (the stub keeps any non-OnUpdate script here)
+    if pre then pre() end
+    eq(lchar.fishing and lchar.fishing.lastLure, 6532, "L2 pressed: the float knows which lure")
+    -- no lure left: L2 back to the bars; the pole off: nothing of ours
+    lure = nil
+    events.handler(events, "BAG_UPDATE_DELAYED")
+    eq(L2(), nil, "no lure left: L2 is yours")
+    lure = { id = 6530 }
+    events.handler(events, "BAG_UPDATE_DELAYED")
+    eq(L2(), "CLICK GamepadCompanionLureButton:LeftButton", "a lure again: L2 puts it on")
+    hands = { [16] = 2488, [17] = 1201 }
+    events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+    eq(L2(), nil, "the pole off: L2 is yours")
+    eq(R2(), nil, "and R2")
 end
 
 io.write(string.format("%s: fishing: %d checks, %d failed\n", failures == 0 and "PASS" or "FAIL", checks, failures))

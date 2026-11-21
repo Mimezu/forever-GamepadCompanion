@@ -135,13 +135,13 @@ eq(bobberIcon:GetAtlas(), "Gamepad_Shp_Square_32", "R2 not catching: Blizzard's 
 -- 2. R2 catches: the bobber's prompt is Blizzard's R2, on the same texture
 catching = true
 NamePlateDriverFrame:OnSoftTargetUpdate()
-eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_32", "R2 catches: the bobber shows R2")
+eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_64", "R2 catches: the bobber shows R2")
 check(bobberIcon:IsShown(), "shown, as Blizzard showed it")
 eq(P.seen and P.seen.atlas, "Gamepad_Shp_Square_32", "what the game drew is remembered")
-eq(char.fishing.prompt and char.fishing.prompt.glyph, "Gamepad_Shp_RTrigger_32", "kept in saved settings: the swap ran")
+eq(char.fishing.prompt and char.fishing.prompt.glyph, "Gamepad_Shp_RTrigger_64", "kept in saved settings: the swap ran")
 -- the next game update keeps it R2 (Blizzard draws the square again, the hook puts R2 back)
 NamePlateDriverFrame:OnSoftTargetUpdate()
-eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_32", "every game update: still R2")
+eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_64", "every game update: still R2")
 
 -- 3. the soft target moves to the vein: its prompt untouched, the bobber's plate hidden by
 -- Blizzard and given back its own drawing
@@ -159,7 +159,7 @@ eq(npcIcon:GetAtlas(), nil, "no atlas put on it")
 -- the bobber's (pooled) icon reused for the NPC: Blizzard draws a file; the atlas' texcoords go
 softinteract = "bobber"
 NamePlateDriverFrame:OnSoftTargetUpdate()
-eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_32", "back on the bobber: R2")
+eq(bobberIcon:GetAtlas(), "Gamepad_Shp_RTrigger_64", "back on the bobber: R2")
 plates.bobber.namePlateUnitToken = "npc"; plates.npc = nil; plates.bobber = nil; plates.npc2 = nil
 local reused = { namePlateUnitToken = "npc", UnitFrame = { SoftTargetFrame = { Icon = bobberIcon } } }
 function reused:GetUnit() return self.namePlateUnitToken end
@@ -174,14 +174,14 @@ eq(table.concat({ bobberIcon:GetTexCoord() }, ","), "0,1,0,1", "full texcoords, 
 local f2, icon2 = Plate("bobber")
 softinteract = "bobber"
 NamePlateDriverFrame:UpdateSoftTargetIconInternal(f2)
-eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_32", "R2 on the bobber")
+eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_64", "R2 on the bobber")
 catching = false
 P.Refresh()
 eq(icon2:GetAtlas(), "Gamepad_Shp_Square_32", "R2 no longer catches: Blizzard's prompt back at once")
 -- and R2 catching again: R2 at once
 catching = true
 P.Refresh()
-eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_32", "R2 catches again: R2 at once")
+eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_64", "R2 catches again: R2 at once")
 
 -- 6. the same set, another size: R2 at that size; another pad style's set: its R2
 cursorOf.bobber = { atlas = "Gamepad_Shp_Square_64" }
@@ -189,14 +189,14 @@ NamePlateDriverFrame:UpdateSoftTargetIconInternal(f2)
 eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_64", "a 64 glyph: the 64 R2")
 cursorOf.bobber = { atlas = "gamepad_gen_x_32" }
 NamePlateDriverFrame:UpdateSoftTargetIconInternal(f2)
-eq(icon2:GetAtlas(), "Gamepad_Gen_RTrigger_32", "an Xbox pad's glyph: its own RT")
+eq(icon2:GetAtlas(), "Gamepad_Gen_RTrigger_64", "an Xbox pad's glyph: its own RT")
 -- drawn as a file (no atlas to read): the active style's set
 cursorOf.bobber = { file = 4567890 }
 NamePlateDriverFrame:UpdateSoftTargetIconInternal(f2)
-eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_32", "a file: the active style's R2 (Shapes)")
+eq(icon2:GetAtlas(), "Gamepad_Shp_RTrigger_64", "a file: the active style's R2 (Shapes)")
 iconSet = "Letters"
 NamePlateDriverFrame:UpdateSoftTargetIconInternal(f2)
-eq(icon2:GetAtlas(), "Gamepad_Ltr_RTrigger_32", "Letters style: its R2")
+eq(icon2:GetAtlas(), "Gamepad_Ltr_RTrigger_64", "Letters style: its R2")
 iconSet = "Shapes"
 cursorOf.bobber = { atlas = "Gamepad_Shp_Square_32" }
 
@@ -211,6 +211,11 @@ atlases = {}
 local f4, icon4 = Plate("bobber")
 NamePlateDriverFrame:UpdateSoftTargetIconInternal(f4)
 eq(icon4:GetAtlas(), "Gamepad_Shp_Square_32", "no R2 glyph in the install: left as it is")
+-- 9. no 64 of it (an older install): the drawn size
+atlases = { gamepad_shp_rtrigger_32 = true }
+local f5, icon5 = Plate("bobber")
+NamePlateDriverFrame:UpdateSoftTargetIconInternal(f5)
+eq(icon5:GetAtlas(), "Gamepad_Shp_RTrigger_32", "no 64 in the install: R2 at the drawn size")
 atlases = savedAtlases
 
 io.write(string.format("BobberPrompt: %d checks, %d failures\n", checks, failures))

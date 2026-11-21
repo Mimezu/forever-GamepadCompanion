@@ -14,6 +14,10 @@
 --                   Helper hears the bite's splash and plays it, with R2's reel resistance
 --   Catch           the loot window of a fishing catch (IsFishingLoot)
 --
+-- L2, the same way: with a pole in hand and a lure in the bags, L2 puts the lure on the pole
+-- (FishingLure.lua picks it: yours, or the best the skill allows); the pole off, L2 switches
+-- Blizzard's bars again. Both triggers change only while neither is held.
+--
 -- The swap (pole <-> the weapons you held) is MimezuFishing's, a Quick use action (quick:fish).
 local _, ns = ...
 local Sh = ns.Shared
@@ -25,6 +29,8 @@ ns.Fishing = F
 F.SPELLS = { [7620] = true, [7731] = true, [7732] = true, [18248] = true }
 F.KEY = "PADRTRIGGER"
 F.BUTTON = "GamepadCompanionFishing"
+F.LURE_KEY = "PADLTRIGGER"
+F.LURE_BUTTON = "GamepadCompanionLureButton"
 -- The bobber lands this long after the cast starts (s; a guess from the throw's animation)
 F.LAND_AT = 1.1
 -- Nibbles: none in the first seconds on the water, then now and then, a few at most
@@ -50,6 +56,7 @@ function F.Settings()
     if type(char.fishing) ~= "table" then char.fishing = {} end
     local s = char.fishing
     if s.r2 == nil then s.r2 = true end
+    if s.l2 == nil then s.l2 = true end
     return s
 end
 
@@ -62,6 +69,12 @@ button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 button:SetAttribute("type", "macro")
 local owner = CreateFrame("Frame", "GamepadCompanionFishingBinds")
+-- L2: the lure on the pole (its macro: the lure, then the main hand)
+local lureButton = CreateFrame("Button", F.LURE_BUTTON, UIParent, "SecureActionButtonTemplate")
+lureButton:SetSize(1, 1)
+lureButton:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
+lureButton:RegisterForClicks("AnyDown")
+lureButton:SetAttribute("type", "macro")
 
 local bound = {}             -- F.KEY -> what it runs now (Sh.Claim keeps it on top)
 local line                   -- the line out: { start, n } (nil: none)
@@ -77,6 +90,12 @@ end
 function F.Want(enabled, poleOn, lineOut)
     if not (enabled and poleOn) then return nil end
     return lineOut and "catch" or "cast"
+end
+
+-- L2's macro with a pole in hand: the lure, then the main hand (nil: L2 stays yours)
+function F.LureMacro(enabled, poleOn, lureID)
+    if not (enabled and poleOn and tonumber(lureID)) then return nil end
+    return "/use item:" .. tonumber(lureID) .. "\n/use 16"
 end
 
 -- R2's modifiers off while it fishes (each kept, to put back)
@@ -148,23 +167,29 @@ local function Adopt()
     s.mods, s.reach = nil, nil
 end
 
--- R2 down now, read from the pad itself (nil: no pad to read)
-function F.R2Held()
+-- A trigger down now, read from the pad itself (nil: no pad to read)
+function F.Down(key)
     local P = C_GamePad
     if not P then return nil end
     local id = Call(P.GetActiveDeviceID)
     local state = id and Call(P.GetDeviceMappedState, id)
-    local index = Call(P.ButtonBindingToIndex, F.KEY)
+    local index = Call(P.ButtonBindingToIndex, key)
     if type(state) ~= "table" or type(state.buttons) ~= "table" or type(index) ~= "number" then return nil end
     return state.buttons[index + 1] and true or false
 end
+function F.R2Held() return F.Down(F.KEY) end
+-- Either trigger fishing owns down: no binding changes now
+local function Held() return F.R2Held() or F.Down(F.LURE_KEY) end
 
 -- What R2 runs now (nil: yours)
-local current
+local current, lureMacro
 local listeners = {}
 
 -- R2 catches now (bound to Interact: the line out, a pole in hand)
 function F.Catching() return current == "catch" end
+-- L2's lure now (its item id), or nil
+local lureNow
+function F.Lure() return lureNow end
 
 -- Called whenever what R2 runs changes (BobberPrompt.lua: the bobber's prompt)
 function F.OnChange(fn) listeners[#listeners + 1] = fn end
@@ -175,16 +200,20 @@ function F.Apply()
     if InCombat() then pending = true; return false end
     pending = false
     local s = F.Settings()
-    local want = F.Want(s.r2, lib.PoleEquipped(), line ~= nil)
-    -- (nothing to change: the binding stays as it is, R2 held or not)
-    if want == current then waiter:Hide(); return true end
-    -- (never mid-press: R2 held, the change waits for its release)
-    if F.R2Held() then
+    local poleOn = lib.PoleEquipped()
+    local want = F.Want(s.r2, poleOn, line ~= nil)
+    local FL = ns.FishingLure
+    local pick = poleOn and s.l2 and FL and FL.Current and FL.Current() or nil
+    local lure = F.LureMacro(s.l2, poleOn, pick and pick.id)
+    -- (nothing to change: the bindings stay as they are, a trigger held or not)
+    if want == current and lure == lureMacro then waiter:Hide(); return true end
+    -- (never mid-press: a trigger held, the change waits for its release)
+    if Held() then
         waiter:Show()
         return false
     end
     waiter:Hide()
-    current = want
+    current, lureMacro, lureNow = want, lure, lure and pick.id or nil
     ClearOverrideBindings(owner)
     wipe(bound)
     if want then
@@ -197,9 +226,14 @@ function F.Apply()
             bound[F.KEY] = "CLICK " .. F.BUTTON .. ":LeftButton"
         end
     end
+    if lure then
+        lureButton:SetAttribute("macrotext", lure)
+        SetOverrideBindingClick(owner, true, F.LURE_KEY, F.LURE_BUTTON, "LeftButton")
+        bound[F.LURE_KEY] = "CLICK " .. F.LURE_BUTTON .. ":LeftButton"
+    end
     local was = mode
     mode = want ~= nil
-    if mode ~= was then Note(mode and "R2 casts" or "R2 is back") end
+    if mode ~= was then Note(mode and (lure and "R2 casts, L2 lure" or "R2 casts") or "R2 is back") end
     for _, fn in ipairs(listeners) do pcall(fn) end
     return true
 end
@@ -207,12 +241,17 @@ end
 -- (R2 released: the change that waited)
 waiter:SetScript("OnUpdate", function()
     if InCombat() then waiter:Hide(); pending = true; return end
-    if not F.R2Held() then F.Apply() end
+    if not Held() then F.Apply() end
+end)
+
+-- (L2 pressed: the lure it put on is the one the float names)
+lureButton:SetScript("PreClick", function()
+    if lureNow then F.Settings().lastLure = lureNow end
 end)
 
 Sh.Claim(bound, function()
     if InCombat() then pending = true; return end
-    current = false     -- (rebind what it should be)
+    current, lureMacro = false, false     -- (rebind what it should be)
     F.Apply()
 end)
 
@@ -273,7 +312,8 @@ end
 -- Events
 ---------------------------------------------------------------------------
 local events = CreateFrame("Frame")
-for _, ev in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_REGEN_ENABLED", "LOOT_OPENED" }) do
+for _, ev in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_REGEN_ENABLED", "LOOT_OPENED",
+    "BAG_UPDATE_DELAYED", "SKILL_LINES_CHANGED" }) do
     pcall(events.RegisterEvent, events, ev)
 end
 for _, ev in ipairs({ "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
@@ -296,6 +336,11 @@ events:SetScript("OnEvent", function(_, event, unit, _, spellID)
         if not InCombat() then F.Apply() else pending = true end
     elseif event == "PLAYER_REGEN_ENABLED" then
         if pending then F.Apply() end
+    elseif event == "BAG_UPDATE_DELAYED" or event == "SKILL_LINES_CHANGED" then
+        -- (the lure L2 puts on follows the bags and the skill, while the pole is in hand)
+        if lib.PoleEquipped() then
+            if not InCombat() then F.Apply() else pending = true end
+        end
     elseif event == "LOOT_OPENED" then
         -- (the catch: the line out or just in, its loot a fishing one; `unit` is autoLoot)
         if (line or Now() - lastLine < 3) and Call(IsFishingLoot) then

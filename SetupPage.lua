@@ -397,11 +397,75 @@ local function BuildBags(frame)
     pg.refresh[#pg.refresh + 1] = function() check:SetChecked(BG.Enabled()) end
 end
 
+---------------------------------------------------------------------------
+-- Fishing: R2 casts and catches, L2 puts the lure on (Fishing.lua), which lure
+---------------------------------------------------------------------------
+local function BuildFishing(frame)
+    local F, FL = ns.Fishing, ns.FishingLure
+    if not (F and FL) then return end
+    local cw = W - X3
+    local card = S.Card(frame, "Fishing", X3, -330, cw, 150, "Interface\\Icons\\Trade_Fishing")
+    local function Changed() F.Apply(); FL.Refresh(); Refresh() end
+    local r2 = S.NewCheck(card, "R2 casts", 12, -38, function(self) F.Settings().r2 = self:GetChecked() == true; Changed() end, 110)
+    S.Tooltip(r2, "R2 casts", "With a pole: cast, then catch")
+    local l2 = S.NewCheck(card, "L2 lure", 150, -38, function(self) F.Settings().l2 = self:GetChecked() == true; Changed() end, 110)
+    S.Tooltip(l2, "L2 lure", "With a pole: the lure on it")
+    -- the lure: Auto (the best the skill allows) or one from the bags
+    S.Text(card, "Lure", 14, -82, 60, 12, GOLD)
+    local icon = card:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(22, 22)
+    icon:SetPoint("TOPLEFT", 104, -76)
+    local name = S.Text(card, "", 132, -82, cw - 200, 12, YELLOW)
+    name:SetWordWrap(false)
+    -- the choices now: "auto", then each lure in the bags, the chosen one too if it's gone
+    local function Choices()
+        local list, setting = { "auto" }, FL.Setting().lure
+        local have = false
+        for _, item in ipairs(FL.Bags()) do
+            list[#list + 1] = item.id
+            if item.id == tonumber(setting) then have = true end
+        end
+        if tonumber(setting) and not have then list[#list + 1] = tonumber(setting) end
+        return list
+    end
+    local function Step(dir)
+        local list, cur = Choices(), FL.Setting().lure or "auto"
+        local i = 1
+        for k, v in ipairs(list) do if tostring(v) == tostring(cur) then i = k end end
+        i = (i - 1 + dir) % #list + 1
+        FL.Setting().lure = list[i]
+        Changed()
+    end
+    local prev = S.NewButton(card, "<", 76, -76, 24, function() Step(-1) end, nil, 13, 24)
+    local nextB = S.NewButton(card, ">", cw - 40, -76, 24, function() Step(1) end, nil, 13, 24)
+    S.Tooltip(prev, "Lure", "Auto: the best you can use")
+    S.Tooltip(nextB, "Lure", "Auto: the best you can use")
+    local hint = S.Text(card, "", 14, -116, cw - 28, 11, GREY)
+    pg.refresh[#pg.refresh + 1] = function()
+        local s = F.Settings()
+        r2:SetChecked(s.r2 ~= false)
+        l2:SetChecked(s.l2 ~= false)
+        local setting = FL.Setting().lure or "auto"
+        local pick = FL.Current()
+        if setting == "auto" then
+            name:SetText("Auto" .. (pick and pick.name and ("  ·  " .. pick.name) or ""))
+            icon:SetTexture(pick and pick.icon or "Interface\\Icons\\INV_Misc_Orb_03")
+        else
+            local id = tonumber(setting)
+            name:SetText((C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or ("Item " .. id))
+            icon:SetTexture((C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(id)) or "Interface\\Icons\\INV_Misc_Orb_03")
+        end
+        icon:SetDesaturated(pick == nil)
+        hint:SetText(pick and "" or "None in bags")
+    end
+end
+
 local function Build(frame)
     BuildHelper(frame)
     BuildTriggers(frame)
     BuildCamera(frame)
     BuildBags(frame)
+    BuildFishing(frame)
     BuildRange(frame)
     BuildTiming(frame)
     BuildBase(frame)

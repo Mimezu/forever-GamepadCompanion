@@ -51,6 +51,7 @@ TouchModel.lua
 Quick.lua
 Fishing.lua
 BobberPrompt.lua
+FishingLure.lua
 SlotMacros.lua
 BankMove.lua
 MailOpenAll.lua

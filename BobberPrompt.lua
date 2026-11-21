@@ -49,8 +49,10 @@ end
 
 -- The game's world prompts are the Gamepad_<style>_<button>_<size> glyphs (the soft target's
 -- badge over the bobber: Gamepad_Shp_Square_32 with a PlayStation pad, read from the install).
--- R2 in the same set: the drawn atlas' style and size kept, its button RTrigger. Drawn as a file
--- (no atlas name to read), the active controller style's set (Shapes: Shp...), at 32.
+-- R2 in the same set: the drawn atlas' style kept, its button RTrigger, at 64 (the 32 R2 is a
+-- flat, soft square; the 64 the trigger's shape in a silver rim, as the game's other prompts),
+-- the drawn size when there's no 64. Drawn as a file (no atlas name to read), the active
+-- controller style's set (Shapes: Shp...).
 P.STYLES = { Shapes = "Shp", Letters = "Ltr", Reverse = "Rev", Generic = "Gen" }
 
 local function Exists(atlas)
@@ -71,8 +73,9 @@ function P.Glyph(drawn)
         if style then style = style:lower() end
     end
     if not style then return nil end
-    local atlas = "Gamepad_" .. style:sub(1, 1):upper() .. style:sub(2) .. "_RTrigger_" .. size
-    if Exists(atlas) then return atlas end
+    local base = "Gamepad_" .. style:sub(1, 1):upper() .. style:sub(2) .. "_RTrigger_"
+    if Exists(base .. "64") then return base .. "64" end
+    if Exists(base .. size) then return base .. size end
 end
 
 -- Icons we changed: icon -> what Blizzard had drawn there (to put back)

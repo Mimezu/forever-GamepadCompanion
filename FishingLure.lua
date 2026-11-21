@@ -1,0 +1,358 @@
+-- The fishing lure: which one (yours, or the best in the bags, as Quick use
+-- picks food), and a small float at the bottom left while the pole is in hand:
+-- the lure on dark water in a brass rim, the water closing over it as its time
+-- runs out, a slow bob and a ripple now and then. Quiet: no numbers flashing,
+-- no sound. L2 puts the lure on the pole (Fishing.lua, as R2 casts).
+local _, ns = ...
+local Sh = ns.Shared
+local L = {}
+ns.FishingLure = L
+
+local function Call(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, a, b, c, d, e, f, g, h = pcall(fn, ...)
+    if ok then return a, b, c, d, e, f, g, h end
+end
+
+---------------------------------------------------------------------------
+-- The lures (pure: tests/FishingLure.lua)
+---------------------------------------------------------------------------
+-- Fishing bonus and the Fishing skill they need; a lure's own tooltip wins
+-- when it can be read (L.Read), this is the fallback
+L.LURES = {
+    [6529] = { bonus = 25, skill = 0 },     -- Shiny Bauble
+    [6530] = { bonus = 50, skill = 50 },    -- Nightcrawlers
+    [6811] = { bonus = 50, skill = 50 },    -- Aquadynamic Fish Lens
+    [6532] = { bonus = 75, skill = 100 },   -- Bright Baubles
+    [7307] = { bonus = 75, skill = 100 },   -- Flesh Eating Worm
+    [6533] = { bonus = 100, skill = 100 },  -- Aquadynamic Fish Attractor
+}
+
+-- The lure to put on: setting "auto" (or nil) the best the skill allows, else
+-- that item while it's in the bags. items: { { id, bonus, skill, count } }
+function L.Pick(setting, items, skill)
+    skill = tonumber(skill) or 0
+    if setting ~= nil and setting ~= "auto" then
+        for _, item in ipairs(items) do if item.id == tonumber(setting) then return item end end
+        return nil
+    end
+    local best
+    for _, item in ipairs(items) do
+        if (item.skill or 0) <= skill then
+            if not best or item.bonus > best.bonus
+                or (item.bonus == best.bonus and (item.count or 0) > (best.count or 0))
+                or (item.bonus == best.bonus and (item.count or 0) == (best.count or 0) and item.id < best.id) then
+                best = item
+            end
+        end
+    end
+    return best
+end
+
+-- Time left as a few quiet words: "9 min", "40 s"
+function L.TimeText(seconds)
+    seconds = math.max(0, math.floor((tonumber(seconds) or 0) + 0.5))
+    if seconds >= 60 then return math.ceil(seconds / 60) .. " min" end
+    return seconds .. " s"
+end
+
+-- A lure's whole time, from what's left: the game says only that. A fresh one
+-- (more left than before) sets it, rounded up to the minute (lures last 5 or
+-- 10); otherwise the known one stays.
+function L.Total(known, before, now)
+    if not now then return nil end
+    if not known or not before or now > before + 2 or now > known then
+        return math.max(60, math.ceil(now / 60) * 60)
+    end
+    return known
+end
+
+---------------------------------------------------------------------------
+-- The game: the bags, the skill, the pole's enchant
+---------------------------------------------------------------------------
+local tips = {}   -- id -> { bonus, skill } read from the tooltip (or false)
+function L.Read(id)
+    if tips[id] ~= nil then return tips[id] or nil end
+    local info = C_TooltipInfo and Call(C_TooltipInfo.GetItemByID, id)
+    if not (info and info.lines) then return nil end
+    local bonus, skill, lure
+    for _, line in ipairs(info.lines) do
+        local text = type(line.leftText) == "string" and line.leftText or ""
+        local low = text:lower()
+        if low:find("fishing pole", 1, true) and low:find("fishing by", 1, true) then
+            lure = true
+            bonus = tonumber(low:match("fishing by (%d+)"))
+        end
+        local need = low:match("requires fishing %((%d+)%)")
+        if need then skill = tonumber(need) end
+    end
+    tips[id] = lure and bonus and { bonus = bonus, skill = skill or 0 } or false
+    return tips[id] or nil
+end
+
+function L.Bags()
+    local items, seen = {}, {}
+    if not (C_Container and C_Container.GetContainerNumSlots) then return items end
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
+        for slot = 1, tonumber((Call(C_Container.GetContainerNumSlots, bag))) or 0 do
+            local info = Call(C_Container.GetContainerItemInfo, bag, slot)
+            local id = info and tonumber(info.itemID)
+            local known = id and (L.Read(id) or L.LURES[id])
+            if known then
+                if seen[id] then
+                    seen[id].count = seen[id].count + (info.stackCount or 1)
+                else
+                    seen[id] = { id = id, bonus = known.bonus, skill = known.skill or 0, count = info.stackCount or 1,
+                        icon = info.iconFileID, name = Call(C_Item.GetItemNameByID, id) }
+                    items[#items + 1] = seen[id]
+                end
+            end
+        end
+    end
+    return items
+end
+
+function L.Skill()
+    if not (GetNumSkillLines and GetSkillLineInfo) then return 0 end
+    local fishing = (PROFESSIONS_FISHING or "Fishing"):lower()
+    for i = 1, tonumber((Call(GetNumSkillLines))) or 0 do
+        local name, header, _, rank = Call(GetSkillLineInfo, i)
+        if not header and type(name) == "string" and name:lower() == fishing then return tonumber(rank) or 0 end
+    end
+    return 0
+end
+
+function L.Setting()
+    local char = Sh.CharDB()
+    if type(char.fishing) ~= "table" then char.fishing = {} end
+    return char.fishing
+end
+
+-- The lure L2 puts on now, or nil
+function L.Current()
+    return L.Pick(L.Setting().lure or "auto", L.Bags(), L.Skill())
+end
+
+-- The pole's lure: seconds left, or nil
+local function Left()
+    local has, expiration = Call(GetWeaponEnchantInfo)
+    if has and tonumber(expiration) then return tonumber(expiration) / 1000 end
+end
+
+---------------------------------------------------------------------------
+-- The float
+---------------------------------------------------------------------------
+local SIZE = 52
+local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
+local BODY_FONT = "Fonts\\FRIZQT__.TTF"
+local PARCHMENT = { 0.93, 0.86, 0.68 }
+local MIST = { 0.66, 0.74, 0.72 }
+
+local float = CreateFrame("Frame", "GamepadCompanionLure", UIParent)
+float:SetSize(240, SIZE + 8)
+float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 36, 210)
+float:SetFrameStrata("LOW")
+float:SetAlpha(0)
+float:Hide()
+
+-- the medallion bobs gently, a float on calm water
+local medal = CreateFrame("Frame", nil, float)
+medal:SetSize(SIZE, SIZE)
+medal:SetPoint("LEFT", float, "LEFT", 4, 0)
+
+local function Disc(parent, layer, sub, size, r, g, b, a)
+    local t = parent:CreateTexture(nil, layer, nil, sub)
+    t:SetTexture(MASK)
+    t:SetSize(size, size)
+    t:SetPoint("CENTER")
+    t:SetVertexColor(r, g, b, a)
+    return t
+end
+
+-- a soft shadow on the water under it, a thin brass rim, dark water inside
+medal.shadow = Disc(medal, "BACKGROUND", 0, SIZE + 22, 0, 0, 0, 0.45)
+medal.rim = Disc(medal, "BACKGROUND", 1, SIZE + 3, 0.62, 0.50, 0.30, 0.95)
+medal.water = Disc(medal, "BACKGROUND", 2, SIZE, 0.04, 0.10, 0.12, 0.96)
+
+medal.icon = medal:CreateTexture(nil, "ARTWORK")
+medal.icon:SetSize(SIZE - 10, SIZE - 10)
+medal.icon:SetPoint("CENTER")
+medal.icon:SetTexture("Interface\\Icons\\INV_Misc_Orb_03")
+if medal.CreateMaskTexture then
+    local mask = medal:CreateMaskTexture()
+    mask:SetTexture(MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints(medal.icon)
+    medal.icon:AddMaskTexture(mask)
+end
+-- a cool sheen over the lure, as seen through water
+medal.sheen = Disc(medal, "OVERLAY", 1, SIZE - 10, 0.35, 0.55, 0.60, 0.16)
+medal.sheen:SetBlendMode("ADD")
+
+-- the water closing over the lure as its time runs out
+medal.tide = CreateFrame("Cooldown", nil, medal, "CooldownFrameTemplate")
+medal.tide:SetSize(SIZE - 10, SIZE - 10)
+medal.tide:SetPoint("CENTER")
+if medal.tide.SetSwipeTexture then medal.tide:SetSwipeTexture(MASK) end
+if medal.tide.SetSwipeColor then medal.tide:SetSwipeColor(0.02, 0.07, 0.09, 0.78) end
+if medal.tide.SetDrawEdge then medal.tide:SetDrawEdge(false) end
+if medal.tide.SetDrawBling then medal.tide:SetDrawBling(false) end
+if medal.tide.SetHideCountdownNumbers then medal.tide:SetHideCountdownNumbers(true) end
+if medal.tide.SetReverse then medal.tide:SetReverse(true) end
+
+-- ripples: a pale ring of light spreading on the water now and then
+local function Ripple(delay)
+    local t = Disc(float, "BACKGROUND", -1, SIZE, 0.62, 0.80, 0.84, 0)
+    t:ClearAllPoints()
+    t:SetPoint("CENTER", medal, "CENTER")
+    t:SetBlendMode("ADD")
+    local g = t:CreateAnimationGroup()
+    g:SetLooping("REPEAT")
+    local wait = g:CreateAnimation("Alpha")
+    wait:SetFromAlpha(0); wait:SetToAlpha(0); wait:SetDuration(delay); wait:SetOrder(1)
+    local grow = g:CreateAnimation("Scale")
+    if grow.SetScaleFrom then grow:SetScaleFrom(0.9, 0.9); grow:SetScaleTo(1.9, 1.9) else grow:SetScale(2.1, 2.1) end
+    grow:SetDuration(3.2); grow:SetOrder(2); grow:SetSmoothing("OUT")
+    local fade = g:CreateAnimation("Alpha")
+    fade:SetFromAlpha(0.22); fade:SetToAlpha(0); fade:SetDuration(3.2); fade:SetOrder(2); fade:SetSmoothing("OUT")
+    local rest = g:CreateAnimation("Alpha")
+    rest:SetFromAlpha(0); rest:SetToAlpha(0); rest:SetDuration(4.5); rest:SetOrder(3)
+    return g
+end
+local ripples = { Ripple(0.4), Ripple(2.6) }
+
+-- the bob: a breath down and up, slow
+local bob = medal:CreateAnimationGroup()
+bob:SetLooping("BOUNCE")
+local drift = bob:CreateAnimation("Translation")
+drift:SetOffset(0, -2)
+drift:SetDuration(2.4)
+drift:SetSmoothing("IN_OUT")
+
+-- the words: the lure's name as in an old book, its time quietly under it
+local title = float:CreateFontString(nil, "OVERLAY")
+title:SetFont(TITLE_FONT, 16, "")
+title:SetShadowColor(0, 0, 0, 0.9)
+title:SetShadowOffset(1, -1)
+title:SetTextColor(PARCHMENT[1], PARCHMENT[2], PARCHMENT[3])
+title:SetPoint("BOTTOMLEFT", medal, "RIGHT", 10, 1)
+title:SetJustifyH("LEFT")
+
+local sub = float:CreateFontString(nil, "OVERLAY")
+sub:SetFont(BODY_FONT, 11, "")
+sub:SetShadowColor(0, 0, 0, 0.9)
+sub:SetShadowOffset(1, -1)
+sub:SetTextColor(MIST[1], MIST[2], MIST[3])
+sub:SetPoint("TOPLEFT", medal, "RIGHT", 11, -3)
+sub:SetJustifyH("LEFT")
+
+-- fade in and out
+local fadeIn = float:CreateAnimationGroup()
+local a1 = fadeIn:CreateAnimation("Alpha"); a1:SetFromAlpha(0); a1:SetToAlpha(1); a1:SetDuration(0.9); a1:SetSmoothing("OUT")
+fadeIn:SetScript("OnFinished", function() float:SetAlpha(1) end)
+local fadeOut = float:CreateAnimationGroup()
+local a2 = fadeOut:CreateAnimation("Alpha"); a2:SetFromAlpha(1); a2:SetToAlpha(0); a2:SetDuration(0.7); a2:SetSmoothing("IN")
+fadeOut:SetScript("OnFinished", function() float:SetAlpha(0); float:Hide() end)
+
+local function Glyph(atlas, size)
+    return ("|A:%s:%d:%d|a"):format(atlas, size, size)
+end
+
+---------------------------------------------------------------------------
+-- What it shows
+---------------------------------------------------------------------------
+local shown = false
+local total, before, spentAt = nil, nil, nil
+
+local function SetLure(icon, lit)
+    medal.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_Orb_03")
+    medal.icon:SetDesaturated(not lit)
+    medal.icon:SetAlpha(lit and 1 or 0.55)
+    title:SetAlpha(lit and 1 or 0.7)
+end
+
+-- The lure on the pole now: the one put on last by L2, else the pick
+local function Worn()
+    local s = L.Setting()
+    local id = tonumber(s.lastLure)
+    if id then
+        local icon = Call(C_Item.GetItemIconByID, id) or Call(GetItemIcon, id)
+        return Call(C_Item.GetItemNameByID, id) or "Lure", icon
+    end
+end
+
+-- The float's words (pure): title, line under it, lit. left: seconds of lure
+-- on the pole (nil: none); spent: it ran out a moment ago; worn: the lure's
+-- name; pick: the lure L2 would put on ({ name }), or nil
+function L.Words(left, spent, worn, pick)
+    if left then return worn or (pick and pick.name) or "Lure", L.TimeText(left), true end
+    if spent then return worn or "Lure", "Spent", false end
+    if pick then return "No lure", Glyph("Gamepad_Shp_LTrigger_64", 14) .. "  " .. (pick.name or "Lure"), false end
+    return "No lure", "None in bags", false
+end
+
+function L.Refresh()
+    local left = Left()
+    local now = GetTime and GetTime() or 0
+    if left then
+        total = L.Total(total, before, left)
+        before, spentAt = left, nil
+    elseif before then
+        -- (just run out: a moment to say so, then what L2 would put on)
+        spentAt, before, total = now, nil, nil
+    end
+    local spent = not left and spentAt ~= nil and now - spentAt < 6
+    local worn, wornIcon = Worn()
+    local pick = not (left or spent) and L.Current() or (not worn and L.Current()) or nil
+    local text, line, lit = L.Words(left, spent, worn, pick)
+    SetLure((left or spent) and wornIcon or (pick and pick.icon) or wornIcon, lit)
+    title:SetText(text)
+    sub:SetText(line)
+    if left then medal.tide:SetCooldown(now - (total - left), total) else medal.tide:Clear() end
+    return text, line, lit
+end
+
+-- Shown while the pole is in hand
+function L.Show(on)
+    if on == shown then return end
+    shown = on
+    if on then
+        fadeOut:Stop()
+        float:Show()
+        L.Refresh()
+        fadeIn:Play()
+        bob:Play()
+        for _, r in ipairs(ripples) do r:Play() end
+    else
+        fadeIn:Stop()
+        bob:Stop()
+        for _, r in ipairs(ripples) do r:Stop() end
+        fadeOut:Play()
+    end
+end
+
+local function PoleOn()
+    local lib = _G.MimezuFishing
+    return lib and lib.PoleEquipped and Call(lib.PoleEquipped) == true or false
+end
+
+local events = CreateFrame("Frame")
+for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "BAG_UPDATE_DELAYED", "SKILL_LINES_CHANGED" }) do
+    pcall(events.RegisterEvent, events, ev)
+end
+events:SetScript("OnEvent", function(_, event, unit)
+    if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
+    L.Show(PoleOn())
+    if shown then L.Refresh() end
+end)
+
+-- the words once a second while shown (the tide runs by itself)
+local tick = 0
+float:SetScript("OnUpdate", function(_, elapsed)
+    tick = tick - elapsed
+    if tick > 0 then return end
+    tick = 1
+    L.Refresh()
+end)
+
+L.frame = float
