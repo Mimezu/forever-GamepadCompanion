@@ -59,22 +59,15 @@ eq(V.SpellRule(2098, 0).pattern, "cut1", "Eviscerate: the points as sent (2)")
 -- Kidney Shot, Slice and Dice, Rupture: fainter with fewer points, full at five
 T.Advance(2)
 Points(1)
-local one = V.SpellRule(408, 0).volume
+local one = V.RuleGain(V.SpellRule(408, 0))
 Points(5)
-local five = V.SpellRule(408, 0).volume
+local five = V.RuleGain(V.SpellRule(408, 0))
 check(one < five and five == 1, "Kidney Shot: 1 point fainter than 5 (" .. one .. ", " .. five .. ")")
 Points(2)
 T.Clear()
 Succeeded(5171)
 check(T.Has("instant:sliceDice") and T.GainOf("instant:sliceDice") < 1, "Slice and Dice (2): faint, at the cast")
 check(V.SpellRule(1943, 0).avoidOnly and V.SpellRule(408, 0).avoidOnly, "Rupture, Kidney Shot: a dodge of them still shows")
--- (a new target: its own points)
-Points(3)
-T.game.combo = 0
-T.Event("PLAYER_TARGET_CHANGED")
-T.Advance(0.1)
-eq(V.SpellRule(2098, 0).pattern, "cut5", "a new target: none of the old points")
-Points(0)
 
 ---------------------------------------------------------------------------
 -- Stealth: the cloak in, a breath out (unless an opener says it); Vanish
@@ -158,7 +151,7 @@ end
 T.Advance(10)
 T.Clear()
 Cast(11340, "Instant Poison VI", 3)
-eq(V.castAction, "poison", "Instant Poison VI on a blade: its own set")
+eq(V.castAction, "feel:coat", "Instant Poison VI on a blade: its own set")
 check(T.Has("cast"), "the coat's loop")
 T.Advance(3)
 T.Clear()
@@ -167,14 +160,14 @@ check(T.Has("play:coated"), "the blade coated")
 -- (made in the Poisons window: the craft's grinding, not a coat)
 T.game.trade = "Poisons"
 Cast(11343, "Instant Poison VI", 3)
-eq(V.castAction, "poisons", "Instant Poison VI made: the Poisons craft")
+eq(V.castKind, "craft", "Instant Poison VI made: a craft")
 T.game.trade = nil
 T.Advance(3)
 Succeeded(11343)
 -- Pick Lock: the picks, then the lock giving
 T.Clear()
 Cast(1804, "Pick Lock", 5)
-eq(V.castKind .. " " .. tostring(V.castAction), "gather lockpicking", "Pick Lock: its own picks, not Opening's")
+eq(V.castKind .. " " .. tostring(V.castAction), "gather opening", "Pick Lock: Opening's tumbler")
 T.Advance(5)
 T.Clear()
 Succeeded(1804)
@@ -184,14 +177,18 @@ eq(V.castAction, "opening", "Opening a chest: still Opening's")
 T.Advance(5)
 Succeeded(3365)
 Cast(1842, "Disarm Trap", 2)
-eq(V.castAction, "lockpicking", "Disarm Trap: a lock's picks too")
+eq(V.castAction, "feel:click", "Disarm Trap: the tumbler too")
 T.Advance(2)
 Succeeded(1842)
 UnitCastingInfo = nil
 
 -- Thrown: at its landing (the ranged impact), not at the throw
 check(V.SpellRule(399986, 0).how.ranged and V.SpellRule(400009, 0).how.ranged, "Shuriken Toss, Between the Eyes: from afar")
+-- A thrown blade's crit: its own feel, then the crit (a class pattern is a spell's, as the mage's)
+T.Clear()
+V.AbilityImpact("shuriken", "crit", true, 1)
+check(T.Has("instant:shuriken"), "Shuriken Toss crit: its own feel too")
 -- Shiv: a nick, faint
-check(V.SpellRule(424799, 0).volume < 1, "Shiv: faint")
+check(V.RuleGain(V.SpellRule(424799, 0)) < 1, "Shiv: faint")
 
 T.Done("Rogue")

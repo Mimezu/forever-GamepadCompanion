@@ -19,14 +19,13 @@ Shared.lua
 When.lua
 Core.lua
 CameraPitch.lua
-ClassFeels.lua
-Warrior.lua
-Rogue.lua
 Rumble.lua
 ComboPoints.lua
 Forms.lua
 Shaman.lua
 Druid.lua
+Warrior.lua
+Rogue.lua
 Haptics.lua
 Timing.lua
 Volume.lua

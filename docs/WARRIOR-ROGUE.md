@@ -1,7 +1,8 @@
 # Warrior and Rogue
 
 What a warrior and a rogue feel, spell by spell (2026-11-20). The data is `Warrior.lua` and
-`Rogue.lua`, registered through `ClassFeels.lua`; the HD versions are WoW Helper's
+`Rogue.lua` (Rumble's `V.CLASS_SPELLS.WARRIOR` / `.ROGUE` and `V.AddPatterns`, as the shaman
+and druid's; combo points from `ComboPoints.lua`); the HD versions are WoW Helper's
 (`assets/hd/feels.txt`, `src/spellfeel.rs` SHIPPED_SPELLS).
 
 The spell lists are the client's own (WoW Helper `--spells`, `--spell-kinds`, the rune
@@ -31,18 +32,18 @@ names) and `rogue-spells.txt` (213 ranks, 110 names) say what each must play;
 
 ## Finishers
 
-By the combo points spent (read before or just after the client drops them):
+By the combo points spent (ComboPoints.lua: read as the spell is sent):
 Eviscerate one cut (1-2), a cross cut (3-4), a flurry (5). Kidney Shot, Rupture, Expose
 Armor, Slice and Dice, Between the Eyes, Crimson Tempest, Blade Dance: fainter with fewer
 points, full at five.
 
 ## Casts
 
-- **Slam:** its own set (Wind-up). WoW Helper: a faint wind-up, its release quiet.
+- **Slam:** its own set (`feel:windup`). WoW Helper: a faint wind-up, its release quiet.
 - **Poison on a blade** (every rank): a cloth along the steel, then Coated.
-- **Poisons** (the craft): a pestle grinding, Alchemy's cork.
-- **Pick Lock, Disarm Trap:** picks raking the pins, the lock giving. Opening a chest keeps
-  Opening's tumbler.
+- **Poisons** (the craft): Crafting's set, as any craft.
+- **Pick Lock:** Opening's tumbler, then the lock giving. **Disarm Trap:** the tumbler too, and the
+  lock giving.
 - **Engrave:** Enchanting's shimmer.
 
 ## Quiet by design

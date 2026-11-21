@@ -6,8 +6,8 @@ local root = arg[1] or "."
 local T = dofile(root .. "/tests/support/ClassHarness.lua")
 local check, eq = T.check, T.eq
 T.LoadSpells("warrior-spells.txt")
-local V, WR, CF = T.V, T.ns.Warrior, T.CF
-check(WR ~= nil and CF ~= nil, "Warrior.lua and ClassFeels.lua load")
+local V, WR = T.V, T.ns.Warrior
+check(WR ~= nil and WR.SPELLS ~= nil, "Warrior.lua loads")
 
 ---------------------------------------------------------------------------
 -- Coverage
@@ -59,19 +59,17 @@ T.game.auras.target = { { id = 7922, source = "player" } }
 T.Event("UNIT_AURA", "target", { isFullUpdate = true })
 check(T.Has("instant:crash"), "Charge: a full update finds the stun")
 T.game.auras.target = nil
--- Intercept: its stun, or its own wound
+-- Intercept: the run, the crash as its stun lands
 T.Clear()
 Succeeded(20617)
 check(T.Has("instant:rush"), "Intercept: the run")
 T.Advance(0.3)
+-- (a wound on the target meanwhile (anyone's): not the arrival)
 T.Event("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
-check(T.Has("instant:crash"), "Intercept: its wound says it reached")
--- (Charge does no damage: a wound in its run is someone else's swing, not the crash)
-T.Advance(3)
-T.Clear()
-Succeeded(100)
-T.Event("UNIT_COMBAT", "target", "WOUND", "", 120, 1)
-check(not T.Has("instant:crash"), "Charge: a wound is not its arrival")
+T.Run(); T.Run()
+check(not T.Has("instant:crash"), "Intercept: someone's hit is not its arrival")
+T.Event("UNIT_AURA", "target", { addedAuras = { { spellId = 20615, name = "Intercept Stun", sourceUnit = "player" } } })
+check(T.Has("instant:crash"), "Intercept: the crash as its stun lands")
 T.Advance(3)
 
 -- Slam: the wind-up while it's cast, the blow at the weapon's impact (not the release)
@@ -80,7 +78,7 @@ local castEnd
 UnitCastingInfo = function() if castEnd then return "Slam", nil, nil, (castEnd - 1.5) * 1000, castEnd * 1000 end end
 castEnd = T.Now() + 1.5
 T.Event("UNIT_SPELLCAST_START", "player", "cast-11605", 11605)
-eq(V.castAction, "slam", "Slam: its own set")
+eq(V.castAction, "feel:windup", "Slam: its own wind-up")
 check(T.Has("cast"), "Slam: the wind-up loops")
 T.Advance(1.5)
 T.Clear()
@@ -91,7 +89,7 @@ T.Advance(0.1)
 T.Event("UNIT_COMBAT", "target", "WOUND", "", 300, 1)
 T.Run(); T.Run()
 check(T.Has("instant:slamHit"), "Slam: the blow as it lands")
-check(WR.Released("slam", 11605) and not WR.Released("fire", 133), "Slam's release is the warrior's; a fireball's is not")
+check(V.ClassSpellOf(11605).released ~= nil and not (V.ClassSpellOf(133) or {}).released, "Slam's release is the warrior's; a fireball's is not")
 UnitCastingInfo = nil
 
 -- Whirlwind: one feel, several bodies in it (three soft hits, left to right)
@@ -107,8 +105,8 @@ check(hits >= 3 and left and right, "Whirlwind: three bodies, round you")
 for _, u in ipairs(p.pulses) do check(u[3] < 0.6, "Whirlwind: soft hits, never one blob") end
 
 -- Shouts: the buffs fainter than the big ones; Shield Block fainter than Shield Wall
-check(V.SpellRule(25289, 0).volume < 1 and V.SpellRule(5246, 0).volume == 1, "Battle Shout fainter than Intimidating")
-check(V.SpellRule(2565, 0).volume < V.SpellRule(871, 0).volume, "Shield Block fainter than Shield Wall")
+check(V.RuleGain(V.SpellRule(25289, 0)) < 1 and V.RuleGain(V.SpellRule(5246, 0)) == 1, "Battle Shout fainter than Intimidating")
+check(V.RuleGain(V.SpellRule(2565, 0)) < V.RuleGain(V.SpellRule(871, 0)), "Shield Block fainter than Shield Wall")
 -- Concussion Blow, Disarm: a dodge of them still shows (their window takes no wound)
 check(V.SpellRule(12809, 0).avoidOnly and V.SpellRule(676, 0).avoidOnly, "stuns at the cast: a dodge still shows")
 check(not V.SpellRule(1680, 0).avoidOnly, "Whirlwind's blow is its own")

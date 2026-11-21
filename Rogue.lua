@@ -1,16 +1,24 @@
 -- A rogue's feels (the rogue pass, 2026-11-20; docs/WARRIOR-ROGUE.md): what each rogue spell
--- plays, its own patterns, finishers by the combo points spent, Stealth in and out, poisons
--- coating a blade, Pick Lock's picks. Loaded before Rumble.lua (ClassFeels.lua registers it
--- there). tests/Rogue.lua lists every rogue spell of the client and what it plays.
+-- plays (Rumble's V.CLASS_SPELLS.ROGUE, as V.MAGE), its own patterns, finishers by the combo
+-- points spent (ComboPoints.lua), Stealth in and out, poisons coating a blade, a lock giving.
+-- Loaded right after Rumble.lua. tests/Rogue.lua lists every rogue spell of the client and what
+-- it plays.
 --
 -- Materials: thin steel and points, leather, cloth, a cosh's dull weight, powder, a wire; the
--- dark is a breath held. Blows land at the weapon's impact (Rumble's AbilityResult); thrown
--- blades at their landing (the ranged impact WoW Helper learned).
+-- dark is a breath held. Blows land at the weapon's impact (Rumble's AbilityResult, melee);
+-- thrown blades at their landing (the ranged impact WoW Helper learned).
 local _, ns = ...
-local CF = ns.ClassFeels
-local RG = { class = "ROGUE", ENGRAVE = true }
+local V = ns.Rumble
+if not V or not V.AddPatterns then return end
+local RG = {}
 ns.Rogue = RG
 
+local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
+local function Now() return GetTime and GetTime() or 0 end
+local function SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    return GetSpellInfo and (GetSpellInfo(id))
+end
 local function Pu(t, len, s, side) return { t, len, s, side or 0 } end
 
 RG.PATTERNS = {
@@ -59,7 +67,7 @@ RG.PATTERNS = {
     { key = "shadowstep", label = "Shadowstep", art = "fade", move = true,              -- a breath of nothing, then behind them
         steps = { { 0.08, 0.08, 0.15 }, { 0.3, 0.15, 0.1 } },
         pulses = { Pu(0, 0.1, 0.07), Pu(0.22, 0.05, 0.3, -0.4) } },
-    { key = "focus", label = "Cold Blood", art = "heart", move = true,                  -- a held breath, stillness, one beat
+    { key = "coldBlood", label = "Cold Blood", art = "heart", move = true,                  -- a held breath, stillness, one beat
         steps = { { 0.05, 0.05, 0.2 }, { 0, 0, 0.2 }, { 0.3, 0.25, 0.1 } },
         pulses = { Pu(0, 0.2, 0.05), Pu(0.42, 0.08, 0.24) } },
     -- Around you
@@ -103,133 +111,31 @@ RG.PATTERNS = {
     { key = "bladeDance", label = "Blade Dance", art = "whirl", move = true,            -- blades flicked round you, a guard
         steps = { { 0.25, 0.05, 0.1 }, { 0.05, 0.25, 0.1 }, { 0.15, 0.15, 0.12 } },
         pulses = { Pu(0, 0.05, 0.2, -0.8), Pu(0.1, 0.05, 0.2, 0.8), Pu(0.2, 0.05, 0.2, -0.3), Pu(0.32, 0.12, 0.12) } },
-    -- Loops: a blade coated, a lock picked, poisons ground (faint)
+    -- A blade coated (a loop, faint); a lock giving
     { key = "coat", label = "Coating", art = "sew", group = "Crafts",                  -- a cloth drawn along the blade, a drip
         steps = { { 0.06, 0, 0.3 }, { 0, 0.06, 0.3 }, { 0.08, 0.08, 0.1 }, { 0, 0, 0.2 } },
         pulses = { cycle = 0.9, Pu(0, 0.3, 0.05, -0.4), Pu(0.4, 0.3, 0.05, 0.4), Pu(0.75, 0.05, 0.07) } },
     { key = "coated", label = "Coated", art = "double", group = "Crafts",              -- the blade wiped, the vial stoppered
         steps = { { 0.15, 0.15, 0.1 }, { 0.08, 0.08, 0.1 } },
         pulses = { Pu(0, 0.05, 0.15), Pu(0.1, 0.05, 0.08) } },
-    { key = "picks", label = "Picks", art = "click", group = "Crafts",                  -- the pick raking, pins setting one by one
-        steps = { { 0.06, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.08, 0.12, 0.1 }, { 0, 0, 0.25 }, { 0.1, 0.15, 0.1 }, { 0, 0, 0.35 } },
-        pulses = { cycle = 1, Pu(0, 0.05, 0.06, 0.3), Pu(0.18, 0.05, 0.08, 0.3), Pu(0.32, 0.05, 0.05, 0.3), Pu(0.6, 0.05, 0.1, 0.3) } },
     { key = "unlock", label = "Unlocked", art = "click", group = "Crafts",              -- the cylinder turning, the lock giving
         steps = { { 0.2, 0.3, 0.1 }, { 0.15, 0.15, 0.1 } },
         pulses = { Pu(0, 0.05, 0.25, 0.3), Pu(0.08, 0.1, 0.15) } },
-    { key = "grind", label = "Grinding", art = "bubble", group = "Crafts",              -- a pestle in a mortar
-        steps = { { 0.06, 0.03, 0.2 }, { 0.03, 0.06, 0.2 } },
-        pulses = { cycle = 0.8, Pu(0, 0.2, 0.06, -0.3), Pu(0.4, 0.2, 0.06, 0.3) } },
 }
 
--- A poison put on a blade (the item's own cast, 3 s; every rank): its own set, Coated as it's done
-RG.POISONS = { 8679, 8686, 8688, 11338, 11339, 11340, 2823, 2824, 11355, 11356, 25351, 3408, 11202, 5761, 8693, 11399,
-    13219, 13225, 13226, 13227, 439462, 439464, 439465, 458821, 1214171 }
-RG.CAST_ACTIONS = {
-    { key = "poison", label = "Poison", kind = "spell", pattern = "coat", spells = RG.POISONS },
-    -- (Pick Lock and Disarm Trap: a lock's picks, not any Opening's tumbler)
-    { key = "lockpicking", label = "Pick Lock", kind = "gather", pattern = "picks", spell = 1804 },
-    -- (Poisons, the craft: ground in a mortar, stoppered as Alchemy's)
-    { key = "poisons", label = "Poisons", kind = "craft", pattern = "grind", finish = "cork", spell = 2842 },
-}
-RG.GATHER = { lockpicking = { 1804, 1842 } }
-RG.GATHER_FINISH = { lockpicking = "unlock" }
-
-RG.RULES = {
-    -- In and out of sight (leaving Stealth: RG.StealthChanged)
-    { "cloak", "cast", "Into the dark; out: a breath", { 1784 } },
-    { "vanish", "cast", "A puff, a roll, gone", { 1856 } },
-    { "shadowstep", "cast", "Behind them", { 400029 } },                                 -- (rune)
-    { "sprint", "cast", "Feet quickening", { 2983 } },
-    -- At the weapon's impact
-    { "backstab", "hit", "Between the ribs", { 53 } },
-    { "ambush", "hit", "Out of the dark", { 8676 } },
-    { "mutilate", "hit", "Both blades at once", { 399956 } },
-    -- Sinister Strike, Ghostly Strike, Hemorrhage, Riposte, Shank, Main Gauche, Shadowstrike
-    { "stab", "hit", "Known: Stab", { 1752, 14278, 16511, 14251, 1329283, 424919, 399985 } },
-    { "slash", "hit", "Known: Slash", { 424785 } },                                      -- Saber Slash
-    { "bash", "hit", "Known: Bash", { 1776 } },                                          -- Gouge
-    { "kick", "hit", "A boot heel", { 1766 } },
-    -- Thrown: at its landing (Shuriken Toss, Poisoned Knife, Quick Draw)
-    { "shuriken", "hit", "Thrown: at the hit", { 399986, 425013, 398196 }, { ranged = true } },
-    -- Openers and tricks: at the cast (a dodge or a parry of it still shows)
-    { "sap", "cast", "A cosh", { 6770 }, { avoid = true } },
-    { "bash", "cast", "A stun", { 1833 }, { avoid = true } },                            -- Cheap Shot
-    { "garrote", "cast", "A wire drawn tight", { 703 }, { avoid = true } },
-    { "blind", "cast", "Powder in the eyes", { 2094 }, { avoid = true } },
-    { "pocket", "cast", "Fingers in a pocket", { 921 } },
-    { "stab", "cast", "A quick nick", { 424799 }, { volume = 0.6, avoid = true } },     -- Shiv
-    { "hex", "cast", "A mark", { 1316709 } },                                            -- Death Mark (Forever)
-    -- Around you
-    { "fanOfKnives", "cast", "Knives all round", { 409240, 409239 } },                   -- (rune)
-    { "blunderbuss", "cast", "Black powder", { 436564 } },                               -- (rune)
-    -- Cooldowns
-    { "ward", "cast", "Known: Ward", { 5277 } },                                         -- Evasion
-    { "whirl", "cast", "Known: Whirl", { 13877 } },                                      -- Blade Flurry
-    { "enrage", "cast", "Blood racing", { 13750 } },                                     -- Adrenaline Rush
-    { "focus", "cast", "A held breath", { 14177, 14183, 14185 } },                       -- Cold Blood, Premeditation, Preparation
-    -- Finishers: by the points spent (RG.Rule)
-    { "cut5", "hit", "By the points: a cut to a flurry", { 2098 }, { finisher = "tiers" } },  -- Eviscerate
-    { "betweenEyes", "hit", "By the points", { 400009 }, { finisher = true, ranged = true } },
-    { "kidney", "cast", "By the points", { 408 }, { finisher = true, avoid = true } },
-    { "rupture", "cast", "By the points", { 1943 }, { finisher = true, avoid = true } },
-    { "expose", "cast", "By the points", { 8647 }, { finisher = true, avoid = true } },
-    { "sliceDice", "cast", "By the points", { 5171 }, { finisher = true } },
-    { "crimsonTempest", "cast", "By the points", { 412096 }, { finisher = true } },      -- (rune)
-    { "bladeDance", "cast", "By the points", { 400012 }, { finisher = true } },          -- (rune)
-    -- Quiet by design
-    { nil, "none", "A trick: nothing", { 1966, 1725, 438040 } },                         -- Feint, Distract, Redirect
-    { nil, "none", "Vanish says it", { 14093 } },                                        -- Vanished
-    { nil, "none", "Set off by another: quiet", { 13706, 13977 } },                      -- Hack and Slash, Initiative
-}
+V.AddPatterns(RG.PATTERNS)
 
 ---------------------------------------------------------------------------
--- Combo points: the points a finisher spends. The client may drop them to 0
--- before or after the cast's news: the last count, if it dropped just now.
+-- Finishers: by the points spent (ComboPoints.lua: read as the spell was sent).
+-- Eviscerate one cut, a cross cut, a flurry; the others by strength.
 ---------------------------------------------------------------------------
-RG.SPENT_WINDOW = 0.6
-local points = { now = 0, before = 0, droppedAt = -math.huge }
-RG.points = points
-local function Read()
-    local n
-    if GetComboPoints then
-        local ok, v = pcall(GetComboPoints, "player", "target")
-        if ok and not CF.secret(v) then n = v end
-    end
-    if n == nil and UnitPower then
-        local ok, v = pcall(UnitPower, "player", 4)
-        if ok and not CF.secret(v) then n = v end
-    end
-    return type(n) == "number" and n or nil
-end
-function RG.PointsChanged()
-    local n = Read()
-    if not n then return end
-    if n < points.now then points.before, points.droppedAt = points.now, CF.Now() end
-    points.now = n
-end
--- The points a finisher used now (0: none known): as you sent it (UNIT_SPELLCAST_SENT, before
--- the client spends them), else the count now, else the count before a drop just now
-RG.SENT_WINDOW = 1
-function RG.Spent()
-    if CF.Now() - (points.sentAt or -math.huge) <= RG.SENT_WINDOW and (points.sent or 0) > 0 then return points.sent end
-    local n = Read() or points.now
-    if n > 0 then return n end
-    if CF.Now() - points.droppedAt <= RG.SPENT_WINDOW then return points.before end
-    return 0
-end
--- Eviscerate's cut by the points, the others' volume (nothing known: as designed)
+local function Spent() return ns.Combo and ns.Combo.Spent() or 0 end
+local function Points() return ns.Combo and ns.Combo.Scale() or 1 end
 RG.TIERS = { "cut1", "cut1", "cut3", "cut3", "cut5" }
-function RG.Gain(n) return math.min(1, 0.55 + 0.09 * n) end
-function RG.Rule(_, _, r)
-    if not r.finisher then return end
-    local n = RG.Spent()
-    if n <= 0 then return end
-    if r.finisher == "tiers" then
-        r.move = RG.TIERS[math.min(n, #RG.TIERS)]
-    else
-        r.volume = math.min(r.volume or 1, RG.Gain(n))
-    end
-    r.why = r.why .. " (" .. n .. ")"
+function RG.Cut()
+    local n = Spent()
+    if n <= 0 then return "cut5" end
+    return RG.TIERS[math.min(n, #RG.TIERS)]
 end
 
 ---------------------------------------------------------------------------
@@ -245,70 +151,122 @@ RG.hidden = hidden
 local function Stealthed()
     if IsStealthed then
         local ok, v = pcall(IsStealthed)
-        if ok and not CF.secret(v) then return v and true or false end
+        if ok and not secret(v) then return v and true or false end
     end
     return hidden.on
 end
+local function Rogue()
+    if not UnitClass then return false end
+    local _, class = UnitClass("player")
+    return not secret(class) and class == "ROGUE"
+end
+local STEALTH = 1784
 local function Emerge(left)
     if math.abs(hidden.cast - left) <= RG.OPENER_SAYS or hidden.on then return end
-    CF.Play(CF.SpellName(1784), "emerge")
+    V.instantMove = "emerge"
+    V.FireAs(SpellName(STEALTH), "instant")
 end
 function RG.StealthChanged()
     local on = Stealthed()
     if on == hidden.on then return end
     hidden.on = on
-    if on then hidden.at = CF.Now(); return end
-    if CF.Class() ~= "ROGUE" then return end
-    local left = CF.Now()
+    if on then hidden.at = Now(); return end
+    if not Rogue() then return end
+    local left = Now()
     if C_Timer and C_Timer.After then C_Timer.After(RG.EMERGE_AFTER, function() Emerge(left) end) else Emerge(left) end
 end
+-- (Stealth cast while hidden a while: leaving it, the breath says it)
+function RG.Cloak()
+    if Stealthed() and Now() - hidden.at > 0.3 then return false end
+    return "cloak"
+end
+
+---------------------------------------------------------------------------
+-- A poison on a blade done: Coated (its HD is WoW Helper's, at the release);
+-- a lock picked: it gives
+---------------------------------------------------------------------------
+function RG.Coated()
+    if V.Active and V.Active() and V.Play then V.Play("coated", false) end
+    return true
+end
+function RG.Unlocked()
+    if V.Active and V.Active() and V.Play then V.Play("unlock", false) end
+    return true
+end
+
+---------------------------------------------------------------------------
+-- What each rogue spell plays: V.CLASS_SPELLS.ROGUE (every rank by its name, a rogue's only)
+---------------------------------------------------------------------------
+local function With(e, extra)
+    for k, v in pairs(extra or {}) do e[k] = v end
+    return e
+end
+local function Hit(move, extra) return With({ move = move, when = "hit", melee = true }, extra) end
+local function Cast(move, extra) return With({ move = move, when = "cast" }, extra) end
+local THROWN = { melee = false, ranged = true }
+local function Quiet(why) return { moveOf = function() return false end, why = why } end
+local POISON = { set = "feel:coat", released = RG.Coated }
+local LOCK = { released = RG.Unlocked }
+-- A poison put on a blade (the item's own cast, 3 s; every rank)
+RG.POISONS = { 8679, 8686, 8688, 11338, 11339, 11340, 2823, 2824, 11355, 11356, 25351, 3408, 11202, 5761, 8693, 11399,
+    13219, 13225, 13226, 13227, 439462, 439464, 439465, 458821, 1214171 }
+
+local SPELLS = {
+    -- In and out of sight (leaving Stealth: RG.StealthChanged)
+    [1784] = Cast("cloak", { moveOf = RG.Cloak }), [1856] = Cast("vanish"),
+    [400029] = Cast("shadowstep"), [2983] = Cast("sprint"),                   -- Shadowstep (rune), Sprint
+    -- At the weapon's impact
+    [53] = Hit("backstab"), [8676] = Hit("ambush"), [399956] = Hit("mutilate"),
+    [1752] = Hit("stab"), [14278] = Hit("stab"), [16511] = Hit("stab"), [14251] = Hit("stab"), -- Sinister, Ghostly Strike, Hemorrhage, Riposte
+    [1329283] = Hit("stab"), [424919] = Hit("stab"), [399985] = Hit("stab"),  -- Shank, Main Gauche, Shadowstrike
+    [424785] = Hit("slash"), [1776] = Hit("bash"), [1766] = Hit("kick"),      -- Saber Slash, Gouge, Kick
+    -- Thrown: at its landing (Shuriken Toss, Poisoned Knife, Quick Draw)
+    [399986] = Hit("shuriken", THROWN), [425013] = Hit("shuriken", THROWN), [398196] = Hit("shuriken", THROWN),
+    -- Openers and tricks: at the cast (a dodge or a parry of it still shows)
+    [6770] = Cast("sap", { avoidOnly = true }), [1833] = Cast("bash", { avoidOnly = true }),  -- Sap, Cheap Shot
+    [703] = Cast("garrote", { avoidOnly = true }), [2094] = Cast("blind", { avoidOnly = true }),
+    [921] = Cast("pocket"), [424799] = Cast("stab", { avoidOnly = true, scale = function() return 0.6 end }), -- Pick Pocket, Shiv
+    [1316709] = Cast("hex"),                                                  -- Death Mark (Forever)
+    -- Around you
+    [409240] = Cast("fanOfKnives"), [409239] = Cast("fanOfKnives"), [436564] = Cast("blunderbuss"), -- (runes)
+    -- Cooldowns
+    [5277] = Cast("ward"), [13877] = Cast("whirl"), [13750] = Cast("enrage"), -- Evasion, Blade Flurry, Adrenaline Rush
+    [14177] = Cast("coldBlood"), [14183] = Cast("coldBlood"), [14185] = Cast("coldBlood"), -- Cold Blood, Premeditation, Preparation
+    -- Finishers: by the points spent
+    [2098] = Hit("cut5", { moveOf = RG.Cut }),                                -- Eviscerate
+    [400009] = Hit("betweenEyes", { melee = false, ranged = true, scale = Points }),
+    [408] = Cast("kidney", { avoidOnly = true, scale = Points }),
+    [1943] = Cast("rupture", { avoidOnly = true, scale = Points }),
+    [8647] = Cast("expose", { avoidOnly = true, scale = Points }),
+    [5171] = Cast("sliceDice", { scale = Points }),
+    [412096] = Cast("crimsonTempest", { scale = Points }), [400012] = Cast("bladeDance", { scale = Points }), -- (runes)
+    -- Quiet by design
+    [1966] = Quiet("A trick: nothing"), [1725] = Quiet("A trick: nothing"), [438040] = Quiet("A trick: nothing"), -- Feint, Distract, Redirect
+    [14093] = Quiet("Vanish says it"),                                        -- Vanished
+    [13706] = Quiet("Set off by another: quiet"), [13977] = Quiet("Set off by another: quiet"), -- Hack and Slash, Initiative
+    -- A lock picked (Opening's tumbler while it lasts), a trap disarmed: the lock gives
+    [1804] = LOCK, [1842] = { set = "feel:click", released = RG.Unlocked },
+}
+for _, id in ipairs(RG.POISONS) do SPELLS[id] = POISON end
+V.CLASS_SPELLS.ROGUE = SPELLS
+RG.SPELLS = SPELLS
 
 -- (a cast of yours: the opener that broke Stealth says it; Stealth itself is not one)
-local STEALTH = 1784
 local handlers = {}
 RG.handlers = handlers
 handlers.UNIT_SPELLCAST_SUCCEEDED = function(unit, _, spellID)
     if unit ~= "player" then return end
-    if spellID and not CF.secret(spellID) and CF.SpellName(spellID) == CF.SpellName(STEALTH) then return end
-    hidden.cast = CF.Now()
-end
-handlers.UNIT_SPELLCAST_SENT = function(unit)
-    if unit == "player" then points.sent, points.sentAt = Read() or points.now, CF.Now() end
+    if spellID and not secret(spellID) and SpellName(spellID) == SpellName(STEALTH) then return end
+    hidden.cast = Now()
 end
 handlers.UPDATE_STEALTH = function() RG.StealthChanged() end
-handlers.UNIT_POWER_UPDATE = function(unit, kind)
-    if unit == "player" and kind == "COMBO_POINTS" then RG.PointsChanged() end
-end
-handlers.PLAYER_TARGET_CHANGED = function() points.now, points.droppedAt = Read() or 0, -math.huge end
-handlers.PLAYER_ENTERING_WORLD = function() hidden.on = Stealthed(); points.now = Read() or 0 end
-
--- (Stealth cast while hidden a while: leaving it, the breath says it)
-local baseRule = RG.Rule
-function RG.Rule(spellID, name, r)
-    if r.move == "cloak" and Stealthed() and CF.Now() - hidden.at > 0.3 then
-        r.move, r.when, r.why = nil, "none", "Leaving: Out of stealth"
-        return
-    end
-    return baseRule(spellID, name, r)
-end
-
-local Listen
-RG.frame, Listen = CF.Frame(handlers)
-Listen("UNIT_SPELLCAST_SUCCEEDED", "player")
-Listen("UNIT_SPELLCAST_SENT", "player")
-Listen("UPDATE_STEALTH")
-Listen("UNIT_POWER_UPDATE", "player")
-Listen("PLAYER_TARGET_CHANGED")
-Listen("PLAYER_ENTERING_WORLD")
-
----------------------------------------------------------------------------
--- A poison on a blade done: Coated (its HD is WoW Helper's, at the release)
----------------------------------------------------------------------------
-function RG.Released(action)
-    if action ~= "poison" then return false end
-    local V = ns.Rumble
-    if V and V.Active and V.Active() and V.Play then V.Play("coated", false) end
-    return true
-end
-
-CF.Register(RG)
+handlers.PLAYER_ENTERING_WORLD = function() hidden.on = Stealthed() end
+local frame = CreateFrame("Frame")
+RG.frame = frame
+pcall(frame.RegisterUnitEvent, frame, "UNIT_SPELLCAST_SUCCEEDED", "player")
+pcall(frame.RegisterEvent, frame, "UPDATE_STEALTH")
+pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")
+frame:SetScript("OnEvent", function(_, event, ...)
+    local h = handlers[event]
+    if h then h(...) end
+end)

@@ -206,8 +206,8 @@ CraftFrame, ProfessionsFrame = false, false
 CombatLogGetCurrentEventInfo = false
 
 -- The addon, the class files with it (before Rumble.lua, as the TOC loads them)
-for _, file in ipairs({ "Model.lua", "Shared.lua", "When.lua", "OptionsSkin.lua", "Window.lua", "ClassFeels.lua",
-    "Warrior.lua", "Rogue.lua", "Rumble.lua", "Haptics.lua", "Timing.lua", "Volume.lua", "SpellOverrides.lua",
+for _, file in ipairs({ "Model.lua", "Shared.lua", "When.lua", "OptionsSkin.lua", "Window.lua", "Rumble.lua",
+    "ComboPoints.lua", "Forms.lua", "Shaman.lua", "Druid.lua", "Warrior.lua", "Rogue.lua", "Haptics.lua", "Timing.lua", "Volume.lua", "SpellOverrides.lua",
     "HapticsLab.lua", "HelperLink.lua", "Stack.lua", "Hush.lua", "LightPresets.lua", "Lights.lua", "HelperCues.lua",
     "Hunter.lua", "FullFeel.lua", "Profiles.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
@@ -215,7 +215,7 @@ end
 for _, f in ipairs(created) do
     if f.events and f.events.ADDON_LOADED and f.scripts.OnEvent then f.scripts.OnEvent(f, "ADDON_LOADED", "GamepadCompanion") end
 end
-T.ns, T.V, T.L, T.H, T.CF = ns, ns.Rumble, ns.HapticsLab, ns.Haptics, ns.ClassFeels
+T.ns, T.V, T.L, T.H = ns, ns.Rumble, ns.HapticsLab, ns.Haptics
 
 -- What a rule plays, in the fixture's words
 function T.Plays(r)
@@ -257,7 +257,7 @@ function T.Coverage(class, report)
             WowHelperData = { at = "test", spellKinds = kinds }
         end
         for _, s in ipairs(SPELLS) do
-            local craft, gather = s.want:match("^craft (%a+)"), s.want:match("^gather (%a+)")
+            local craft, gather = s.want == "craft", s.want:match("^gather")
             game.trade = craft and "Poisons" or nil
             local r = RuleAsCast(s)
             local got = T.Plays(r)
@@ -275,6 +275,9 @@ function T.Coverage(class, report)
             if r and r.moment == "spell" then
                 local found = false
                 for _, p in ipairs(V.CAST_PRESETS) do if p.key == r.set then found = true end end
+                -- (any feel as a set: "feel:<pattern>")
+                local feel = tostring(r.set):match("^feel:(.+)$")
+                if feel and V.PULSES[feel] then found = true end
                 T.check(found, s.name .. ": its set " .. tostring(r.set) .. " exists")
             end
             if pass == 1 and report then io.write(string.format("%-8d %-28s %s\n", s.id, s.name, got)) end

@@ -1,20 +1,27 @@
 -- A warrior's feels (the warrior pass, 2026-11-20; docs/WARRIOR-ROGUE.md): what each warrior
--- spell plays, its own patterns, Slam's wind-up and its blow, Charge's run and its crash.
--- Loaded before Rumble.lua (ClassFeels.lua registers it there). tests/Warrior.lua lists every
--- warrior spell of the client and what it plays.
+-- spell plays (Rumble's V.CLASS_SPELLS.WARRIOR, as V.MAGE), its own patterns, Slam's wind-up and
+-- its blow, Charge's run and its crash. Loaded right after Rumble.lua. tests/Warrior.lua lists
+-- every warrior spell of the client and what it plays.
 --
 -- Materials: steel on steel and on bodies, a shield's wood and iron boss, boots on the ground,
--- the chest of a shout. Blows land at the weapon's impact (Rumble's AbilityResult), never at the
--- press; area blows are several bodies, one after another, never one blob.
+-- the chest of a shout. Blows land at the weapon's impact (Rumble's AbilityResult, melee), never
+-- at the press; area blows are several bodies, one after another, never one blob.
 local _, ns = ...
-local CF = ns.ClassFeels
-local WR = { class = "WARRIOR", ENGRAVE = true }
+local V = ns.Rumble
+if not V or not V.AddPatterns then return end
+local WR = {}
 ns.Warrior = WR
 
+local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
+local function Now() return GetTime and GetTime() or 0 end
+local function SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    return GetSpellInfo and (GetSpellInfo(id))
+end
 local function Pu(t, len, s, side) return { t, len, s, side or 0 } end
 
--- Patterns (Rumble adds them, the Lab's library as "r_" + key, WoW Helper crafts their HD):
--- steps for the plain engine (each 0.1 s or more), pulses for the Beta engine.
+-- Patterns (Rumble's V.AddPatterns: the Lab's library as "r_" + key, WoW Helper crafts their
+-- HD): steps for the plain engine (each 0.1 s or more), pulses for the Beta engine.
 WR.PATTERNS = {
     -- Stances: a change of footing, faint
     { key = "stanceBattle", label = "Battle Stance", art = "slash", move = true,        -- feet set, the grip closing
@@ -83,75 +90,70 @@ WR.PATTERNS = {
         pulses = { cycle = 0.8, Pu(0, 0.1, 0.05), Pu(0.4, 0.05, 0.08) } },
 }
 
--- Slam: its own cast set (its release waits for the blow, WR.Released)
-WR.SLAM = { 1464, 8820, 11604, 11605, 1240193 }
-WR.CAST_ACTIONS = {
-    { key = "slam", label = "Slam", kind = "spell", pattern = "windup", spells = WR.SLAM },
-}
+V.AddPatterns(WR.PATTERNS)
 
--- What each warrior spell plays (ClassFeels.lua's rows). Any rank's ID: every rank shares a name.
-WR.RULES = {
-    -- Stances (Gladiator Stance: Forever's rune)
-    { "stanceBattle", "cast", "Weight forward", { 2457, 412513 } },
-    { "stanceDefensive", "cast", "Shield up", { 71 } },
-    { "stanceBerserker", "cast", "Blood up", { 2458 } },
-    -- The run; the crash as you reach it (the stun on the target, WR.Arrived)
-    { "rush", "cast", "The run, then the crash", { 100, 20252 } },                       -- Charge, Intercept
-    -- At the weapon's impact
-    { "mortal", "hit", "A deep gash", { 12294, 23881 } },                                -- Mortal Strike, Bloodthirst
-    { "overpower", "hit", "Two quick cuts", { 7384, 402911 } },                          -- Overpower, Raging Blow
-    { "execute", "hit", "The finishing chop", { 20647 } },
-    { "whirlwind", "hit", "Round you, body by body", { 1680 } },
-    { "cleaveArc", "hit", "Two bodies, one swing", { 845 } },                            -- (on the next swing)
-    -- Heroic Strike (next swing), Mocking Blow, Revenge, Quick Strike, Victory Rush, Devastate
-    { "slash", "hit", "Known: Slash", { 78, 694, 6572, 429765, 402927, 403196 } },
-    { "stab", "hit", "A spear's thrust", { 1310222 } },                                  -- Spearing Strike (Forever)
-    { "rend", "hit", "Known: Rend", { 1715 } },                                          -- Hamstring
-    { "shieldBash", "hit", "Wood and iron", { 72, 23922 } },                             -- Shield Bash, Shield Slam
-    { "bash", "hit", "A fist", { 6552 } },                                               -- Pummel
-    -- Around you, at the cast (no flight, nothing to wait for)
-    { "slam", "cast", "The ground struck", { 6343, 440488 } },                           -- Thunder Clap, Shockwave
-    -- No blow of their own: at the cast (a dodge or a parry of it still shows)
-    { "bash", "cast", "A stun", { 12809 }, { avoid = true } },                           -- Concussion Blow
-    { "disarm", "cast", "Wrenched away", { 676 }, { avoid = true } },
-    { "hook", "cast", "Thrown, caught, yanked", { 403228 }, { avoid = true } },          -- Meathook (Forever)
-    -- Shouts: the big ones full, the buffs (cast often) fainter
-    { "shout", "cast", "A shout", { 1161, 5246, 1160, 12323, 426490 } },                -- Challenging, Intimidating, Demoralizing, Piercing Howl, Rallying Cry
-    { "shout", "cast", "A shout, faint", { 6673, 403215, 461475 }, { volume = 0.6 } },  -- Battle, Commanding Shout, Valor of Azeroth
-    -- Cooldowns
-    { "enrage", "cast", "Blood pounding", { 2687, 18499, 12328, 1719, 426940 } },       -- Bloodrage, Berserker Rage, Death Wish, Recklessness, Rampage
-    { "secondWind", "cast", "A deep breath", { 12975, 402913 } },                        -- Last Stand, Enraged Regeneration
-    { "brace", "cast", "Shield set", { 871 } },                                          -- Shield Wall
-    { "brace", "cast", "Shield set, faint", { 2565 }, { volume = 0.7 } },                -- Shield Block (often)
-    { "ward", "cast", "Blades ready", { 20230 } },                                       -- Retaliation
-    { "whirl", "cast", "Known: Whirl", { 12292 } },                                      -- Sweeping Strikes
-    -- Quiet by design
-    { nil, "none", "A debuff: nothing", { 772, 7386 } },                                 -- Rend, Sunder Armor
-    { nil, "none", "A single taunt: nothing", { 355 } },
-    -- (set off by another: Charge's rage, procs and talents)
-    { nil, "none", "Set off by another: quiet", { 12695, 12705, 12966, 12281, 12964, 1329555 } },
-}
--- Set off by another, though named as a spell you cast: by its ID (Sweeping Strikes' extra blow)
-WR.QUIET_IDS = { [12723] = true }
-
-function WR.Rule(spellID, _, r)
-    if spellID and not CF.secret(spellID) and WR.QUIET_IDS[spellID] then
-        r.move, r.when, r.why = nil, "none", "Set off by another: quiet"
-    end
+---------------------------------------------------------------------------
+-- What each warrior spell plays: V.CLASS_SPELLS.WARRIOR (every rank by its name, a warrior's
+-- only). melee: timed at the weapon's impact; avoidOnly: no blow of its own (a dodge of it
+-- still shows); scale: its strength now.
+---------------------------------------------------------------------------
+local function With(e, extra)
+    for k, v in pairs(extra or {}) do e[k] = v end
+    return e
 end
+local function Hit(move, extra) return With({ move = move, when = "hit", melee = true }, extra) end
+local function Cast(move, extra) return With({ move = move, when = "cast" }, extra) end
+local function Faint(g) return function() return g end end
+-- (quiet by design, by its ID: Sweeping Strikes' extra blow is named as the cast)
+local function Quiet(why) return { moveOf = function() return false end, why = why } end
 
----------------------------------------------------------------------------
--- Slam: its release opens the blow's window, felt at the weapon's impact
----------------------------------------------------------------------------
-function WR.Released(action, spellID)
-    if action ~= "slam" then return false end
-    local V = ns.Rumble
-    if V and V.AbilityCast then
+-- Slam: a wind-up loop while cast; its release opens the blow's window (at the weapon's impact)
+function WR.SlamReleased(spellID)
+    if V.AbilityCast then
         V.AbilityCast("slamHit", spellID, nil, { melee = true },
-            { volume = 1, name = spellID and not CF.secret(spellID) and CF.SpellName(spellID) or nil })
+            { volume = 1, name = spellID and not secret(spellID) and SpellName(spellID) or nil })
     end
     return true
 end
+local SLAM = { set = "feel:windup", released = WR.SlamReleased }
+
+local SPELLS = {
+    -- Stances (Gladiator Stance: Forever's rune)
+    [2457] = Cast("stanceBattle"), [412513] = Cast("stanceBattle"),
+    [71] = Cast("stanceDefensive"), [2458] = Cast("stanceBerserker"),
+    -- The run; the crash as you reach it (the stun on the target, WR.Arrived)
+    [100] = Cast("rush"), [20252] = Cast("rush"),                             -- Charge, Intercept
+    -- At the weapon's impact
+    [12294] = Hit("mortal"), [23881] = Hit("mortal"),                         -- Mortal Strike, Bloodthirst
+    [7384] = Hit("overpower"), [402911] = Hit("overpower"),                   -- Overpower, Raging Blow
+    [20647] = Hit("execute"), [1680] = Hit("whirlwind"),
+    [845] = Hit("cleaveArc"), [78] = Hit("slash"),                            -- Cleave, Heroic Strike (next swing)
+    [694] = Hit("slash"), [6572] = Hit("slash"), [429765] = Hit("slash"),     -- Mocking Blow, Revenge, Quick Strike
+    [402927] = Hit("slash"), [403196] = Hit("slash"),                         -- Victory Rush, Devastate
+    [1310222] = Hit("stab"), [1715] = Hit("rend"),                            -- Spearing Strike (Forever), Hamstring
+    [72] = Hit("shieldBash"), [23922] = Hit("shieldBash"), [6552] = Hit("bash"), -- Shield Bash, Shield Slam, Pummel
+    -- Around you, at the cast (no flight, nothing to wait for)
+    [6343] = Cast("slam"), [440488] = Cast("slam"),                           -- Thunder Clap, Shockwave
+    -- No blow of their own: at the cast
+    [12809] = Cast("bash", { avoidOnly = true }), [676] = Cast("disarm", { avoidOnly = true }),
+    [403228] = Cast("hook", { avoidOnly = true }),                            -- Concussion Blow, Disarm, Meathook
+    -- Shouts: the big ones full, the buffs (cast often) fainter
+    [1161] = Cast("shout"), [5246] = Cast("shout"), [1160] = Cast("shout"), [12323] = Cast("shout"), [426490] = Cast("shout"),
+    [6673] = Cast("shout", { scale = Faint(0.6) }), [403215] = Cast("shout", { scale = Faint(0.6) }),
+    [461475] = Cast("shout", { scale = Faint(0.6) }),                         -- Battle, Commanding Shout, Valor of Azeroth
+    -- Cooldowns
+    [2687] = Cast("enrage"), [18499] = Cast("enrage"), [12328] = Cast("enrage"), [1719] = Cast("enrage"),
+    [426940] = Cast("enrage"),                                                -- Bloodrage, Berserker Rage, Death Wish, Recklessness, Rampage
+    [12975] = Cast("secondWind"), [402913] = Cast("secondWind"),              -- Last Stand, Enraged Regeneration
+    [871] = Cast("brace"), [2565] = Cast("brace", { scale = Faint(0.7) }),    -- Shield Wall, Shield Block (often)
+    [20230] = Cast("ward"), [12292] = Cast("whirl"),                          -- Retaliation, Sweeping Strikes
+    [12723] = Quiet("Set off by another: quiet"),                             -- (Sweeping Strikes' extra blow)
+    [12705] = Quiet("Set off by another: quiet"),                             -- Long Daze (Charge's)
+    -- Slam: its own wind-up
+    [1464] = SLAM, [1240193] = SLAM,
+}
+V.CLASS_SPELLS.WARRIOR = SPELLS
+WR.SPELLS = SPELLS
 
 ---------------------------------------------------------------------------
 -- Charge, Intercept: the crash as you reach the target (its stun on it, from
@@ -168,51 +170,53 @@ local function NamesOf(ids)
     if named[ids] then return named[ids] end
     local t, full = {}, true
     for _, id in ipairs(ids) do
-        local n = CF.SpellName(id)
-        if n and not CF.secret(n) then t[n] = true else full = false end
+        local n = SpellName(id)
+        if n and not secret(n) then t[n] = true else full = false end
     end
     if full then named[ids] = t end
     return t
 end
 local function IsStun(id, name)
-    if id and not CF.secret(id) then
+    if id and not secret(id) then
         for _, sid in ipairs(WR.STUNS) do if sid == id then return true end end
     end
-    return name ~= nil and not CF.secret(name) and NamesOf(WR.STUNS)[name] == true
+    return name ~= nil and not secret(name) and NamesOf(WR.STUNS)[name] == true
 end
 
--- (Intercept wounds as it stuns: its wound may say it too)
-function WR.SetOff(name)
-    charging.at, charging.name = CF.Now(), name
-    charging.wounds = name == CF.SpellName(CHARGES[2])
-end
+function WR.SetOff(name) charging.at, charging.name = Now(), name end
 function WR.Arrived()
-    if CF.Now() - charging.at > WR.CHARGE_MAX then return false end
-    local name = charging.name
+    if Now() - charging.at > WR.CHARGE_MAX then return false end
     charging.at = -math.huge
-    CF.Play(name, "crash")
+    V.instantMove = "crash"
+    V.FireAs(charging.name, "instant")
     return true
+end
+
+local function Warrior()
+    if not UnitClass then return false end
+    local _, class = UnitClass("player")
+    return not secret(class) and class == "WARRIOR"
 end
 
 local handlers = {}
 WR.handlers = handlers
 handlers.UNIT_SPELLCAST_SUCCEEDED = function(unit, _, spellID)
-    if unit ~= "player" or not spellID or CF.secret(spellID) or CF.Class() ~= "WARRIOR" then return end
-    local name = CF.SpellName(spellID)
-    if name and not CF.secret(name) and NamesOf(CHARGES)[name] then WR.SetOff(name) end
+    if unit ~= "player" or not spellID or secret(spellID) or not Warrior() then return end
+    local name = SpellName(spellID)
+    if name and not secret(name) and NamesOf(CHARGES)[name] then WR.SetOff(name) end
 end
 -- (the stun, from you, newly on the target)
 handlers.UNIT_AURA = function(unit, info)
-    if unit ~= "target" or CF.Now() - charging.at > WR.CHARGE_MAX then return end
+    if unit ~= "target" or Now() - charging.at > WR.CHARGE_MAX then return end
     if type(info) == "table" and not info.isFullUpdate and type(info.addedAuras) == "table" then
         for _, a in ipairs(info.addedAuras) do
             local from = a.sourceUnit
-            local mine = from == nil or CF.secret(from) or from == "player"
+            local mine = from == nil or secret(from) or from == "player"
             if mine and IsStun(a.spellId, a.name) then WR.Arrived(); return end
         end
         return
     end
-    -- (no list of what was added: the stun there now)
+    -- (no list of what was added: the stun there now, yours)
     local get = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
     if not get then return end
     for i = 1, 40 do
@@ -221,14 +225,11 @@ handlers.UNIT_AURA = function(unit, info)
         if IsStun(a.spellId, a.name) then WR.Arrived(); return end
     end
 end
--- (Intercept's own wound, should its stun not show: the crash all the same)
-handlers.UNIT_COMBAT = function(unit, action)
-    if unit == "target" and charging.wounds and not CF.secret(action) and action == "WOUND" then WR.Arrived() end
-end
-local Listen
-WR.frame, Listen = CF.Frame(handlers)
-Listen("UNIT_SPELLCAST_SUCCEEDED", "player")
-Listen("UNIT_AURA")
-Listen("UNIT_COMBAT", "target")
-
-CF.Register(WR)
+local frame = CreateFrame("Frame")
+WR.frame = frame
+pcall(frame.RegisterUnitEvent, frame, "UNIT_SPELLCAST_SUCCEEDED", "player")
+pcall(frame.RegisterUnitEvent, frame, "UNIT_AURA", "target")
+frame:SetScript("OnEvent", function(_, event, ...)
+    local h = handlers[event]
+    if h then h(...) end
+end)

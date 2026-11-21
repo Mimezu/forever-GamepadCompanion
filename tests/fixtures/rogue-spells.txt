@@ -10,7 +10,7 @@
 11268	Ambush	Assassination	1	0	0	0	h		instant ambush hit
 11269	Ambush	Assassination	1	0	0	0	h		instant ambush hit
 1833	Cheap Shot	Assassination	1	0	0	0	nc		instant bash cast
-14177	Cold Blood	Assassination	1	0	0	1			instant focus cast
+14177	Cold Blood	Assassination	1	0	0	1			instant coldBlood cast
 2098	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
 6760	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
 6761	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
@@ -128,47 +128,47 @@
 400099	Engrave Pants - Blade Dance	Engraving	1	3000	0	1			cast enchanting
 400102	Engrave Pants - Envenom	Engraving	1	3000	0	1			cast enchanting
 400104	Engrave Pants - Shadowstep	Engraving	1	3000	0	1			cast enchanting
-1804	Pick Lock	Lockpicking	1	5000	0	1			gather lockpicking
-439503	Atrophic Poison	Poisons	1	3000	0	1			craft poisons
-6510	Blinding Powder	Poisons	1	3000	0	1			craft poisons
-3420	Crippling Poison	Poisons	1	3000	0	1			craft poisons
-3421	Crippling Poison II	Poisons	1	3000	0	1			craft poisons
-2835	Deadly Poison	Poisons	1	3000	0	1			craft poisons
-2837	Deadly Poison II	Poisons	1	3000	0	1			craft poisons
-11357	Deadly Poison III	Poisons	1	3000	0	1			craft poisons
-11358	Deadly Poison IV	Poisons	1	3000	0	1			craft poisons
-25347	Deadly Poison V	Poisons	1	3000	0	1			craft poisons
-8681	Instant Poison	Poisons	1	3000	0	1			craft poisons
-8687	Instant Poison II	Poisons	1	3000	0	1			craft poisons
-8691	Instant Poison III	Poisons	1	3000	0	1			craft poisons
-11341	Instant Poison IV	Poisons	1	3000	0	1			craft poisons
-11342	Instant Poison V	Poisons	1	3000	0	1			craft poisons
-11343	Instant Poison VI	Poisons	1	3000	0	1			craft poisons
-5763	Mind-numbing Poison	Poisons	1	3000	0	1			craft poisons
-8694	Mind-numbing Poison II	Poisons	1	3000	0	1			craft poisons
-11400	Mind-numbing Poison III	Poisons	1	3000	0	1			craft poisons
-439505	Numbing Poison	Poisons	1	3000	0	1			craft poisons
-458822	Occult Poison I	Poisons	1	3000	0	1			craft poisons
-1214168	Occult Poison II	Poisons	1	3000	0	1			craft poisons
+1804	Pick Lock	Lockpicking	1	5000	0	1			gather opening
+439503	Atrophic Poison	Poisons	1	3000	0	1			craft
+6510	Blinding Powder	Poisons	1	3000	0	1			craft
+3420	Crippling Poison	Poisons	1	3000	0	1			craft
+3421	Crippling Poison II	Poisons	1	3000	0	1			craft
+2835	Deadly Poison	Poisons	1	3000	0	1			craft
+2837	Deadly Poison II	Poisons	1	3000	0	1			craft
+11357	Deadly Poison III	Poisons	1	3000	0	1			craft
+11358	Deadly Poison IV	Poisons	1	3000	0	1			craft
+25347	Deadly Poison V	Poisons	1	3000	0	1			craft
+8681	Instant Poison	Poisons	1	3000	0	1			craft
+8687	Instant Poison II	Poisons	1	3000	0	1			craft
+8691	Instant Poison III	Poisons	1	3000	0	1			craft
+11341	Instant Poison IV	Poisons	1	3000	0	1			craft
+11342	Instant Poison V	Poisons	1	3000	0	1			craft
+11343	Instant Poison VI	Poisons	1	3000	0	1			craft
+5763	Mind-numbing Poison	Poisons	1	3000	0	1			craft
+8694	Mind-numbing Poison II	Poisons	1	3000	0	1			craft
+11400	Mind-numbing Poison III	Poisons	1	3000	0	1			craft
+439505	Numbing Poison	Poisons	1	3000	0	1			craft
+458822	Occult Poison I	Poisons	1	3000	0	1			craft
+1214168	Occult Poison II	Poisons	1	3000	0	1			craft
 2842	Poisons	Poisons	1	0	0	1			quiet
-439500	Sebacious Poison	Poisons	1	3000	0	1			craft poisons
-13220	Wound Poison	Poisons	1	3000	0	1			craft poisons
-13228	Wound Poison II	Poisons	1	3000	0	1			craft poisons
-13229	Wound Poison III	Poisons	1	3000	0	1			craft poisons
-13230	Wound Poison IV	Poisons	1	3000	0	1			craft poisons
+439500	Sebacious Poison	Poisons	1	3000	0	1			craft
+13220	Wound Poison	Poisons	1	3000	0	1			craft
+13228	Wound Poison II	Poisons	1	3000	0	1			craft
+13229	Wound Poison III	Poisons	1	3000	0	1			craft
+13230	Wound Poison IV	Poisons	1	3000	0	1			craft
 2094	Blind	Subtlety	8	0	0	0	nc		instant blind cast
 1316709	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
 1325756	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
 1325757	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
 1325758	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
-1842	Disarm Trap	Subtlety	1	2000	0	1			gather lockpicking
+1842	Disarm Trap	Subtlety	1	2000	0	1			cast feel:click
 1725	Distract	Subtlety	1	0	0	0	nd		quiet
 14278	Ghostly Strike	Subtlety	1	0	0	0	h		instant stab hit
 16511	Hemorrhage	Subtlety	1	0	0	0	h		instant stab hit
 13977	Initiative	Subtlety	1	0	0	0			quiet
 921	Pick Pocket	Subtlety	1	0	0	0	nd		instant pocket cast
-14183	Premeditation	Subtlety	1	0	0	0			instant focus cast
-14185	Preparation	Subtlety	1	0	0	1			instant focus cast
+14183	Premeditation	Subtlety	1	0	0	0			instant coldBlood cast
+14185	Preparation	Subtlety	1	0	0	1			instant coldBlood cast
 438040	Redirect	Subtlety	1	0	0	0			quiet
 6770	Sap	Subtlety	1	0	0	0	nc		instant sap cast
 2070	Sap	Subtlety	1	0	0	0	nc		instant sap cast
@@ -187,31 +187,31 @@
 409240	Fan of Knives	Rune	1	0	0	0			instant fanOfKnives cast
 412096	Crimson Tempest	Rune	1	0	0	0			instant crimsonTempest cast
 436564	Blunderbuss	Rune	1	0	0	0			instant blunderbuss cast
-8679	Instant Poison	Poison on a blade	1	3000	0	1			cast poison
-8686	Instant Poison II	Poison on a blade	1	3000	0	1			cast poison
-8688	Instant Poison III	Poison on a blade	1	3000	0	1			cast poison
-11338	Instant Poison IV	Poison on a blade	1	3000	0	1			cast poison
-11339	Instant Poison V	Poison on a blade	1	3000	0	1			cast poison
-11340	Instant Poison VI	Poison on a blade	1	3000	0	1			cast poison
-2823	Deadly Poison	Poison on a blade	1	3000	0	1			cast poison
-2824	Deadly Poison II	Poison on a blade	1	3000	0	1			cast poison
-11355	Deadly Poison III	Poison on a blade	1	3000	0	1			cast poison
-11356	Deadly Poison IV	Poison on a blade	1	3000	0	1			cast poison
-25351	Deadly Poison V	Poison on a blade	1	3000	0	1			cast poison
-3408	Crippling Poison	Poison on a blade	1	3000	0	1			cast poison
-11202	Crippling Poison II	Poison on a blade	1	3000	0	1			cast poison
-5761	Mind-numbing Poison	Poison on a blade	1	3000	0	1			cast poison
-8693	Mind-numbing Poison II	Poison on a blade	1	3000	0	1			cast poison
-11399	Mind-numbing Poison III	Poison on a blade	1	3000	0	1			cast poison
-13219	Wound Poison	Poison on a blade	1	3000	0	1			cast poison
-13225	Wound Poison II	Poison on a blade	1	3000	0	1			cast poison
-13226	Wound Poison III	Poison on a blade	1	3000	0	1			cast poison
-13227	Wound Poison IV	Poison on a blade	1	3000	0	1			cast poison
-439462	Sebacious Poison	Poison on a blade	1	3000	0	1			cast poison
-439464	Numbing Poison	Poison on a blade	1	3000	0	1			cast poison
-439465	Atrophic Poison	Poison on a blade	1	3000	0	1			cast poison
-458821	Occult Poison I	Poison on a blade	1	3000	0	1			cast poison
-1214171	Occult Poison II	Poison on a blade	1	3000	0	1			cast poison
+8679	Instant Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+8686	Instant Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+8688	Instant Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+11338	Instant Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+11339	Instant Poison V	Poison on a blade	1	3000	0	1			cast feel:coat
+11340	Instant Poison VI	Poison on a blade	1	3000	0	1			cast feel:coat
+2823	Deadly Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+2824	Deadly Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+11355	Deadly Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+11356	Deadly Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+25351	Deadly Poison V	Poison on a blade	1	3000	0	1			cast feel:coat
+3408	Crippling Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+11202	Crippling Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+5761	Mind-numbing Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+8693	Mind-numbing Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+11399	Mind-numbing Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+13219	Wound Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+13225	Wound Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+13226	Wound Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+13227	Wound Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+439462	Sebacious Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+439464	Numbing Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+439465	Atrophic Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+458821	Occult Poison I	Poison on a blade	1	3000	0	1			cast feel:coat
+1214171	Occult Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
 2480	Shoot Bow	Ranged	1	0	0	0			shot
 7918	Shoot Gun	Ranged	1	0	0	0			shot
 7919	Shoot Crossbow	Ranged	1	0	0	0			shot

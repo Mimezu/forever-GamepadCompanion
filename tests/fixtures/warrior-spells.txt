@@ -131,11 +131,11 @@
 402911	Raging Blow	Fury	1	0	0	0	h		instant overpower hit
 1329555	Reckless Swings	Fury	1	0	0	1			quiet
 1719	Recklessness	Fury	1	0	0	1			instant enrage cast
-1240193	Slam	Fury	1	1500	0	0	h		cast slam
-1464	Slam	Fury	1	1500	0	0	h		cast slam
-8820	Slam	Fury	1	1500	0	0	h		cast slam
-11604	Slam	Fury	1	1500	0	0	h		cast slam
-11605	Slam	Fury	1	1500	0	0	h		cast slam
+1240193	Slam	Fury	1	1500	0	0	h		cast feel:windup
+1464	Slam	Fury	1	1500	0	0	h		cast feel:windup
+8820	Slam	Fury	1	1500	0	0	h		cast feel:windup
+11604	Slam	Fury	1	1500	0	0	h		cast feel:windup
+11605	Slam	Fury	1	1500	0	0	h		cast feel:windup
 12964	Unbridled Wrath	Fury	1	0	0	1			quiet
 1680	Whirlwind	Fury	1	0	0	0	ha		instant whirlwind hit
 2687	Bloodrage	Protection	1	0	0	1			instant enrage cast
