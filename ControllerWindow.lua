@@ -128,8 +128,8 @@ local function PlaceOnSlot(storage, action)
     local kind, value = action:match("^(%a+):(.+)$")
     Call(ClearCursor)
     local spell = kind == "spell" and tonumber(value)
-    -- (a spell picked follows its ranks: its highest known; SpellRanks.lua)
-    if spell and ns.SpellRanks then spell = ns.SpellRanks.Highest(spell) or spell end
+    -- (a spell picked goes on at its top rank, which follows; SpellRanks.lua)
+    if spell and ns.SpellRanks then spell = ns.SpellRanks.Higher(spell) or spell end
     if spell then Call(C_Spell and C_Spell.PickupSpell or PickupSpell, spell)
     elseif kind == "item" then Call(C_Item and C_Item.PickupItem or PickupItem, tonumber(value))
     elseif kind == "macro" then Call(PickupMacro, value)
@@ -141,7 +141,6 @@ local function PlaceOnSlot(storage, action)
     if not (GetCursorInfo and GetCursorInfo()) then return end
     ns.GamepadSlotDrop({ slot = storage })
     Call(ClearCursor)   -- (the action it replaced)
-    if spell and ns.SpellRanks then ns.SpellRanks.Set(storage, nil) end
     ns.SlotMacros.SweepSoon()
 end
 
@@ -587,8 +586,9 @@ local function RefreshEditor(target)
     ed.icon:EnableMouse(editable)
 end
 
--- Rank: a spell slot follows every rank you train (Highest), or keeps one.
--- Left / right (the pad, the arrows, the wheel) step Rank 1 .. Highest.
+-- Rank: a spell slot at its top rank follows every rank you train (Highest);
+-- a lower rank stays. Left / right (the pad, the arrows, the wheel) step
+-- Rank 1 .. Highest.
 local function SlotStorage()
     return selected.kind == "slot" and not C.Fixed(Layer(), selected.slot) and Storage(Layer(), selected.slot) or nil
 end

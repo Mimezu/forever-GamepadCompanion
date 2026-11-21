@@ -1,23 +1,30 @@
--- Spell ranks on the pad's bar slots: a spell follows every rank you train
--- ("Highest", the default), unless its slot is pinned to a rank on purpose.
+-- Spell ranks on the pad's bar slots: a slot holding a spell's top rank
+-- follows it to the next rank you train ("Highest"); a slot holding a lower
+-- rank keeps it ("Rank 2": chosen, whoever put it there).
 --
 -- The gamepad bars are the game's own action slots in the gamepad storage
 -- range (C_GamepadUI.GetFirstGamepadActionStorageSlotIndex). Classic upgrades
 -- ranks on its normal bars when you train; slots in this range keep the old
--- rank (seen in play, not proven in Blizzard's code). So after a spell is
--- learned, and once after login, unpinned spell slots get the highest known
--- rank. Out of combat only (deferred to its end), never with something on
--- the cursor (retried when the cursor is free).
+-- rank (seen in play, not proven in Blizzard's code).
 --
--- Pins: GamepadCompanionCharDB.spellPins[storage slot] = the pinned spell ID.
--- A pin holds only while the slot has that spell; anything else there drops it.
--- A spell dropped on a slot by hand: its highest rank follows (no pin), a
--- lower rank is pinned (you dragged that rank on purpose).
+-- How a slot is told to follow: per character, the top rank known of each
+-- spell at the last pass (GamepadCompanionRanksDB.top["name#icon"], a per-character
+-- saved variable of its own, so Controls profiles never share or copy it).
+-- On a pass, a slot moves up only if it holds that previous top rank and a
+-- higher rank of the same spell is now known. The first pass on a character
+-- only records the top ranks: nothing moves.
+--
+-- Passes: after a spell is learned, and once after login when the bars have
+-- loaded. Out of combat only (deferred to its end), never with something on
+-- the cursor (retried when it is free); the replaced rank never stays on the
+-- cursor. A placement the game refuses is not retried until the spellbook
+-- changes, and its spell's top rank is not moved on (so it is retried then).
 local _, ns = ...
 local R = {}
 ns.SpellRanks = R
 
-local SPAN = 256    -- slots looked at from the first gamepad slot (each checked with the client)
+local SPAN = 256          -- slots looked at from the first gamepad slot (each checked with the client)
+local BAR_TRIES = 30      -- login: seconds to wait for the bars to hold anything
 
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
@@ -28,14 +35,16 @@ end
 local function InCombat() return InCombatLockdown and InCombatLockdown() and true or false end
 local function Cursor() return GetCursorInfo and GetCursorInfo() ~= nil end
 
-local function Pins()
-    local db = ns.Shared.CharDB()
-    if type(db.spellPins) ~= "table" then db.spellPins = {} end
-    return db.spellPins
+-- Per character, never in a Controls profile
+local function DB()
+    if type(GamepadCompanionRanksDB) ~= "table" then GamepadCompanionRanksDB = { version = 1 } end
+    local db = GamepadCompanionRanksDB
+    if type(db.top) ~= "table" then db.top = {} end
+    return db
 end
-R.Pins = Pins
+R.DB = DB
 
--- Spellbook ------------------------------------------------------------------------
+-- Spells ---------------------------------------------------------------------------
 
 local function SpellName(id)
     local name = Call(C_Spell and C_Spell.GetSpellName, id)
@@ -46,29 +55,48 @@ local function SpellName(id)
     return name
 end
 
--- "Rank 3" -> 3 (nil for a spell without ranks)
-function R.RankOf(id)
-    local text = Call(C_Spell and C_Spell.GetSpellSubtext, id) or Call(GetSpellSubtext, id)
-    local n = type(text) == "string" and text:match("(%d+)")
-    return n and tonumber(n) or nil
+local function Icon(id)
+    return Call(C_Spell and C_Spell.GetSpellTexture, id) or Call(GetSpellTexture, id)
 end
+
+-- One spell's ranks share a name and an icon: its family's key
+local function Family(id, name)
+    name = name or SpellName(id)
+    return name and (name .. "#" .. tostring(Icon(id) or "")) or nil
+end
+
+-- "Rank 3" -> 3 (nil for a spell without ranks); an ID's rank never changes
+local rankMemo = {}
+function R.RankOf(id)
+    if id == nil then return nil end
+    if rankMemo[id] then return rankMemo[id] end
+    local text = Call(C_Spell and C_Spell.GetSpellSubtext, id) or Call(GetSpellSubtext, id)
+    local n = type(text) == "string" and tonumber(text:match("(%d+)")) or nil
+    if n then rankMemo[id] = n end   -- (nil not kept: the spell's data may not be in yet)
+    return n
+end
+local RankOf = R.RankOf
 
 local function Known(id)
     if IsSpellKnown then return Call(IsSpellKnown, id) and true or false end
     return true
 end
 
--- name -> { spell IDs known, lowest rank first }; rebuilt on SPELLS_CHANGED
-local book
+-- family -> { known ranked spell IDs, lowest rank first }, and the book's
+-- signature (it changes only when the spells known change)
+local book, signature
 local function Book()
     if book then return book end
     book = {}
+    local count, sum = 0, 0
     local function Add(id, name)
-        if not id or not name then return end
-        local list = book[name]
-        if not list then list = {}; book[name] = list end
+        if not id or not name or not RankOf(id) or not Known(id) then return end
+        local key = Family(id, name)
+        local list = book[key]
+        if not list then list = {}; book[key] = list end
         for _, have in ipairs(list) do if have == id then return end end
         list[#list + 1] = id
+        count, sum = count + 1, sum + id
     end
     local sb = C_SpellBook
     local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
@@ -87,180 +115,164 @@ local function Book()
         end
     else
         for i = 1, Call(GetNumSpellTabs) or 0 do
-            local _, _, first, count = Call(GetSpellTabInfo, i)
-            for slot = (first or 0) + 1, (first or 0) + (count or 0) do
+            local _, _, first, n = Call(GetSpellTabInfo, i)
+            for slot = (first or 0) + 1, (first or 0) + (n or 0) do
                 local kind, id = Call(GetSpellBookItemInfo, slot, "spell")
                 if kind == "SPELL" then Add(id, Call(GetSpellBookItemName, slot, "spell")) end
             end
         end
     end
     for _, list in pairs(book) do
-        local order = {}
-        for i, id in ipairs(list) do order[id] = i end
-        table.sort(list, function(a, b)
-            local ra, rb = R.RankOf(a) or 0, R.RankOf(b) or 0
-            if ra ~= rb then return ra < rb end
-            return order[a] < order[b]
-        end)
+        table.sort(list, function(a, b) return rankMemo[a] < rankMemo[b] end)   -- (Add ranked them all)
     end
+    signature = count .. ":" .. sum
     return book
 end
 function R.Forget() book = nil end
+function R.Signature() Book(); return signature end
 
--- The ranks of a spell you know, lowest first (one entry for a spell without ranks)
+-- The known ranks of the same spell as id, lowest first: same name, ranked,
+-- same icon. Empty for a spell without ranks.
 function R.Ranks(id)
-    local name = id and SpellName(id)
-    local out = {}
-    for _, other in ipairs(name and Book()[name] or {}) do
-        if Known(other) then out[#out + 1] = other end
+    local own = RankOf(id)
+    local name = own and SpellName(id)
+    if not name then return {} end
+    local key = Family(id, name)
+    local out, has = {}, {}
+    local function Take(x)
+        if not x or has[x] or not RankOf(x) or Family(x) ~= key then return end   -- (same name, another spell)
+        has[x] = true
+        out[#out + 1] = x
     end
-    -- (the name lookup gives the highest rank known, when the book hides lower ones)
-    local info = name and Call(C_Spell and C_Spell.GetSpellInfo, name)
+    for _, x in ipairs(Book()[key] or {}) do Take(x) end
+    -- (the name lookup gives the top rank known, when the book hides lower ones)
+    local info = Call(C_Spell and C_Spell.GetSpellInfo, name)
     local top = type(info) == "table" and tonumber(info.spellID) or nil
-    local function Has(x) for _, v in ipairs(out) do if v == x then return true end end end
-    if top and Known(top) and not Has(top) then out[#out + 1] = top end
-    if id and Known(id) and not Has(id) then out[#out + 1] = id end
-    if #out > 1 then
-        table.sort(out, function(a, b) return (R.RankOf(a) or 0) < (R.RankOf(b) or 0) end)
-    end
+    if top and Known(top) then Take(top) end
+    table.sort(out, function(a, b) return rankMemo[a] < rankMemo[b] end)
     return out
 end
 
--- The highest rank you know of this spell (nil: none known)
-function R.Highest(id)
+-- The top known rank of the same spell when it is higher than id; else nil
+function R.Higher(id)
+    local have = RankOf(id)
+    if not have then return nil end
     local ranks = R.Ranks(id)
-    return ranks[#ranks]
+    local top = ranks[#ranks]
+    if top and top ~= id and RankOf(top) > have then return top end
 end
 
 -- Slots ----------------------------------------------------------------------------
 
+local slots
 local function Slots()
+    if slots then return slots end
     local first = Call(C_GamepadUI and C_GamepadUI.GetFirstGamepadActionStorageSlotIndex)
     local out = {}
     if type(first) ~= "number" then return out end
     for slot = first, first + SPAN - 1 do
         if Call(C_GamepadUI.IsValidGamepadActionStorageSlotIndex, slot) == true then out[#out + 1] = slot end
     end
+    if #out > 0 then slots = out end
     return out
 end
-R.Slots = Slots
 
 local function SpellAt(slot)
     local kind, id = Call(GetActionInfo, slot)
     if kind == "spell" and type(id) == "number" then return id end
 end
 
-local seen = {}      -- slot -> spell ID last seen there (to tell a hand-made change)
-local placing = 0    -- (our own placements: not by hand)
-
--- Puts a spell on a slot; the replaced action never stays on the cursor
+-- Puts a spell on a slot; the replaced action never stays on the cursor.
+-- True when the slot holds it.
 local function Put(slot, id)
     if InCombat() or Cursor() then return false end
-    placing = placing + 1
     Call(C_Spell and C_Spell.PickupSpell or PickupSpell, id)
-    local ok = Cursor()
-    if ok then Call(PlaceAction, slot) end
+    if Cursor() then Call(PlaceAction, slot) end
     Call(ClearCursor)
-    placing = placing - 1
-    local now = SpellAt(slot)
-    seen[slot] = now
-    return ok and now == id
+    return SpellAt(slot) == id
 end
 
--- The pinned spell of a slot, or nil (a stale pin is dropped)
-function R.Pinned(slot)
-    local pins = Pins()
-    local pin = pins[slot]
-    if pin == nil then return nil end
-    if SpellAt(slot) ~= pin then pins[slot] = nil; return nil end
-    return pin
-end
-
--- "Highest" or "Rank 2", for a spell slot; nil for anything else
-function R.Label(slot)
-    local id = SpellAt(slot)
-    if not id then return nil end
-    local pin = R.Pinned(slot)
-    if not pin then return "Highest rank" end
-    local n = R.RankOf(pin)
-    return n and ("Rank " .. n) or "Pinned"
-end
-
--- The rank choice of a slot: nil = Highest (follows), or a known spell ID to pin.
--- Returns true when the slot holds it.
-function R.Set(slot, id)
-    local current = SpellAt(slot)
-    if not current or InCombat() or Cursor() then return false end
-    local pins = Pins()
-    if id == nil then
-        pins[slot] = nil
-        local top = R.Highest(current)
-        if top and top ~= current then return Put(slot, top) end
-        return true
-    end
-    if id ~= current and not Put(slot, id) then return false end
-    pins[slot] = id
-    return true
-end
-
--- The choices for a slot's rank control, lowest first, Highest last:
--- { { id = <spell>|nil, label = "Rank 1" | "Highest" }, ... } and the chosen index
+-- The rank control's choices for a slot, lowest first: the lower ranks, then
+-- Highest (the top rank, which follows). The index of what the slot holds.
 function R.Choices(slot)
     local id = SpellAt(slot)
-    if not id then return nil end
+    if not id or not RankOf(id) then return nil end
     local ranks = R.Ranks(id)
-    local list = {}
-    for _, r in ipairs(ranks) do
-        local n = R.RankOf(r)
-        if n then list[#list + 1] = { id = r, label = "Rank " .. n } end
+    local list, at = {}, nil
+    for i, r in ipairs(ranks) do
+        list[#list + 1] = { id = r, label = i == #ranks and "Highest" or ("Rank " .. RankOf(r)) }
+        if r == id then at = #list end
     end
-    list[#list + 1] = { id = nil, label = "Highest" }
-    local pin, at = R.Pinned(slot), #list
-    for i, c in ipairs(list) do if pin and c.id == pin then at = i end end
+    if not at then
+        -- (a rank no longer known: shown where it falls)
+        local entry, pos = { id = id, label = "Rank " .. RankOf(id) }, #list + 1
+        for i, c in ipairs(list) do if RankOf(c.id) > RankOf(id) then pos = i; break end end
+        table.insert(list, pos, entry)
+        at = pos
+    end
     return list, at
 end
 
--- Upgrade --------------------------------------------------------------------------
+-- Puts another known rank of the slot's spell there (never another spell)
+function R.Set(slot, id)
+    local current = SpellAt(slot)
+    if not current or not id or InCombat() or Cursor() then return false end
+    if id == current then return true end
+    local ok = false
+    for _, r in ipairs(R.Ranks(current)) do if r == id then ok = true end end
+    if not ok then return false end
+    return Put(slot, id)
+end
+
+-- Pass -----------------------------------------------------------------------------
 
 local pending = false
--- Every unpinned spell slot to its highest rank. Returns the slots changed,
--- or nil when it had to wait (combat, or the cursor busy).
+local failed = {}         -- slot -> { id = the rank refused, sig = the book then }
+local lastSig             -- the book at the last whole pass
+R.ready = false
+
+-- Moves up every slot that held its spell's previous top rank. Returns the
+-- slots changed, or nil when it had to wait (combat, or the cursor busy).
 function R.Upgrade()
     if InCombat() or Cursor() then pending = true; return nil end
     pending = false
-    local changed = {}
-    for _, slot in ipairs(Slots()) do
-        local id = SpellAt(slot)
-        if id and not R.Pinned(slot) then
-            local top = R.Highest(id)
-            local have, want = R.RankOf(id), top and R.RankOf(top)
-            if top and top ~= id and have and want and want > have then
-                if Put(slot, top) then changed[#changed + 1] = slot end
-                if Cursor() then pending = true; break end   -- (never leave it: stop)
+    local spells = Book()
+    local sig = signature
+    if sig == lastSig then return {} end    -- (the spells known didn't change)
+    local db = DB()
+    local top, changed, held = db.top, {}, {}
+    if db.seeded then
+        for _, slot in ipairs(Slots()) do
+            local id = SpellAt(slot)
+            local name = id and RankOf(id) and Family(id)
+            if name and top[name] == id then
+                local higher = R.Higher(id)
+                local refused = failed[slot]
+                if higher and refused and refused.id == higher and refused.sig == sig then
+                    held[name] = true     -- (refused already: wait for the book to change)
+                elseif higher then
+                    if Put(slot, higher) then
+                        changed[#changed + 1] = slot
+                        failed[slot] = nil
+                    else
+                        failed[slot] = { id = higher, sig = sig }
+                        held[name] = true
+                    end
+                    if Cursor() then pending = true; return changed end
+                end
             end
         end
-        seen[slot] = SpellAt(slot)
     end
+    -- the top ranks now known (a spell whose slot was refused keeps its old one)
+    for key, list in pairs(spells) do
+        if not held[key] then top[key] = list[#list] end
+    end
+    db.seeded = true
+    lastSig = sig
     if #changed > 0 and ns.Refresh then pcall(ns.Refresh) end
     return changed
 end
 function R.Pending() return pending end
-
--- A slot changed by hand: a lower rank dropped there is pinned; the highest
--- (or anything else) follows
-function R.SlotChanged(slot)
-    if placing > 0 or type(slot) ~= "number" then return end
-    if Call(C_GamepadUI and C_GamepadUI.IsValidGamepadActionStorageSlotIndex, slot) ~= true then return end
-    local id = SpellAt(slot)
-    if seen[slot] == id then return end
-    seen[slot] = id
-    local pins = Pins()
-    if not id then pins[slot] = nil; return end
-    if pins[slot] == id then return end
-    local top = R.Highest(id)
-    local have, want = R.RankOf(id), top and R.RankOf(top)
-    if have and want and have < want then pins[slot] = id else pins[slot] = nil end
-end
 
 -- Events ---------------------------------------------------------------------------
 
@@ -274,35 +286,44 @@ local function Soon()
     queued = true
     Later(0.5, function() queued = false; R.Upgrade() end)
 end
-R.Soon = Soon
 
-R.ready = false
-function R.OnEvent(event, arg)
+-- Login: wait until a gamepad slot holds something (or the wait runs out)
+local function BarsLoaded()
+    for _, slot in ipairs(Slots()) do
+        if Call(GetActionInfo, slot) then return true end
+    end
+    return false
+end
+
+local started = false
+local function CatchUp(tries)
+    if not BarsLoaded() and tries < BAR_TRIES then
+        Later(1, function() CatchUp(tries + 1) end)
+        return
+    end
+    R.Forget()
+    R.ready = true
+    R.Upgrade()
+end
+
+function R.OnEvent(event)
     if event == "PLAYER_ENTERING_WORLD" then
-        if R.ready then return end
-        -- (the bars load a moment into the world: then catch up on ranks trained before)
-        Later(3, function()
-            R.Forget()
-            -- (what each slot holds now: a later change is told from it)
-            for _, slot in ipairs(Slots()) do seen[slot] = SpellAt(slot) end
-            R.Upgrade()
-            R.ready = true
-        end)
+        if started then return end
+        started = true
+        CatchUp(0)
     elseif event == "SPELLS_CHANGED" or event == "LEARNED_SPELL_IN_TAB" or event == "LEARNED_SPELL_IN_SKILL_LINE" then
         R.Forget()
         if R.ready then Soon() end
-    elseif event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" or event == "CURSOR_UPDATE" then
+    elseif event == "PLAYER_REGEN_ENABLED" or event == "CURSOR_CHANGED" then
         if pending and R.ready and not Cursor() then Soon() end
-    elseif event == "ACTIONBAR_SLOT_CHANGED" then
-        if R.ready then R.SlotChanged(arg) end
     end
 end
 
 if CreateFrame then
     local events = CreateFrame("Frame")
     for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "LEARNED_SPELL_IN_SKILL_LINE",
-        "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED", "CURSOR_UPDATE", "ACTIONBAR_SLOT_CHANGED" }) do
+        "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED" }) do
         pcall(events.RegisterEvent, events, event)
     end
-    events:SetScript("OnEvent", function(_, event, arg) R.OnEvent(event, arg) end)
+    events:SetScript("OnEvent", function(_, event) R.OnEvent(event) end)
 end

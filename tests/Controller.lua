@@ -767,33 +767,35 @@ do
     eq(ui.rank.value.text, "Highest", "rank: Highest by default")
     check(type(rawget(ui.rank, "gpcNudge")) == "function", "rank: one value row for the pad")
     ui.rank.gpcNudge(-1)
-    eq(actions[storage].id, 7301, "rank: left keeps rank 3 (the top, pinned)")
-    eq(ui.rank.value.text, "Rank 3", "rank: shows Rank 3")
-    eq(GamepadCompanionCharDB.spellPins[storage], 7301, "rank: rank 3 pinned")
-    ui.rank.gpcNudge(-1)
-    eq(actions[storage].id, 7300, "rank: left again pins rank 2")
+    eq(actions[storage].id, 7300, "rank: '<' from Highest is rank 2 (the next down)")
     eq(ui.rank.value.text, "Rank 2", "rank: shows Rank 2")
-    eq(GamepadCompanionCharDB.spellPins[storage], 7300, "rank: pin saved per character")
     check(cursor == nil, "rank: nothing on the cursor")
     ui.rank.minus.scripts.OnClick(ui.rank.minus)
     eq(actions[storage].id, 168, "rank: the arrow steps to rank 1")
     check(not ui.rank.minus.enabled, "rank: no lower than rank 1")
-    ui.rank.gpcNudge(1); ui.rank.gpcNudge(1); ui.rank.gpcNudge(1)
+    ui.rank.gpcNudge(1); ui.rank.gpcNudge(1)
     eq(actions[storage].id, 7301, "rank: right to Highest")
     eq(ui.rank.value.text, "Highest", "rank: Highest again")
-    eq(GamepadCompanionCharDB.spellPins[storage], nil, "rank: Highest has no pin")
-    -- Choose: a spell picked is its highest rank, unpinned
-    ui.rank.gpcNudge(-1); ui.rank.gpcNudge(-1)
+    check(GamepadCompanionCharDB.spellPins == nil, "rank: nothing in the Controls profile")
+    -- Choose: a spell picked goes on at its top rank
+    ui.rank.gpcNudge(-1)
     local open, req = ns.Picker.Open, nil
     ns.Picker.Open = function(r) req = r end
     ui.choose.scripts.OnClick(ui.choose)
     ns.Picker.Open = open
-    eq(req and req.current, "spell:7300", "Choose: the pinned rank is current")
+    eq(req and req.current, "spell:7300", "Choose: the rank held is current")
     req.onPick("spell:7300")
-    eq(GamepadCompanionCharDB.spellPins[storage], 7300, "Choose: the same rank again keeps the pin")
+    eq(actions[storage].id, 7300, "Choose: the same rank again changes nothing")
     req.onPick("spell:168")
-    eq(actions[storage].id, 7301, "Choose: a spell picked goes on at its highest rank")
-    eq(GamepadCompanionCharDB.spellPins[storage], nil, "Choose: and follows")
+    eq(actions[storage].id, 7301, "Choose: a spell picked goes on at its top rank")
+    -- Choose: a drop the game refuses leaves the old rank as it was (not moved up)
+    actions[storage] = { kind = "spell", id = 168, texture = 1 }
+    local place = PlaceAction
+    PlaceAction = function(i) if cursor == 7301 then return end; return place(i) end
+    req.onPick("spell:7300")
+    PlaceAction = place
+    eq(actions[storage] and actions[storage].id, 168, "refused drop: rank 1 stays, not moved up")
+    check(cursor == nil, "refused drop: nothing on the cursor")
     -- No rank row for a spell without ranks
     actions[storage] = { kind = "spell", id = 133, texture = 1 }
     ui.slots[3].scripts.OnClick(ui.slots[3])

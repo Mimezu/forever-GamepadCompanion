@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (0.71.0)
+## Unreleased (0.71.1)
 
-- **Spell ranks**: a spell on the pad follows every rank you train. Pin one under Choose: Rank  < Highest >. A lower rank dragged on by hand stays pinned
+- **Spell ranks**: a pad slot at a spell's top rank moves up to each rank you train. A lower rank stays, whoever put it there. Choose under the Controller card: Rank  < Highest >. Nothing moves on a character's first login
 
 ## Unreleased (0.70.0)
 
