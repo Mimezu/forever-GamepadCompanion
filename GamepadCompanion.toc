@@ -27,6 +27,7 @@ ComboPoints.lua
 Forms.lua
 Shaman.lua
 Druid.lua
+Paladin.lua
 Haptics.lua
 Timing.lua
 Volume.lua
