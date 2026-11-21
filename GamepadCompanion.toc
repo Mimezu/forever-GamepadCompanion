@@ -23,6 +23,10 @@ ClassFeels.lua
 Warrior.lua
 Rogue.lua
 Rumble.lua
+ComboPoints.lua
+Forms.lua
+Shaman.lua
+Druid.lua
 Haptics.lua
 Timing.lua
 Volume.lua

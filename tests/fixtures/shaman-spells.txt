@@ -1,0 +1,252 @@
+# Every castable shaman spell in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds, 2026-11-20)
+# and the rune abilities. id, name, line, school mask, cast ms, channel, helpful (no effect on an
+# enemy), kinds letters, kinds tick (s). Rewrite: WowHelper work/shdr-data/make_fixture.py
+409324	Ancestral Guidance	Elemental Combat	8	0	0	1		
+409333	Ancestral Guidance	Elemental Combat	8	0	0	1		
+409337	Ancestral Guidance	Elemental Combat	8	0	0	0	h	
+66843	Call of the Ancestors	Elemental Combat	28	3000	0	1		
+66842	Call of the Elements	Elemental Combat	28	3000	0	1		
+66844	Call of the Spirits	Elemental Combat	28	3000	0	1		
+421	Chain Lightning	Elemental Combat	8	2500	0	0	h	
+408479	Chain Lightning	Elemental Combat	8	0	0	0	h	
+930	Chain Lightning	Elemental Combat	8	2500	0	0	h	
+408481	Chain Lightning	Elemental Combat	8	0	0	0	h	
+2860	Chain Lightning	Elemental Combat	8	2500	0	0	h	
+408482	Chain Lightning	Elemental Combat	8	0	0	0	h	
+10605	Chain Lightning	Elemental Combat	8	2500	0	0	h	
+408484	Chain Lightning	Elemental Combat	8	0	0	0	h	
+8042	Earth Shock	Elemental Combat	8	0	0	0	h	
+8044	Earth Shock	Elemental Combat	8	0	0	0	h	
+8045	Earth Shock	Elemental Combat	8	0	0	0	h	
+8046	Earth Shock	Elemental Combat	8	0	0	0	h	
+10412	Earth Shock	Elemental Combat	8	0	0	0	h	
+10413	Earth Shock	Elemental Combat	8	0	0	0	h	
+10414	Earth Shock	Elemental Combat	8	0	0	0	h	
+2484	Earthbind Totem	Elemental Combat	8	0	0	1	sg	
+30165	Elemental Devastation	Elemental Combat	1	0	0	1		
+408341	Fire Nova	Elemental Combat	4	0	0	1		
+408342	Fire Nova	Elemental Combat	4	0	0	1		
+408343	Fire Nova	Elemental Combat	4	0	0	1		
+408344	Fire Nova	Elemental Combat	4	0	0	1		
+408345	Fire Nova	Elemental Combat	4	0	0	1		
+8050	Flame Shock	Elemental Combat	4	0	0	0	h	
+8052	Flame Shock	Elemental Combat	4	0	0	0	h	
+8053	Flame Shock	Elemental Combat	4	0	0	0	h	
+10447	Flame Shock	Elemental Combat	4	0	0	0	h	
+10448	Flame Shock	Elemental Combat	4	0	0	0	h	
+29228	Flame Shock	Elemental Combat	4	0	0	0	h	
+8056	Frost Shock	Elemental Combat	16	0	0	0	h	
+8058	Frost Shock	Elemental Combat	16	0	0	0	h	
+10472	Frost Shock	Elemental Combat	16	0	0	0	h	
+10473	Frost Shock	Elemental Combat	16	0	0	0	h	
+403	Lightning Bolt	Elemental Combat	8	1500	0	0	h	
+408439	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+529	Lightning Bolt	Elemental Combat	8	2000	0	0	h	
+408440	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+548	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408441	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+915	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408442	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+943	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408443	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+6041	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408472	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+10391	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408473	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+10392	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408474	Lightning Bolt	Elemental Combat	8	3000	0	0	h	
+15207	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408475	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+15208	Lightning Bolt	Elemental Combat	8	2500	0	0	h	
+408477	Lightning Bolt	Elemental Combat	8	0	0	0	h	
+16166	Lightning Mastery	Elemental Combat	8	0	0	1		
+8190	Magma Totem	Elemental Combat	4	0	0	1	sg	
+10585	Magma Totem	Elemental Combat	4	0	0	1	sg	
+10586	Magma Totem	Elemental Combat	4	0	0	1	sg	
+10587	Magma Totem	Elemental Combat	4	0	0	1	sg	
+425339	Molten Blast	Elemental Combat	4	0	0	0	h	
+370	Purge	Elemental Combat	8	0	0	0	nd	
+8012	Purge	Elemental Combat	8	0	0	0	nd	
+3599	Searing Totem	Elemental Combat	4	0	0	1	sg	
+6363	Searing Totem	Elemental Combat	4	0	0	1	sg	
+6364	Searing Totem	Elemental Combat	4	0	0	1	sg	
+6365	Searing Totem	Elemental Combat	4	0	0	1	sg	
+10437	Searing Totem	Elemental Combat	4	0	0	1	sg	
+10438	Searing Totem	Elemental Combat	4	0	0	1	sg	
+5730	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+6390	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+6391	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+6392	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+10427	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+10428	Stoneclaw Totem	Elemental Combat	8	0	0	1	sg	
+36936	Totemic Recall	Elemental Combat	8	0	0	1		
+410093	Engrave Belt - Fire Nova	Engraving	1	3000	0	1		
+410100	Engrave Belt - Maelstrom Weapon	Engraving	1	3000	0	1		
+416054	Engrave Belt - Power Surge	Engraving	1	3000	0	1		
+425883	Engrave Boots - Ancestral Awakening	Engraving	1	3000	0	1		
+425882	Engrave Boots - Decoy Totem	Engraving	1	3000	0	1		
+410103	Engrave Boots - Spirit of the Alpha	Engraving	1	3000	0	1		
+432241	Engrave Bracers - Overcharged	Engraving	1	3000	0	1		
+410105	Engrave Bracers - Riptide	Engraving	1	3000	0	1		
+432236	Engrave Bracers - Rolling Thunder	Engraving	1	3000	0	1		
+432238	Engrave Bracers - Static Shock	Engraving	1	3000	0	1		
+410096	Engrave Chest - Dual Wield Specialization	Engraving	1	3000	0	1		
+416057	Engrave Chest - Healing Rain	Engraving	1	3000	0	1		
+410094	Engrave Chest - Overload	Engraving	1	3000	0	1		
+410098	Engrave Chest - Shield Mastery	Engraving	1	3000	0	1		
+436368	Engrave Chest - Two-Handed Mastery	Engraving	1	3000	0	1		
+416062	Engrave Cloak - Coherence	Engraving	1	3000	0	1		
+440630	Engrave Cloak - Feral Spirit	Engraving	1	3000	0	1		
+440634	Engrave Cloak - Storm, Earth, and Fire	Engraving	1	3000	0	1		
+410095	Engrave Gloves - Lava Burst	Engraving	1	3000	0	1		
+410104	Engrave Gloves - Lava Lash	Engraving	1	3000	0	1		
+425344	Engrave Gloves - Molten Blast	Engraving	1	3000	0	1		
+410097	Engrave Gloves - Water Shield	Engraving	1	3000	0	1		
+416066	Engrave Helm - Burn	Engraving	1	3000	0	1		
+416055	Engrave Helm - Mental Dexterity	Engraving	1	3000	0	1		
+432234	Engrave Helm - Tidal Waves	Engraving	1	3000	0	1		
+410099	Engrave Pants - Ancestral Guidance	Engraving	1	3000	0	1		
+410101	Engrave Pants - Earth Shield	Engraving	1	3000	0	1		
+425343	Engrave Pants - Greater Ghost Wolf	Engraving	1	3000	0	1		
+410107	Engrave Pants - Way of Earth	Engraving	1	3000	0	1		
+556	Astral Recall	Enhancement	8	10000	0	1		
+425874	Decoy Totem	Enhancement	8	0	0	1	sb	
+6196	Far Sight	Enhancement	8	2000	1	1		
+8184	Fire Resistance Totem	Enhancement	16	0	0	1	sb	
+10537	Fire Resistance Totem	Enhancement	16	0	0	1	sb	
+10538	Fire Resistance Totem	Enhancement	16	0	0	1	sb	
+8227	Flametongue Totem	Enhancement	4	0	0	1	sb	
+8249	Flametongue Totem	Enhancement	4	0	0	1	sb	
+10526	Flametongue Totem	Enhancement	4	0	0	1	sb	
+16387	Flametongue Totem	Enhancement	4	0	0	1	sb	
+8024	Flametongue Weapon	Enhancement	4	0	0	1		
+8027	Flametongue Weapon	Enhancement	4	0	0	1		
+8030	Flametongue Weapon	Enhancement	4	0	0	1		
+16339	Flametongue Weapon	Enhancement	4	0	0	1		
+16341	Flametongue Weapon	Enhancement	4	0	0	1		
+16342	Flametongue Weapon	Enhancement	4	0	0	1		
+8181	Frost Resistance Totem	Enhancement	4	0	0	1	sb	
+10478	Frost Resistance Totem	Enhancement	4	0	0	1	sb	
+10479	Frost Resistance Totem	Enhancement	4	0	0	1	sb	
+8033	Frostbrand Weapon	Enhancement	16	0	0	1		
+8038	Frostbrand Weapon	Enhancement	16	0	0	1		
+10456	Frostbrand Weapon	Enhancement	16	0	0	1		
+16355	Frostbrand Weapon	Enhancement	16	0	0	1		
+16356	Frostbrand Weapon	Enhancement	16	0	0	1		
+2645	Ghost Wolf	Enhancement	8	3000	0	1		
+8835	Grace of Air Totem	Enhancement	8	0	0	1	sb	
+10627	Grace of Air Totem	Enhancement	8	0	0	1	sb	
+25359	Grace of Air Totem	Enhancement	8	0	0	1	sb	
+8177	Grounding Totem	Enhancement	8	0	0	1	sb	
+408507	Lava Lash	Enhancement	4	0	0	0	h	
+324	Lightning Shield	Enhancement	8	0	0	1		
+26364	Lightning Shield	Enhancement	8	0	0	0	h	
+325	Lightning Shield	Enhancement	8	0	0	1		
+26365	Lightning Shield	Enhancement	8	0	0	0	h	
+905	Lightning Shield	Enhancement	8	0	0	1		
+26366	Lightning Shield	Enhancement	8	0	0	0	h	
+945	Lightning Shield	Enhancement	8	0	0	1		
+26367	Lightning Shield	Enhancement	8	0	0	0	h	
+8134	Lightning Shield	Enhancement	8	0	0	1		
+26369	Lightning Shield	Enhancement	8	0	0	0	h	
+10431	Lightning Shield	Enhancement	8	0	0	1		
+26370	Lightning Shield	Enhancement	8	0	0	0	h	
+10432	Lightning Shield	Enhancement	8	0	0	1		
+26363	Lightning Shield	Enhancement	8	0	0	0	h	
+10595	Nature Resistance Totem	Enhancement	8	0	0	1	sb	
+10600	Nature Resistance Totem	Enhancement	8	0	0	1	sb	
+10601	Nature Resistance Totem	Enhancement	8	0	0	1	sb	
+425336	Rage of the Farseer	Enhancement	1	0	0	1		
+8017	Rockbiter Weapon	Enhancement	8	0	0	1		
+8018	Rockbiter Weapon	Enhancement	8	0	0	1		
+8019	Rockbiter Weapon	Enhancement	8	0	0	1		
+10399	Rockbiter Weapon	Enhancement	8	0	0	1		
+16314	Rockbiter Weapon	Enhancement	8	0	0	1		
+16315	Rockbiter Weapon	Enhancement	8	0	0	1		
+16316	Rockbiter Weapon	Enhancement	8	0	0	1		
+6495	Sentry Totem	Enhancement	8	0	0	1	sb	
+408696	Spirit of the Alpha	Enhancement	8	0	0	1		
+8071	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+8154	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+8155	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+10406	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+10407	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+10408	Stoneskin Totem	Enhancement	8	0	0	1	sb	
+17364	Stormstrike	Enhancement	1	0	0	0	h	
+8075	Strength of Earth Totem	Enhancement	8	0	0	1	sb	
+8160	Strength of Earth Totem	Enhancement	8	0	0	1	sb	
+8161	Strength of Earth Totem	Enhancement	8	0	0	1	sb	
+10442	Strength of Earth Totem	Enhancement	8	0	0	1	sb	
+25361	Strength of Earth Totem	Enhancement	8	0	0	1	sb	
+437009	Totemic Call	Enhancement	8	0	0	1	sb	
+16269	Two-Handed Axes and Maces	Enhancement	1	0	0	1		
+131	Water Breathing	Enhancement	8	0	0	1		
+546	Water Walking	Enhancement	8	0	0	1		
+8512	Windfury Totem	Enhancement	8	0	0	1	sb	
+10613	Windfury Totem	Enhancement	8	0	0	1	sb	
+10614	Windfury Totem	Enhancement	8	0	0	1	sb	
+8232	Windfury Weapon	Enhancement	8	0	0	1		
+8235	Windfury Weapon	Enhancement	8	0	0	1		
+10486	Windfury Weapon	Enhancement	8	0	0	1		
+16362	Windfury Weapon	Enhancement	8	0	0	1		
+15107	Windwall Totem	Enhancement	8	0	0	1	sb	
+15111	Windwall Totem	Enhancement	8	0	0	1	sb	
+15112	Windwall Totem	Enhancement	8	0	0	1	sb	
+16177	Ancestral Fortitude	Restoration	8	0	0	1		
+2008	Ancestral Spirit	Restoration	8	10000	0	1		
+20609	Ancestral Spirit	Restoration	8	10000	0	1		
+20610	Ancestral Spirit	Restoration	8	10000	0	1		
+20776	Ancestral Spirit	Restoration	8	10000	0	1		
+20777	Ancestral Spirit	Restoration	8	10000	0	1		
+1064	Chain Heal	Restoration	8	2500	0	1		
+10622	Chain Heal	Restoration	8	2500	0	1		
+10623	Chain Heal	Restoration	8	2500	0	1		
+2870	Cure Disease	Restoration	8	0	0	1		
+526	Cure Poison	Restoration	8	0	0	1		
+8170	Disease Cleansing Totem	Restoration	8	0	0	1	sb	
+408514	Earth Shield	Restoration	8	0	0	1		
+408519	Earth Shield	Restoration	8	0	0	1		
+415236	Healing Rain	Restoration	8	2000	0	1		
+415242	Healing Rain	Restoration	8	0	0	1		
+5394	Healing Stream Totem	Restoration	16	0	0	1	sb	
+6375	Healing Stream Totem	Restoration	16	0	0	1	sb	
+6377	Healing Stream Totem	Restoration	16	0	0	1	sb	
+10462	Healing Stream Totem	Restoration	16	0	0	1	sb	
+10463	Healing Stream Totem	Restoration	16	0	0	1	sb	
+331	Healing Wave	Restoration	8	1500	0	1		
+332	Healing Wave	Restoration	8	2000	0	1		
+547	Healing Wave	Restoration	8	2500	0	1		
+913	Healing Wave	Restoration	8	3000	0	1		
+939	Healing Wave	Restoration	8	3000	0	1		
+959	Healing Wave	Restoration	8	3000	0	1		
+8005	Healing Wave	Restoration	8	3000	0	1		
+10395	Healing Wave	Restoration	8	3000	0	1		
+10396	Healing Wave	Restoration	8	3000	0	1		
+25357	Healing Wave	Restoration	8	3000	0	1		
+8004	Lesser Healing Wave	Restoration	8	1500	0	1		
+8008	Lesser Healing Wave	Restoration	8	1500	0	1		
+8010	Lesser Healing Wave	Restoration	8	1500	0	1		
+10466	Lesser Healing Wave	Restoration	8	1500	0	1		
+10467	Lesser Healing Wave	Restoration	8	1500	0	1		
+10468	Lesser Healing Wave	Restoration	8	1500	0	1		
+5675	Mana Spring Totem	Restoration	16	0	0	1	sb	
+10495	Mana Spring Totem	Restoration	16	0	0	1	sb	
+10496	Mana Spring Totem	Restoration	16	0	0	1	sb	
+10497	Mana Spring Totem	Restoration	16	0	0	1	sb	
+16190	Mana Tide Totem	Restoration	16	0	0	1	sb	
+17354	Mana Tide Totem	Restoration	16	0	0	1	sb	
+17359	Mana Tide Totem	Restoration	16	0	0	1	sb	
+1325256	Mana Tide Totem	Restoration	16	0	0	1	sb	
+16188	Nature's Swiftness	Restoration	1	0	0	1		
+8166	Poison Cleansing Totem	Restoration	8	0	0	1	sb	
+21169	Reincarnation	Restoration	8	0	0	1		
+408521	Riptide	Restoration	8	0	0	1		
+1239242	Riptide	Restoration	8	0	0	1		
+1239243	Riptide	Restoration	8	0	0	1		
+8143	Tremor Totem	Restoration	8	0	0	1	sb	
+408510	Water Shield	Restoration	8	0	0	1		
+408490	Lava Burst	Rune	4	2500	0	0		
+1238299	Lava Burst	Rune	4	2500	0	0		
+1238300	Lava Burst	Rune	4	2500	0	0		
+1326047	Lava Burst	Rune	4	2500	0	0		
+440580	Feral Spirit	Rune	32	0	0	1		

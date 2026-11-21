@@ -1,0 +1,267 @@
+# Every castable druid spell in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds, 2026-11-20)
+# and the rune abilities. id, name, line, school mask, cast ms, channel, helpful (no effect on an
+# enemy), kinds letters, kinds tick (s). Rewrite: WowHelper work/shdr-data/make_fixture.py
+22812	Barkskin	Balance	8	0	0	1		
+339	Entangling Roots	Balance	8	1500	0	0	nc	
+1062	Entangling Roots	Balance	8	1500	0	0	nc	
+5195	Entangling Roots	Balance	8	1500	0	0	nc	
+5196	Entangling Roots	Balance	8	1500	0	0	nc	
+9852	Entangling Roots	Balance	8	1500	0	0	nc	
+9853	Entangling Roots	Balance	8	1500	0	0	nc	
+770	Faerie Fire	Balance	8	0	0	0	nd	
+778	Faerie Fire	Balance	8	0	0	0	nd	
+9749	Faerie Fire	Balance	8	0	0	0	nd	
+9907	Faerie Fire	Balance	8	0	0	0	nd	
+2637	Hibernate	Balance	8	1500	0	0	nc	
+18657	Hibernate	Balance	8	1500	0	0	nc	
+18658	Hibernate	Balance	8	1500	0	0	nc	
+16914	Hurricane	Balance	8	0	1	0		
+17401	Hurricane	Balance	8	0	1	0		
+17402	Hurricane	Balance	8	0	1	0		
+5570	Insect Swarm	Balance	8	0	0	0	nd	
+24974	Insect Swarm	Balance	8	0	0	0	nd	
+24975	Insect Swarm	Balance	8	0	0	0	nd	
+24976	Insect Swarm	Balance	8	0	0	0	nd	
+24977	Insect Swarm	Balance	8	0	0	0	nd	
+8921	Moonfire	Balance	64	0	0	0	h	
+8924	Moonfire	Balance	64	0	0	0	h	
+8925	Moonfire	Balance	64	0	0	0	h	
+8926	Moonfire	Balance	64	0	0	0	h	
+8927	Moonfire	Balance	64	0	0	0	h	
+8928	Moonfire	Balance	64	0	0	0	h	
+8929	Moonfire	Balance	64	0	0	0	h	
+9833	Moonfire	Balance	64	0	0	0	h	
+9834	Moonfire	Balance	64	0	0	0	h	
+9835	Moonfire	Balance	64	0	0	0	h	
+24907	Moonkin Aura	Balance	8	0	0	1		
+24858	Moonkin Form	Balance	1	0	0	1		
+16689	Nature's Grasp	Balance	8	0	0	1		
+16810	Nature's Grasp	Balance	8	0	0	1		
+16811	Nature's Grasp	Balance	8	0	0	1		
+16812	Nature's Grasp	Balance	8	0	0	1		
+16813	Nature's Grasp	Balance	8	0	0	1		
+17329	Nature's Grasp	Balance	8	0	0	1		
+2908	Soothe Animal	Balance	8	1500	0	0	nd	
+8955	Soothe Animal	Balance	8	1500	0	0	nd	
+9901	Soothe Animal	Balance	8	1500	0	0	nd	
+439748	Starfall	Balance	64	0	0	1		
+439753	Starfall	Balance	64	0	0	0	h	
+439756	Starfall	Balance	64	0	0	0	h	
+2912	Starfire	Balance	64	3500	0	0	h	
+8949	Starfire	Balance	64	3500	0	0	h	
+8950	Starfire	Balance	64	3500	0	0	h	
+8951	Starfire	Balance	64	3500	0	0	h	
+9875	Starfire	Balance	64	3500	0	0	h	
+9876	Starfire	Balance	64	3500	0	0	h	
+25298	Starfire	Balance	64	3500	0	0	h	
+417157	Starsurge	Balance	64	0	0	0	h	
+414684	Sunfire	Balance	8	0	0	0	h	
+414689	Sunfire	Balance	8	0	0	0	h	
+414687	Sunfire	Balance	8	0	0	0	h	
+18960	Teleport: Moonglade	Balance	64	10000	0	1		
+467	Thorns	Balance	8	0	0	1		
+782	Thorns	Balance	8	0	0	1		
+1075	Thorns	Balance	8	0	0	1		
+8914	Thorns	Balance	8	0	0	1		
+9756	Thorns	Balance	8	0	0	1		
+9910	Thorns	Balance	8	0	0	1		
+5176	Wrath	Balance	8	1500	0	0	h	
+5177	Wrath	Balance	8	1700	0	0	h	
+5178	Wrath	Balance	8	2000	0	0	h	
+5179	Wrath	Balance	8	2000	0	0	h	
+5180	Wrath	Balance	8	2000	0	0	h	
+6780	Wrath	Balance	8	2000	0	0	h	
+8905	Wrath	Balance	8	2000	0	0	h	
+9912	Wrath	Balance	8	2000	0	0	h	
+424760	Engrave Belt - Berserk	Engraving	1	3000	0	1		
+410029	Engrave Belt - Eclipse	Engraving	1	3000	0	1		
+410059	Engrave Belt - Nourish	Engraving	1	3000	0	1		
+410060	Engrave Boots - Dreamstate	Engraving	1	3000	0	1		
+424765	Engrave Boots - King of the Jungle	Engraving	1	3000	0	1		
+410027	Engrave Boots - Survival Instincts	Engraving	1	3000	0	1		
+431468	Engrave Bracers - Efflorescence	Engraving	1	3000	0	1		
+416051	Engrave Bracers - Elune's Fires	Engraving	1	3000	0	1		
+431461	Engrave Bracers - Improved Frenzied Regeneration	Engraving	1	3000	0	1		
+410061	Engrave Chest - Fury of Stormrage	Engraving	1	3000	0	1		
+416050	Engrave Chest - Living Seed	Engraving	1	3000	0	1		
+416042	Engrave Chest - Survival of the Fittest	Engraving	1	3000	0	1		
+410021	Engrave Chest - Wild Strikes	Engraving	1	3000	0	1		
+439765	Engrave Cloak - Improved Swipe	Engraving	1	3000	0	1		
+439770	Engrave Cloak - Starfall	Engraving	1	3000	0	1		
+439767	Engrave Cloak - Tree of Life	Engraving	1	3000	0	1		
+410025	Engrave Gloves - Mangle	Engraving	1	3000	0	1		
+416046	Engrave Gloves - Skull Bash	Engraving	1	3000	0	1		
+416044	Engrave Gloves - Sunfire	Engraving	1	3000	0	1		
+410028	Engrave Gloves - Wild Growth	Engraving	1	3000	0	1		
+431451	Engrave Helm - Gale Winds	Engraving	1	3000	0	1		
+431447	Engrave Helm - Gore	Engraving	1	3000	0	1		
+431449	Engrave Helm - Improved Barkskin	Engraving	1	3000	0	1		
+416049	Engrave Pants - Lacerate	Engraving	1	3000	0	1		
+410033	Engrave Pants - Lifebloom	Engraving	1	3000	0	1		
+410023	Engrave Pants - Savage Roar	Engraving	1	3000	0	1		
+424718	Engrave Pants - Starsurge	Engraving	1	3000	0	1		
+453703	Engrave Ring - Feral Combat Specialization	Engraving	1	3000	0	1		
+1066	Aquatic Form	Feral Combat	1	0	0	1		
+5211	Bash	Feral Combat	1	0	0	0	nc	
+6798	Bash	Feral Combat	1	0	0	0	nc	
+8983	Bash	Feral Combat	1	0	0	0	nc	
+5487	Bear Form	Feral Combat	1	0	0	1		
+417141	Berserk	Feral Combat	1	0	0	1		
+768	Cat Form	Feral Combat	1	0	0	1		
+5209	Challenging Roar	Feral Combat	1	0	0	0	nta	
+1082	Claw	Feral Combat	1	0	0	0	h	
+3029	Claw	Feral Combat	1	0	0	0	h	
+5201	Claw	Feral Combat	1	0	0	0	h	
+9849	Claw	Feral Combat	1	0	0	0	h	
+9850	Claw	Feral Combat	1	0	0	0	h	
+8998	Cower	Feral Combat	1	0	0	0	nd	
+9000	Cower	Feral Combat	1	0	0	0	nd	
+9892	Cower	Feral Combat	1	0	0	0	nd	
+1850	Dash	Feral Combat	1	0	0	1		
+9821	Dash	Feral Combat	1	0	0	1		
+99	Demoralizing Roar	Feral Combat	1	0	0	0	nda	
+1735	Demoralizing Roar	Feral Combat	1	0	0	0	nda	
+9490	Demoralizing Roar	Feral Combat	1	0	0	0	nda	
+9747	Demoralizing Roar	Feral Combat	1	0	0	0	nda	
+9898	Demoralizing Roar	Feral Combat	1	0	0	0	nda	
+9634	Dire Bear Form	Feral Combat	1	0	0	1		
+5229	Enrage	Feral Combat	1	0	0	1		
+1238122	Feral Charge	Feral Combat	1	0	0	0		
+16979	Feral Charge (Bear)	Feral Combat	1	0	0	0		
+1328618	Ferocious Bite	Feral Combat	1	0	0	0	h	
+22568	Ferocious Bite	Feral Combat	1	0	0	0	h	
+22827	Ferocious Bite	Feral Combat	1	0	0	0	h	
+22828	Ferocious Bite	Feral Combat	1	0	0	0	h	
+22829	Ferocious Bite	Feral Combat	1	0	0	0	h	
+31018	Ferocious Bite	Feral Combat	1	0	0	0	h	
+22845	Frenzied Regeneration	Feral Combat	1	0	0	1		
+22842	Frenzied Regeneration	Feral Combat	1	0	0	1		
+6795	Growl	Feral Combat	1	0	0	0	nt	
+414647	Lacerate	Feral Combat	1	0	0	0	h	
+1328617	Lacerate	Feral Combat	1	0	0	0		
+1328616	Lacerate	Feral Combat	1	0	0	0		
+414644	Lacerate	Feral Combat	1	0	0	0		
+1235826	Lacerate	Feral Combat	1	0	0	0		
+1235827	Lacerate	Feral Combat	1	0	0	0		
+6807	Maul	Feral Combat	1	0	0	0	h	
+6808	Maul	Feral Combat	1	0	0	0	h	
+6809	Maul	Feral Combat	1	0	0	0	h	
+8972	Maul	Feral Combat	1	0	0	0	h	
+9745	Maul	Feral Combat	1	0	0	0	h	
+9880	Maul	Feral Combat	1	0	0	0	h	
+9881	Maul	Feral Combat	1	0	0	0	h	
+9005	Pounce	Feral Combat	1	0	0	0	nc	
+9823	Pounce	Feral Combat	1	0	0	0	nc	
+9827	Pounce	Feral Combat	1	0	0	0	nc	
+9007	Pounce Bleed	Feral Combat	1	0	0	0	nd	
+9824	Pounce Bleed	Feral Combat	1	0	0	0	nd	
+9826	Pounce Bleed	Feral Combat	1	0	0	0	nd	
+407995	Primal Bite	Feral Combat	1	0	0	0	h	
+1238069	Primal Bite	Feral Combat	1	0	0	0	h	
+1238070	Primal Bite	Feral Combat	1	0	0	0	h	
+5215	Prowl	Feral Combat	1	0	0	1		
+6783	Prowl	Feral Combat	1	0	0	1		
+9913	Prowl	Feral Combat	1	0	0	1		
+1822	Rake	Feral Combat	1	0	0	0	h	
+1823	Rake	Feral Combat	1	0	0	0	h	
+1824	Rake	Feral Combat	1	0	0	0	h	
+9904	Rake	Feral Combat	1	0	0	0	h	
+6785	Ravage	Feral Combat	1	0	0	0	h	
+6787	Ravage	Feral Combat	1	0	0	0	h	
+9866	Ravage	Feral Combat	1	0	0	0	h	
+9867	Ravage	Feral Combat	1	0	0	0	h	
+1079	Rip	Feral Combat	1	0	0	0	nd	
+9492	Rip	Feral Combat	1	0	0	0	nd	
+9493	Rip	Feral Combat	1	0	0	0	nd	
+9752	Rip	Feral Combat	1	0	0	0	nd	
+9894	Rip	Feral Combat	1	0	0	0	nd	
+9896	Rip	Feral Combat	1	0	0	0	nd	
+1322605	Shifting Power	Feral Combat	1	0	0	1		
+5221	Shred	Feral Combat	1	0	0	0	h	
+6800	Shred	Feral Combat	1	0	0	0	h	
+8992	Shred	Feral Combat	1	0	0	0	h	
+9829	Shred	Feral Combat	1	0	0	0	h	
+9830	Shred	Feral Combat	1	0	0	0	h	
+410176	Skull Bash	Feral Combat	1	0	0	0		
+408024	Survival Instincts	Feral Combat	1	0	0	1		
+411128	Swipe	Feral Combat	1	0	0	0	h	
+779	Swipe	Feral Combat	1	0	0	0	h	
+780	Swipe	Feral Combat	1	0	0	0	h	
+769	Swipe	Feral Combat	1	0	0	0	h	
+9754	Swipe	Feral Combat	1	0	0	0	h	
+9908	Swipe	Feral Combat	1	0	0	0	h	
+417045	Tiger's Fury	Feral Combat	1	0	0	1		
+5217	Tiger's Fury	Feral Combat	1	0	0	1		
+5225	Track Humanoids	Feral Combat	1	0	0	1		
+783	Travel Form	Feral Combat	1	0	0	1		
+2893	Abolish Poison	Restoration	8	0	0	1		
+3137	Abolish Poison Effect	Restoration	8	0	0	1		
+8946	Cure Poison	Restoration	8	0	0	1		
+417148	Efflorescence	Restoration	8	0	0	1		
+21849	Gift of the Wild	Restoration	8	0	0	1		
+21850	Gift of the Wild	Restoration	8	0	0	1		
+5185	Healing Touch	Restoration	8	1500	0	1		
+5186	Healing Touch	Restoration	8	2000	0	1		
+5187	Healing Touch	Restoration	8	2500	0	1		
+5188	Healing Touch	Restoration	8	3000	0	1		
+5189	Healing Touch	Restoration	8	3500	0	1		
+6778	Healing Touch	Restoration	8	3500	0	1		
+8903	Healing Touch	Restoration	8	3500	0	1		
+9758	Healing Touch	Restoration	8	3500	0	1		
+9888	Healing Touch	Restoration	8	3500	0	1		
+9889	Healing Touch	Restoration	8	3500	0	1		
+25297	Healing Touch	Restoration	8	3500	0	1		
+29166	Innervate	Restoration	8	0	0	1		
+408124	Lifebloom	Restoration	8	0	0	1		
+408245	Lifebloom	Restoration	8	0	0	1		
+414683	Living Seed	Restoration	8	0	0	1		
+1126	Mark of the Wild	Restoration	8	0	0	1		
+5232	Mark of the Wild	Restoration	8	0	0	1		
+6756	Mark of the Wild	Restoration	8	0	0	1		
+5234	Mark of the Wild	Restoration	8	0	0	1		
+8907	Mark of the Wild	Restoration	8	0	0	1		
+9884	Mark of the Wild	Restoration	8	0	0	1		
+9885	Mark of the Wild	Restoration	8	0	0	1		
+17116	Nature's Swiftness	Restoration	1	0	0	1		
+408247	Nourish	Restoration	8	2000	0	1		
+20484	Rebirth	Restoration	8	2000	0	1		
+20739	Rebirth	Restoration	8	2000	0	1		
+20742	Rebirth	Restoration	8	2000	0	1		
+20747	Rebirth	Restoration	8	2000	0	1		
+20748	Rebirth	Restoration	8	2000	0	1		
+8936	Regrowth	Restoration	8	2000	0	1		
+8938	Regrowth	Restoration	8	2000	0	1		
+8939	Regrowth	Restoration	8	2000	0	1		
+8940	Regrowth	Restoration	8	2000	0	1		
+8941	Regrowth	Restoration	8	2000	0	1		
+9750	Regrowth	Restoration	8	2000	0	1		
+9856	Regrowth	Restoration	8	2000	0	1		
+9857	Regrowth	Restoration	8	2000	0	1		
+9858	Regrowth	Restoration	8	2000	0	1		
+774	Rejuvenation	Restoration	8	0	0	1		
+1058	Rejuvenation	Restoration	8	0	0	1		
+1430	Rejuvenation	Restoration	8	0	0	1		
+2090	Rejuvenation	Restoration	8	0	0	1		
+2091	Rejuvenation	Restoration	8	0	0	1		
+3627	Rejuvenation	Restoration	8	0	0	1		
+8910	Rejuvenation	Restoration	8	0	0	1		
+9839	Rejuvenation	Restoration	8	0	0	1		
+9840	Rejuvenation	Restoration	8	0	0	1		
+9841	Rejuvenation	Restoration	8	0	0	1		
+25299	Rejuvenation	Restoration	8	0	0	1		
+2782	Remove Curse	Restoration	64	0	0	1		
+437138	Revive	Restoration	1	10000	0	1		
+1237948	Revive	Restoration	1	10000	0	1		
+1237949	Revive	Restoration	1	10000	0	1		
+1237950	Revive	Restoration	1	10000	0	1		
+1237951	Revive	Restoration	1	10000	0	1		
+18562	Swiftmend	Restoration	8	0	0	1		
+740	Tranquility	Restoration	8	0	1	1		
+8918	Tranquility	Restoration	8	0	1	1		
+9862	Tranquility	Restoration	8	0	1	1		
+9863	Tranquility	Restoration	8	0	1	1		
+408120	Wild Growth	Restoration	8	3000	0	1		
+1238214	Wild Growth	Restoration	8	3000	0	1		
+1238215	Wild Growth	Restoration	8	3000	0	1		
+407988	Savage Roar	Rune	1	0	0	1		
+439733	Tree of Life	Rune	1	0	0	1		
