@@ -341,7 +341,7 @@ function Focus.Release(button)
     if chord or Fighting() or not state.active then return end
     if Shell.Step then Shell.Step(dir) end
     -- (the new page's first control, once its frames have their places)
-    state.focus = nil
+    Focus.Set(nil)
     if type(C_Timer) == "table" and type(C_Timer.After) == "function" then C_Timer.After(0, Focus.Rescope)
     else Focus.Rescope() end
 end
