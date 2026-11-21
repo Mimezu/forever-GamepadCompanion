@@ -5,6 +5,7 @@
 - **Flight list**: at a flight master, every place you can fly to in a list beside the map, nearest first: the place, its zone, its stops, the cost in coins. D-pad up / down chooses, L1 / R1 page, A flies, B closes, Y sorts A-Z. The map shows a gold ring on the chosen place and the route there. Setup › Windows › Flight list (on). docs/FLIGHT-LIST.md
 - **Fishing lure**: with a pole in hand, L2 puts your lure on it, the way R2 casts. Setup › Fishing: R2 casts, L2 lure, and the lure (Auto: the best your skill allows, or one from your bags)
 - **The float**: while the pole is in hand, a small float at the bottom left: the lure on dark water in a brass rim, the water closing over it as its time runs out, a slow bob, a ripple now and then
+- The fishing float moves in Edit Mode: it shows there in a blue box, drag it anywhere, right-click puts it home
 - **Cast ring**: while you fish, Blizzard’s cast bar gives way to one clean pale blue line around the float, draining clockwise as the line’s time runs out, its light breathing slowly. Setup › Fishing › Cast ring
 - A point of Fishing, celebrated: a warm bloom from the float, a few motes of light rising, the line coming up in bright gold (two seconds, no sound)
 - Under the float, one quiet line: “Wiser · Fishing 76” after a point; “Train to learn more” at your rank’s cap; “Skill too low here” after three fish got away there within 10 minutes; else your skill, coloured by its odds as a recipe is, and the fish your points take

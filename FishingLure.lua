@@ -257,7 +257,10 @@ local MIST = { 0.66, 0.74, 0.72 }
 
 local float = CreateFrame("Frame", "GamepadCompanionLure", UIParent)
 float:SetSize(240, SIZE + 8)
-float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 36, 210)
+L.HOME = { 36, 210 }   -- its spot (bottom-left, UIParent units) until moved in Edit Mode
+float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L.HOME[1], L.HOME[2])
+float:SetMovable(true)
+float:SetClampedToScreen(true)
 float:SetFrameStrata("LOW")
 float:SetAlpha(0)
 float:Hide()
@@ -668,7 +671,7 @@ events:SetScript("OnEvent", function(_, event, unit, message, spellID)
         while #times > L.WARY_COUNT do table.remove(times, 1) end
         wary[key] = times
     end
-    L.Show(PoleOn())
+    L.Show(PoleOn() or L.editing == true)
     if shown then L.Refresh() end
 end)
 
@@ -681,5 +684,63 @@ float:SetScript("OnUpdate", function(_, elapsed)
     tick = 1
     L.Refresh()
 end)
+
+-- Edit Mode: the float shows (pole or not) in a box of Edit Mode's blue, as
+-- Companion's bar boxes (EditModeBars.lua): drag it anywhere, right-click puts
+-- it home. Its spot is the character's. Edit Mode listened to, never hooked
+function L.Spot(pos)
+    if type(pos) == "table" and tonumber(pos[1]) and tonumber(pos[2]) then return pos[1], pos[2] end
+    return L.HOME[1], L.HOME[2]
+end
+local function Place()
+    local x, y = L.Spot(L.Setting().pos)
+    float:ClearAllPoints()
+    float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x, y)
+end
+L.Place = Place
+
+local box = CreateFrame("Frame", nil, UIParent)
+box:SetFrameStrata("HIGH")
+box:SetAllPoints(float)
+box:EnableMouse(true)
+if box.RegisterForDrag then box:RegisterForDrag("LeftButton") end
+box:Hide()
+box.fill = box:CreateTexture(nil, "BACKGROUND")
+box.fill:SetAllPoints()
+box.fill:SetColorTexture(0.25, 0.6, 1, 0.18)
+for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" }, { "TOPLEFT", "BOTTOMLEFT" },
+    { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+    local e = box:CreateTexture(nil, "BORDER")
+    e:SetPoint(pts[1]); e:SetPoint(pts[2])
+    if i <= 2 then e:SetHeight(2) else e:SetWidth(2) end
+    e:SetColorTexture(0.25, 0.6, 1, 0.95)
+end
+box.label = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+box.label:SetPoint("BOTTOM", box, "TOP", 0, 3)
+box.label:SetText("Fishing")
+box:SetScript("OnDragStart", function() float:StartMoving() end)
+box:SetScript("OnDragStop", function()
+    float:StopMovingOrSizing()
+    local x, y = float:GetLeft(), float:GetBottom()
+    if tonumber(x) and tonumber(y) then L.Setting().pos = { math.floor(x + 0.5), math.floor(y + 0.5) } end
+    Place()
+end)
+box:SetScript("OnMouseUp", function(_, button)
+    if button == "RightButton" then L.Setting().pos = nil; Place() end
+end)
+
+function L.EditMode(on)
+    L.editing = on == true
+    box:SetShown(L.editing)
+    L.Show(PoleOn() or L.editing)
+end
+if EventRegistry and EventRegistry.RegisterCallback then
+    EventRegistry:RegisterCallback("EditMode.Enter", function() L.EditMode(true) end, L)
+    EventRegistry:RegisterCallback("EditMode.Exit", function() L.EditMode(false) end, L)
+end
+-- (its spot once the character's settings are there)
+local placer = CreateFrame("Frame")
+pcall(placer.RegisterEvent, placer, "PLAYER_LOGIN")
+placer:SetScript("OnEvent", function() Place() end)
 
 L.frame = float

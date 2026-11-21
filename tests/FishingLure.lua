@@ -186,7 +186,7 @@ GetSubZoneText = function() return "North Tide's Run" end
 IsFishingLoot = function() return true end
 SKILL_RANK_UP = "Your skill in %s has increased to %d."
 local ev
-for _, f in ipairs(frames) do local sc = rawget(f, "scripts"); if sc and sc.OnEvent then ev = sc.OnEvent end end
+for _, f in ipairs(frames) do local sc = rawget(f, "scripts"); if sc and sc.OnEvent and not ev then ev = sc.OnEvent end end   -- (the first: the float's own)
 check(ev ~= nil, "the float listens")
 eq(L.WhisperNow(now), "Train to learn more", "75 of 75 read: train")
 C_SkillInfo, skillRead = nil, false   -- (no list to read: the skill-up messages tell it)
@@ -238,6 +238,13 @@ ev(nil, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
 eq(bar.alpha, 1, "Cast ring off: Blizzard's bar as it is")
 char.fishing.castRing = nil
 ev(nil, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
+
+-- Edit Mode: the float moved, put home ------------------------------------------------
+eq(select(1, L.Spot(nil)) .. "," .. select(2, L.Spot(nil)), "36,210", "never moved: its home spot")
+eq(select(1, L.Spot({ 400, 300 })) .. "," .. select(2, L.Spot({ 400, 300 })), "400,300", "moved: its own spot")
+eq(select(1, L.Spot({ "x" })), 36, "a broken spot: home")
+check(pcall(L.EditMode, true) and L.editing == true, "Edit Mode opens: the float editable")
+check(pcall(L.EditMode, false) and L.editing == false, "Edit Mode closes")
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)
