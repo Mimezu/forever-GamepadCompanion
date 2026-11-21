@@ -19,6 +19,9 @@ Shared.lua
 When.lua
 Core.lua
 CameraPitch.lua
+ClassFeels.lua
+Warrior.lua
+Rogue.lua
 Rumble.lua
 Haptics.lua
 Timing.lua

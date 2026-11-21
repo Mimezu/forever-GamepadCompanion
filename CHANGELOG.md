@@ -2,6 +2,10 @@
 
 ## Unreleased (0.69.3)
 
+- **Warrior**: every warrior spell has its own feel (tests/Warrior.lua lists all 91). Charge and Intercept run, then crash as you reach the target; Slam winds up, then lands at the blow; Execute chops deep; Whirlwind meets bodies one by one; Cleave bites two; shield blows are wood and iron; shouts swell from the chest; stances change your footing
+- **Rogue**: every rogue spell has its own feel (tests/Rogue.lua lists all 110). Finishers grow with the points spent: Eviscerate one cut, a cross cut, a flurry; Kidney Shot, Rupture, Slice and Dice fainter with fewer points. Stealth draws a cloak round you, leaving it a breath out; Vanish a puff and a roll; Backstab, Ambush, Mutilate, Garrote, Sap, Kick, Blind, Sprint, Pick Pocket each their own; thrown blades land where they hit
+- Poisons: put on a blade, a cloth along the steel, then coated. Made in the Poisons window, a pestle grinding
+- **Pick Lock** and Disarm Trap: picks raking the pins, the lock giving. Opening a chest keeps Opening's tumbler
 - **Hunter**: every hunter spell has its own feel (tests/Hunter.lua lists all 76). Aimed Shot draws the string, then the arrow lands as a shot; Multi-Shot fans two more arrows; stings and Black Arrow creep in after the shot; Concussive and Scatter Shot daze; Volley rains small arrows over both hands; Feign Death drops, Disengage leaps, aspects breathe in
 - **Traps**: laid, armed 2 s later, a snap when one springs on an enemy
 - **Pet** (new group): arrives, leaves, tamed, attack / follow / stay, its death, eating, happier or less. All fainter than your own. Its crit and a heavy blow on it: off by default. Its plain hits: never felt

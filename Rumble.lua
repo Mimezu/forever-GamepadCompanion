@@ -397,8 +397,16 @@ for _, p in ipairs(MAGE_PATTERNS) do
     V.PATTERNS[#V.PATTERNS + 1] = p
 end
 V.MAGE_PATTERNS = MAGE_PATTERNS
+-- Class passes in files of their own (ClassFeels.lua: Warrior.lua, Rogue.lua), loaded before this one
+V.CLASS_PATTERNS = ns.ClassFeels and ns.ClassFeels.Patterns() or {}
+for _, p in ipairs(V.CLASS_PATTERNS) do
+    p.action = true
+    if not p.move and not p.group then p.group = "Spells" end
+    V.PATTERNS[#V.PATTERNS + 1] = p
+end
 -- A gathering's finish, once as it succeeds (mining has its crack)
 V.GATHER_FINISH = { skinning = "peel" }
+for action, key in pairs(ns.ClassFeels and ns.ClassFeels.GatherFinish() or {}) do V.GATHER_FINISH[action] = key end
 -- Tailoring's bolts of cloth (Linen, Wool, Silk, Mageweave, Runecloth; Forever's Qiraji Silk): the
 -- cloth wound onto the bolt, then patted down
 V.BOLT_IDS = { [2963] = true, [2964] = true, [3839] = true, [3865] = true, [18401] = true, [1214173] = true }
@@ -648,6 +656,7 @@ local PULSES = {
 }
 -- (the mage's own, defined with their patterns)
 for _, p in ipairs(MAGE_PATTERNS) do PULSES[p.key] = p.pulses end
+for _, p in ipairs(V.CLASS_PATTERNS) do PULSES[p.key] = p.pulses end
 -- (draw: an aimed shot, the string tightening: taps closer and stronger)
 do
     local list, t = { cycle = 1.1 }, 0
@@ -798,6 +807,7 @@ V.CAST_ACTIONS = {
     { key = "summon", label = "Summoning", kind = "spell", pattern = "ritual",
         spells = { 688, 697, 712, 691, 698, 5784, 883, 982, 1122 } },
 }
+for _, a in ipairs(ns.ClassFeels and ns.ClassFeels.CastActions() or {}) do V.CAST_ACTIONS[#V.CAST_ACTIONS + 1] = a end
 -- "Match the action": the set of the action going on
 table.insert(V.CAST_PRESETS, 2, { key = "auto", label = "Match the action", auto = true,
     icon = VIBE_ICONS .. "shimmer" })
@@ -2301,6 +2311,8 @@ local function Names()
             if name then gatherByName[name] = action else namesComplete = false end
         end
     end
+    -- (a class's own gathering: Pick Lock is lockpicking)
+    for name, action in pairs(ns.ClassFeels and ns.ClassFeels.GatherNames() or {}) do gatherByName[name] = action end
     spellByName = {}
     for _, id in ipairs(SMELT_IDS) do
         local name = SpellName(id)
@@ -2577,6 +2589,9 @@ local function CastReleased()
     -- quiet, the pet's own moment says the rest. Hunter.lua)
     local HN = ns.Hunter
     if V.castKind == "spell" and HN and HN.CastReleased and HN.CastReleased(V.castAction, cast.spellID) then return end
+    -- (a class's own: Slam's blow at the impact, a poison's coat; ClassFeels.lua)
+    local CF = ns.ClassFeels
+    if V.castKind == "spell" and CF and CF.Released(V.castAction, cast.spellID) then return end
     local mage = V.castKind == "spell" and not V.castSet and cast.mage or nil
     -- (a mage's ground spell or Polymorph: its own feel at the release, no wait)
     if mage and mage.burst then
@@ -2875,7 +2890,8 @@ function V.SpellRule(spellID, castTime)
     local name = spellID == V.OTHER_PROC and V.OTHER_PROC_NAME or SpellName(spellID)
     if not name or secret(name) then return nil end
     local r = { id = spellID, name = name, volume = 1 }
-    local mage = V.MageOf(spellID, name)
+    local CF = ns.ClassFeels
+    local mage = V.MageOf(spellID, name) or (CF and CF.Cast(spellID, name))
     local L = ns.HapticsLab
     local linked = false
     if proc then
@@ -2945,11 +2961,16 @@ function V.SpellRule(spellID, castTime)
             -- (a hunter's or a Skyborne's own: Hunter.lua)
             local HN = ns.Hunter
             local own = HN and HN.Rule and HN.Rule(name)
+            -- (a class pass of its own: ClassFeels.lua)
+            if not own and CF then own = CF.Rule(spellID, name) end
             r.moment = "instant"
             if own then
                 r.move, r.when, r.why = own.move, own.when, own.why
                 if own.ranged then r.how = { ranged = true } end
                 if own.magic then r.magicOnly = true end
+                if own.volume then r.volume = own.volume end
+                if own.avoid then r.avoidOnly = true end
+                if NextSwing(spellID) then r.next = true end
                 if not own.move then r.moment, r.when = "quiet", "none" end
             elseif NextSwing(spellID) then
                 r.move, r.when, r.next = move or "slash", "hit", true
