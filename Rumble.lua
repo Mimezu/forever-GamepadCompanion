@@ -1259,6 +1259,7 @@ local function StopShape()
 end
 
 function V.Stop()
+    V.busyUntil = 0
     StopShape()
     for _, t in ipairs(timers) do t:Cancel() end
     wipe(timers)
@@ -1284,6 +1285,12 @@ function V.PlayPlain(points, scale)
     local F = ns.FullFeel
     if not (F and C_GamePad and C_GamePad.SetVibration) then return end
     StartShape(F.Shape(points, 1, GetTime()), true, scale)
+end
+-- Something playing now (a pattern, a shape, the mixer's): a background feel waits for it rather
+-- than cut it short (Paladin.lua: Consecration's ticks under a blow)
+function V.Busy()
+    if shapeFn or (GetTime and GetTime() or 0) < (V.busyUntil or 0) then return true end
+    return ns.Haptics ~= nil and ns.Haptics.Playing ~= nil and ns.Haptics.Playing("rumbleFeel")
 end
 
 shaper:SetScript("OnUpdate", function()
@@ -1379,6 +1386,8 @@ function V.Play(key, loop, shape)
         until at >= length
         t = t + length
     end
+    -- (until when it plays: V.Busy)
+    V.busyUntil = loop and math.huge or (GetTime and GetTime() or 0) + t
     if loop then
         later(t, silence)
         later(t + 0.12, function() V.Play(key, true, shape) end)

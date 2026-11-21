@@ -2,8 +2,7 @@
 -- 2026-11-20). The spells are the client's own (tests/fixtures/paladin-spells.txt, from WoW Helper's
 -- --spells and --spell-kinds, the runes and the class mounts); each must play its own feel, none
 -- generic. The feels a paladin had before stay as they were. Then the new ones played out:
--- Consecration's ground each second, Avenger's Shield and Exorcism at the wound, Redemption's
--- release, the steed's hooves.
+-- Consecration's ground each second (never cutting a blow short), Avenger's Shield at the wound.
 -- lua5.1 tests/PaladinCoverage.lua <addon folder> [list]
 -- (the game's stubs: as tests/MageCoverage.lua has them)
 local root = arg[1] or "."
@@ -255,6 +254,9 @@ local BEFORE = {
     ["Seal of the Crusader"] = "cast:seal",
     ["Divine Light"] = "set:healing", ["Flash of Light"] = "set:healing", ["Holy Light"] = "set:healing",
     ["Light's Vigil"] = "set:healing", ["Hammer of Wrath"] = "set:holy", ["Holy Wrath"] = "set:holy",
+    -- (the review, 2026-11-20: what played anything keeps it; only the silent and the guessed get new)
+    ["Exorcism"] = "hit:judge", ["Redemption"] = "set:holy", ["Turn Undead"] = "set:nature",
+    ["Summon Warhorse"] = "set:healing", ["Summon Charger"] = "set:healing",
 }
 -- (the gaps this pass filled)
 local ADDED = {
@@ -268,9 +270,7 @@ local ADDED = {
     ["Hand of Sacrifice"] = "cast:seal", ["Seal of Fury"] = "cast:seal", ["Oath of Light"] = "cast:seal",
     ["Divine Favor"] = "cast:glow", ["Beacon of Light"] = "cast:glow", ["Divine Intervention"] = "cast:ward",
     ["Sacred Shield"] = "cast:ward", ["Templar's Bulwark"] = "cast:ward", ["Sense Undead"] = "cast:micro",
-    ["Hand of Reckoning"] = "cast:micro", ["Avenger's Shield"] = "hit:avenger", ["Exorcism"] = "hit:exorcism",
-    ["Redemption"] = "burst:raise", ["Turn Undead"] = "burst:turn", ["Summon Warhorse"] = "burst:hooves",
-    ["Summon Charger"] = "burst:hooves",
+    ["Hand of Reckoning"] = "cast:micro", ["Avenger's Shield"] = "hit:avenger",
 }
 local EXPECT = {}
 for k, v in pairs(BEFORE) do EXPECT[k] = v end
@@ -310,10 +310,6 @@ end
 assert(#wrong == 0, "paladin spells that play something else:\n  " .. table.concat(wrong, "\n  "))
 for key in pairs(EXPECT) do assert(seen[key], "expected but not in the client's list: " .. key) end
 if arg[2] == "list" then io.write(table.concat(lines, "\n"), "\n") end
--- (the loops: the steed's own; Turn Undead's Holy, not Nature by its school; Redemption's Holy)
-local function SetOf(id) return V.SpellRule(id, byId[id].cast / 1000).set end
-assert(SetOf(13819) == "feel:steed" and SetOf(23214) == "feel:steed", "the steed called")
-assert(SetOf(2878) == "holy" and SetOf(7328) == "holy", "Turn Undead and Redemption: Holy")
 -- (every new feel exists, rumble and HD; every step 0.1 s or more)
 for _, p in ipairs(PD.PATTERNS) do
     assert(V.PULSES[p.key] and H.Feel("r_" .. p.key), p.key .. ": pulses and its HD library feel")
@@ -385,34 +381,9 @@ assert(#f == 1 and f[1].move == "avenger", "Avenger's Shield at its hit: " .. to
 f = instant(470264, 0.6, 1)
 assert(#f == 0, "a physical wound isn't the shield's (a swing)")
 f = instant(10314, 0.2, 2)
-assert(#f == 1 and f[1].move == "exorcism", "Exorcism, any rank, at its hit")
-f = instant(415068, 0.2, 2, "CRITICAL")
-assert(#f >= 1 and f[1].move == "exorcism", "Exorcism's crit: its own impact")
+assert(#f == 1 and f[1].move == "judge", "Exorcism, any rank: Judgement at its hit, as before")
 
--- Casts: the loop, then the release's own (no wait for a wound)
-local function cast(id, seconds)
-    played, hd = {}, {}
-    now = now + 10
-    casting = { now, now + seconds }
-    rev("UNIT_SPELLCAST_START", "player", "k" .. id, id)
-    local loop = V.looping and V.looping.pattern
-    run(seconds)
-    casting = nil
-    rev("UNIT_SPELLCAST_SUCCEEDED", "player", "k" .. id, id)
-    rev("UNIT_SPELLCAST_STOP", "player", "k" .. id, id)
-    run(0.3)
-    RunTimers()
-    return loop, played[#played] and played[#played].key
-end
-local loop, last = cast(13819, 3)
-assert(loop == "steed" and last == "hooves", "Summon Warhorse: hoofbeats, then the steed there: " .. tostring(loop) .. " " .. tostring(last))
-loop, last = cast(23214, 3)
-assert(loop == "steed" and last == "hooves", "Summon Charger")
-loop, last = cast(7328, 10)
-assert(loop == "radiance" and last == "raise", "Redemption: Holy's radiance, a soul drawn back: " .. tostring(loop) .. " " .. tostring(last))
-loop, last = cast(2878, 1.5)
-assert(loop == "radiance" and last == "turn", "Turn Undead: Holy, the flash")
-io.write("PASS: auras, wings, the blessings and seals at the cast (HD each its own); the old ones kept; Avenger's Shield and Exorcism at the wound; Redemption, Turn Undead, the steeds at the release\n")
+io.write("PASS: auras, wings, the blessings and seals at the cast (HD each its own); the old ones kept; Avenger's Shield at the wound\n")
 
 ---------------------------------------------------------------------------
 -- 3. Consecration: laid down (Surge), then its ground each second you stand in it
@@ -461,16 +432,55 @@ mounted = false
 assert(#ticks == 2, "mounted at 2.5 s: two ticks: " .. #ticks)
 -- (Your abilities off: nothing)
 local ev = V.Settings().events
-local wasOn = ev.instant and ev.instant.on
-ev.instant = ev.instant or {}
-ev.instant.on = false
+local was = ev.instant
+ev.instant = { on = false }
 px = nil
 ticks = consecrate()
 assert(#ticks == 0, "Your abilities off: no ticks")
-ev.instant.on = wasOn
+ev.instant = was
+-- (a Crusader Strike's blow, then a tick 0.1 s later: the blow plays out whole, the tick after it)
+px = nil
+fired, hd, played = {}, {}, {}
+local stops, vstop = {}, V.Stop
+V.Stop = function(...) stops[#stops + 1] = now; return vstop(...) end
+now = now + 20
+rev("UNIT_SPELLCAST_SUCCEEDED", "player", "c", 26573)
+run(0.6)
+assert(PD.frame:IsShown(), "its frame runs while the ground lasts")
+stops = {}
+rev("UNIT_SPELLCAST_SUCCEEDED", "player", "cs", 1234893)
+run(0.2); rev("UNIT_COMBAT", "target", "WOUND", "", 100, 2)
+-- (its blow at the weapon's hit frame: the next tick set due 0.1 s after it)
+for _ = 1, 100 do if not (fired[#fired] and fired[#fired].move == "judge") then run(0.01); RunTimers() end end
+local blowAt = now
+assert(fired[#fired] and fired[#fired].move == "judge" and V.Busy(), "the Strike's blow plays")
+local h = PD.Hallowing()
+h.start = now + 0.1 - PD.HALLOW_PERIOD * (h.sent + 1)
+-- (until it's done: the pattern, or the mixer's voice)
+local blowEnd
+for _ = 1, 200 do
+    if not blowEnd then
+        run(0.01)
+        local playing = false
+        for _, p in ipairs(played) do if p.t > blowAt + 0.001 and p.key == "hallow" then playing = true end end
+        if playing or not V.Busy() then blowEnd = now end
+    end
+end
+assert(blowEnd - blowAt > 0.3, "a whole blow: " .. (blowEnd - blowAt))
+run(1.2)
+local tick
+for _, p in ipairs(played) do if p.t > blowAt + 0.001 then tick = tick or p end end
+for _, t in ipairs(stops) do assert(t < blowAt + 0.001 or t >= blowEnd - 0.011, "nothing stopped the blow at " .. (t - blowAt)) end
+assert(tick and tick.key == "hallow" and tick.t >= blowEnd - 0.011, "the tick after the blow: " .. tostring(tick and tick.t - blowAt))
+local hdTick
+for _, e in ipairs(hd) do if e.key == "r_hallow" and e.t > blowAt then hdTick = hdTick or e end end
+assert(hdTick and hdTick.t < blowAt + 0.15, "its HD on time, under the blow")
+V.Stop = vstop
+run(8)
+assert(not PD.frame:IsShown() and PD.Hallowing() == nil, "idle: its frame hidden")
 -- (each tick small: a faint ground, never a blow)
 for _, p in ipairs(V.PULSES.hallow) do assert(p[3] <= 0.15, "faint") end
-io.write("PASS: Consecration: Surge as laid down, then its ground each second for 8 s, by turns, fainter at its edge, none once out, mounted or off\n")
+io.write("PASS: Consecration: Surge as laid down, then its ground each second for 8 s, by turns, fainter at its edge, none once out, mounted or off; never cutting a blow short; its frame idle after\n")
 
 ---------------------------------------------------------------------------
 -- 4. Another class: none of the paladin's rules

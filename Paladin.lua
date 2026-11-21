@@ -36,38 +36,17 @@ PD.PATTERNS = {
     { key = "avenger", label = "Avenger's Shield", art = "bash", move = true, -- the shield's hit, then two bounces away
         steps = { { 0.85, 0.7, 0.12 }, { 0, 0, 0.1 }, { 0.35, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.2, 0.1 } },
         pulses = { Pu(0, 0.1, 0.85, 0.2), Pu(0.28, 0.05, 0.35, -0.7), Pu(0.5, 0.05, 0.18, 0.7) } },
-    { key = "exorcism", label = "Exorcism", art = "radiance", move = true, -- a searing flare, burning off
-        steps = { { 0.5, 0.5, 0.1 }, { 0.9, 0.9, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.12, 0.12, 0.12 } },
-        pulses = { Pu(0, 0.05, 0.5), Pu(0.05, 0.12, 0.9), Pu(0.2, 0.05, 0.3, -0.4), Pu(0.28, 0.05, 0.25, 0.4),
-            Pu(0.4, 0.1, 0.1) } },
     -- (Consecration's ground, once a second while you stand in it: faint, warm, uneven)
     { key = "hallow", label = "Hallowed", art = "surge",
         steps = { { 0.1, 0.12, 0.15 }, { 0.04, 0.04, 0.1 } },
         pulses = { Pu(0, 0.12, 0.12, -0.3), Pu(0.08, 0.12, 0.12, 0.3), Pu(0.3, 0.05, 0.05) } },
-    -- (at a cast's release)
-    { key = "raise", label = "Redeemed", art = "rise",             -- Redemption: a soul drawn back, a soft bloom
-        steps = { { 0.1, 0.1, 0.12 }, { 0.2, 0.2, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.55, 0.55, 0.4 }, { 0.1, 0.1, 0.12 } },
-        pulses = { Pu(0, 0.05, 0.1), Pu(0.12, 0.05, 0.18), Pu(0.24, 0.08, 0.3), Pu(0.36, 0.4, 0.55), Pu(0.85, 0.05, 0.1) } },
-    { key = "turn", label = "Turn Undead", art = "burst",          -- a hard flash, pushing away
-        steps = { { 0.6, 0.6, 0.1 }, { 0.3, 0.3, 0.15 }, { 0.08, 0.08, 0.1 } },
-        pulses = { Pu(0, 0.05, 0.6), Pu(0.08, 0.15, 0.3), Pu(0.3, 0.05, 0.08) } },
-    { key = "hooves", label = "Hooves", art = "charge",            -- the steed there: hooves stamping, a toss of the head
-        steps = { { 0.35, 0.1, 0.1 }, { 0.1, 0.3, 0.1 }, { 0.25, 0.1, 0.1 }, { 0.1, 0.2, 0.1 }, { 0.08, 0.08, 0.12 } },
-        pulses = { Pu(0, 0.06, 0.35, -0.4), Pu(0.12, 0.06, 0.3, 0.4), Pu(0.3, 0.06, 0.25, -0.3), Pu(0.42, 0.06, 0.2, 0.3),
-            Pu(0.65, 0.12, 0.08) } },
-    -- (a cast's loop: the steed called, far hoofbeats in the light)
-    { key = "steed", label = "Steed", art = "shimmer",
-        steps = { { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.15 }, { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.2 } },
-        pulses = { cycle = 0.75, Pu(0, 0.05, 0.07, -0.3), Pu(0.12, 0.05, 0.05, 0.3), Pu(0.37, 0.05, 0.07, -0.3),
-            Pu(0.49, 0.05, 0.05, 0.3) } },
 }
 V.AddPatterns(PD.PATTERNS)
 
 ---------------------------------------------------------------------------
 -- What each spell plays, by its first rank's ID (every rank shares its name).
--- move, when: an instant's feel, at the "cast" or as it lands ("hit"); set: a
--- cast's loop; burst: a cast's feel at its release; magic: only a magic wound is its (holy, from
--- afar: never your swing landing first).
+-- move, when: an instant's feel, at the "cast" or as it lands ("hit"); magic: only a magic wound
+-- is its (holy, from afar: never your swing landing first).
 ---------------------------------------------------------------------------
 local AT_CAST = {
     -- Auras: a warm ring round you (Devotion, Retribution, Concentration, the resistances, Sanctity;
@@ -87,14 +66,10 @@ local AT_CAST = {
 }
 local AT_HIT = {
     avenger = { 470264 },                                   -- Avenger's Shield
-    exorcism = { 879, 415068 },                             -- Exorcism (the book's, the rune's)
 }
-PD.SPELLS = {
-    [7328] = { burst = "raise" },                           -- Redemption (its loop: Holy's)
-    [2878] = { set = "holy", burst = "turn" },              -- Turn Undead (nature by its school)
-    [13819] = { set = "feel:steed", burst = "hooves" },     -- Summon Warhorse
-    [23214] = { set = "feel:steed", burst = "hooves" },     -- Summon Charger
-}
+-- (only what played nothing, or a guessed Blow: Exorcism's Judgement, Redemption's and Turn
+-- Undead's casts, the steeds' Healing loop are as they were)
+PD.SPELLS = {}
 for move, ids in pairs(AT_CAST) do
     for _, id in ipairs(ids) do PD.SPELLS[id] = { move = move, when = "cast" } end
 end
@@ -133,13 +108,29 @@ function PD.HallowGain(h)
     return 1 - 0.5 * d / PD.HALLOW_RADIUS
 end
 
-function PD.HallowStop() hallow = nil end
+function PD.HallowStop() hallow = nil; PD.frame:Hide() end
 function PD.Hallowing() return hallow end
 
 -- Consecration laid down (its rule as Rumble has it: off, its volume)
 function PD.HallowStart(rule)
     local x, y = Position()
     hallow = { start = Now(), sent = 0, x = x, y = y, volume = rule and rule.volume or 1 }
+    PD.frame:Show()
+end
+
+-- A tick's rumble waits for whatever plays (a blow, a swing, a seal: never cut short), at most
+-- PD.HALLOW_WAIT s, else it's dropped; its HD goes on time (WoW Helper mixes it under the rest)
+PD.HALLOW_WAIT = 0.5
+local function Rumble(g, side)
+    local F = ns.FullFeel
+    local points, scale
+    if F and F.Rumble then points, scale = F.Rumble("instant") end
+    local vol = ns.Volume and ns.Volume.Feel and ns.Volume.Feel("instant") or 1
+    if points then
+        -- (as the other instants: the moment's plain rumble, faint while WoW Helper plays the HD)
+        return V.PlayPlain(points, vol * g * scale)
+    end
+    V.Play("hallow", false, V.Scaled({ strength = g, left = math.min(1, 1 - side), right = math.min(1, 1 + side) }, "instant"))
 end
 
 local function Tick(k)
@@ -150,7 +141,7 @@ local function Tick(k)
     if g <= 0 then return end
     g = g * (hallow.volume or 1)
     local side = (k % 2 == 0 and 0.3 or -0.3) + (math.random() - 0.5) * 0.2
-    V.Play("hallow", false, V.Scaled({ strength = g, left = math.min(1, 1 - side), right = math.min(1, 1 + side) }, "instant"))
+    hallow.rumble = { g = g, side = side, by = Now() + PD.HALLOW_WAIT }
     local C = ns.HelperCues
     if C and C.Feel then C.Feel("r_hallow", g * (ns.Volume and ns.Volume.Feel and ns.Volume.Feel("instant") or 1), side) end
 end
@@ -163,7 +154,13 @@ function PD.HallowUpdate()
         h.sent = math.min(k, PD.HALLOW_TICKS)
         Tick(h.sent)
     end
-    if hallow and hallow.sent >= PD.HALLOW_TICKS then hallow = nil end
+    local r = hallow and hallow.rumble
+    if r then
+        if Now() > r.by then hallow.rumble = nil
+        elseif not V.Busy() then hallow.rumble = nil; Rumble(r.g, r.side) end
+    end
+    if hallow and hallow.sent >= PD.HALLOW_TICKS and not hallow.rumble then hallow = nil end
+    if not hallow then PD.frame:Hide() end
 end
 
 local consecrationName
@@ -174,15 +171,17 @@ local function IsConsecration(spellID)
     return name ~= nil and not secret(name) and name == consecrationName
 end
 
+-- (its frame runs only while the ground lasts)
 local f = CreateFrame("Frame")
 PD.frame = f
+f:Hide()
 f:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")
 f:SetScript("OnEvent", function(_, event, _, _, spellID)
-    if event == "PLAYER_ENTERING_WORLD" then hallow = nil; return end
+    if event == "PLAYER_ENTERING_WORLD" then return PD.HallowStop() end
     if not IsConsecration(spellID) then return end
     local rule = V.SpellRule(spellID, 0)
     if not rule or rule.off then return end
     PD.HallowStart(rule)
 end)
-f:SetScript("OnUpdate", function() if hallow then PD.HallowUpdate() end end)
+f:SetScript("OnUpdate", PD.HallowUpdate)
