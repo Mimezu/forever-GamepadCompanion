@@ -22,7 +22,10 @@
 -- secure click reads: never the game's key state, which said L2 was down with
 -- L2 up and left Focus UI on Create (2026-11-21). No pad to read, combat, a
 -- pad change: the extras come off. Blizzard's own L2 / R2 handler is hooked
--- too, so a release clears them at once, not at the next tick.
+-- too, so a release clears them at once, not at the next tick. And every key
+-- is checked against what it should run (Keys.Heal): 4 times a second, and the
+-- moment a window takes or gives back the pad, since a window's binding sets
+-- (the map focused with L2 + Create, then closed) can leave a key otherwise.
 local _, ns = ...
 local T, Sh = ns.TouchModel, ns.Shared
 local Keys = {}
@@ -48,6 +51,7 @@ local extras = {}           -- key -> the command the watcher bound now
 local used = 0              -- macro attributes set last time
 local pending, loaded = false, false
 local listeners = {}
+local SetExtras             -- (below: the held layer's bindings on layerOwner)
 
 --[[ The secure click (pre-body: self, button, down). button is the key's
 click name ("p6"); attributes, set out of combat:
@@ -224,6 +228,14 @@ function Keys.Apply(force)
         bound[key] = command
         if command and (commands[key] or Keys.Get(key, "base")) then claimed[key] = command end
     end
+    -- (a layer held through this: its extras back above Base, the newest
+    -- priority binding being the one that runs)
+    if next(extras) then
+        local keep = {}
+        for key, command in pairs(extras) do keep[key] = command end
+        SetExtras({})
+        SetExtras(keep)
+    end
     return true
 end
 
@@ -270,7 +282,7 @@ function Keys.Extras(layer)
     return out
 end
 
-local function SetExtras(want)
+SetExtras = function(want)
     local same = true
     for key, command in pairs(want) do if extras[key] ~= command then same = false end end
     for key in pairs(extras) do if not want[key] then same = false end end
@@ -293,12 +305,78 @@ function Keys.Watch()
     SetExtras(Keys.Extras(Keys.HeldLayer()))
 end
 
+-- Is command one Companion puts on key: its secure click, or a layer's
+-- Blizzard function
+function Keys.Ours(key, command)
+    if command == "CLICK " .. Keys.BUTTON .. ":" .. CLICK_NAME[key] then return true end
+    for _, layer in ipairs(Sh.LAYERS) do
+        if T.BindingOf(Keys.Get(key, layer)) == command then return true end
+    end
+    return false
+end
+
+-- Every key runs what it should, whatever a window's binding sets left on it
+-- (Focus UI stayed on Create after the map, focused with L2 + Create, closed:
+-- 2026-11-21). Out of combat: the held layer's extras are dropped and set
+-- again, Base put back on top when a key of ours reads otherwise. A key left
+-- to the game is only checked for a leftover of ours; the game's own stays.
+-- True when something was put right.
+function Keys.Heal()
+    if not loaded or not GetBindingAction or (InCombatLockdown and InCombatLockdown()) then return false end
+    local stale = false
+    for _, key in ipairs(Keys.KEYS) do
+        local actual = GetBindingAction(key, true) or ""
+        local should = extras[key] or bound[key]
+        if should then
+            if actual ~= should then stale = true end
+        elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
+            stale = true
+        end
+    end
+    if not stale then return false end
+    -- (layerOwner emptied outright: a leftover there may not be in extras)
+    ClearOverrideBindings(layerOwner)
+    wipe(extras)
+    for _, key in ipairs(Keys.KEYS) do
+        if bound[key] and (GetBindingAction(key, true) or "") ~= bound[key] then Keys.Apply(true); break end
+    end
+    Keys.Watch()
+    return true
+end
+
 -- (a key whose Base is ours, taken by Blizzard: back on top. A key bound only
 -- for its layers gives way to Blizzard instead)
 Sh.Claim(claimed, function()
     if InCombatLockdown and InCombatLockdown() then pending = true; return end
     Keys.Apply(true)
 end)
+
+-- Blizzard's gamepad UI, hooked once it is there (at load, else at login):
+--   OnCrossBarModifierChanged  L2 / R2 moved (GAMEPADLEFTMOD / RIGHTMOD): a look
+--                              at the pad now, so a release clears the extras
+--                              before the next press
+--   SetUIFocusState, FrameHidden  a window took or gave back the pad (Focus UI,
+--                              a window closed): its binding sets moved; every
+--                              key checked, now and next frame
+local hooked = false
+local function HookBlizzard()
+    if hooked or type(GamepadMode) ~= "table" then return end
+    hooked = true
+    if type(GamepadMode.OnCrossBarModifierChanged) == "function" then
+        hooksecurefunc(GamepadMode, "OnCrossBarModifierChanged", function() Keys.Watch() end)
+    end
+    local manager = GamepadMode.FrameControlsManager
+    local function Moved()
+        Keys.Heal()
+        if C_Timer and C_Timer.After then C_Timer.After(0, Keys.Heal) end
+    end
+    for _, method in ipairs({ "SetUIFocusState", "FrameHidden" }) do
+        if type(manager) == "table" and type(manager[method]) == "function" then
+            hooksecurefunc(manager, method, Moved)
+        end
+    end
+end
+HookBlizzard()
 
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
@@ -330,21 +408,21 @@ events:SetScript("OnEvent", function(_, event, arg)
         SetExtras({})
         return
     end
+    if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then HookBlizzard() end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     Keys.Apply(event == "PLAYER_REGEN_ENABLED")
 end)
 
--- The watcher: L2 / R2 out of combat
-local since = 0
+-- The watcher: L2 / R2 out of combat, every 20 ms; every key checked 4 times a second
+local since, healIn = 0, 0
 events:SetScript("OnUpdate", function(_, elapsed)
     since = since + elapsed
     if since < 0.02 then return end
+    healIn = healIn - since
     since = 0
     Keys.Watch()
+    if healIn <= 0 then
+        healIn = 0.25
+        Keys.Heal()
+    end
 end)
--- (Blizzard's own L2 / R2 handler, GAMEPADLEFTMOD / GAMEPADRIGHTMOD: a look at
--- the pad the moment a trigger moves, so a release clears the extras before
--- the next press can land on them)
-if type(GamepadMode) == "table" and type(GamepadMode.OnCrossBarModifierChanged) == "function" then
-    hooksecurefunc(GamepadMode, "OnCrossBarModifierChanged", function() Keys.Watch() end)
-end

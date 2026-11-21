@@ -85,9 +85,25 @@ function hooksecurefunc() end
 C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
 local wraps = {}   -- frame name -> the wrapped OnClick body
 function SecureHandlerWrapScript(frame, _, _, body) if frame.name then wraps[frame.name] = body end end
-function ClearOverrideBindings(owner) for k, b in pairs(overrides) do if b.owner == owner then overrides[k] = nil end end end
-function SetOverrideBindingClick(owner, _, key) overrides[key] = { owner = owner, action = "CLICK" } end
-function SetOverrideBinding(owner, _, key, action) overrides[key] = { owner = owner, action = action } end
+-- As the game: each owner has one priority override per key, the newest set
+-- runs (overrides[key]); an owner cleared uncovers the one set before it
+local stacks = {}   -- key -> the owners' entries, oldest first
+local function Push(key, entry)
+    local list = stacks[key] or {}
+    stacks[key] = list
+    for i = #list, 1, -1 do if list[i].owner == entry.owner then table.remove(list, i) end end
+    list[#list + 1] = entry
+    overrides[key] = entry
+end
+function ClearOverrideBindings(owner)
+    for key, list in pairs(stacks) do
+        for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
+        if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
+    end
+    for k, b in pairs(overrides) do if b.owner == owner then overrides[k] = nil end end
+end
+function SetOverrideBindingClick(owner, _, key) Push(key, { owner = owner, action = "CLICK" }) end
+function SetOverrideBinding(owner, _, key, action) Push(key, { owner = owner, action = action }) end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
@@ -97,7 +113,10 @@ C_GamePad = {
     GetConfig = function() end, SetConfig = function() end, DeleteConfig = function() end, ApplyConfigs = function() end,
 }
 InputUtil = { IsGamepadUIEnabled = function() return true end }
-GamepadMode = { FrameControlsManager = { isUIFocused = false }, OnCrossBarModifierChanged = function() end }
+-- (the focus manager as Blizzard's: a window focused or closed; Keys hooks both)
+GamepadMode = { FrameControlsManager = { isUIFocused = false,
+    SetUIFocusState = function(self, on) self.isUIFocused = on end, FrameHidden = function() end },
+    OnCrossBarModifierChanged = function() end }
 GamepadSharedUtility = { InputBindingManager = { IsOnlyCoreBindingSetActive = function() return true end } }
 C_Texture = { GetAtlasInfo = function() return { file = 1, width = 64, height = 64, leftTexCoord = 0, rightTexCoord = 1,
     topTexCoord = 0, bottomTexCoord = 1 } end }
@@ -144,7 +163,11 @@ C_Spell.PickupSpell = PickupSpell
 GetBindingKey = function(command) if command == "OPENRADIAL" then return "PADRSHOULDER" end end
 local bindings = { PADLSTICK = "TOGGLEAUTORUN" }
 local overridesRead = GetBindingAction
-GetBindingAction = function(key) return bindings[key] or overridesRead(key) end
+-- (checkOverride, as the game: an override on the key wins over its own binding)
+GetBindingAction = function(key, override)
+    if override and overrides[key] then return overrides[key].action end
+    return bindings[key] or overridesRead(key)
+end
 -- As the game: binding indexes are 0-based, the state's buttons 1-based
 local ButtonIndex = { PADRSHOULDER = 9, PADLTRIGGER = 10, PADRTRIGGER = 11, PAD1 = 0, PADDUP = 12, PADBACK = 18 }
 C_GamePad.ButtonBindingToIndex = function(key) return ButtonIndex[key] end
@@ -164,7 +187,7 @@ function hooksecurefunc(a, b, c)
 end
 -- Bindings keep the clicked button's name
 function SetOverrideBindingClick(owner, _, key, name, button)
-    overrides[key] = { owner = owner, action = "CLICK " .. name .. ":" .. (button or "LeftButton") }
+    Push(key, { owner = owner, action = "CLICK " .. name .. ":" .. (button or "LeftButton") })
 end
 local timers = {}
 C_Timer.After = function(_, fn) timers[#timers + 1] = fn end
@@ -652,6 +675,60 @@ eq(CreateRuns(), "TOGGLEWORLDMAP", "pad changed: Focus UI off Create")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 Keys.Set("PADSOCIAL", "lt", nil)
 bindings.PADSOCIAL = nil
+-- The player's setup (2026-11-21): Create = Quests & Map (the secure click), L2 + Create =
+-- Focus UI; Options = Radial, L2 + Options = Focus UI. Blizzard, from its FrameXML: a focused
+-- window's footer binds Options on UIParent (InputFunctionBinding) and its core set takes it
+-- back when the window closes (InputBindingManager.ReloadBindings)
+local manager = GamepadMode.FrameControlsManager
+local CLICK_CREATE = "CLICK GamepadCompanionKeys:p5"
+local function Create() return GetBindingAction("PADSOCIAL", true) end
+check(Keys.Set("PADSOCIAL", "base", "window:questlog"), "Create: Quests & Map")
+check(Keys.Set("PADSOCIAL", "lt", "bind:focus"), "L2 + Create: Focus UI")
+check(Keys.Set("PADFORWARD", "base", "bind:radial") and Keys.Set("PADFORWARD", "lt", "bind:focus"), "Options: Radial, L2 + Options: Focus UI")
+eq(Create(), CLICK_CREATE, "Create: the map")
+pressed.PADLTRIGGER = true; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "L2 + Create: Focus UI")
+-- the map takes the pad's focus: its footer binds Options; Companion puts Radial back on top
+-- next frame, the held layer's Focus UI still above Create
+manager:SetUIFocusState(true)
+SetOverrideBindingClick(UIParent, true, "PADFORWARD", "InputFunctionBindingButton_PADFORWARD", "LeftButton")
+for _, fn in ipairs(hooks.SetOverrideBindingClick or {}) do fn(UIParent, true, "PADFORWARD", "InputFunctionBindingButton_PADFORWARD") end
+RunTimers()
+eq(GetBindingAction("PADFORWARD", true), "TOGGLEUIFOCUS", "the map focused, L2 still held: L2 + Options is Focus UI, above Blizzard's footer")
+eq(Create(), "TOGGLEUIFOCUS", "L2 still held: Focus UI stays above Base on Create")
+pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
+eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
+-- the map closes while focused: Blizzard's core set binds Options again, and Create is left
+-- with Focus UI by another owner. The moment the focus ends, Create is put right
+local other = {}
+Push("PADSOCIAL", { owner = other, action = "TOGGLEUIFOCUS" })
+SetOverrideBinding(UIParent, true, "PADFORWARD", "OPENRADIAL")
+for _, fn in ipairs(hooks.SetOverrideBinding or {}) do fn(UIParent, true, "PADFORWARD", "OPENRADIAL") end
+eq(Create(), "TOGGLEUIFOCUS", "(left behind)")
+manager:SetUIFocusState(false)
+for _, fn in ipairs(hooks.SetUIFocusState or {}) do fn(manager, false) end
+RunTimers()
+eq(Create(), CLICK_CREATE, "focus ended: Create is the map, whatever was left on it")
+-- the same leftover out of any window: the watcher's check puts it right within a quarter second
+Push("PADSOCIAL", { owner = other, action = "TOGGLEUIFOCUS" })
+check(Keys.Heal(), "a leftover found")
+eq(Create(), CLICK_CREATE, "healed: the map")
+check(not Keys.Heal(), "nothing to heal")
+-- a leftover of ours on a key the game owns (Mute, L2 = Focus UI, no Base): cleared; another
+-- addon's binding there is not ours to touch
+bindings.PAD5 = "FRAMEGAMBIT_TOGGLE_CINEMATIC_CAMERA"
+check(Keys.Set("PAD5", "lt", "bind:focus"), "L2 + Mute: Focus UI")
+Push("PAD5", { owner = layerOwner, action = "TOGGLEUIFOCUS" })
+check(Keys.Heal(), "Mute: a leftover of ours")
+eq(GetBindingAction("PAD5", true), "FRAMEGAMBIT_TOGGLE_CINEMATIC_CAMERA", "Mute: the game's own again")
+Push("PAD5", { owner = other, action = "SOMETHING_ELSE" })
+check(not Keys.Heal(), "another addon's binding on Mute: left alone")
+ClearOverrideBindings(other)
+ClearOverrideBindings(UIParent)
+for _, l in ipairs({ "base", "lt" }) do Keys.Set("PADSOCIAL", l, nil); Keys.Set("PADFORWARD", l, nil) end
+Keys.Set("PAD5", "lt", nil)
+bindings.PAD5 = nil
 Keys.Apply(true)
 -- Nothing rebinds while a trigger is held: presses, macro and spell changes
 changes = 0

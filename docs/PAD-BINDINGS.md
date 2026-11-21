@@ -37,6 +37,10 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 3. Nothing rebinds while a trigger is held but the watcher's own `layerOwner`.
    Never bind, relay or re-send a trigger for a layer.
 4. Bindings change out of combat only; PLAYER_REGEN_DISABLED clears the extras.
+   Every key is checked against what it should run (`Keys.Heal`): 4 times a
+   second and the moment a window takes or gives back the pad. Base goes
+   back on top, the held layer's extras above it; a leftover of ours on a key
+   the game owns is dropped; the game's own bindings are never fought.
 5. A mode that takes a trigger (Fishing's R2 now, a lure on L2 next) is an
    override on the trigger's key, on its own owner, changed only with the
    trigger up and cleared when the mode ends (the pole off). `Sh.Held` still
