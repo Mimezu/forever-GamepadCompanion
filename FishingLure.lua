@@ -152,10 +152,11 @@ function L.PerPoint(skill)
     return 3.6
 end
 
--- Has this water stopped teaching: many more fish here than a point takes
+-- Has this water stopped teaching: three times the fish a point takes, six at
+-- least (below 200 a point takes one or two: six in a row with none is plain)
 function L.Taught(since, skill)
     since = tonumber(since) or 0
-    return since >= math.max(12, math.ceil(4 * L.PerPoint(skill)))
+    return since >= math.max(6, math.ceil(3 * L.PerPoint(skill)))
 end
 
 -- A skill-up message's new Fishing skill, or nil. fmt: the game's
