@@ -240,9 +240,9 @@ char.fishing.castRing = nil
 ev(nil, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
 
 -- Edit Mode: the float moved, put home ------------------------------------------------
-eq(select(1, L.Spot(nil)) .. "," .. select(2, L.Spot(nil)), "41,224", "never moved: its home spot")
+eq(select(1, L.Spot(nil)) .. "," .. select(2, L.Spot(nil)), "36,210", "never moved: its home spot")
 eq(select(1, L.Spot({ 400, 300 })) .. "," .. select(2, L.Spot({ 400, 300 })), "400,300", "moved: its own spot")
-eq(select(1, L.Spot({ "x" })), 41, "a broken spot: home")
+eq(select(1, L.Spot({ "x" })), 36, "a broken spot: home")
 check(pcall(L.EditMode, true) and L.editing == true, "Edit Mode opens: the float editable")
 check(pcall(L.EditMode, false) and L.editing == false, "Edit Mode closes")
 

@@ -257,7 +257,7 @@ local MIST = { 0.66, 0.74, 0.72 }
 
 local float = CreateFrame("Frame", "GamepadCompanionLure", UIParent)
 float:SetSize(240, SIZE + 8)
-L.HOME = { 41, 224 }   -- its spot (bottom-left, UIParent units) until moved in Edit Mode
+L.HOME = { 36, 210 }   -- its spot (bottom-left, UIParent units) until moved in Edit Mode
 float:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L.HOME[1], L.HOME[2])
 float:SetMovable(true)
 float:SetClampedToScreen(true)
@@ -391,7 +391,7 @@ title:SetFont(TITLE_FONT, 16, "")
 title:SetShadowColor(0, 0, 0, 0.9)
 title:SetShadowOffset(1, -1)
 title:SetTextColor(PARCHMENT[1], PARCHMENT[2], PARCHMENT[3])
-title:SetPoint("BOTTOMLEFT", medal, "RIGHT", 10, 1)
+title:SetPoint("BOTTOMLEFT", medal, "RIGHT", 15, 15)
 title:SetJustifyH("LEFT")
 
 local sub = float:CreateFontString(nil, "OVERLAY")
@@ -399,7 +399,7 @@ sub:SetFont(BODY_FONT, 11, "")
 sub:SetShadowColor(0, 0, 0, 0.9)
 sub:SetShadowOffset(1, -1)
 sub:SetTextColor(MIST[1], MIST[2], MIST[3])
-sub:SetPoint("TOPLEFT", medal, "RIGHT", 11, -3)
+sub:SetPoint("TOPLEFT", medal, "RIGHT", 16, 11)
 sub:SetJustifyH("LEFT")
 
 -- a quiet line under it, now and then: a skill-up, or a water with nothing
