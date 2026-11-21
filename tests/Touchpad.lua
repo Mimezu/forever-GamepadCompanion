@@ -395,6 +395,58 @@ uiFocused = false
 Tick()
 eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "back in the world: zones again")
 
+-- The Main Menu wheel's binding set: Blizzard's only while the wheel is on screen
+do
+    local core = { name = "CompactRaidFrameManagerExpand_61", treatBindsAsCore = true }
+    local wheelSet = { name = "RadialBindings_66" }
+    local other = { name = "GamepadHudModeBindings_7" }
+    local TM = ns.TouchModel
+    eq(TM.CoreOnly({ core }, false, false), true, "core only: ours")
+    eq(TM.CoreOnly({ core, wheelSet }, false, true), false, "wheel set, wheel shown: Blizzard's")
+    eq(TM.CoreOnly({ core, wheelSet }, false, false), true, "wheel set left, no wheel: ours")
+    eq(TM.CoreOnly({ core, wheelSet, other }, false, false), false, "another panel with it: Blizzard's")
+    eq(TM.CoreOnly({ core, other }, true, false), true, "manager assumes core: ours")
+    eq(TM.CoreOnly(nil, false, false), true, "empty stack: ours")
+
+    -- Driven: the stack read from the manager, the wheel's own shown state
+    local saved = GamepadSharedUtility.InputBindingManager
+    local manager = { bindingSetStack = { core, wheelSet } }
+    GamepadSharedUtility.InputBindingManager = manager
+    local wheel = { shown = true, alpha = 1 }
+    function wheel.IsShown(self) return self.shown end
+    function wheel.IsVisible(self) return self.shown end
+    function wheel.GetEffectiveAlpha(self) return self.alpha end
+    GamepadRadial = wheel
+    Tick()
+    eq(GetBindingAction("PADBACK"), "", "wheel open: the click is Blizzard's")
+    wheel.shown = false
+    Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "wheel gone, its set left: zones again at once")
+    wheel.shown, wheel.alpha = true, 0
+    Tick()
+    eq(GetBindingAction("PADBACK"), "", "wheel up under a faded UIParent (DialogueUI): still Blizzard's")
+    wheel.alpha = 1
+    manager.bindingSetStack = { core }
+    wheel.shown = false
+    Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "core only: zones")
+    for _, set in ipairs(manager.bindingSetStack) do check(set == core, "the stack never written") end
+    -- in combat: nothing changes until after
+    manager.bindingSetStack = { core, wheelSet }
+    wheel.shown = true
+    combat = true
+    Tick()
+    eq(GetBindingAction("PADBACK"), "CLICK GamepadCompanionTouchClick:LeftButton", "combat: no binding change")
+    combat = false
+    Fire("PLAYER_REGEN_ENABLED")
+    eq(GetBindingAction("PADBACK"), "", "after combat: wheel open, Blizzard's")
+    wheel.shown = false
+    Tick()
+    GamepadSharedUtility.InputBindingManager = saved
+    GamepadRadial = nil
+    Tick()
+end
+
 -- In combat the ownership freezes; it catches up after
 combat = true
 uiFocused = true

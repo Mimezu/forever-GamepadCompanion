@@ -101,9 +101,30 @@ local function GamepadUI()
     return ok and on == true
 end
 
+-- The Main Menu wheel is on screen (shown, its parents too). Alpha is not
+-- read: DialogueUI fades UIParent to 0 with the wheel still in use.
+local function WheelOnScreen()
+    local wheel = _G.GamepadRadial
+    if not (wheel and wheel.IsVisible) then return false end
+    local ok, visible = pcall(wheel.IsVisible, wheel)
+    return ok and visible == true
+end
+
+local function WheelState()
+    local wheel = _G.GamepadRadial
+    if not (wheel and wheel.IsShown) then return "none" end
+    local okA, alpha = pcall(function() return wheel:GetEffectiveAlpha() end)
+    return ("shown=%s visible=%s alpha=%s"):format(tostring(wheel:IsShown()), tostring(wheel:IsVisible()),
+        okA and ("%.2f"):format(alpha or -1) or "?")
+end
+
 local function CoreOnly()
     local shared = GamepadSharedUtility
     local manager = shared and (shared.InputBindingManager or (shared.BindingStack and shared.BindingStack.InputBindingManager))
+    -- (the stack read, never written; a leftover wheel set with no wheel is the world's)
+    if manager and type(manager.bindingSetStack) == "table" then
+        return T.CoreOnly(manager.bindingSetStack, manager.assumeCoreBindingsUsable == true, WheelOnScreen())
+    end
     if not (manager and manager.IsOnlyCoreBindingSetActive) then return nil end
     local ok, only = pcall(manager.IsOnlyCoreBindingSetActive, manager)
     if ok and type(only) == "boolean" then return only end
@@ -1005,6 +1026,7 @@ function Touch.Status()
         padStyle = env.padStyle, ours = env.ours, conflict = env.conflict, note = note, pending = pending,
         bound = T.Copy(boundKeys),
         windows = WindowsShown(), uiFocused = UIFocused(), coreOnly = CoreOnly(), lastOurs = lastOurs,
+        wheel = WheelState(),
     }
 end
 
