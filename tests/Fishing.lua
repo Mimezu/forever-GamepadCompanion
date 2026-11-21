@@ -157,6 +157,19 @@ lib.memory, char.fishingWeapons = nil, nil
 hands = { [16] = 6256 }
 eq(lib.Note(), "No weapons to go back to", "nothing to go back to: a calm note")
 
+-- The secure state driver (the pole in hand): recorded; the test runs what it would
+local drivers = {}
+function RegisterStateDriver(frame, state, cond) drivers[#drivers + 1] = { frame = frame, state = state, cond = cond } end
+local function Driver(newstate)
+    for _, d in ipairs(drivers) do
+        if d.frame == _G.GamepadCompanionFishingBinds then
+            local snippet = d.frame.attrs["_onstate-" .. d.state] or ""
+            if newstate == "off" and snippet:find("self:ClearBindings()", 1, true) then ClearOverrideBindings(d.frame) end
+            if snippet:find('self:CallMethod("PoleState", newstate)', 1, true) then d.frame:PoleState(newstate) end
+        end
+    end
+end
+
 -- R2 as the line ---------------------------------------------------------------------
 local ns = { Shared = { CharDB = function() return char end, Claim = function() end } }
 local fired = {}
@@ -428,6 +441,35 @@ do
     events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
     eq(L2(), nil, "the pole off: L2 is yours")
     eq(R2(), nil, "and R2")
+end
+
+-- Attacked while fishing: the weapons on in the fight, L2 / R2 free at once ---------------
+do
+    local d = drivers[#drivers]
+    check(d and d.frame == _G.GamepadCompanionFishingBinds and d.state == "pole", "the triggers' bindings on a secure state driver")
+    eq(d and d.cond, "[equipped:Fishing Poles] on; off", "it follows the pole in hand")
+    local function L2() return overrides[binds] and overrides[binds].PADLTRIGGER end
+    hands = { [16] = 6367 }
+    combat = false
+    events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+    check(R2() ~= nil, "the pole in hand: R2 fishes")
+    combat = true                                   -- attacked
+    hands = { [16] = 2488, [17] = 1201 }            -- the weapons on, in the fight
+    events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+    eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "(addon code can't change bindings in combat)")
+    Driver("off")                                   -- the secure driver sees the pole gone
+    eq(R2(), nil, "in the fight: R2 back to Blizzard's bars at once")
+    eq(L2(), nil, "and L2")
+    combat = false
+    events.handler(events, "PLAYER_REGEN_ENABLED")
+    eq(R2(), nil, "after the fight: still Blizzard's (no pole)")
+    hands = { [16] = 6367 }
+    events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
+    Driver("on")
+    eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "the pole again: R2 fishes again")
+    -- out of combat, a quick swap and back: the late "off" can't leave the pole with no R2
+    Driver("off")
+    eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "a late off with the pole in hand: rebound at once")
 end
 
 io.write(string.format("%s: fishing: %d checks, %d failed\n", failures == 0 and "PASS" or "FAIL", checks, failures))

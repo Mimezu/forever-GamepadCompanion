@@ -220,3 +220,4 @@ TaxiNodeCost
 TaxiNodeGetType
 TaxiNodeName
 TaxiNodePosition
+RegisterStateDriver

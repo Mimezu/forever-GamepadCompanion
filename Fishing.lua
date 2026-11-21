@@ -68,7 +68,14 @@ button:SetSize(1, 1)
 button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 button:SetAttribute("type", "macro")
-local owner = CreateFrame("Frame", "GamepadCompanionFishingBinds")
+-- The triggers' bindings live on a secure frame: the moment the pole leaves the hands, even
+-- in a fight (a swap to the weapons when attacked), its state driver drops them all and L2 / R2
+-- switch Blizzard's bars again at once. Addon code can't change bindings in combat; a secure
+-- state driver can (as Blizzard's bars do). Everything else stays out of combat (F.Apply).
+local owner = CreateFrame("Frame", "GamepadCompanionFishingBinds", UIParent, "SecureHandlerStateTemplate")
+owner:SetAttribute("_onstate-pole", [[ if newstate == "off" then self:ClearBindings() end self:CallMethod("PoleState", newstate) ]])
+function F.PoleCondition() return "[equipped:" .. lib.PoleType() .. "] on; off" end
+if RegisterStateDriver then RegisterStateDriver(owner, "pole", F.PoleCondition()) end
 -- L2: the lure on the pole (its macro: the lure, then the main hand)
 local lureButton = CreateFrame("Button", F.LURE_BUTTON, UIParent, "SecureActionButtonTemplate")
 lureButton:SetSize(1, 1)
@@ -249,6 +256,16 @@ lureButton:SetScript("PreClick", function()
     if lureNow then F.Settings().lastLure = lureNow end
 end)
 
+-- (the state driver moved: what F.Apply bound may be gone; it decides again, now or after
+-- the fight. The driver drops the bindings itself; this only keeps the books right)
+local loggedIn = false     -- (the driver fires once as it registers, before the settings exist)
+function owner:PoleState()
+    if not loggedIn then return end
+    current, lureMacro = false, false
+    wipe(bound)
+    if InCombat() then pending = true else F.Apply() end
+end
+
 Sh.Claim(bound, function()
     if InCombat() then pending = true; return end
     current, lureMacro = false, false     -- (rebind what it should be)
@@ -321,6 +338,7 @@ for _, ev in ipairs({ "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_ST
 end
 events:SetScript("OnEvent", function(_, event, unit, _, spellID)
     if event == "PLAYER_LOGIN" then
+        loggedIn = true
         lib.Attach(Sh.CharDB())
         lib.Remember()
         -- (the game's settings as they were before any fishing, whatever happened since; then
