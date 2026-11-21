@@ -62,6 +62,7 @@ Keys.lua
 Gestures.lua
 SpreadOverview.lua
 SpellRanks.lua
+SpellPlans.lua
 NativeLayoutExport.lua
 EditMode.lua
 EditModeBars.lua
