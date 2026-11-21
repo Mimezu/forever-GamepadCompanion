@@ -88,8 +88,6 @@ GetUIPanel
 GetUnitSpeed
 GetZoneText
 HideUIPanel
-InputDeviceIconVariant
-InputIconTextureSetUtility
 INVSLOT_RANGED
 InCombatLockdown
 InputDeviceIconSetManager

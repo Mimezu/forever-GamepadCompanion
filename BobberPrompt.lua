@@ -3,11 +3,12 @@
 --
 -- Blizzard draws that prompt on the soft-interact unit's nameplate: NamePlateDriverFrame's
 -- UpdateSoftTargetIconInternal fills SoftTargetFrame.Icon with SetUnitCursorTexture(...,
--- preferGamepadIcon = true). A post-hook (hooksecurefunc) puts Blizzard's own R2 prompt atlas for
--- the active controller style (InputIconTextureSetUtility, the one the gamepad footers use) on
--- that same texture, only when the unit is the fishing bobber. No frame of ours, nothing
+-- preferGamepadIcon = true): a Gamepad_<style>_<button> glyph. A post-hook (hooksecurefunc) puts
+-- the R2 glyph of that same set on that same texture, only when the unit is the fishing bobber. No frame of ours, nothing
 -- protected: every other prompt (NPCs, nodes, chests, mail) is left exactly as Blizzard draws it,
 -- and the bobber's goes back the moment the target changes or R2 stops catching.
+-- WoW Helper's fishing eye finds the bobber by this badge: it knows the R2 glyph too (helper
+-- branch claude/bobber-r2), so the two ship together.
 local _, ns = ...
 local P = {}
 ns.BobberPrompt = P
@@ -46,14 +47,32 @@ function P.Catching()
     return F ~= nil and type(F.Catching) == "function" and F.Catching() == true
 end
 
--- Blizzard's R2 prompt atlas for the active controller style; the shadowless one when the
--- prompt being replaced is ("-flat")
-function P.Glyph(flat)
-    local U = InputIconTextureSetUtility
-    if not (U and U.GetNormalActiveInputIconButtonTexture) then return nil end
-    local variant = InputDeviceIconVariant and (flat and InputDeviceIconVariant.NoShadow or InputDeviceIconVariant.Standard)
-    local atlas = Call(U.GetNormalActiveInputIconButtonTexture, P.KEY, variant)
-    if type(atlas) == "string" and atlas ~= "" then return atlas end
+-- The game's world prompts are the Gamepad_<style>_<button>_<size> glyphs (the soft target's
+-- badge over the bobber: Gamepad_Shp_Square_32 with a PlayStation pad, read from the install).
+-- R2 in the same set: the drawn atlas' style and size kept, its button RTrigger. Drawn as a file
+-- (no atlas name to read), the active controller style's set (Shapes: Shp...), at 32.
+P.STYLES = { Shapes = "Shp", Letters = "Ltr", Reverse = "Rev", Generic = "Gen" }
+
+local function Exists(atlas)
+    local T = C_Texture
+    if not (T and T.GetAtlasInfo) then return true end
+    return Call(T.GetAtlasInfo, atlas) ~= nil
+end
+
+function P.Glyph(drawn)
+    local style, size
+    if type(drawn) == "string" then
+        style, size = drawn:lower():match("^gamepad_(%a+)_.-_(%d+)$")
+    end
+    if not style then
+        local M = InputDeviceIconSetManager
+        local set = M and M.GetActiveInputDeviceIconSet and Call(M.GetActiveInputDeviceIconSet, M)
+        style, size = P.STYLES[set or ""], "32"
+        if style then style = style:lower() end
+    end
+    if not style then return nil end
+    local atlas = "Gamepad_" .. style:sub(1, 1):upper() .. style:sub(2) .. "_RTrigger_" .. size
+    if Exists(atlas) then return atlas end
 end
 
 -- Icons we changed: icon -> what Blizzard had drawn there (to put back)
@@ -106,7 +125,7 @@ function P.Update(frame)
     end
     if not (icon:IsShown() and P.Catching() and P.IsBobber(unit)) then return end
     local original = { atlas = icon:GetAtlas(), texture = icon:GetTexture(), coords = { icon:GetTexCoord() } }
-    local glyph = P.Glyph(original.atlas ~= nil and original.atlas:find("%-flat%-") ~= nil)
+    local glyph = P.Glyph(original.atlas)
     if not glyph then return end
     Seen(original, glyph)
     original.glyph = glyph
