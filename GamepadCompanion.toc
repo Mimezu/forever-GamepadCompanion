@@ -28,6 +28,8 @@ Forms.lua
 Shaman.lua
 Druid.lua
 Paladin.lua
+Warrior.lua
+Rogue.lua
 Haptics.lua
 Timing.lua
 Volume.lua

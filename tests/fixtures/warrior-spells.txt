@@ -1,0 +1,177 @@
+# Every castable warrior spell rank in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds,
+# 2026-11-20), the rune abilities the client names, the ranged weapons.
+# id, name, line, school mask, cast ms, channel, helpful, kinds letters, kinds tick, what it plays
+# (instant <pattern> <when> [ranged] | next <pattern> | cast <set> | craft <action> | gather <action>
+# | shot | quiet). Rewrite: WowHelper work/wr-data/make_fixtures.py
+2457	Battle Stance	Arms	1	0	0	1			instant stanceBattle cast
+100	Charge	Arms	1	0	0	0			instant rush cast
+6178	Charge	Arms	1	0	0	0			instant rush cast
+11578	Charge	Arms	1	0	0	0			instant rush cast
+12695	Charge Rage Bonus Effect	Arms	1	0	0	1			quiet
+12696	Charge Rage Bonus Effect	Arms	1	0	0	1			quiet
+1715	Hamstring	Arms	1	0	0	0	h		instant rend hit
+7372	Hamstring	Arms	1	0	0	0	h		instant rend hit
+7373	Hamstring	Arms	1	0	0	0	h		instant rend hit
+78	Heroic Strike	Arms	1	0	0	0	h		next slash
+284	Heroic Strike	Arms	1	0	0	0	h		next slash
+285	Heroic Strike	Arms	1	0	0	0	h		next slash
+1608	Heroic Strike	Arms	1	0	0	0	h		next slash
+11564	Heroic Strike	Arms	1	0	0	0	h		next slash
+11565	Heroic Strike	Arms	1	0	0	0	h		next slash
+11566	Heroic Strike	Arms	1	0	0	0	h		next slash
+11567	Heroic Strike	Arms	1	0	0	0	h		next slash
+25286	Heroic Strike	Arms	1	0	0	0	h		next slash
+12705	Long Daze	Arms	1	0	0	0	nd		quiet
+403228	Meathook	Arms	1	0	0	0			instant hook cast
+694	Mocking Blow	Arms	1	0	0	0	h		instant slash hit
+7400	Mocking Blow	Arms	1	0	0	0	h		instant slash hit
+7402	Mocking Blow	Arms	1	0	0	0	h		instant slash hit
+20559	Mocking Blow	Arms	1	0	0	0	h		instant slash hit
+20560	Mocking Blow	Arms	1	0	0	0	h		instant slash hit
+12294	Mortal Strike	Arms	1	0	0	0	h		instant mortal hit
+21551	Mortal Strike	Arms	1	0	0	0	h		instant mortal hit
+21552	Mortal Strike	Arms	1	0	0	0	h		instant mortal hit
+21553	Mortal Strike	Arms	1	0	0	0	h		instant mortal hit
+7384	Overpower	Arms	1	0	0	0	h		instant overpower hit
+7887	Overpower	Arms	1	0	0	0	h		instant overpower hit
+11584	Overpower	Arms	1	0	0	0	h		instant overpower hit
+11585	Overpower	Arms	1	0	0	0	h		instant overpower hit
+429765	Quick Strike	Arms	1	0	0	0	h		instant slash hit
+772	Rend	Arms	1	0	0	0	nd		quiet
+6546	Rend	Arms	1	0	0	0	nd		quiet
+6547	Rend	Arms	1	0	0	0	nd		quiet
+6548	Rend	Arms	1	0	0	0	nd		quiet
+11572	Rend	Arms	1	0	0	0	nd		quiet
+11573	Rend	Arms	1	0	0	0	nd		quiet
+11574	Rend	Arms	1	0	0	0	nd		quiet
+20230	Retaliation	Arms	1	0	0	1			instant ward cast
+440488	Shockwave	Arms	1	0	0	0	h		instant slam cast
+1310222	Spearing Strike	Arms	1	0	0	0	h		instant stab hit
+12723	Sweeping Strikes	Arms	1	0	0	0	h		quiet
+12292	Sweeping Strikes	Arms	1	0	0	1			instant whirl cast
+6343	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+8198	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+8204	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+8205	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+11580	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+11581	Thunder Clap	Arms	1	0	0	0	ha		instant slam cast
+402927	Victory Rush	Arms	1	0	0	0	h		instant slash hit
+12281	Weaponmaster	Arms	1	0	0	1			quiet
+12284	Weaponmaster	Arms	1	0	0	1			quiet
+12700	Weaponmaster	Arms	1	0	0	1			quiet
+416004	Engrave Belt - Blood Surge	Engraving	1	3000	0	1			cast enchanting
+409163	Engrave Belt - Focused Rage	Engraving	1	3000	0	1			cast enchanting
+416005	Engrave Belt - Precise Timing	Engraving	1	3000	0	1			cast enchanting
+403467	Engrave Boots - Enraged Regeneration	Engraving	1	3000	0	1			cast enchanting
+416002	Engrave Boots - Gladiator Stance	Engraving	1	3000	0	1			cast enchanting
+403472	Engrave Boots - Intervene	Engraving	1	3000	0	1			cast enchanting
+426491	Engrave Boots - Rallying Cry	Engraving	1	3000	0	1			cast enchanting
+427081	Engrave Bracers - Rampage	Engraving	1	3000	0	1			cast enchanting
+427082	Engrave Bracers - Sword and Board	Engraving	1	3000	0	1			cast enchanting
+427084	Engrave Bracers - Wrecking Crew	Engraving	1	3000	0	1			cast enchanting
+403474	Engrave Chest - Blood Frenzy	Engraving	1	3000	0	1			cast enchanting
+403480	Engrave Chest - Flagellation	Engraving	1	3000	0	1			cast enchanting
+425444	Engrave Chest - Raging Blow	Engraving	1	3000	0	1			cast enchanting
+425445	Engrave Chest - Warbringer	Engraving	1	3000	0	1			cast enchanting
+440492	Engrave Cloak - Fresh Meat	Engraving	1	3000	0	1			cast enchanting
+440496	Engrave Cloak - Shockwave	Engraving	1	3000	0	1			cast enchanting
+440494	Engrave Cloak - Sudden Death	Engraving	1	3000	0	1			cast enchanting
+403475	Engrave Gloves - Devastate	Engraving	1	3000	0	1			cast enchanting
+425443	Engrave Gloves - Quick Strike	Engraving	1	3000	0	1			cast enchanting
+416003	Engrave Gloves - Single-Minded Fury	Engraving	1	3000	0	1			cast enchanting
+403470	Engrave Gloves - Victory Rush	Engraving	1	3000	0	1			cast enchanting
+403489	Engrave Helm - Endless Rage	Engraving	1	3000	0	1			cast enchanting
+427080	Engrave Helm - Shield Mastery	Engraving	1	3000	0	1			cast enchanting
+427076	Engrave Helm - Taste for Blood	Engraving	1	3000	0	1			cast enchanting
+427078	Engrave Helm - Vigilance	Engraving	1	3000	0	1			cast enchanting
+403446	Engrave Pants - Commanding Shout	Engraving	1	3000	0	1			cast enchanting
+425446	Engrave Pants - Consumed by Rage	Engraving	1	3000	0	1			cast enchanting
+425447	Engrave Pants - Frenzied Assault	Engraving	1	3000	0	1			cast enchanting
+403476	Engrave Pants - Furious Thunder	Engraving	1	3000	0	1			cast enchanting
+6673	Battle Shout	Fury	1	0	0	1			instant shout cast
+5242	Battle Shout	Fury	1	0	0	1			instant shout cast
+6192	Battle Shout	Fury	1	0	0	1			instant shout cast
+11549	Battle Shout	Fury	1	0	0	1			instant shout cast
+11550	Battle Shout	Fury	1	0	0	1			instant shout cast
+11551	Battle Shout	Fury	1	0	0	1			instant shout cast
+25289	Battle Shout	Fury	1	0	0	1			instant shout cast
+18499	Berserker Rage	Fury	1	0	0	1			instant enrage cast
+2458	Berserker Stance	Fury	1	0	0	1			instant stanceBerserker cast
+23881	Bloodthirst	Fury	1	0	0	0	h		instant mortal hit
+23892	Bloodthirst	Fury	1	0	0	0	h		instant mortal hit
+23893	Bloodthirst	Fury	1	0	0	0	h		instant mortal hit
+23894	Bloodthirst	Fury	1	0	0	0	h		instant mortal hit
+1161	Challenging Shout	Fury	1	0	0	0	nta		instant shout cast
+845	Cleave	Fury	1	0	0	0	h		next cleaveArc
+7369	Cleave	Fury	1	0	0	0	h		next cleaveArc
+11608	Cleave	Fury	1	0	0	0	h		next cleaveArc
+11609	Cleave	Fury	1	0	0	0	h		next cleaveArc
+20569	Cleave	Fury	1	0	0	0	h		next cleaveArc
+12328	Death Wish	Fury	1	0	0	1			instant enrage cast
+1160	Demoralizing Shout	Fury	1	0	0	0	nda		instant shout cast
+6190	Demoralizing Shout	Fury	1	0	0	0	nda		instant shout cast
+11554	Demoralizing Shout	Fury	1	0	0	0	nda		instant shout cast
+11555	Demoralizing Shout	Fury	1	0	0	0	nda		instant shout cast
+11556	Demoralizing Shout	Fury	1	0	0	0	nda		instant shout cast
+402913	Enraged Regeneration	Fury	1	0	0	1			instant secondWind cast
+20647	Execute	Fury	1	0	0	0	h		instant execute hit
+5308	Execute	Fury	1	0	0	0	h		instant execute hit
+20658	Execute	Fury	1	0	0	0	h		instant execute hit
+20660	Execute	Fury	1	0	0	0	h		instant execute hit
+20661	Execute	Fury	1	0	0	0	h		instant execute hit
+20662	Execute	Fury	1	0	0	0	h		instant execute hit
+12966	Flurry	Fury	1	0	0	1			quiet
+20252	Intercept	Fury	1	0	0	0	h		instant rush cast
+20616	Intercept	Fury	1	0	0	0	h		instant rush cast
+20617	Intercept	Fury	1	0	0	0	h		instant rush cast
+5246	Intimidating Shout	Fury	1	0	0	0	nca		instant shout cast
+12323	Piercing Howl	Fury	1	0	0	0	nda		instant shout cast
+6552	Pummel	Fury	1	0	0	0	h		instant bash hit
+6554	Pummel	Fury	1	0	0	0	h		instant bash hit
+402911	Raging Blow	Fury	1	0	0	0	h		instant overpower hit
+1329555	Reckless Swings	Fury	1	0	0	1			quiet
+1719	Recklessness	Fury	1	0	0	1			instant enrage cast
+1240193	Slam	Fury	1	1500	0	0	h		cast feel:windup
+1464	Slam	Fury	1	1500	0	0	h		cast feel:windup
+8820	Slam	Fury	1	1500	0	0	h		cast feel:windup
+11604	Slam	Fury	1	1500	0	0	h		cast feel:windup
+11605	Slam	Fury	1	1500	0	0	h		cast feel:windup
+12964	Unbridled Wrath	Fury	1	0	0	1			quiet
+1680	Whirlwind	Fury	1	0	0	0	ha		instant whirlwind hit
+2687	Bloodrage	Protection	1	0	0	1			instant enrage cast
+403215	Commanding Shout	Protection	1	0	0	1			instant shout cast
+12809	Concussion Blow	Protection	1	0	0	0	nc		instant bash cast
+71	Defensive Stance	Protection	1	0	0	1			instant stanceDefensive cast
+403196	Devastate	Protection	1	0	0	0	h		instant slash hit
+676	Disarm	Protection	1	0	0	0	nc		instant disarm cast
+12975	Last Stand	Protection	1	0	0	1			instant secondWind cast
+12976	Last Stand	Protection	1	0	0	1			instant secondWind cast
+426490	Rallying Cry	Protection	1	0	0	1			instant shout cast
+6572	Revenge	Protection	1	0	0	0	h		instant slash hit
+6574	Revenge	Protection	1	0	0	0	h		instant slash hit
+7379	Revenge	Protection	1	0	0	0	h		instant slash hit
+11600	Revenge	Protection	1	0	0	0	h		instant slash hit
+11601	Revenge	Protection	1	0	0	0	h		instant slash hit
+25288	Revenge	Protection	1	0	0	0	h		instant slash hit
+72	Shield Bash	Protection	1	0	0	0	h		instant shieldBash hit
+1671	Shield Bash	Protection	1	0	0	0	h		instant shieldBash hit
+1672	Shield Bash	Protection	1	0	0	0	h		instant shieldBash hit
+2565	Shield Block	Protection	1	0	0	1			instant brace cast
+23922	Shield Slam	Protection	1	0	0	0	h		instant shieldBash hit
+23923	Shield Slam	Protection	1	0	0	0	h		instant shieldBash hit
+23924	Shield Slam	Protection	1	0	0	0	h		instant shieldBash hit
+23925	Shield Slam	Protection	1	0	0	0	h		instant shieldBash hit
+871	Shield Wall	Protection	1	0	0	1			instant brace cast
+7386	Sunder Armor	Protection	1	0	0	0	nd		quiet
+7405	Sunder Armor	Protection	1	0	0	0	nd		quiet
+8380	Sunder Armor	Protection	1	0	0	0	nd		quiet
+11596	Sunder Armor	Protection	1	0	0	0	nd		quiet
+11597	Sunder Armor	Protection	1	0	0	0	nd		quiet
+355	Taunt	Protection	1	0	0	0	nt		quiet
+461475	Valor of Azeroth	Protection	1	0	0	1			instant shout cast
+412513	Gladiator Stance	Rune	1	0	0	1			instant stanceBattle cast
+426940	Rampage	Rune	1	0	0	1			instant enrage cast
+2480	Shoot Bow	Ranged	1	0	0	0			shot
+7918	Shoot Gun	Ranged	1	0	0	0			shot
+7919	Shoot Crossbow	Ranged	1	0	0	0			shot
+2764	Throw	Ranged	1	0	0	0			shot

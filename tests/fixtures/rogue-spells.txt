@@ -1,0 +1,218 @@
+# Every castable rogue spell rank in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds,
+# 2026-11-20), the rune abilities the client names, the ranged weapons, poisons put on a blade.
+# id, name, line, school mask, cast ms, channel, helpful, kinds letters, kinds tick, what it plays
+# (instant <pattern> <when> [ranged] | next <pattern> | cast <set> | craft <action> | gather <action>
+# | shot | quiet). Rewrite: WowHelper work/wr-data/make_fixtures.py
+8676	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+8724	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+8725	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+11267	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+11268	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+11269	Ambush	Assassination	1	0	0	0	h		instant ambush hit
+1833	Cheap Shot	Assassination	1	0	0	0	nc		instant bash cast
+14177	Cold Blood	Assassination	1	0	0	1			instant coldBlood cast
+2098	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+6760	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+6761	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+6762	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+8623	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+8624	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+11299	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+11300	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+31016	Eviscerate	Assassination	1	0	0	0	h		instant cut5 hit
+8647	Expose Armor	Assassination	1	0	0	0	nd		instant expose cast
+8649	Expose Armor	Assassination	1	0	0	0	nd		instant expose cast
+8650	Expose Armor	Assassination	1	0	0	0	nd		instant expose cast
+11197	Expose Armor	Assassination	1	0	0	0	nd		instant expose cast
+11198	Expose Armor	Assassination	1	0	0	0	nd		instant expose cast
+703	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+8631	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+8632	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+8633	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+11289	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+11290	Garrote	Assassination	1	0	0	0	nd		instant garrote cast
+408	Kidney Shot	Assassination	1	0	0	0	nc		instant kidney cast
+8643	Kidney Shot	Assassination	1	0	0	0	nc		instant kidney cast
+399956	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+399960	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+399961	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241582	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241585	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241588	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241584	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241586	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1241590	Mutilate	Assassination	1	0	0	0	h		instant mutilate hit
+1943	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+8639	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+8640	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+11273	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+11274	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+11275	Rupture	Assassination	1	0	0	0	nd		instant rupture cast
+5171	Slice and Dice	Assassination	1	0	0	0			instant sliceDice cast
+6774	Slice and Dice	Assassination	1	0	0	0			instant sliceDice cast
+13750	Adrenaline Rush	Combat	1	0	0	1			instant enrage cast
+53	Backstab	Combat	1	0	0	0	h		instant backstab hit
+2589	Backstab	Combat	1	0	0	0	h		instant backstab hit
+2590	Backstab	Combat	1	0	0	0	h		instant backstab hit
+2591	Backstab	Combat	1	0	0	0	h		instant backstab hit
+8721	Backstab	Combat	1	0	0	0	h		instant backstab hit
+11279	Backstab	Combat	1	0	0	0	h		instant backstab hit
+11280	Backstab	Combat	1	0	0	0	h		instant backstab hit
+11281	Backstab	Combat	1	0	0	0	h		instant backstab hit
+25300	Backstab	Combat	1	0	0	0	h		instant backstab hit
+400009	Between the Eyes	Combat	1	0	0	0	h		instant betweenEyes hit ranged
+400012	Blade Dance	Combat	1	0	0	0			instant bladeDance cast
+13877	Blade Flurry	Combat	1	0	0	1			instant whirl cast
+5277	Evasion	Combat	1	0	0	1			instant ward cast
+1966	Feint	Combat	1	0	0	0	nd		quiet
+6768	Feint	Combat	1	0	0	0	nd		quiet
+8637	Feint	Combat	1	0	0	0	nd		quiet
+11303	Feint	Combat	1	0	0	0	nd		quiet
+25302	Feint	Combat	1	0	0	0	nd		quiet
+1776	Gouge	Combat	1	0	0	0	h		instant bash hit
+1777	Gouge	Combat	1	0	0	0	h		instant bash hit
+8629	Gouge	Combat	1	0	0	0	h		instant bash hit
+11285	Gouge	Combat	1	0	0	0	h		instant bash hit
+11286	Gouge	Combat	1	0	0	0	h		instant bash hit
+13706	Hack and Slash	Combat	1	0	0	1			quiet
+13709	Hack and Slash	Combat	1	0	0	1			quiet
+1766	Kick	Combat	1	0	0	0	h		instant kick hit
+1767	Kick	Combat	1	0	0	0	h		instant kick hit
+1768	Kick	Combat	1	0	0	0	h		instant kick hit
+1769	Kick	Combat	1	0	0	0	h		instant kick hit
+424919	Main Gauche	Combat	1	0	0	0	h		instant stab hit
+425013	Poisoned Knife	Combat	1	0	0	0	h		instant shuriken hit ranged
+425012	Poisoned Knife	Combat	1	0	0	0			instant shuriken hit ranged
+398196	Quick Draw	Combat	1	0	0	0	h		instant shuriken hit ranged
+14251	Riposte	Combat	1	0	0	0	h		instant stab hit
+424785	Saber Slash	Combat	1	0	0	0	h		instant slash hit
+1329283	Shank	Combat	1	0	0	0	h		instant stab hit
+1329549	Shank	Combat	1	0	0	0	h		instant stab hit
+424799	Shiv	Combat	1	0	0	0			instant stab cast
+1752	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+1757	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+1758	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+1759	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+1760	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+8621	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+11293	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+11294	Sinister Strike	Combat	1	0	0	0	h		instant stab hit
+2983	Sprint	Combat	1	0	0	1			instant sprint cast
+8696	Sprint	Combat	1	0	0	1			instant sprint cast
+11305	Sprint	Combat	1	0	0	1			instant sprint cast
+425102	Engrave Belt - Poisoned Knife	Engraving	1	3000	0	1			cast enchanting
+400101	Engrave Belt - Shadowstep	Engraving	1	3000	0	1			cast enchanting
+400096	Engrave Belt - Shuriken Toss	Engraving	1	3000	0	1			cast enchanting
+425103	Engrave Boots - Master of Subtlety	Engraving	1	3000	0	1			cast enchanting
+400093	Engrave Boots - Rolling with the Punches	Engraving	1	3000	0	1			cast enchanting
+415926	Engrave Boots - Waylay	Engraving	1	3000	0	1			cast enchanting
+432299	Engrave Bracers - Carnage	Engraving	1	3000	0	1			cast enchanting
+432297	Engrave Bracers - Cut to the Chase	Engraving	1	3000	0	1			cast enchanting
+432301	Engrave Bracers - Unfair Advantage	Engraving	1	3000	0	1			cast enchanting
+400080	Engrave Chest - Deadly Brew	Engraving	1	3000	0	1			cast enchanting
+400082	Engrave Chest - Just a Flesh Wound	Engraving	1	3000	0	1			cast enchanting
+400095	Engrave Chest - Quick Draw	Engraving	1	3000	0	1			cast enchanting
+424992	Engrave Chest - Slaughter from the Shadows	Engraving	1	3000	0	1			cast enchanting
+415922	Engrave Cloak - Blunderbuss	Engraving	1	3000	0	1			cast enchanting
+415918	Engrave Cloak - Crimson Tempest	Engraving	1	3000	0	1			cast enchanting
+436609	Engrave Cloak - Fan of Knives	Engraving	1	3000	0	1			cast enchanting
+424988	Engrave Gloves - Cutthroat	Engraving	1	3000	0	1			cast enchanting
+424990	Engrave Gloves - Main Gauche	Engraving	1	3000	0	1			cast enchanting
+400094	Engrave Gloves - Mutilate	Engraving	1	3000	0	1			cast enchanting
+424984	Engrave Gloves - Saber Slash	Engraving	1	3000	0	1			cast enchanting
+400105	Engrave Gloves - Shadowstrike	Engraving	1	3000	0	1			cast enchanting
+432293	Engrave Helm - Combat Potency	Engraving	1	3000	0	1			cast enchanting
+432291	Engrave Helm - Focused Attacks	Engraving	1	3000	0	1			cast enchanting
+432295	Engrave Helm - Honor Among Thieves	Engraving	1	3000	0	1			cast enchanting
+400081	Engrave Pants - Between the Eyes	Engraving	1	3000	0	1			cast enchanting
+400099	Engrave Pants - Blade Dance	Engraving	1	3000	0	1			cast enchanting
+400102	Engrave Pants - Envenom	Engraving	1	3000	0	1			cast enchanting
+400104	Engrave Pants - Shadowstep	Engraving	1	3000	0	1			cast enchanting
+1804	Pick Lock	Lockpicking	1	5000	0	1			gather opening
+439503	Atrophic Poison	Poisons	1	3000	0	1			craft
+6510	Blinding Powder	Poisons	1	3000	0	1			craft
+3420	Crippling Poison	Poisons	1	3000	0	1			craft
+3421	Crippling Poison II	Poisons	1	3000	0	1			craft
+2835	Deadly Poison	Poisons	1	3000	0	1			craft
+2837	Deadly Poison II	Poisons	1	3000	0	1			craft
+11357	Deadly Poison III	Poisons	1	3000	0	1			craft
+11358	Deadly Poison IV	Poisons	1	3000	0	1			craft
+25347	Deadly Poison V	Poisons	1	3000	0	1			craft
+8681	Instant Poison	Poisons	1	3000	0	1			craft
+8687	Instant Poison II	Poisons	1	3000	0	1			craft
+8691	Instant Poison III	Poisons	1	3000	0	1			craft
+11341	Instant Poison IV	Poisons	1	3000	0	1			craft
+11342	Instant Poison V	Poisons	1	3000	0	1			craft
+11343	Instant Poison VI	Poisons	1	3000	0	1			craft
+5763	Mind-numbing Poison	Poisons	1	3000	0	1			craft
+8694	Mind-numbing Poison II	Poisons	1	3000	0	1			craft
+11400	Mind-numbing Poison III	Poisons	1	3000	0	1			craft
+439505	Numbing Poison	Poisons	1	3000	0	1			craft
+458822	Occult Poison I	Poisons	1	3000	0	1			craft
+1214168	Occult Poison II	Poisons	1	3000	0	1			craft
+2842	Poisons	Poisons	1	0	0	1			quiet
+439500	Sebacious Poison	Poisons	1	3000	0	1			craft
+13220	Wound Poison	Poisons	1	3000	0	1			craft
+13228	Wound Poison II	Poisons	1	3000	0	1			craft
+13229	Wound Poison III	Poisons	1	3000	0	1			craft
+13230	Wound Poison IV	Poisons	1	3000	0	1			craft
+2094	Blind	Subtlety	8	0	0	0	nc		instant blind cast
+1316709	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
+1325756	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
+1325757	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
+1325758	Death Mark	Subtlety	1	0	0	0	nd		instant hex cast
+1842	Disarm Trap	Subtlety	1	2000	0	1			cast feel:click
+1725	Distract	Subtlety	1	0	0	0	nd		quiet
+14278	Ghostly Strike	Subtlety	1	0	0	0	h		instant stab hit
+16511	Hemorrhage	Subtlety	1	0	0	0	h		instant stab hit
+13977	Initiative	Subtlety	1	0	0	0			quiet
+921	Pick Pocket	Subtlety	1	0	0	0	nd		instant pocket cast
+14183	Premeditation	Subtlety	1	0	0	0			instant coldBlood cast
+14185	Preparation	Subtlety	1	0	0	1			instant coldBlood cast
+438040	Redirect	Subtlety	1	0	0	0			quiet
+6770	Sap	Subtlety	1	0	0	0	nc		instant sap cast
+2070	Sap	Subtlety	1	0	0	0	nc		instant sap cast
+11297	Sap	Subtlety	1	0	0	0	nc		instant sap cast
+399985	Shadowstrike	Subtlety	1	0	0	0	ha		instant stab hit
+399986	Shuriken Toss	Subtlety	1	0	0	0	h		instant shuriken hit ranged
+1784	Stealth	Subtlety	1	0	0	1			instant cloak cast
+1785	Stealth	Subtlety	1	0	0	1			instant cloak cast
+1786	Stealth	Subtlety	1	0	0	1			instant cloak cast
+1787	Stealth	Subtlety	1	0	0	1			instant cloak cast
+1856	Vanish	Subtlety	1	0	0	1			instant vanish cast
+1857	Vanish	Subtlety	1	0	0	1			instant vanish cast
+14093	Vanished	Subtlety	1	0	0	1			quiet
+400029	Shadowstep	Rune	1	0	0	1			instant shadowstep cast
+409239	Fan of Knives	Rune	1	0	0	0			instant fanOfKnives cast
+409240	Fan of Knives	Rune	1	0	0	0			instant fanOfKnives cast
+412096	Crimson Tempest	Rune	1	0	0	0			instant crimsonTempest cast
+436564	Blunderbuss	Rune	1	0	0	0			instant blunderbuss cast
+8679	Instant Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+8686	Instant Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+8688	Instant Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+11338	Instant Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+11339	Instant Poison V	Poison on a blade	1	3000	0	1			cast feel:coat
+11340	Instant Poison VI	Poison on a blade	1	3000	0	1			cast feel:coat
+2823	Deadly Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+2824	Deadly Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+11355	Deadly Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+11356	Deadly Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+25351	Deadly Poison V	Poison on a blade	1	3000	0	1			cast feel:coat
+3408	Crippling Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+11202	Crippling Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+5761	Mind-numbing Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+8693	Mind-numbing Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+11399	Mind-numbing Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+13219	Wound Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+13225	Wound Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+13226	Wound Poison III	Poison on a blade	1	3000	0	1			cast feel:coat
+13227	Wound Poison IV	Poison on a blade	1	3000	0	1			cast feel:coat
+439462	Sebacious Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+439464	Numbing Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+439465	Atrophic Poison	Poison on a blade	1	3000	0	1			cast feel:coat
+458821	Occult Poison I	Poison on a blade	1	3000	0	1			cast feel:coat
+1214171	Occult Poison II	Poison on a blade	1	3000	0	1			cast feel:coat
+2480	Shoot Bow	Ranged	1	0	0	0			shot
+7918	Shoot Gun	Ranged	1	0	0	0			shot
+7919	Shoot Crossbow	Ranged	1	0	0	0			shot
+2764	Throw	Ranged	1	0	0	0			shot

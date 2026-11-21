@@ -2630,6 +2630,9 @@ local function CastReleased()
     -- quiet, the pet's own moment says the rest. Hunter.lua)
     local HN = ns.Hunter
     if V.castKind == "spell" and HN and HN.CastReleased and HN.CastReleased(V.castAction, cast.spellID) then return end
+    -- (a class spell's own end: Slam's blow at the impact, a poison's coat, a lock giving)
+    local own = cast.spellID and V.ClassSpellOf(cast.spellID)
+    if own and own.released and own.released(cast.spellID) then return end
     local mage = V.castKind == "spell" and not V.castSet and cast.mage or nil
     -- (a mage's ground spell or Polymorph: its own feel at the release, no wait)
     if mage and mage.burst then
@@ -3058,14 +3061,21 @@ function V.SpellRule(spellID, castTime)
                 -- (a class's own: Maul's paw)
                 r.move, r.when, r.next = mage and mage.move or move or "slash", "hit", true
                 r.why = "On the next swing: felt as the ability"
-            elseif mage and mage.move then
-                -- (a mage's own: at the cast, or as it lands)
-                r.move, r.when, r.mage = mage.move, mage.when or "cast", mage
+            elseif mage and (mage.move or mage.moveOf) then
+                -- (a mage's own: at the cast, or as it lands; a class's may pick its move now,
+                -- moveOf: a finisher by its points, false: quiet)
+                local m = mage.move
+                if type(mage.moveOf) == "function" then m = mage.moveOf(spellID) end
+                r.move, r.when, r.mage = m or nil, mage.when or "cast", mage
                 if mage.melee then r.how = { melee = true } end
+                if mage.ranged then r.how = { ranged = true } end
                 if mage.magic then r.magicOnly = true end
                 if mage.avoidOnly then r.avoidOnly = true end
-                r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ")
-                    .. (PATTERN[mage.move] and PATTERN[mage.move].label or mage.move)
+                if not m then
+                    r.moment, r.when, r.why = "quiet", "none", mage.why or "Quiet by design"
+                else
+                    r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ") .. (PATTERN[m] and PATTERN[m].label or m)
+                end
             elseif summon then
                 if summon == "ground" then r.move, r.when, r.why = "surge", "cast", "Laid on the ground: at the cast"
                 elseif summon == "pet" then r.move, r.when, r.why = "ritual", "cast", "A summon: at the cast"
