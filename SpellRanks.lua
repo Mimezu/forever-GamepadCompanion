@@ -83,6 +83,34 @@ local function Known(id)
     return true
 end
 
+-- Each spell in the book (not passive): fn(id, name). (SpellPlans.lua walks it too)
+function R.EachBookSpell(fn)
+    local sb = C_SpellBook
+    local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+    local spellType = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell or 1
+    if sb and sb.GetNumSpellBookSkillLines then
+        for i = 1, Call(sb.GetNumSpellBookSkillLines) or 0 do
+            local info = Call(sb.GetSpellBookSkillLineInfo, i)
+            if info then
+                for slot = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
+                    local item = Call(sb.GetSpellBookItemInfo, slot, bank)
+                    if item and item.itemType == spellType and not item.isPassive then
+                        fn(item.spellID or item.actionID, item.name)
+                    end
+                end
+            end
+        end
+    else
+        for i = 1, Call(GetNumSpellTabs) or 0 do
+            local _, _, first, n = Call(GetSpellTabInfo, i)
+            for slot = (first or 0) + 1, (first or 0) + (n or 0) do
+                local kind, id = Call(GetSpellBookItemInfo, slot, "spell")
+                if kind == "SPELL" then fn(id, Call(GetSpellBookItemName, slot, "spell")) end
+            end
+        end
+    end
+end
+
 -- family -> { known ranked spell IDs, lowest rank first }, and the book's
 -- signature (it changes only when the spells known change)
 local book, signature
@@ -99,30 +127,7 @@ local function Book()
         list[#list + 1] = id
         count, sum = count + 1, sum + id
     end
-    local sb = C_SpellBook
-    local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
-    local spellType = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell or 1
-    if sb and sb.GetNumSpellBookSkillLines then
-        for i = 1, Call(sb.GetNumSpellBookSkillLines) or 0 do
-            local info = Call(sb.GetSpellBookSkillLineInfo, i)
-            if info then
-                for slot = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
-                    local item = Call(sb.GetSpellBookItemInfo, slot, bank)
-                    if item and item.itemType == spellType and not item.isPassive then
-                        Add(item.spellID or item.actionID, item.name)
-                    end
-                end
-            end
-        end
-    else
-        for i = 1, Call(GetNumSpellTabs) or 0 do
-            local _, _, first, n = Call(GetSpellTabInfo, i)
-            for slot = (first or 0) + 1, (first or 0) + (n or 0) do
-                local kind, id = Call(GetSpellBookItemInfo, slot, "spell")
-                if kind == "SPELL" then Add(id, Call(GetSpellBookItemName, slot, "spell")) end
-            end
-        end
-    end
+    R.EachBookSpell(Add)
     for _, list in pairs(book) do
         table.sort(list, function(a, b) return rankMemo[a] < rankMemo[b] end)   -- (Add ranked them all)
     end

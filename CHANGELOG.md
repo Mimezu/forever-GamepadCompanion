@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (0.73.0)
+## Unreleased (0.73.1)
 
+- WoW Helper: each spell in your book exports what it plays (its rule: a cast's set, its ticks, impact, burst, an instant's feel and when), so the helper's Try plays it as the game does, even a spell never cast. SpellPlans.lua; every character's plans are kept
 - Spell ranks: a slot the game refused no longer leaves the others behind, and empty bars at login no longer skip a rank
 - **Spell ranks**: a pad slot at a spell's top rank moves up to each rank you train. A lower rank stays, whoever put it there. Choose under the Controller card: Rank  < Highest >. Nothing moves on a character's first login
 - Fixed: L1 / R1 change tabs in the window (they went to the game's modifier highlight). The pad legend no longer overlaps; L1 / R1 on the controller read "Modifier"

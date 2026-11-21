@@ -619,3 +619,39 @@ do
     C.Moment, K.Enabled = cm, enabled
     io.write("PASS: mining: the crack plays firmer than a strike, even when the cast ends before its time\n")
 end
+
+---------------------------------------------------------------------------
+-- 6. The plans WoW Helper reads (SpellPlans.lua): the rule written down, so its Try plays each
+-- spell as the game does, even one never cast
+---------------------------------------------------------------------------
+do
+    local book = { 25345, 5143, 133, 116, 2120, 10, 2136, 122 }
+    ns.SpellRanks = ns.SpellRanks or {}
+    ns.SpellRanks.EachBookSpell = function(fn) for _, id in ipairs(book) do fn(id, (MageSpellInfo(id))) end end
+    assert(loadfile(root .. "/SpellPlans.lua"))("GamepadCompanion", ns)
+    local P = ns.SpellPlans
+    local p = P.Plan(25345)
+    assert(p.m == "spell" and p.w == "channel" and p.tick == "r_missile" and p.last == "r_missileLast" and p.n == 5 and p.alt,
+        "Arcane Missiles: five missiles, the last its own, by turns")
+    assert(P.Plan(5143).n == 3, "rank 1: three")
+    p = P.Plan(133)
+    assert(p.m == "spell" and p.w == "cast" and p.imp == "r_fireball" and not p.tick and not p.burst, "Fireball: its impact")
+    assert(P.Plan(116).imp == "r_frostbolt", "Frostbolt: its impact")
+    p = P.Plan(2120)
+    assert(p.burst == "r_flamestrike" and not p.imp, "Flamestrike: its burst at the release, no impact")
+    p = P.Plan(10)
+    assert(p.tick == "r_blizzard" and p.last == "r_blizzard" and p.n == 8, "Blizzard: eight waves")
+    p = P.Plan(2136)
+    assert(p.m == "instant" and p.w == "hit" and p.f == "r_fireBlast" and type(p.d) == "number", "Fire Blast: as it lands")
+    p = P.Plan(122)
+    assert(p.m == "instant" and p.w == "cast" and p.f == "r_frostNova" and p.d == nil, "Frost Nova: at the cast")
+    -- the export carries them, and keeps another character's
+    GamepadCompanionHapticsDB = GamepadCompanionHapticsDB or {}
+    H.DB().export = { spellPlans = { [999001] = { m = "instant", w = "cast", f = "r_bash" } } }
+    GamepadCompanionHapticsDB.export = H.DB().export
+    local e = L.Export()
+    assert(e.spellPlans and e.spellPlans[25345] and e.spellPlans[25345].tick == "r_missile", "in the export")
+    assert(e.spellPlans[999001] and e.spellPlans[999001].f == "r_bash", "another character's kept")
+    assert(e.moments, "the moments still there (HelperCues' wrap)")
+    io.write("PASS: spell plans: each book spell's rule exported for WoW Helper, other characters' kept\n")
+end
