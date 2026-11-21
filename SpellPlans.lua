@@ -12,10 +12,14 @@
 --   f     an instant's HD feel (at the cast, or as it lands)
 --   d     as it lands: seconds after the cast (the hit timing as play has it)
 --   imp   a cast's impact feel (as its wound lands, after the flight)
---   burst a cast's feel at its release (a ground spell, Polymorph)
---   tick, last, n, alt   a channel's tick feel, the last tick's, how many, by turns from either hand
+--   tick, last, n, alt   a channel's tick feel (HD), the last tick's, how many, by turns from
+--         either hand; first: one more as the channel starts (Penance: pad rumble only, below)
+--   aft, an, ae   after the cast, n more of feel aft every ae s (Consecration's ground)
+--   sc    a finisher's strength at a middling 3 combo points (1: as designed)
+--   rumble  what plays on the pad's rumble only, no HD (a burst at the release, Penance's first
+--         bolt, a released hook: a poison's coat, a lock giving), by pattern
 --   tail  a shot's tail feel (Multi-Shot's other arrows, a sting)
---   vol   its volume (1: as designed); off: your choice, nothing plays
+--   vol   its volume (1: as designed); off: your choice, nothing of the addon's plays
 -- Plans of other characters stay (one account, several classes): a spell's plan is replaced when
 -- its character exports again.
 local _, ns = ...
@@ -23,6 +27,21 @@ local P = {}
 ns.SpellPlans = P
 
 local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
+local function SpellName(id)
+    if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+    return GetSpellInfo and (GetSpellInfo(id)) or nil
+end
+
+-- A finisher's strength at 3 combo points (its scale asked with 3 spent; restored after)
+local function MidCombo(scale)
+    local CP = ns.Combo
+    if not (CP and CP.Spent) then return nil end
+    local spent = CP.Spent
+    CP.Spent = function() return 3 end
+    local ok, v = pcall(scale)
+    CP.Spent = spent
+    return ok and type(v) == "number" and v or nil
+end
 
 -- The rule written down (nil: no rule, a spell the addon doesn't play)
 function P.Plan(id)
@@ -39,20 +58,35 @@ function P.Plan(id)
         local okd, d = pcall(V.HitDelay, kind)
         if okd and type(d) == "number" then p.d = math.floor(d * 1000 + 0.5) / 1000 end
     end
-    -- a cast's own, as play does them (CastReleased): your own set chosen, none
     local m = r.mage
-    if r.moment == "spell" and not (r.own and r.set) then
-        if m and m.burst then
-            p.burst = L.FeelFor(m.burst)
-        elseif m and m.tick then
-            p.tick, p.last = L.FeelFor(m.tick), L.FeelFor(m.last or m.tick)
-            p.n = m.rankTicks and m.rankTicks[id] or m.ticks or 1
-            p.alt = m.alternate and true or nil
+    local rumble = {}
+    if m and type(m.scale) == "function" then p.sc = MidCombo(m.scale) end
+    -- a channel's ticks (HD, Rumble's V.TickHD), whatever set plays under them
+    if r.moment == "spell" and m and m.tick then
+        p.tick, p.last = L.FeelFor(m.tick), L.FeelFor(m.last or m.tick)
+        p.n = m.rankTicks and m.rankTicks[id] or m.ticks or 1
+        p.alt = m.alternate and true or nil
+        if m.first then p.first = true; rumble[#rumble + 1] = m.tick end
+    end
+    -- a cast's end, as play does it (CastReleased): a class's hook, a burst (rumble), else its
+    -- impact by the cast's action; none under your own set
+    local own = V.ClassSpellOf and V.ClassSpellOf(id)
+    if r.moment == "spell" and not (r.own and r.set) and not (m and m.tick) then
+        if own and own.released then
+            rumble[#rumble + 1] = "released"
+        elseif m and m.burst then
+            rumble[#rumble + 1] = m.burst
         elseif r.when == "cast" then
-            local f = V.CAST_IMPACT and V.CAST_IMPACT[r.set or ""]
+            local f = V.CAST_IMPACT and V.CAST_IMPACT[r.schoolSet or r.ruleSet or ""]
             local move = f and (m and m.impact or f[1])
             if move then p.imp = L.FeelFor(move) end
         end
+    end
+    if #rumble > 0 then p.rumble = rumble end
+    -- Consecration's ground (Paladin.lua): its ticks after it is laid down
+    local PD = ns.Paladin
+    if PD and PD.CONSECRATION and PD.HALLOW_TICKS and r.name and r.name == SpellName(PD.CONSECRATION) then
+        p.aft, p.an, p.ae = "r_hallow", PD.HALLOW_TICKS, PD.HALLOW_PERIOD
     end
     return p
 end
@@ -82,7 +116,11 @@ local function Wrap()
         local db = type(GamepadCompanionHapticsDB) == "table" and GamepadCompanionHapticsDB or nil
         local kept = db and type(db.export) == "table" and db.export.spellPlans or nil
         local e = export(...)
-        if type(e) == "table" then e.spellPlans = P.Export(kept) end
+        if type(e) == "table" then
+            -- (a failure here never costs the export, nor the plans kept)
+            local okp, plans = pcall(P.Export, kept)
+            e.spellPlans = okp and plans or kept
+        end
         return e
     end
 end

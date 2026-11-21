@@ -492,3 +492,12 @@ UnitClass = function() return "Paladin", "PALADIN" end
 assert(PD.Of(10293) ~= nil, "a paladin: by name, every rank")
 C.Feel, C.Moment, V.Play, V.Fire = cFeel, cMoment, vplay, vfire
 io.write("PASS: the paladin's names only for a paladin\n")
+
+-- WoW Helper's plans (SpellPlans.lua): Consecration laid down, then its ground once a second
+do
+    UnitClass = function() return "Paladin", "PALADIN" end
+    assert(loadfile(root .. "/SpellPlans.lua"))("GamepadCompanion", ns)
+    local p = ns.SpellPlans.Plan(26573)
+    assert(p and p.aft == "r_hallow" and p.an == 8 and p.ae == 1, "Consecration's plan: its ground")
+    io.write("PASS: Consecration's plan for WoW Helper: laid down, then 8 ticks of its ground\n")
+end

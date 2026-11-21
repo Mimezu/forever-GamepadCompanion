@@ -192,3 +192,16 @@ check(T.Has("instant:shuriken"), "Shuriken Toss crit: its own feel too")
 check(V.RuleGain(V.SpellRule(424799, 0)) < 1, "Shiv: faint")
 
 T.Done("Rogue")
+
+-- WoW Helper's plans (SpellPlans.lua): a finisher at 3 points, a poison's coat on the rumble only
+do
+    assert(loadfile(root .. "/SpellPlans.lua"))("GamepadCompanion", T.ns)
+    local SP = T.ns.SpellPlans
+    T.game.combo = 0
+    local p = SP.Plan(5171)
+    check(p and p.sc and p.sc > 0 and p.sc < 1, "Slice and Dice's plan: a middling strength")
+    check(T.ns.Combo.Spent() == 0, "the points as they were after")
+    p = SP.Plan(8679)
+    check(p and p.rumble and p.rumble[1] == "released" and not p.imp, "a poison: its coat on the rumble, no impact")
+end
+T.Done("Rogue plans")
