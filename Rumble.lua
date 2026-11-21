@@ -2924,12 +2924,18 @@ function V.ClassSpellOf(spellID, name)
     if own[spellID] then return own[spellID] end
     local names = classByName[class]
     if not names then
+        -- (kept once every name is known: one not loaded yet at login, built again next time)
+        local full = true
         names = {}
         for id, m in pairs(own) do
             local n = SpellName(id)
-            if n and not secret(n) and not names[n] then names[n] = m end
+            if n and not secret(n) then
+                if not names[n] then names[n] = m end
+            else
+                full = false
+            end
         end
-        classByName[class] = names
+        if full then classByName[class] = names end
     end
     name = name or SpellName(spellID)
     if not name or secret(name) then return nil end
