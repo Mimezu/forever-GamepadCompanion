@@ -252,6 +252,15 @@ local function LineIn()
     Reach(false)
 end
 
+-- The catch looted as auto loot says. R2 is also the pad's Ctrl (GamePadEmulateCtrl), held as
+-- it catches: when that flips the game's auto loot, the window opens instead. With auto loot on,
+-- the catch is taken anyway; with it off, the window stays.
+function F.TakeCatch(autoLoot)
+    if autoLoot or Call(GetCVar, "autoLootDefault") ~= "1" then return end
+    local n = Call(GetNumLootItems) or 0
+    for i = n, 1, -1 do Call(LootSlot, i) end
+end
+
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
@@ -280,8 +289,11 @@ events:SetScript("OnEvent", function(_, event, unit, _, spellID)
     elseif event == "PLAYER_REGEN_ENABLED" then
         if pending then F.Apply() end
     elseif event == "LOOT_OPENED" then
-        -- (the catch: the line out or just in, its loot a fishing one)
-        if (line or Now() - lastLine < 3) and Call(IsFishingLoot) then Fire("fishCatch") end
+        -- (the catch: the line out or just in, its loot a fishing one; `unit` is autoLoot)
+        if (line or Now() - lastLine < 3) and Call(IsFishingLoot) then
+            Fire("fishCatch")
+            F.TakeCatch(unit)
+        end
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
         if unit == "player" and F.SPELLS[spellID] then LineOut(spellID) end
     elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then

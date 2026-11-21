@@ -217,6 +217,20 @@ r2Down = true
 events.handler(events, "PLAYER_EQUIPMENT_CHANGED")
 check(overrides[binds] == before, "nothing to change: the binding left alone, even held")
 r2Down = false
+-- the catch looted: the game's auto loot already did it, or R2's Ctrl turned it off
+local looted = {}
+function GetNumLootItems() return 2 end
+function LootSlot(i) looted[#looted + 1] = i end
+cvars.autoLootDefault = "1"
+F.TakeCatch(true)
+eq(#looted, 0, "auto loot did it: nothing taken twice")
+F.TakeCatch(false)
+eq(table.concat(looted, ","), "2,1", "auto loot flipped by R2's Ctrl: the catch taken anyway")
+looted = {}
+cvars.autoLootDefault = "0"
+F.TakeCatch(false)
+eq(#looted, 0, "auto loot off: the window stays")
+cvars.autoLootDefault = "1"
 -- a later loot is not a catch
 local n = #fired
 Advance(10)

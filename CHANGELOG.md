@@ -2,6 +2,7 @@
 
 ## Unreleased (0.74.0)
 
+- Fixed: a fish caught with R2 now loots itself when auto loot is on (R2 is also the pad's Ctrl, which turned auto loot off for that catch)
 - Fixed: after the Main Menu wheel, touchpad zones could stay off until a reload (each click "No interface frame to focus!"). The wheel's leftover binding set only counts while the wheel is on screen
 - WoW Helper: each spell in your book exports what it plays by its rule (an instant's feel and when, a cast's impact, a channel's ticks, Consecration's ground, a finisher at 3 points, what plays on the rumble only), so the helper's Try plays it as the game does, even a spell never cast. SpellPlans.lua; every character's plans are kept
 - Spell ranks: a slot the game refused no longer leaves the others behind, and empty bars at login no longer skip a rank

@@ -196,3 +196,5 @@ PetAttack
 PetFollow
 PetWait
 UnitAura
+GetNumLootItems
+LootSlot
