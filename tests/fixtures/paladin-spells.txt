@@ -1,0 +1,256 @@
+# Every castable paladin spell in WoW Forever 1.60.1 (WoW Helper --spells, --spell-kinds, 2026-11-20),
+# the rune abilities and the class mounts. id, name, line, school mask, cast ms, channel,
+# helpful (no effect on an enemy), kinds letters, kinds tick (s). Rewrite: WowHelper work/paladin-data/make_fixture.py
+416863	Aura Mastery	Rune	2	0	0	1		
+470264	Avenger's Shield	Rune	2	0	0	0		
+407788	Avenging Wrath	Retribution	2	0	0	1		
+409906	Beacon of Light	Rune	1	0	0	1		
+1044	Blessing of Freedom	Protection	2	0	0	1		
+20217	Blessing of Kings	Protection	2	0	0	1		
+19740	Blessing of Might	Retribution	2	0	0	1		
+19834	Blessing of Might	Retribution	2	0	0	1		
+19835	Blessing of Might	Retribution	2	0	0	1		
+19836	Blessing of Might	Retribution	2	0	0	1		
+19837	Blessing of Might	Retribution	2	0	0	1		
+19838	Blessing of Might	Retribution	2	0	0	1		
+25291	Blessing of Might	Retribution	2	0	0	1		
+1022	Blessing of Protection	Protection	2	0	0	1		
+5599	Blessing of Protection	Protection	2	0	0	1		
+10278	Blessing of Protection	Protection	2	0	0	1		
+6940	Blessing of Sacrifice	Protection	2	0	0	1		
+20729	Blessing of Sacrifice	Protection	2	0	0	1		
+19742	Blessing of Wisdom	Holy	2	0	0	1		
+19850	Blessing of Wisdom	Holy	2	0	0	1		
+19852	Blessing of Wisdom	Holy	2	0	0	1		
+19853	Blessing of Wisdom	Holy	2	0	0	1		
+19854	Blessing of Wisdom	Holy	2	0	0	1		
+25290	Blessing of Wisdom	Holy	2	0	0	1		
+4987	Cleanse	Holy	2	0	0	1		
+19746	Concentration Aura	Protection	2	0	0	1		
+20116	Consecration	Holy	2	0	0	0		
+20922	Consecration	Holy	2	0	0	0		
+20923	Consecration	Holy	2	0	0	0		
+20924	Consecration	Holy	2	0	0	0		
+26573	Consecration	Holy	2	0	0	0		
+1234893	Crusader Strike	Rune	1	0	0	0		
+465	Devotion Aura	Protection	2	0	0	1		
+643	Devotion Aura	Protection	2	0	0	1		
+1032	Devotion Aura	Protection	2	0	0	1		
+10290	Devotion Aura	Protection	2	0	0	1		
+10291	Devotion Aura	Protection	2	0	0	1		
+10292	Devotion Aura	Protection	2	0	0	1		
+10293	Devotion Aura	Protection	2	0	0	1		
+20216	Divine Favor	Holy	2	0	0	1		
+19752	Divine Intervention	Protection	2	0	0	1		
+458856	Divine Light	Holy	2	2500	0	1		
+498	Divine Protection	Protection	2	0	0	1		
+5573	Divine Protection	Protection	2	0	0	1		
+407804	Divine Sacrifice	Retribution	2	0	0	1		
+642	Divine Shield	Protection	2	0	0	1		
+1020	Divine Shield	Protection	2	0	0	1		
+407778	Divine Storm	Retribution	1	0	0	0	ha	
+407784	Divine Storm	Retribution	2	0	0	1		
+879	Exorcism	Holy	2	0	0	0	h	
+5614	Exorcism	Holy	2	0	0	0	h	
+5615	Exorcism	Holy	2	0	0	0	h	
+10312	Exorcism	Holy	2	0	0	0	h	
+10313	Exorcism	Holy	2	0	0	0	h	
+10314	Exorcism	Holy	2	0	0	0	h	
+415068	Exorcism	Retribution	2	0	0	0	h	
+415069	Exorcism	Retribution	2	0	0	0	h	
+415070	Exorcism	Retribution	2	0	0	0	h	
+415071	Exorcism	Retribution	2	0	0	0	h	
+415072	Exorcism	Retribution	2	0	0	0	h	
+415073	Exorcism	Retribution	2	0	0	0	h	
+25997	Eye for an Eye	Retribution	2	0	0	0	h	
+19891	Fire Resistance Aura	Protection	2	0	0	1		
+19899	Fire Resistance Aura	Protection	2	0	0	1		
+19900	Fire Resistance Aura	Protection	2	0	0	1		
+19750	Flash of Light	Holy	2	1500	0	1		
+19939	Flash of Light	Holy	2	1500	0	1		
+19940	Flash of Light	Holy	2	1500	0	1		
+19941	Flash of Light	Holy	2	1500	0	1		
+19942	Flash of Light	Holy	2	1500	0	1		
+19943	Flash of Light	Holy	2	1500	0	1		
+19993	Flash of Light	Holy	2	0	0	1		
+412020	Flash of Light	Holy	2	0	0	1		
+1313342	Flash of Light	Holy	2	0	0	1		
+1313343	Flash of Light	Holy	2	0	0	1		
+1313344	Flash of Light	Holy	2	0	0	1		
+1313345	Flash of Light	Holy	2	0	0	1		
+1313346	Flash of Light	Holy	2	0	0	1		
+19888	Frost Resistance Aura	Protection	2	0	0	1		
+19897	Frost Resistance Aura	Protection	2	0	0	1		
+19898	Frost Resistance Aura	Protection	2	0	0	1		
+25898	Greater Blessing of Kings	Protection	2	0	0	1		
+25782	Greater Blessing of Might	Retribution	2	0	0	1		
+25916	Greater Blessing of Might	Retribution	2	0	0	1		
+25894	Greater Blessing of Wisdom	Holy	2	0	0	1		
+25918	Greater Blessing of Wisdom	Holy	2	0	0	1		
+853	Hammer of Justice	Protection	2	0	0	0	nc	
+5588	Hammer of Justice	Protection	2	0	0	0	nc	
+5589	Hammer of Justice	Protection	2	0	0	0	nc	
+10308	Hammer of Justice	Protection	2	0	0	0	nc	
+24239	Hammer of Wrath	Holy	2	1000	0	0	h	
+24274	Hammer of Wrath	Holy	2	1000	0	0	h	
+24275	Hammer of Wrath	Holy	2	1000	0	0	h	
+407632	Hammer of the Righteous	Protection	2	0	0	0	h	
+407774	Hand of Reckoning	Rune	2	0	0	0		
+462853	Hand of Sacrifice	Rune	2	0	0	1		
+635	Holy Light	Holy	2	2500	0	1		
+639	Holy Light	Holy	2	2500	0	1		
+647	Holy Light	Holy	2	2500	0	1		
+1026	Holy Light	Holy	2	2500	0	1		
+1042	Holy Light	Holy	2	2500	0	1		
+3472	Holy Light	Holy	2	2500	0	1		
+10328	Holy Light	Holy	2	2500	0	1		
+10329	Holy Light	Holy	2	2500	0	1		
+19968	Holy Light	Holy	2	2500	0	1		
+19980	Holy Light	Holy	2	2500	0	1		
+19981	Holy Light	Holy	2	2500	0	1		
+19982	Holy Light	Holy	2	2500	0	1		
+25292	Holy Light	Holy	2	2500	0	1		
+1313348	Holy Light	Holy	2	2500	0	1		
+1313349	Holy Light	Holy	2	2500	0	1		
+1313350	Holy Light	Holy	2	2500	0	1		
+1313351	Holy Light	Holy	2	2500	0	1		
+1313352	Holy Light	Holy	2	2500	0	1		
+20925	Holy Shield	Protection	2	0	0	1		
+20927	Holy Shield	Protection	2	0	0	1		
+20928	Holy Shield	Protection	2	0	0	1		
+1239570	Holy Shield	Protection	2	0	0	1		
+20473	Holy Shock	Holy	2	0	0	1		
+20929	Holy Shock	Holy	2	0	0	1		
+20930	Holy Shock	Holy	2	0	0	1		
+25902	Holy Shock	Holy	2	0	0	0	h	
+25903	Holy Shock	Holy	2	0	0	1		
+25911	Holy Shock	Holy	2	0	0	0	h	
+25912	Holy Shock	Holy	2	0	0	0	h	
+25913	Holy Shock	Holy	2	0	0	1		
+25914	Holy Shock	Holy	2	0	0	1		
+1311606	Holy Shock	Holy	2	0	0	1		
+678	Holy Strike	Retribution	2	0	0	0	h	
+679	Holy Strike	Retribution	2	0	0	0	h	
+680	Holy Strike	Retribution	2	0	0	0	h	
+1866	Holy Strike	Retribution	2	0	0	0	h	
+2495	Holy Strike	Retribution	2	0	0	0	h	
+5569	Holy Strike	Retribution	2	0	0	0	h	
+10332	Holy Strike	Retribution	2	0	0	0	h	
+10333	Holy Strike	Retribution	2	0	0	0	h	
+2812	Holy Wrath	Holy	2	2000	0	0	ha	
+10318	Holy Wrath	Holy	2	2000	0	0	ha	
+425600	Horn of Lordaeron	Holy	1	0	0	1		
+407880	Inspiration Exemplar	Holy	32	0	0	1		
+20271	Judgement	Retribution	2	0	0	0		
+20425	Judgement of Command	Retribution	2	0	0	0		
+20467	Judgement of Command	Retribution	2	0	0	0	h	
+20961	Judgement of Command	Retribution	2	0	0	0		
+20962	Judgement of Command	Retribution	2	0	0	0		
+20963	Judgement of Command	Retribution	2	0	0	0	h	
+20964	Judgement of Command	Retribution	2	0	0	0	h	
+20965	Judgement of Command	Retribution	2	0	0	0	h	
+20966	Judgement of Command	Retribution	2	0	0	0	h	
+20967	Judgement of Command	Retribution	2	0	0	0		
+20968	Judgement of Command	Retribution	2	0	0	0		
+20183	Judgement of Fury	Protection	2	0	0	0	h	
+20411	Judgement of Fury	Protection	2	0	0	0	h	
+20412	Judgement of Fury	Protection	2	0	0	0	h	
+20413	Judgement of Fury	Protection	2	0	0	0	h	
+20414	Judgement of Fury	Protection	2	0	0	0	h	
+20184	Judgement of Justice	Protection	2	0	0	0	nd	
+20185	Judgement of Light	Holy	2	0	0	0	nd	
+20344	Judgement of Light	Holy	2	0	0	0	nd	
+20345	Judgement of Light	Holy	2	0	0	0	nd	
+20346	Judgement of Light	Holy	2	0	0	0	nd	
+407803	Judgement of Martyrdom	Retribution	2	0	0	0	h	
+20187	Judgement of Righteousness	Holy	2	0	0	0	h	
+20280	Judgement of Righteousness	Holy	2	0	0	0	h	
+20281	Judgement of Righteousness	Holy	2	0	0	0	h	
+20282	Judgement of Righteousness	Holy	2	0	0	0	h	
+20283	Judgement of Righteousness	Holy	2	0	0	0	h	
+20284	Judgement of Righteousness	Holy	2	0	0	0	h	
+20285	Judgement of Righteousness	Holy	2	0	0	0	h	
+20286	Judgement of Righteousness	Holy	2	0	0	0	h	
+20186	Judgement of Wisdom	Holy	2	0	0	0	nd	
+20354	Judgement of Wisdom	Holy	2	0	0	0	nd	
+20355	Judgement of Wisdom	Holy	2	0	0	0	nd	
+20188	Judgement of the Crusader	Retribution	2	0	0	0	nd	
+20300	Judgement of the Crusader	Retribution	2	0	0	0	nd	
+20301	Judgement of the Crusader	Retribution	2	0	0	0	nd	
+20302	Judgement of the Crusader	Retribution	2	0	0	0	nd	
+20303	Judgement of the Crusader	Retribution	2	0	0	0	nd	
+633	Lay on Hands	Holy	2	0	0	1		
+2800	Lay on Hands	Holy	2	0	0	1		
+10310	Lay on Hands	Holy	2	0	0	1		
+1310911	Light's Vigil	Holy	2	1500	0	1		
+1311590	Light's Vigil	Holy	2	1500	0	1		
+1311595	Light's Vigil	Holy	2	1500	0	1		
+1328548	Oath of Light	Holy	2	0	0	1		
+1152	Purify	Holy	2	0	0	1		
+425609	Rebuke	Holy	1	0	0	0	ni	
+7328	Redemption	Holy	2	10000	0	1		
+10322	Redemption	Holy	2	10000	0	1		
+10324	Redemption	Holy	2	10000	0	1		
+20772	Redemption	Holy	2	10000	0	1		
+20773	Redemption	Holy	2	10000	0	1		
+20066	Repentance	Retribution	2	0	0	0	nc	
+7294	Retribution Aura	Retribution	2	0	0	1		
+10298	Retribution Aura	Retribution	2	0	0	1		
+10299	Retribution Aura	Retribution	2	0	0	1		
+10300	Retribution Aura	Retribution	2	0	0	1		
+10301	Retribution Aura	Retribution	2	0	0	1		
+25780	Righteous Fury	Protection	2	0	0	1		
+407627	Righteous Fury	Protection	2	0	0	1		
+440677	Righteous Judgement	Retribution	2	0	0	0	h	
+412019	Sacred Shield	Holy	2	0	0	1		
+20375	Seal of Command	Retribution	2	0	0	1		
+20915	Seal of Command	Retribution	2	0	0	1		
+20918	Seal of Command	Retribution	2	0	0	1		
+20919	Seal of Command	Retribution	2	0	0	1		
+20920	Seal of Command	Retribution	2	0	0	1		
+20163	Seal of Fury	Protection	2	0	0	1		
+20419	Seal of Fury	Protection	2	0	0	1		
+20421	Seal of Fury	Protection	2	0	0	1		
+20422	Seal of Fury	Protection	2	0	0	1		
+20423	Seal of Fury	Protection	2	0	0	1		
+1311649	Seal of Fury	Protection	2	0	0	1		
+1311656	Seal of Fury	Protection	2	0	0	1		
+20164	Seal of Justice	Protection	2	0	0	1		
+20165	Seal of Light	Holy	2	0	0	1		
+20347	Seal of Light	Holy	2	0	0	1		
+20348	Seal of Light	Holy	2	0	0	1		
+20349	Seal of Light	Holy	2	0	0	1		
+407798	Seal of Martyrdom	Retribution	2	0	0	1		
+407799	Seal of Martyrdom	Retribution	2	0	0	0	h	
+20154	Seal of Righteousness	Holy	2	0	0	1		
+20287	Seal of Righteousness	Holy	2	0	0	1		
+20288	Seal of Righteousness	Holy	2	0	0	1		
+20289	Seal of Righteousness	Holy	2	0	0	1		
+20290	Seal of Righteousness	Holy	2	0	0	1		
+20291	Seal of Righteousness	Holy	2	0	0	1		
+20292	Seal of Righteousness	Holy	2	0	0	1		
+20293	Seal of Righteousness	Holy	2	0	0	1		
+21084	Seal of Righteousness	Holy	2	0	0	1		
+20166	Seal of Wisdom	Holy	2	0	0	1		
+20356	Seal of Wisdom	Holy	2	0	0	1		
+20357	Seal of Wisdom	Holy	2	0	0	1		
+20162	Seal of the Crusader	Retribution	2	0	0	1		
+20305	Seal of the Crusader	Retribution	2	0	0	1		
+20306	Seal of the Crusader	Retribution	2	0	0	1		
+20307	Seal of the Crusader	Retribution	2	0	0	1		
+20308	Seal of the Crusader	Retribution	2	0	0	1		
+21082	Seal of the Crusader	Retribution	2	0	0	1		
+5502	Sense Undead	Holy	2	0	0	1		
+19876	Shadow Resistance Aura	Protection	2	0	0	1		
+19895	Shadow Resistance Aura	Protection	2	0	0	1		
+19896	Shadow Resistance Aura	Protection	2	0	0	1		
+440658	Shield of Righteousness	Protection	2	0	0	0	h	
+23214	Summon Charger	Mount	2	3000	0	1		
+13819	Summon Warhorse	Mount	2	3000	0	1		
+1310994	Swift Judgement	Protection	2	0	0	0		
+1311015	Templar's Bulwark	Protection	2	0	0	1		
+2878	Turn Undead	Holy	8	1500	0	0	nc	
+5627	Turn Undead	Holy	8	1500	0	0	nc	
+10326	Turn Undead	Holy	8	1500	0	0	nc	
+67	Vindication	Retribution	2	0	0	0	nd	
+1310897	Voice of Truth	Holy	2	0	0	1		

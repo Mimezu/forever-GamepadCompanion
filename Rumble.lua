@@ -404,6 +404,56 @@ V.GATHER_FINISH = { skinning = "peel" }
 V.BOLT_IDS = { [2963] = true, [2964] = true, [3839] = true, [3865] = true, [18401] = true, [1214173] = true }
 V.BOLT_LOOP, V.BOLT_FINISH = "roll", "bolt"
 
+-- Paladin: the gaps the moves above leave (the paladin pass, 2026-11-20; docs/PALADIN.md).
+-- Seals, blessings, Judgement, Consecration's laying down, Hammer of Justice, the shields and
+-- Lay on Hands keep their moves. What each spell plays: Paladin.lua (PD.SPELLS).
+V.PALADIN_PATTERNS = {
+    -- (at the cast)
+    { key = "aura", label = "Aura", art = "radiance", move = true,   -- a warm ring spreading round you, settling
+        steps = { { 0.1, 0.1, 0.1 }, { 0.3, 0.3, 0.15 }, { 0.1, 0.1, 0.15 } },
+        pulses = { MPu(0, 0.06, 0.1, -1), MPu(0, 0.06, 0.1, 1), MPu(0.12, 0.18, 0.28, -0.8), MPu(0.15, 0.18, 0.28, 0.8),
+            MPu(0.42, 0.1, 0.09) } },
+    { key = "wings", label = "Wings", art = "rise", move = true,      -- Avenging Wrath: light rushing up both arms, held, let go
+        steps = { { 0.15, 0.15, 0.1 }, { 0.35, 0.35, 0.1 }, { 0.7, 0.7, 0.12 }, { 1, 1, 0.3 }, { 0.3, 0.3, 0.15 },
+            { 0.1, 0.1, 0.15 } },
+        pulses = { MPu(0, 0.05, 0.15, -0.6), MPu(0.06, 0.05, 0.15, 0.6), MPu(0.14, 0.06, 0.35, -0.8), MPu(0.2, 0.06, 0.35, 0.8),
+            MPu(0.3, 0.08, 0.7), MPu(0.42, 0.3, 1), MPu(0.8, 0.1, 0.25, -0.5), MPu(0.8, 0.1, 0.25, 0.5), MPu(1, 0.05, 0.08) } },
+    -- (as they land)
+    { key = "avenger", label = "Avenger's Shield", art = "bash", move = true, -- the shield's hit, then two bounces away
+        steps = { { 0.85, 0.7, 0.12 }, { 0, 0, 0.1 }, { 0.35, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.2, 0.1 } },
+        pulses = { MPu(0, 0.1, 0.85, 0.2), MPu(0.28, 0.05, 0.35, -0.7), MPu(0.5, 0.05, 0.18, 0.7) } },
+    { key = "exorcism", label = "Exorcism", art = "radiance", move = true, -- a searing flare, burning off
+        steps = { { 0.5, 0.5, 0.1 }, { 0.9, 0.9, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.12, 0.12, 0.12 } },
+        pulses = { MPu(0, 0.05, 0.5), MPu(0.05, 0.12, 0.9), MPu(0.2, 0.05, 0.3, -0.4), MPu(0.28, 0.05, 0.25, 0.4),
+            MPu(0.4, 0.1, 0.1) } },
+    -- (Consecration's ground, once a second while you stand in it: faint, warm, uneven)
+    { key = "hallow", label = "Hallowed", art = "surge",
+        steps = { { 0.1, 0.12, 0.15 }, { 0.04, 0.04, 0.1 } },
+        pulses = { MPu(0, 0.12, 0.12, -0.3), MPu(0.08, 0.12, 0.12, 0.3), MPu(0.3, 0.05, 0.05) } },
+    -- (at a cast's release)
+    { key = "raise", label = "Redeemed", art = "rise",             -- Redemption: a soul drawn back, a soft bloom
+        steps = { { 0.1, 0.1, 0.12 }, { 0.2, 0.2, 0.12 }, { 0.3, 0.3, 0.12 }, { 0.55, 0.55, 0.4 }, { 0.1, 0.1, 0.12 } },
+        pulses = { MPu(0, 0.05, 0.1), MPu(0.12, 0.05, 0.18), MPu(0.24, 0.08, 0.3), MPu(0.36, 0.4, 0.55), MPu(0.85, 0.05, 0.1) } },
+    { key = "turn", label = "Turn Undead", art = "burst",          -- a hard flash, pushing away
+        steps = { { 0.6, 0.6, 0.1 }, { 0.3, 0.3, 0.15 }, { 0.08, 0.08, 0.1 } },
+        pulses = { MPu(0, 0.05, 0.6), MPu(0.08, 0.15, 0.3), MPu(0.3, 0.05, 0.08) } },
+    { key = "hooves", label = "Hooves", art = "charge",            -- the steed there: hooves stamping, a toss of the head
+        steps = { { 0.35, 0.1, 0.1 }, { 0.1, 0.3, 0.1 }, { 0.25, 0.1, 0.1 }, { 0.1, 0.2, 0.1 }, { 0.08, 0.08, 0.12 } },
+        pulses = { MPu(0, 0.06, 0.35, -0.4), MPu(0.12, 0.06, 0.3, 0.4), MPu(0.3, 0.06, 0.25, -0.3), MPu(0.42, 0.06, 0.2, 0.3),
+            MPu(0.65, 0.12, 0.08) } },
+    -- (a cast's loop: the steed called, far hoofbeats in the light)
+    { key = "steed", label = "Steed", art = "shimmer",
+        steps = { { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.15 }, { 0.07, 0, 0.1 }, { 0, 0.05, 0.1 }, { 0, 0, 0.2 } },
+        pulses = { cycle = 0.75, MPu(0, 0.05, 0.07, -0.3), MPu(0.12, 0.05, 0.05, 0.3), MPu(0.37, 0.05, 0.07, -0.3),
+            MPu(0.49, 0.05, 0.05, 0.3) } },
+}
+for _, p in ipairs(V.PALADIN_PATTERNS) do
+    -- (a class spell's own: a crit plays its impact, as a mage's)
+    p.action, p.mage = true, true
+    if not p.move and not p.group then p.group = "Spells" end
+    V.PATTERNS[#V.PATTERNS + 1] = p
+end
+
 -- What each mage spell plays (first rank's ID: every rank shares its name).
 -- move, when: an instant's feel, at the "cast" or as it lands ("hit"); impact: a
 -- cast's feel as its wound lands; burst: a cast's feel at its release, no wait
@@ -648,6 +698,7 @@ local PULSES = {
 }
 -- (the mage's own, defined with their patterns)
 for _, p in ipairs(MAGE_PATTERNS) do PULSES[p.key] = p.pulses end
+for _, p in ipairs(V.PALADIN_PATTERNS) do PULSES[p.key] = p.pulses end
 -- (draw: an aimed shot, the string tightening: taps closer and stronger)
 do
     local list, t = { cycle = 1.1 }, 0
@@ -2876,6 +2927,9 @@ function V.SpellRule(spellID, castTime)
     if not name or secret(name) then return nil end
     local r = { id = spellID, name = name, volume = 1 }
     local mage = V.MageOf(spellID, name)
+    -- (a paladin's own, in the same shape: Paladin.lua)
+    local PD = ns.Paladin
+    if not mage and PD and PD.Of then mage = PD.Of(spellID, name) end
     local L = ns.HapticsLab
     local linked = false
     if proc then
@@ -2957,6 +3011,8 @@ function V.SpellRule(spellID, castTime)
             elseif mage and mage.move then
                 -- (a mage's own: at the cast, or as it lands)
                 r.move, r.when, r.mage = mage.move, mage.when or "cast", mage
+                -- (a spell from afar: only a magic wound is its, never a swing's)
+                if mage.magic then r.magicOnly = true end
                 r.why = (r.when == "hit" and "Lands as: " or "Felt at the cast: ")
                     .. (PATTERN[mage.move] and PATTERN[mage.move].label or mage.move)
             elseif summon then

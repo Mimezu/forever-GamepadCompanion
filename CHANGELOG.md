@@ -2,6 +2,8 @@
 
 ## Unreleased (0.69.3)
 
+- **Paladin**: every paladin spell has a feel (tests/PaladinCoverage.lua lists all 253 IDs). Seals, blessings, Judgement, Hammer of Justice, the shields and Lay on Hands unchanged. New: auras a warm ring round you; Avenging Wrath wings of light; Avenger's Shield hits and bounces; Exorcism a searing flare; Greater Blessings, Seal of Fury and Hand of Sacrifice as blessings; Righteous Fury and Aura Mastery a rush; Redemption a soul drawn back; Turn Undead a flash; Summon Warhorse and Charger hoofbeats, then hooves
+- **Consecration**: its ground felt each second for 8 s, faint and by turns; fainter at its edge, none once you walk out or mount
 - **Hunter**: every hunter spell has its own feel (tests/Hunter.lua lists all 76). Aimed Shot draws the string, then the arrow lands as a shot; Multi-Shot fans two more arrows; stings and Black Arrow creep in after the shot; Concussive and Scatter Shot daze; Volley rains small arrows over both hands; Feign Death drops, Disengage leaps, aspects breathe in
 - **Traps**: laid, armed 2 s later, a snap when one springs on an enemy
 - **Pet** (new group): arrives, leaves, tamed, attack / follow / stay, its death, eating, happier or less. All fainter than your own. Its crit and a heavy blow on it: off by default. Its plain hits: never felt
