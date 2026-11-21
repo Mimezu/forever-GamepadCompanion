@@ -32,10 +32,6 @@ PD.PATTERNS = {
             { 0.1, 0.1, 0.15 } },
         pulses = { Pu(0, 0.05, 0.15, -0.6), Pu(0.06, 0.05, 0.15, 0.6), Pu(0.14, 0.06, 0.35, -0.8), Pu(0.2, 0.06, 0.35, 0.8),
             Pu(0.3, 0.08, 0.7), Pu(0.42, 0.3, 1), Pu(0.8, 0.1, 0.25, -0.5), Pu(0.8, 0.1, 0.25, 0.5), Pu(1, 0.05, 0.08) } },
-    -- (as they land)
-    { key = "avenger", label = "Avenger's Shield", art = "bash", move = true, -- the shield's hit, then two bounces away
-        steps = { { 0.85, 0.7, 0.12 }, { 0, 0, 0.1 }, { 0.35, 0.1, 0.1 }, { 0, 0, 0.1 }, { 0.05, 0.2, 0.1 } },
-        pulses = { Pu(0, 0.1, 0.85, 0.2), Pu(0.28, 0.05, 0.35, -0.7), Pu(0.5, 0.05, 0.18, 0.7) } },
     -- (Consecration's ground, once a second while you stand in it: faint, warm, uneven)
     { key = "hallow", label = "Hallowed", art = "surge",
         steps = { { 0.1, 0.12, 0.15 }, { 0.04, 0.04, 0.1 } },
@@ -45,8 +41,7 @@ V.AddPatterns(PD.PATTERNS)
 
 ---------------------------------------------------------------------------
 -- What each spell plays, by its first rank's ID (every rank shares its name).
--- move, when: an instant's feel, at the "cast" or as it lands ("hit"); magic: only a magic wound
--- is its (holy, from afar: never your swing landing first).
+-- move, when: an instant's feel, at the "cast".
 ---------------------------------------------------------------------------
 local AT_CAST = {
     -- Auras: a warm ring round you (Devotion, Retribution, Concentration, the resistances, Sanctity;
@@ -61,20 +56,14 @@ local AT_CAST = {
     glow = { 20216, 409906 },                               -- Divine Favor, Beacon of Light
     -- A guard raised: Divine Intervention, Sacred Shield, Templar's Bulwark
     ward = { 19752, 412019, 1311015 },
-    -- A faint tick: Sense Undead (tracking), Hand of Reckoning (a taunt)
-    micro = { 5502, 407774 },
+    micro = { 5502 },                                       -- Sense Undead (tracking): a faint tick
 }
-local AT_HIT = {
-    avenger = { 470264 },                                   -- Avenger's Shield
-}
--- (only what played nothing, or a guessed Blow: Exorcism's Judgement, Redemption's and Turn
--- Undead's casts, the steeds' Healing loop are as they were)
+-- (only what played nothing: anything that played a feel keeps it, a guessed Blow too: Exorcism's
+-- Judgement, Avenger's Shield's and Hand of Reckoning's Blow, Redemption's and Turn Undead's
+-- casts, the steeds' Healing loop)
 PD.SPELLS = {}
 for move, ids in pairs(AT_CAST) do
     for _, id in ipairs(ids) do PD.SPELLS[id] = { move = move, when = "cast" } end
-end
-for move, ids in pairs(AT_HIT) do
-    for _, id in ipairs(ids) do PD.SPELLS[id] = { move = move, when = "hit", magic = true } end
 end
 
 V.CLASS_SPELLS.PALADIN = PD.SPELLS

@@ -2,7 +2,7 @@
 
 ## Unreleased (0.69.3)
 
-- **Paladin**: every paladin spell has a feel (tests/PaladinCoverage.lua lists all 253 IDs). Seals, blessings, Judgement, Hammer of Justice, the shields and Lay on Hands unchanged. New, for what played nothing: auras a warm ring round you; Avenging Wrath wings of light; Avenger's Shield hits and bounces; Greater Blessings, Seal of Fury and Hand of Sacrifice as blessings; Righteous Fury and Aura Mastery a rush
+- **Paladin**: every paladin spell has a feel (tests/PaladinCoverage.lua lists all 253 IDs). Seals, blessings, Judgement, Hammer of Justice, the shields and Lay on Hands unchanged. New, for what played nothing: auras a warm ring round you; Avenging Wrath wings of light; Greater Blessings, Seal of Fury and Hand of Sacrifice as blessings; Righteous Fury and Aura Mastery a rush
 - **Consecration**: its ground felt each second for 8 s, faint and by turns; fainter at its edge, none once you walk out or mount. It never cuts a blow short: it waits for it
 - **Shaman** (both factions: dwarves too): every spell its own feel. Lightning cracks where it lands; Chain Lightning hops hand to hand, each fainter. Shocks by element. Totems thud into the ground: stone, embers, water, wind. Weapons imbued, shields' orbs, Ghost Wolf drops to all fours, Reincarnation breathes you back
 - **Druid**: each shape its own body (bear, cat, travel, aquatic, moonkin, tree), and a soft return to yours. In cat and bear your swings are claws or a paw; no footsteps in a beast form, travel form rides. Finishers by their combo points. Swipe sweeps across both hands. Moonfire, Starfire, Wrath land as themselves; Hurricane gust by gust, Tranquility breath by breath. Heals over time barely there

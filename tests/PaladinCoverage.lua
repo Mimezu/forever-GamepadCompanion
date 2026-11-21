@@ -2,7 +2,7 @@
 -- 2026-11-20). The spells are the client's own (tests/fixtures/paladin-spells.txt, from WoW Helper's
 -- --spells and --spell-kinds, the runes and the class mounts); each must play its own feel, none
 -- generic. The feels a paladin had before stay as they were. Then the new ones played out:
--- Consecration's ground each second (never cutting a blow short), Avenger's Shield at the wound.
+-- Consecration's ground each second (never cutting a blow short).
 -- lua5.1 tests/PaladinCoverage.lua <addon folder> [list]
 -- (the game's stubs: as tests/MageCoverage.lua has them)
 local root = arg[1] or "."
@@ -257,6 +257,8 @@ local BEFORE = {
     -- (the review, 2026-11-20: what played anything keeps it; only the silent and the guessed get new)
     ["Exorcism"] = "hit:judge", ["Redemption"] = "set:holy", ["Turn Undead"] = "set:nature",
     ["Summon Warhorse"] = "set:healing", ["Summon Charger"] = "set:healing",
+    -- (a guessed Blow is a feel: kept)
+    ["Avenger's Shield"] = "hit:blow", ["Hand of Reckoning"] = "hit:blow",
 }
 -- (the gaps this pass filled)
 local ADDED = {
@@ -270,7 +272,6 @@ local ADDED = {
     ["Hand of Sacrifice"] = "cast:seal", ["Seal of Fury"] = "cast:seal", ["Oath of Light"] = "cast:seal",
     ["Divine Favor"] = "cast:glow", ["Beacon of Light"] = "cast:glow", ["Divine Intervention"] = "cast:ward",
     ["Sacred Shield"] = "cast:ward", ["Templar's Bulwark"] = "cast:ward", ["Sense Undead"] = "cast:micro",
-    ["Hand of Reckoning"] = "cast:micro", ["Avenger's Shield"] = "hit:avenger",
 }
 local EXPECT = {}
 for k, v in pairs(BEFORE) do EXPECT[k] = v end
@@ -296,7 +297,7 @@ for _, s in ipairs(SPELLS) do
     lines[#lines + 1] = ("%7d  %-30s %s"):format(s.id, s.name, Triggered(s) and "never cast (triggered)" or got)
     if not Triggered(s) then
         if EXPECT[s.name] ~= got then wrong[#wrong + 1] = s.id .. " " .. s.name .. ": " .. got .. " (expected " .. tostring(EXPECT[s.name]) .. ")" end
-        if got == "set:sweep" or got == "cast:blow" or got == "hit:blow" or got == "quiet" or (r and r.guessed) then
+        if not BEFORE[s.name] and (got == "set:sweep" or got == "cast:blow" or got == "hit:blow" or got == "quiet" or (r and r.guessed)) then
             wrong[#wrong + 1] = s.id .. " " .. s.name .. ": " .. got .. " is generic"
         end
         local pattern = got:match(":(.+)$")
@@ -315,7 +316,7 @@ for _, p in ipairs(PD.PATTERNS) do
     assert(V.PULSES[p.key] and H.Feel("r_" .. p.key), p.key .. ": pulses and its HD library feel")
     for _, st in ipairs(p.steps) do assert(st[3] >= 0.1, p.key .. ": every step 0.1 s or more") end
 end
-io.write("PASS: " .. ids .. " paladin spell IDs (every rank, runes, mounts): each its own feel, none generic; the old ones kept\n")
+io.write("PASS: " .. ids .. " paladin spell IDs (every rank, runes, mounts): each its own feel, the old ones kept (two guessed Blows too), none new generic\n")
 
 ---------------------------------------------------------------------------
 -- 2. Play: the new ones as they happen (events in, rumble and HD out)
@@ -375,15 +376,14 @@ now = now + 0.05
 rev("UNIT_SPELLCAST_SUCCEEDED", "player", "j", 20271)
 run(0.2); rev("UNIT_COMBAT", "target", "WOUND", "", 100, 2); run(0.3); RunTimers()
 assert(#fired == 2 and fired[1].move == "seal" and fired[2].move == "judge", "a seal, then Judgement: both")
--- As they land: Avenger's Shield and Exorcism, at the wound; a crit its own impact
-f = instant(470264, 0.6, 2)
-assert(#f == 1 and f[1].move == "avenger", "Avenger's Shield at its hit: " .. tostring(f[1] and f[1].move))
-f = instant(470264, 0.6, 1)
-assert(#f == 0, "a physical wound isn't the shield's (a swing)")
+-- As they land, as before: Avenger's Shield's Blow, Exorcism's Judgement
+f = instant(470264, 0.3, 2)
+-- (a guessed Blow takes its family from the wound: holy, Judgement; as on main)
+assert(#f == 1 and f[1].move == "judge", "Avenger's Shield: as before, its holy wound's Judgement: " .. tostring(f[1] and f[1].move))
 f = instant(10314, 0.2, 2)
 assert(#f == 1 and f[1].move == "judge", "Exorcism, any rank: Judgement at its hit, as before")
 
-io.write("PASS: auras, wings, the blessings and seals at the cast (HD each its own); the old ones kept; Avenger's Shield at the wound\n")
+io.write("PASS: auras, wings, the blessings and seals at the cast (HD each its own); the old ones kept, Avenger's Shield's Blow and Exorcism's Judgement too\n")
 
 ---------------------------------------------------------------------------
 -- 3. Consecration: laid down (Surge), then its ground each second you stand in it
