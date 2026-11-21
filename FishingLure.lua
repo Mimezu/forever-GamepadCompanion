@@ -386,29 +386,33 @@ drift:SetDuration(2.4)
 drift:SetSmoothing("IN_OUT")
 
 -- the words: the lure's name as in an old book, its time quietly under it
-local title = float:CreateFontString(nil, "OVERLAY")
+-- the words, one block centred on the float whatever its lines (Center())
+local words = CreateFrame("Frame", nil, float)
+words:SetSize(200, 30)
+words:SetPoint("LEFT", medal, "RIGHT", 15, 0)
+local title = words:CreateFontString(nil, "OVERLAY")
 title:SetFont(TITLE_FONT, 16, "")
 title:SetShadowColor(0, 0, 0, 0.9)
 title:SetShadowOffset(1, -1)
 title:SetTextColor(PARCHMENT[1], PARCHMENT[2], PARCHMENT[3])
-title:SetPoint("BOTTOMLEFT", medal, "RIGHT", 15, 15)
+title:SetPoint("TOPLEFT", words, "TOPLEFT", 0, 0)
 title:SetJustifyH("LEFT")
 
-local sub = float:CreateFontString(nil, "OVERLAY")
+local sub = words:CreateFontString(nil, "OVERLAY")
 sub:SetFont(BODY_FONT, 11, "")
 sub:SetShadowColor(0, 0, 0, 0.9)
 sub:SetShadowOffset(1, -1)
 sub:SetTextColor(MIST[1], MIST[2], MIST[3])
-sub:SetPoint("TOPLEFT", medal, "RIGHT", 16, 11)
+sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -3)
 sub:SetJustifyH("LEFT")
 
 -- a quiet line under it, now and then: a skill-up, or a water with nothing
 -- more to teach
-local whisper = float:CreateFontString(nil, "OVERLAY")
+local whisper = words:CreateFontString(nil, "OVERLAY")
 whisper:SetFont(BODY_FONT, 10, "")
 whisper:SetShadowColor(0, 0, 0, 0.9)
 whisper:SetShadowOffset(1, -1)
-whisper:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", 0, -5)
+whisper:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", 0, -4)
 whisper:SetJustifyH("LEFT")
 local WISE = { 0.96, 0.80, 0.42 }
 
@@ -539,6 +543,10 @@ function L.WhisperNow(now)
     skill = skill or tonumber(s.skill)
     local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), L.Wary(wary[L.Water()], now))
     whisper:SetText(text or "")
+    -- (the block as tall as its lines, so its middle is the float's)
+    local function H(fs) local v = fs.GetStringHeight and fs:GetStringHeight(); return tonumber(v or 0) or 0 end
+    local h = H(title) + 3 + H(sub) + ((text and text ~= "") and (4 + H(whisper)) or 0)
+    if h > 0 then words:SetHeight(h) end
     if color then whisper:SetTextColor(color[1], color[2], color[3]) end
     return text
 end
