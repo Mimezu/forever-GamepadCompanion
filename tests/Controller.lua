@@ -219,7 +219,7 @@ GamepadCompanionTouchDB = { enabled = false, split = { device = "pad" }, actions
 
 local ns = {}
 for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "SlotMacros.lua", "Touchpad.lua", "Keys.lua", "Gestures.lua", "ControllerModel.lua",
-    "SpreadOverview.lua", "OptionsSkin.lua", "Window.lua", "Picker.lua", "ControllerWindow.lua" }) do
+    "SpreadOverview.lua", "SpellRanks.lua", "OptionsSkin.lua", "Window.lua", "Picker.lua", "ControllerWindow.lua" }) do
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local C, Touch, Keys = ns.ControllerModel, ns.Touch, ns.Keys
@@ -740,6 +740,68 @@ end
 check(not ns.Keys.Allowed("PADLSHOULDER") and not ns.Keys.Allowed("PADRSHOULDER"), "L1 / R1 locked")
 check(not ns.Keys.Set("PADRSHOULDER", "base", "text:/wave"), "R1 takes nothing")
 check(ns.Keys.Normalize({ PADLSHOULDER = { base = "text:/wave" } }).PADLSHOULDER == nil, "a saved L1 action drops at load")
+
+-- Rank: a spell slot's rank control under Choose; Choose places the highest
+do
+    local book, name, subtext, known = C_SpellBook, C_Spell.GetSpellName, C_Spell.GetSpellSubtext, IsSpellKnown
+    local FROST = { [168] = 1, [7300] = 2, [7301] = 3 }
+    C_Spell.GetSpellName = function(id) return FROST[id] and "Frost Armor" or name(id) end
+    C_Spell.GetSpellSubtext = function(id) return FROST[id] and ("Rank " .. FROST[id]) or "" end
+    IsSpellKnown = function(id) return FROST[id] ~= nil end
+    C_SpellBook = { GetNumSpellBookSkillLines = function() return 1 end,
+        GetSpellBookSkillLineInfo = function() return { name = "Frost", itemIndexOffset = 0, numSpellBookItems = 3 } end,
+        GetSpellBookItemInfo = function(slot)
+            local id = ({ 168, 7300, 7301 })[slot]
+            return id and { spellID = id, actionID = id, name = "Frost Armor", iconID = 7, itemType = 1 }
+        end }
+    ns.SpellRanks.Forget()
+    ClearCursor()
+    if not window:IsVisible() then API.ToggleController() end
+    check(window:IsVisible(), "rank: the Controller page open")
+    ui.slots[3].scripts.OnClick(ui.slots[3])
+    local storage = ui.slots[3].storage
+    check(storage ~= nil, "rank: a slot")
+    actions[storage] = { kind = "spell", id = 7301, texture = 1 }
+    ui.slots[3].scripts.OnClick(ui.slots[3])
+    check(ui.rank:IsShown(), "rank: shown for a spell with ranks")
+    eq(ui.rank.value.text, "Highest", "rank: Highest by default")
+    check(type(rawget(ui.rank, "gpcNudge")) == "function", "rank: one value row for the pad")
+    ui.rank.gpcNudge(-1)
+    eq(actions[storage].id, 7301, "rank: left keeps rank 3 (the top, pinned)")
+    eq(ui.rank.value.text, "Rank 3", "rank: shows Rank 3")
+    eq(GamepadCompanionCharDB.spellPins[storage], 7301, "rank: rank 3 pinned")
+    ui.rank.gpcNudge(-1)
+    eq(actions[storage].id, 7300, "rank: left again pins rank 2")
+    eq(ui.rank.value.text, "Rank 2", "rank: shows Rank 2")
+    eq(GamepadCompanionCharDB.spellPins[storage], 7300, "rank: pin saved per character")
+    check(cursor == nil, "rank: nothing on the cursor")
+    ui.rank.minus.scripts.OnClick(ui.rank.minus)
+    eq(actions[storage].id, 168, "rank: the arrow steps to rank 1")
+    check(not ui.rank.minus.enabled, "rank: no lower than rank 1")
+    ui.rank.gpcNudge(1); ui.rank.gpcNudge(1); ui.rank.gpcNudge(1)
+    eq(actions[storage].id, 7301, "rank: right to Highest")
+    eq(ui.rank.value.text, "Highest", "rank: Highest again")
+    eq(GamepadCompanionCharDB.spellPins[storage], nil, "rank: Highest has no pin")
+    -- Choose: a spell picked is its highest rank, unpinned
+    ui.rank.gpcNudge(-1); ui.rank.gpcNudge(-1)
+    local open, req = ns.Picker.Open, nil
+    ns.Picker.Open = function(r) req = r end
+    ui.choose.scripts.OnClick(ui.choose)
+    ns.Picker.Open = open
+    eq(req and req.current, "spell:7300", "Choose: the pinned rank is current")
+    req.onPick("spell:7300")
+    eq(GamepadCompanionCharDB.spellPins[storage], 7300, "Choose: the same rank again keeps the pin")
+    req.onPick("spell:168")
+    eq(actions[storage].id, 7301, "Choose: a spell picked goes on at its highest rank")
+    eq(GamepadCompanionCharDB.spellPins[storage], nil, "Choose: and follows")
+    -- No rank row for a spell without ranks
+    actions[storage] = { kind = "spell", id = 133, texture = 1 }
+    ui.slots[3].scripts.OnClick(ui.slots[3])
+    check(not ui.rank:IsShown(), "rank: hidden for a spell without ranks")
+    actions[storage] = nil
+    C_SpellBook, C_Spell.GetSpellName, C_Spell.GetSpellSubtext, IsSpellKnown = book, name, subtext, known
+    ns.SpellRanks.Forget()
+end
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

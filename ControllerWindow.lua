@@ -127,7 +127,10 @@ local function PlaceOnSlot(storage, action)
     if not storage or not (ns.GamepadSlotEditable and ns.GamepadSlotEditable(storage)) then return end
     local kind, value = action:match("^(%a+):(.+)$")
     Call(ClearCursor)
-    if kind == "spell" then Call(C_Spell and C_Spell.PickupSpell or PickupSpell, tonumber(value))
+    local spell = kind == "spell" and tonumber(value)
+    -- (a spell picked follows its ranks: its highest known; SpellRanks.lua)
+    if spell and ns.SpellRanks then spell = ns.SpellRanks.Highest(spell) or spell end
+    if spell then Call(C_Spell and C_Spell.PickupSpell or PickupSpell, spell)
     elseif kind == "item" then Call(C_Item and C_Item.PickupItem or PickupItem, tonumber(value))
     elseif kind == "macro" then Call(PickupMacro, value)
     else
@@ -138,6 +141,7 @@ local function PlaceOnSlot(storage, action)
     if not (GetCursorInfo and GetCursorInfo()) then return end
     ns.GamepadSlotDrop({ slot = storage })
     Call(ClearCursor)   -- (the action it replaced)
+    if spell and ns.SpellRanks then ns.SpellRanks.Set(storage, nil) end
     ns.SlotMacros.SweepSoon()
 end
 
@@ -182,7 +186,9 @@ local function Target()
                 if action then return FromAction(action, true) end
                 local name, texture, kind = ActionOf(storage)
                 if not name then return nil end
-                return { name = name, icon = texture, kind = kind, own = true }
+                local what, id = Call(GetActionInfo, storage)
+                return { name = name, icon = texture, kind = kind, own = true,
+                    action = (what == "spell" or what == "item" or what == "macro") and (what .. ":" .. tostring(id)) or nil }
             end,
             set = function(l, action) PlaceOnSlot(Storage(l, selected.slot), action) end,
             clear = function(l)
@@ -513,6 +519,8 @@ local function OpenPicker()
         accepts = (target.kind == "slot" or target.kind == "zone") and T.SLOT_ACCEPTS or T.ACCEPTS,
         current = entry and entry.own and entry.action or nil,
         onPick = function(action)
+            -- (the same spell again: its rank stays as chosen)
+            if action == (entry and entry.action) then return end
             target.set(layer, action)
             Refresh()
         end,
@@ -577,6 +585,54 @@ local function RefreshEditor(target)
     ed.pickup:SetShown(target.kind == "slot")
     ed.pickup:SetEnabled(editable and entry ~= nil)
     ed.icon:EnableMouse(editable)
+end
+
+-- Rank: a spell slot follows every rank you train (Highest), or keeps one.
+-- Left / right (the pad, the arrows, the wheel) step Rank 1 .. Highest.
+local function SlotStorage()
+    return selected.kind == "slot" and not C.Fixed(Layer(), selected.slot) and Storage(Layer(), selected.slot) or nil
+end
+
+local function StepRank(dir)
+    local R, storage = ns.SpellRanks, SlotStorage()
+    if not (R and storage) or InCombat() or HasCursor() then return end
+    local list, at = R.Choices(storage)
+    local to = list and list[at + dir]
+    if not to then return end
+    R.Set(storage, to.id)
+    Refresh()
+end
+
+local function BuildRank(card)
+    local row = CreateFrame("Frame", nil, card)
+    row:SetSize(W, 24)
+    row.label = S.Text(row, "Rank", 0, -6, 60, 11, S.GREY)
+    row.minus = S.NewButton(row, "<", 60, 0, 26, function() StepRank(-1) end, nil, 13, 24)
+    row.value = S.Text(row, "", 88, -6, W - 116, 12, S.YELLOW)
+    row.value:SetJustifyH("CENTER")
+    row.plus = S.NewButton(row, ">", W - 26, 0, 26, function() StepRank(1) end, nil, 13, 24)
+    row:EnableMouseWheel(true)
+    row:SetScript("OnMouseWheel", function(_, delta) if row.enabled ~= false then StepRank(delta > 0 and 1 or -1) end end)
+    -- (the pad: one focus stop, left / right step it; Focus.lua)
+    row.gpcNudge = StepRank
+    return row
+end
+
+-- Shown for a spell with ranks; true when shown
+local function RefreshRank(target)
+    local row, R = ui.rank, ns.SpellRanks
+    row:Hide()
+    local storage = target.kind == "slot" and R and SlotStorage()
+    if not storage then return false end
+    local list, at = R.Choices(storage)
+    if not list or #list < 2 then return false end
+    row.value:SetText(list[at].label)
+    local on = not InCombat()
+    row.enabled = on
+    row.minus:SetEnabled(on and at > 1)
+    row.plus:SetEnabled(on and at < #list)
+    row:SetAlpha(on and 1 or 0.45)
+    return true
 end
 
 local function Row(index)
@@ -775,7 +831,7 @@ end
 local function RefreshCard()
     local layer = Layer()
     local card = ui.card
-    for _, w in ipairs({ ui.ed, ui.tp, ui.tpw and ui.tpw.swipeRow, ui.sub, ui.layersTitle, ui.info, ui.showLayer }) do
+    for _, w in ipairs({ ui.ed, ui.rank, ui.tp, ui.tpw and ui.tpw.swipeRow, ui.sub, ui.layersTitle, ui.info, ui.showLayer }) do
         if w then w:Hide() end
     end
     for _, r in ipairs(ui.rows) do r:Hide() end
@@ -802,11 +858,13 @@ local function RefreshCard()
     card.title:SetText(target.title)
     Place(ui.ed, -40)
     RefreshEditor(target)
+    local shift = 0
+    if RefreshRank(target) then Place(ui.rank, -110); shift = 30 end
     if target.kind == "slot" then
-        Place(ui.sub, -112)
+        Place(ui.sub, -112 - shift)
         ui.sub:SetText("Page " .. selectedPage .. " · " .. (layer == "base" and "Base bar" or (C.LAYER_LABELS[layer] .. " bar")))
     end
-    RefreshRows(target, -140, target.glyph)
+    RefreshRows(target, -140 - shift, target.glyph)
 end
 
 -- Refresh ------------------------------------------------------------------------
@@ -922,6 +980,7 @@ local function Build(frame, header)
     local card = ui.card
     ui.ed = BuildEditor(card)
     ui.name, ui.kind, ui.clear, ui.pickup, ui.choose = ui.ed.name, ui.ed.kind, ui.ed.clear, ui.ed.pickup, ui.ed.choose
+    ui.rank = BuildRank(card)
     ui.sub = S.Note(card, 12, -112, W, 1, 11, S.GREY)
     ui.layersTitle = S.Text(card, "Every layer", 12, -140, nil, 11, S.YELLOW)
     -- (L2 / R2: what they are, and a button to show their bar)

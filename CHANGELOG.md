@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (0.71.0)
+
+- **Spell ranks**: a spell on the pad follows every rank you train. Pin one under Choose: Rank  < Highest >. A lower rank dragged on by hand stays pinned
+
 ## Unreleased (0.70.0)
 
 - **Pad in the window**: the window has the pad as soon as it opens, like Blizzard's. L1 / R1 change tabs at once, glyphs by the side tabs; a new tab starts on its first control. Left / right change a value row
