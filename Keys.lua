@@ -53,7 +53,7 @@ local used = 0              -- macro attributes set last time
 local pending, loaded = false, false
 local later, laterForce = false, false   -- a rebind waiting for every key of ours to be up
 local listeners = {}
-local SetExtras             -- (below: the held layer's bindings, on the keys' own owner)
+local SetExtras             -- (below: the held layer's bindings, on the layer owner, above Base)
 
 --[[ The secure click (pre-body: self, button, down). button is the key's
 click name ("p6"); attributes, set out of combat:
@@ -386,13 +386,14 @@ if UIErrorsFrame then
     end
 end
 
--- One command on key, on the keys' owner (nil: none of ours there)
--- The game keeps its gamepad functions (Focus UI, Radial) in a set of their own (binding
--- context 9): a click or command put over Focus UI leaves it there, and it runs under the map
--- on Create. Only clearing the key removes it (login probe, 2026-11-22): cleared first, then set.
-local function Put(key, command)
-    SetOverrideBinding(owner, true, key, nil)
-    if command then SetOverrideBinding(owner, true, key, command) end
+-- A held layer's function on key, on the layer owner above Base (nil: taken off).
+-- Base itself is never touched: Focus UI taken off Create and the map's click put back
+-- in its place left Focus UI in the game's gamepad set (binding context 9) for good,
+-- held key or not (2026-11-22). Halo's ring on Create, under our Focus UI on another
+-- owner, only ever uncovered, never broke: the same way here
+local function Layer(key, command)
+    SetOverrideBinding(layerOwner, true, key, nil)
+    if command then SetOverrideBinding(layerOwner, true, key, command) end
 end
 
 -- What key runs in the game's gamepad set (nil: no way to read it)
@@ -401,8 +402,8 @@ local function PadSet(key)
     if K and K.GetBindingByKey then return K.GetBindingByKey(key, 9) end
 end
 
--- The held layer's bindings: each in place of the key's Base on the same
--- owner, and the Base put back on release. Only the keys that change are touched,
+-- The held layer's bindings: each above the key's Base on the layer owner, and
+-- taken off on release (Base uncovered). Only the keys that change are touched,
 -- and never a key held down: the game keeps the binding a press ran for its release,
 -- and Focus UI swapped off Create mid-press stayed on it for good (L2 let go a moment
 -- before Create, 2026-11-22). A held key changes once it is up (the next tick)
@@ -417,10 +418,13 @@ SetExtras = function(want)
     local buttons = Sh.PadButtons()
     local function Held(key) return Sh.PadDown(buttons, key) == true end
     for key in pairs(extras) do
-        if not want[key] and not Held(key) then Put(key, bound[key]); extras[key] = nil end
+        if not want[key] and not Held(key) then
+            Layer(key, nil); extras[key] = nil
+            Trace("off " .. key .. ": gamepad set " .. tostring(PadSet(key)))
+        end
     end
     for key, command in pairs(want) do
-        if extras[key] ~= command and not Held(key) then Put(key, command); extras[key] = command end
+        if extras[key] ~= command and not Held(key) then Layer(key, command); extras[key] = command end
     end
 end
 

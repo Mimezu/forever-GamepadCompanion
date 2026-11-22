@@ -729,17 +729,26 @@ eq(GetBindingAction("PADFORWARD", true), "TOGGLEUIFOCUS", "the map focused, L2 s
 eq(Create(), "TOGGLEUIFOCUS", "L2 still held: Focus UI stays above Base on Create")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
--- (one owner per key: the held layer's binding in place of Base, never stacked on another owner;
--- the game ran a stacked Focus UI on Create with L2 up, 2026-11-21)
+-- (the held layer's function above Base on the layer owner, taken off on release; Base itself
+-- never rewritten: the map's click put back over Focus UI left Focus UI in the game's gamepad
+-- set, 2026-11-22. Halo's ring under it never broke)
 for key, list in pairs(stacks) do
-    for _, entry in ipairs(list) do check(entry.owner ~= layerOwner, "no layer binding on a second owner: " .. key) end
+    for _, entry in ipairs(list) do check(entry.owner ~= layerOwner, "L2 up: no layer binding left: " .. key) end
+end
+local baseWrites = 0
+local setNow = SetOverrideBinding
+SetOverrideBinding = function(o, p, key, ...)
+    if o == keyOwner and key == "PADSOCIAL" then baseWrites = baseWrites + 1 end
+    return setNow(o, p, key, ...)
 end
 pressed.PADLTRIGGER = true; Keys.Watch()
-eq(#(stacks.PADSOCIAL or {}), 1, "L2 held: Create has one binding of ours")
-eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI in place of Base")
+eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI above Base")
+eq(stacks.PADSOCIAL[#stacks.PADSOCIAL].owner, layerOwner, "L2 held: on the layer owner")
 pressed.PADLTRIGGER = nil; Keys.Watch()
-eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: still one")
-eq(Create(), CLICK_CREATE, "L2 up: Base back")
+eq(Create(), CLICK_CREATE, "L2 up: Base uncovered")
+eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: Base alone")
+eq(baseWrites, 0, "Base never rewritten by L2")
+SetOverrideBinding = setNow
 -- (the game keeps SetOverrideBindingClick's entries apart from commands: a Focus UI command
 -- swapped for Create's click stayed and ran under it, 2026-11-21. Every key of ours is bound as a
 -- command string, the click too, so a layer's command replaces it and gives it back)
