@@ -1170,7 +1170,9 @@ do
     now = now + 1
     L.Fire("loot")
     last = K.queue[#K.queue]
-    assert(last.sound == K.SOUNDS.coin and last.gain == 1, "a quarter: gain 1, " .. tostring(last.gain))
+    -- (the moment's own half: Sounds, the master, is WoW Helper's to apply, told in the who marker)
+    assert(last.sound == K.SOUNDS.coin and last.gain == 3, "its own half: gain 3, " .. tostring(last.gain))
+    assert(K.SpeakerTouch(0.5) == 51 and K.SpeakerTouch(1) == 101 and K.SpeakerTouch(0) == 1 and K.SpeakerTouch(nil) == 0, "the master in the who marker's touch")
     Vol.SetSound("loot", 0)
     n = #K.queue
     now = now + 1

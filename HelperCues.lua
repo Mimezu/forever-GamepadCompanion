@@ -438,7 +438,8 @@ function C.Moment(key, feelKey, opts)
     local sound = (opts.open or opts.try or On("sounds")) and not opts.noSound and C.MomentSound(key) or nil
     local soundGain
     if sound then
-        if Vol then soundGain = Vol.Gain(Vol.SoundLevel(key)) else soundGain = 7 end
+        -- (the moment's own volume: WoW Helper applies Sounds, the master, to all it plays)
+        if Vol then soundGain = Vol.Gain(Vol.Sound(key)) else soundGain = 7 end
     end
     if not soundGain then sound = nil end
     -- (a quieter instance of the moment: its sound as much quieter)
@@ -577,13 +578,13 @@ local function ExportMoments(export)
         -- (parent: a moment under another, "gather:mining" under "gather")
         moments[key] = { n = n, group = m[2], parent = m[3], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
-            feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.SoundLevel(key) or 1 }
+            feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.Sound(key) or 1 }
     end
     -- (Emote voices: no cue number, its marker's, 99: WoW Helper offers a full feel for it)
     local ev = L.EVENT and L.EVENT.emoteVoice
     if ev then
         moments.emoteVoice = { n = K.EMOTE_MARKER, group = ev.group, label = ev.label, feel = false, sound = false, light = false,
-            feelVol = 1, soundVol = ns.Volume and ns.Volume.SoundLevel("emoteVoice") or 1 }
+            feelVol = 1, soundVol = ns.Volume and ns.Volume.Sound("emoteVoice") or 1 }
     end
     export.moments = moments
     local d = Data()

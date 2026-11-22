@@ -86,9 +86,14 @@ end
 
 -- Every sound
 function Vol.Sounds() return Clamp(Vol.DB().sounds) end
-function Vol.SetSounds(v) Vol.DB().sounds = Clamp(v) end
+function Vol.SetSounds(v)
+    Vol.DB().sounds = Clamp(v)
+    -- (WoW Helper applies it to every sound on the speaker: told at once, with who plays)
+    local P = ns.Profiles
+    if P and P.SendWho then P.SendWho() end
+end
 
--- A moment's sound, all told (0-1)
+-- A moment's sound, all told (0-1): what the speaker plays (WoW Helper applies Sounds)
 function Vol.SoundLevel(key) return Vol.Sounds() * Vol.Sound(key) end
 
 -- 0-1 -> the strip's 3-bit gain, (g + 1) / 8; nil when silent

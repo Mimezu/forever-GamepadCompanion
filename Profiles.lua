@@ -232,7 +232,7 @@ function P.SendWho()
     if not (K and K.Who) then return false end
     local n, faction, race, sex = P.Who()
     if not n then return false end
-    return K.Who(n, faction, race, sex)
+    return K.Who(n, faction, race, sex, ns.Volume and ns.Volume.Sounds() or nil)
 end
 
 ---------------------------------------------------------------------------

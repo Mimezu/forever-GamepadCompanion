@@ -2292,10 +2292,9 @@ local function Build(frame, header)
             format = Vol.Pct, get = Vol.Sounds, set = Vol.SetSounds })
     end
     S.NewButton(sb, "Try", 14, -96, 86, function()
-        local Vol = ns.Volume
-        local gain = Vol and Vol.Gain(Vol.Sounds()) or 7   -- (Sounds: never under 10%)
+        -- (full: WoW Helper plays it at Volume, as every sound on the pad's speaker)
         if not (K and K.Enabled()) then return Say("Link is off: Setup", true) end
-        K.PlaySound("chime", gain)
+        K.PlaySound("chime", 7)
     end, nil, 12, 28)
     ui.soundNote = S.Note(sb, 14, -76, LEFT_W - 28, 1, 11, GREY)
     -- Triggers: what each holds now
