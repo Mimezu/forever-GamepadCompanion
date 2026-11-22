@@ -63,8 +63,8 @@ eq(list[4].place, "Booty Bay", "farthest last")
 FL.Sort(list, "name")
 eq(list[1].place, "Booty Bay", "A-Z first")
 eq(list[4].place, "Thelsamar", "A-Z last")
-eq(FL.SORTS.near, "name", "Y: near to name")
-eq(FL.SORTS.name, "near", "Y: name to near")
+eq(FL.VIEWS.zones, "near", "Y: zones to nearest")
+eq(FL.VIEWS.near, "zones", "Y: nearest to zones")
 
 -- equal distance: by name
 local eqList = {
@@ -107,14 +107,20 @@ eq(FL.Step(3, 20, -9, false), 1, "a page up: the top")
 eq(FL.Step(nil, 0, 1, true), nil, "nothing to move in")
 eq(FL.Step(0, 4, 1, true), 1, "from none: the first")
 
--- Scrolling ------------------------------------------------------------------------------
-eq(FL.Scroll(0, 3, 10, 5), 0, "all fit")
-eq(FL.Scroll(0, 10, 10, 20), 0, "last visible row")
-eq(FL.Scroll(0, 11, 10, 20), 1, "one past: one down")
-eq(FL.Scroll(5, 3, 10, 20), 2, "above: up to it")
-eq(FL.Scroll(0, 20, 10, 20), 10, "the end")
-eq(FL.Scroll(15, 20, 10, 20), 10, "never past the end")
-eq(FL.Scroll(4, nil, 10, 20), 0, "no row: the top")
+-- Scrolling (rows of 40 px, zones of 24) ---------------------------------------------------
+local function H(r) return r.kind == "header" and 24 or 40 end
+local flat = {}
+for i = 1, 20 do flat[i] = { kind = "flight" } end
+eq(FL.Scroll(0, 3, { flat[1], flat[2], flat[3] }, 400, H), 0, "all fit")
+eq(FL.Scroll(0, 10, flat, 400, H), 0, "last visible row")
+eq(FL.Scroll(0, 11, flat, 400, H), 1, "one past: one down")
+eq(FL.Scroll(5, 3, flat, 400, H), 2, "above: up to it")
+eq(FL.Scroll(0, 20, flat, 400, H), 10, "the end")
+eq(FL.Scroll(15, 20, flat, 400, H), 10, "never past the end")
+eq(FL.Scroll(4, nil, flat, 400, H), 0, "no row: the top")
+local grouped = { { kind = "flight" }, { kind = "header" }, { kind = "flight" }, { kind = "flight" } }
+eq(FL.Scroll(2, 3, grouped, 80, H), 1, "a zone's first: its header comes along")
+eq(FL.Scroll(0, 4, grouped, 80, H), 2, "the end, by height")
 
 local top, len = FL.Thumb(0, 10, 20, 400)
 eq(top, 0, "thumb at the top")
@@ -125,12 +131,118 @@ eq(FL.Thumb(0, 10, 5, 400), nil, "no thumb when all fit")
 local _, small = FL.Thumb(0, 2, 1000, 400)
 eq(small, 16, "a thumb never too small to see")
 
--- Where it starts --------------------------------------------------------------------------
-local rows = { { name = "A, x" }, { name = "B, y" } }
-eq(FL.Start(rows, "B, y"), 2, "the last place flown to")
-eq(FL.Start(rows, "Gone, z"), 1, "gone: the first")
-eq(FL.Start(rows, nil), 1, "none yet: the first")
-eq(FL.Start({}, nil), nil, "empty: none")
+-- Zones, levels, quests ----------------------------------------------------------------
+eq(FL.ZoneName("Elwynn"), "Elwynn Forest", "the map's short name")
+eq(FL.ZoneName("Thunder Bluff"), "Mulgore", "a city: its zone")
+eq(FL.ZoneName("Ashenvale"), "Ashenvale", "a full name kept")
+eq(FL.ZoneName(nil), nil, "no zone")
+eq(FL.Tier(30, { 30, 40 }), "yellow", "in range")
+eq(FL.Tier(27, { 30, 40 }), "orange", "a little low")
+eq(FL.Tier(26, { 30, 40 }), "red", "too low")
+eq(FL.Tier(45, { 30, 40 }), "green", "a little high")
+eq(FL.Tier(46, { 30, 40 }), "grey", "too high")
+eq(FL.Tier(30, nil), nil, "no range")
+eq(FL.Tier(30, false), nil, "a hub")
+eq(FL.Fit(30, { 30, 40 }), 25, "fit: in range")
+eq(FL.Fit(30, nil), 8, "fit: unknown")
+eq(FL.Fit(60, { 1, 10 }, true), 8, "fit: a city never nothing")
+local counts = FL.QuestCounts({
+    { title = "The Barrens", header = true },
+    { title = "a", complete = nil }, { title = "b", complete = 1 }, { title = "c", complete = -1 },
+    { title = "Warrior", header = true }, { title = "class quest" },
+    { title = "Thunder Bluff", header = true }, { title = "d", complete = 1 },
+    { title = "Ashenvale", header = true }, { title = "e" },
+})
+eq(counts["The Barrens"].open, 2, "open (failed ones too)")
+eq(counts["The Barrens"].ready, 1, "ready to turn in")
+eq(counts.Warrior, nil, "not a zone: not counted")
+eq(counts.Mulgore.ready, 1, "a city's quests: its zone")
+eq(counts.Ashenvale.open, 1, "another zone")
+eq(next(FL.QuestCounts({})), nil, "an empty log")
+
+-- Arranging (Thunder Bluff, level 30) ------------------------------------------------------
+local function N(i, name, dist, cost)
+    local p, z = FL.SplitName(name)
+    return { index = i, name = name, place = p, zone = z, dist = dist, cost = cost or 100, hops = 1 }
+end
+local tb = {
+    N(1, "Camp Taurajo, The Barrens", 0.10), N(2, "Sun Rock Retreat, Stonetalon Mountains", 0.15),
+    N(3, "Crossroads, The Barrens", 0.20), N(4, "Freewind Post, Thousand Needles", 0.18),
+    N(5, "Orgrimmar, Durotar", 0.50), N(6, "Gadgetzan, Tanaris", 0.60, 5000),
+    N(7, "Bloodhoof Village, Mulgore", 0.05), N(8, "Splintertree Post, Ashenvale", 0.40),
+}
+local ctx = { zone = "Mulgore", level = 30, money = 1000,
+    quests = { ["Ashenvale"] = { open = 1, ready = 2 }, ["The Barrens"] = { open = 4, ready = 0 } } }
+local rows, start = FL.Arrange(tb, ctx)
+eq(rows[1].kind, "header", "zones: a header first")
+eq(rows[1].g.zone, "Mulgore", "your own zone first")
+eq(start, 2, "start: the first flight")
+eq(rows[start].node.place, "Bloodhoof Village", "the nearest in your zone")
+eq(rows[3].g.zone, "Ashenvale", "then turn-ins")
+eq(rows[5].g.zone, "The Barrens", "then open quests")
+eq(rows[6].node.place, "Camp Taurajo", "in a zone: nearest first")
+eq(rows[#rows].node.place, "Gadgetzan", "a zone you can't pay for: last")
+eq(rows[#rows - 1].g.zone, "Tanaris", "its header")
+eq(rows[#rows].g.tier, "red", "Tanaris red at 30")
+-- no flight in your zone: the best zone first
+rows, start = FL.Arrange(tb, { zone = "Moonglade", level = 30, money = 1000, quests = ctx.quests })
+eq(rows[1].g.zone, "Ashenvale", "no flight here: the best zone first")
+eq(rows[start].node.place, "Splintertree Post", "and its nearest")
+-- level only: a grey zone dimmed, a city not
+rows = FL.Arrange(tb, { zone = "x", level = 60 })
+local dims = {}
+for _, r in ipairs(rows) do if r.kind == "header" then dims[r.g.zone] = r.g.dim end end
+eq(dims["Thousand Needles"], true, "grey: dimmed")
+eq(dims["Durotar"], false, "a city: never dimmed")
+-- the last place flown to lifts its zone
+local a1 = FL.Arrange({ N(1, "A, Desolace", 0.3), N(2, "B, Feralas", 0.3) }, { level = 45 })
+local a2 = FL.Arrange({ N(1, "A, Desolace", 0.3), N(2, "B, Feralas", 0.3) }, { level = 40, last = "A, Desolace" })
+eq(a1[1].g.zone, "Feralas", "the zone your level fits")
+eq(a2[1].g.zone, "Desolace", "equal fit: the last place's zone")
+-- nearest view: no headers
+rows, start = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, quests = ctx.quests })
+eq(#rows, #tb, "nearest: flights only")
+eq(rows[1].node.place, "Bloodhoof Village", "nearest first")
+eq(start, 1, "nearest: the first")
+eq(rows[1].g.zone, "Mulgore", "rows still know their zone")
+-- an empty map
+rows, start = FL.Arrange({}, ctx)
+eq(#rows, 0, "no rows")
+eq(start, nil, "no start")
+-- no zone in the name: the place is its group
+rows = FL.Arrange({ N(1, "Moonglade", 0.2) }, {})
+eq(rows[1].g.zone, "Moonglade", "named after the place")
+eq(rows[1].g.range, nil, "a hub: no range")
+
+-- Moving in zones ---------------------------------------------------------------------------
+rows = FL.Arrange(tb, ctx)
+eq(FL.Next(rows, 2, 1, true), 4, "down: past the next header")
+eq(FL.Next(rows, 4, -1, true), 2, "up: past it again")
+eq(FL.Next(rows, 2, -1, true), #rows, "up from the top: wraps to the last")
+eq(FL.Next(rows, #rows, 1, true), 2, "down from the last: wraps")
+eq(FL.Next(rows, #rows, 1, false), #rows, "held: stops")
+eq(FL.Next(rows, nil, 1, false), 2, "none yet: the first")
+eq(FL.Next(rows, nil, -1, false), #rows, "none yet, up: the last")
+eq(FL.Next({}, nil, 1, true), nil, "nothing to move in")
+eq(rows[FL.Zone(rows, 2, 1)].g.zone, "Ashenvale", "right: the next zone")
+eq(FL.Zone(rows, 2, -1), #rows, "left from the first: the last zone")
+eq(FL.Zone(rows, #rows, 1), 2, "right from the last: the first")
+-- the triggers' jumps
+local j = FL.Jump(rows, 2, "ready")
+eq(rows[j].g.zone, "Ashenvale", "L2: the zone with turn-ins")
+eq(FL.Jump(rows, j, "ready"), j, "only one: stays")
+j = FL.Jump(rows, 2, "open")
+eq(rows[j].g.zone, "The Barrens", "R2: the most open quests")
+eq(rows[FL.Jump(rows, j, "open")].g.zone, "Ashenvale", "again: the next")
+eq(FL.Jump(rows, 2, "none"), nil, "no zone: nothing")
+eq(FL.Total(rows, "open"), 5, "all open quests")
+eq(FL.Total(rows, "ready"), 2, "all turn-ins")
+eq(rows[FL.Find(rows, "Crossroads, The Barrens")].node.place, "Crossroads", "X: the last place")
+eq(FL.Find(rows, "Gone, z"), nil, "gone: none")
+eq(FL.Find(rows, nil), nil, "none yet")
+-- nearest view: the jumps land on the zone's nearest
+rows = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, quests = ctx.quests })
+eq(rows[FL.Jump(rows, 1, "open")].node.place, "Camp Taurajo", "nearest view: the zone's nearest")
 
 -- Settings ----------------------------------------------------------------------------------
 eq(FL.Wanted(true, true, true), true, "shown: on, gamepad UI, map open")
@@ -141,9 +253,11 @@ eq(FL.Wanted(true, true, false), false, "map closed")
 eq(FL.Enabled(), true, "on by default")
 db.flightList = false
 eq(FL.Enabled(), false, "off")
-eq(FL.Sorting(), "near", "nearest by default")
+eq(FL.View(), "zones", "zones by default")
+db.flightSort = "near"
+eq(FL.View(), "near", "nearest kept")
 db.flightSort = "name"
-eq(FL.Sorting(), "name", "A-Z kept")
+eq(FL.View(), "near", "an older A-Z: nearest")
 eq(FL.LastFrom("Ironforge, Dun Morogh"), nil, "nothing flown yet")
 FL.Remember("Ironforge, Dun Morogh", "Stormwind, Elwynn")
 FL.Remember("Stormwind, Elwynn", "Sentinel Hill, Westfall")

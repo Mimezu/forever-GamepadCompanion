@@ -1,37 +1,38 @@
 # Flight list
 
 At a flight master, in the gamepad UI only, a list beside the game's flight map: every place you can
-fly to from here, chosen with the pad. The map stays the game's; it only
-reflects the row you are on.
+fly to from here, chosen with the pad. The map stays the game's; it only reflects the row you are on.
 
-## Layout
+## Zones (the default view)
 
-- A slim panel on the map's right edge, the map frame's own chrome, parchment
-  inside. Title: Fly to.
-- Top: the green flight icon and where you are (not a row, not selectable).
-- Rows, nearest first: the place in ink, its zone under it, a pip per stop
-  on the way, the cost in coins on the right (red when you can't pay it).
-- The row you are on: a warm band of light. Scrolls to keep it in view.
-- Bottom: Blizzard's legend glyphs: Fly, Close, Near / A-Z.
+- Places grouped by zone. Your own zone first, then the zones worth flying to:
+  turn-ins (x30), open quests (x10, up to 5), your level's fit, the last place flown to, near.
+  Zones you can't pay for sink to the end.
+- A zone's row: its name and levels in the quest colours (red, orange, yellow, green, grey), a
+  ? per quest to turn in, a ! per open quest. Grey zones' places are dimmed (capitals never).
+- Inside a zone: nearest first. The list starts on the nearest place in your zone,
+  else in the best zone.
+- Quests come from the log when the map opens; closed log headers are opened to count, then closed.
+  Headers that are no zone (class, dungeon) count for nothing.
 
 ## Controls (out of combat, while the map is open)
 
 | Button | Does |
 | --- | --- |
-| D-pad up / down | the row before / after (wraps; held: repeats) |
-| L1 / R1 | a page up / down (stops at the ends) |
-| D-pad left / right | the first / last row |
-| A | fly there |
-| B | close the map |
-| Y | sort: nearest first, or by name |
+| D-pad up / down | the place before / after (wraps; held: repeats) |
+| D-pad left / right | the zone before / after (Nearest: the first / last place) |
+| L1 / R1 | a page up / down |
+| A / B | fly there / close |
+| X | Again: the last place flown to from here |
+| Y | Nearest (one list, no zones) / Zones |
+| L2 | Turn-ins: the zone with the most; again: the next |
+| R2 | Quests: the zone with the most open; again: the next |
 
-The list takes only those presses, one at a time, on its own frame (as the
-Companion window does, Focus.lua); everything else passes on. In combat it
-takes nothing. Mouse: hover a row to choose it, click to fly.
+L2 and R2 are only read, never taken or rebound: the game still gets them (L2 its bar, R2 its Ctrl).
+X, L2 and R2 are greyed in the legend when they have nothing to do.
 
 ## On the map
 
-- A gold ring on the chosen place, breathing slowly, a soft glow inside.
-- The route there as a gold line, stop by stop.
+- A gold ring on the chosen place, breathing slowly; the route there, stop by stop.
 
 Off: Setup › Windows › Flight list. On by default.

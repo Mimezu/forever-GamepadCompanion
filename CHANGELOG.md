@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- **Flight list by zone**: places grouped by zone, your own first, then the zones worth flying to (turn-ins, open quests, your level, near); each zone shows its levels in the quest colours and its ? and ! counts. Starts on the nearest place in your zone. L2 jumps to the zone with the most turn-ins, R2 to the most open quests (both only read, never rebound); X: the last place flown to from here; Y: Nearest / Zones
 - Footsteps and wading by WoW Helper: it hears your footfalls and plays each step in time with them, learned per character and at your speed. In shallow water it hears the splash and plays Wading (the game gives no sign of shallow water). Without WoW Helper, or with HD off, the addon plays its own as before
 - Fixed: the feel picker no longer spills out of its window with a big group (Moves): its rows scroll with the wheel, with a thin thumb, and open on the current feel
 - A watchdog for a stuck button: when the game holds any pad button down (L2, R2, jump...) while the pad has it up, the button is let go (rebound once, out of combat) and the moment is written down for the next look

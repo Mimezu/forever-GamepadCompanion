@@ -15,7 +15,7 @@
   doesn't wrap, and the cursor returns to the bag after loot. Out of combat only.
   `/gpc nav` logs the bag cursor. Moved from Gear Glance 2.4.2. Tests: `tests/BagGrid.lua`.
 - **Flight list** (on): beside the flight map, the places you can fly to, chosen with
-  the pad; the map rings the chosen one and draws its route. [FLIGHT-LIST](FLIGHT-LIST.md).
+  the pad, grouped by zone (quests, level); L2 / R2 jump to turn-ins / quests; the map rings the chosen one and draws its route. [FLIGHT-LIST](FLIGHT-LIST.md).
   Tests: `tests/FlightList.lua`.
 - **Window styles** A (controller, default), B (Legacy window) and C (classic):
   `/gpc style A|B|C`.

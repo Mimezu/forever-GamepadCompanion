@@ -20,7 +20,77 @@ ns.FlightList = FL
 ---------------------------------------------------------------------------
 -- Pure (tests/FlightList.lua)
 ---------------------------------------------------------------------------
-FL.SORTS = { near = "name", name = "near" }   -- Y: one to the other
+FL.VIEWS = { zones = "near", near = "zones" }   -- Y: one to the other
+
+-- Zone levels (Classic): { lowest, highest }; false: a hub, no range
+FL.ZONES = {
+    ["Durotar"] = { 1, 10 }, ["Mulgore"] = { 1, 10 }, ["Tirisfal Glades"] = { 1, 10 },
+    ["Elwynn Forest"] = { 1, 10 }, ["Dun Morogh"] = { 1, 10 }, ["Teldrassil"] = { 1, 10 },
+    ["The Barrens"] = { 10, 25 }, ["Silverpine Forest"] = { 10, 20 }, ["Westfall"] = { 10, 20 },
+    ["Loch Modan"] = { 10, 20 }, ["Darkshore"] = { 10, 20 },
+    ["Redridge Mountains"] = { 15, 25 }, ["Stonetalon Mountains"] = { 15, 27 }, ["Ashenvale"] = { 18, 30 },
+    ["Duskwood"] = { 18, 30 }, ["Wetlands"] = { 20, 30 }, ["Hillsbrad Foothills"] = { 20, 30 },
+    ["Thousand Needles"] = { 25, 35 }, ["Desolace"] = { 30, 40 }, ["Arathi Highlands"] = { 30, 40 },
+    ["Stranglethorn Vale"] = { 30, 45 }, ["Dustwallow Marsh"] = { 35, 45 }, ["Badlands"] = { 35, 45 },
+    ["Swamp of Sorrows"] = { 35, 45 }, ["The Hinterlands"] = { 40, 50 }, ["Feralas"] = { 40, 50 },
+    ["Tanaris"] = { 40, 50 }, ["Searing Gorge"] = { 43, 50 }, ["Azshara"] = { 45, 55 },
+    ["Blasted Lands"] = { 45, 55 }, ["Felwood"] = { 48, 55 }, ["Un'Goro Crater"] = { 48, 55 },
+    ["Burning Steppes"] = { 50, 58 }, ["Western Plaguelands"] = { 51, 58 },
+    ["Eastern Plaguelands"] = { 53, 60 }, ["Winterspring"] = { 55, 60 }, ["Silithus"] = { 55, 60 },
+    ["Moonglade"] = false,
+}
+-- The map's short zone names, and the quest log's cities: the zone they mean
+FL.ZONE_NAME = {
+    ["Elwynn"] = "Elwynn Forest", ["Redridge"] = "Redridge Mountains", ["Stranglethorn"] = "Stranglethorn Vale",
+    ["Hillsbrad"] = "Hillsbrad Foothills", ["Arathi"] = "Arathi Highlands", ["Tirisfal"] = "Tirisfal Glades",
+    ["Silverpine"] = "Silverpine Forest", ["Stonetalon"] = "Stonetalon Mountains", ["Dustwallow"] = "Dustwallow Marsh",
+    ["Hinterlands"] = "The Hinterlands", ["Barrens"] = "The Barrens", ["Un'Goro"] = "Un'Goro Crater",
+    ["Orgrimmar"] = "Durotar", ["Thunder Bluff"] = "Mulgore", ["Undercity"] = "Tirisfal Glades",
+    ["Stormwind City"] = "Elwynn Forest", ["Stormwind"] = "Elwynn Forest", ["Ironforge"] = "Dun Morogh",
+    ["Darnassus"] = "Teldrassil",
+}
+-- Capitals, by place: never dimmed, a fair fit at any level
+FL.CITIES = { ["Orgrimmar"] = true, ["Thunder Bluff"] = true, ["Undercity"] = true,
+    ["Stormwind"] = true, ["Ironforge"] = true, ["Darnassus"] = true }
+
+function FL.ZoneName(zone)
+    if not zone then return nil end
+    return FL.ZONE_NAME[zone] or zone
+end
+
+-- A zone's colour for level L (quest colours): red, orange, yellow, green, grey; nil: no range
+function FL.Tier(L, range)
+    if type(range) ~= "table" or not tonumber(L) then return nil end
+    local lo, hi = range[1], range[2]
+    if L < lo - 3 then return "red" elseif L < lo then return "orange"
+    elseif L <= hi then return "yellow" elseif L < hi + 6 then return "green" end
+    return "grey"
+end
+
+local FIT = { yellow = 25, orange = 15, green = 10, red = 0, grey = 0 }
+function FL.Fit(L, range, city)
+    local tier = FL.Tier(L, range)
+    local fit = tier and FIT[tier] or 8
+    if city then fit = math.max(fit, 8) end
+    return fit
+end
+
+-- The quest log's entries { title, header, complete } -> { [zone] = { open, ready } };
+-- headers that are no zone (class, dungeon, ...) and their quests count for nothing
+function FL.QuestCounts(entries)
+    local counts, zone = {}, nil
+    for _, e in ipairs(entries or {}) do
+        if e.header then
+            zone = FL.ZoneName(e.title)
+            if FL.ZONES[zone] == nil then zone = nil end
+        elseif zone then
+            local c = counts[zone] or { open = 0, ready = 0 }
+            counts[zone] = c
+            if e.complete == 1 then c.ready = c.ready + 1 else c.open = c.open + 1 end
+        end
+    end
+    return counts
+end
 
 -- "Ironforge, Dun Morogh" -> "Ironforge", "Dun Morogh"; no comma: name, nil
 function FL.SplitName(name)
@@ -98,13 +168,159 @@ function FL.Step(sel, n, delta, wrap)
     return math.max(1, math.min(n, sel))
 end
 
--- The first row shown so sel stays in view (visible rows of n)
-function FL.Scroll(offset, sel, visible, n)
+-- The rows: zone groups ("zones") or one list ("near"), and the row to start on.
+-- ctx = { view, zone (yours), level, money, last (a node's name), quests = FL.QuestCounts,
+-- ranges = FL.ZONES }. Rows: { kind = "header", g } or { kind = "flight", node, g };
+-- g = { zone, range, tier, open, ready, score, dim }.
+-- A group's score: turn-ins, open quests, the level's fit, the last place flown to, near;
+-- your own zone first; groups you can't pay for last.
+function FL.Arrange(nodes, ctx)
+    ctx = ctx or {}
+    local ranges, quests, L, money = ctx.ranges or FL.ZONES, ctx.quests or {}, ctx.level, ctx.money
+    local flights = {}
+    for i, node in ipairs(nodes or {}) do flights[i] = node end
+    FL.Sort(flights, "near")
+    local groups, byZone, lastZone = {}, {}, nil
+    for _, node in ipairs(flights) do
+        local z = FL.ZoneName(node.zone) or node.place
+        local g = byZone[z]
+        if not g then
+            g = { zone = z, nodes = {}, minDist = node.dist or 0, afford = false, city = false, order = #groups + 1 }
+            byZone[z] = g
+            groups[#groups + 1] = g
+        end
+        g.nodes[#g.nodes + 1] = node
+        g.minDist = math.min(g.minDist, node.dist or 0)
+        if not money or (node.cost or 0) <= money then g.afford = true end
+        if FL.CITIES[node.place] then g.city = true end
+        if ctx.last and node.name == ctx.last then lastZone = z end
+    end
+    for _, g in ipairs(groups) do
+        local r = ranges[g.zone]
+        g.range = type(r) == "table" and r or nil
+        local q = quests[g.zone] or {}
+        g.open, g.ready = q.open or 0, q.ready or 0
+        g.tier = FL.Tier(L, g.range)
+        g.dim = g.tier == "grey" and not g.city
+        g.score = 30 * g.ready + 10 * math.min(g.open, 5) + FL.Fit(L, g.range, g.city)
+            + (g.zone == lastZone and 5 or 0) - 20 * g.minDist - (g.afford and 0 or 1000)
+    end
+    local rows = {}
+    if ctx.view == "near" then
+        for _, node in ipairs(flights) do rows[#rows + 1] = { kind = "flight", node = node, g = byZone[FL.ZoneName(node.zone) or node.place] } end
+        return rows, #rows > 0 and 1 or nil
+    end
+    local here = FL.ZoneName(ctx.zone)
+    table.sort(groups, function(a, b)
+        if (a.zone == here) ~= (b.zone == here) then return a.zone == here end
+        if a.score ~= b.score then return a.score > b.score end
+        if a.minDist ~= b.minDist then return a.minDist < b.minDist end
+        if a.zone ~= b.zone then return a.zone < b.zone end
+        return a.order < b.order
+    end)
+    for _, g in ipairs(groups) do
+        rows[#rows + 1] = { kind = "header", g = g }
+        for _, node in ipairs(g.nodes) do rows[#rows + 1] = { kind = "flight", node = node, g = g } end
+    end
+    -- (the first flight: the nearest in your zone, else in the best zone)
+    return rows, #rows > 1 and 2 or nil
+end
+
+-- The flight rows' indices
+local function Flights(rows)
+    local out = {}
+    for i, r in ipairs(rows) do if r.kind == "flight" then out[#out + 1] = i end end
+    return out
+end
+
+-- delta flights on from sel, past the headers (wrap: round the ends)
+function FL.Next(rows, sel, delta, wrap)
+    local f = Flights(rows)
+    if #f == 0 then return nil end
+    local pos = 0
+    for p, i in ipairs(f) do if i == sel then pos = p end end
+    if pos == 0 and delta < 0 then pos = #f + 1 end
+    if pos == 0 or pos == #f + 1 then
+        -- (from no flight: the first or the last)
+        return f[delta < 0 and math.max(1, #f + 1 + delta) or math.min(#f, delta)]
+    end
+    return f[FL.Step(pos, #f, delta, wrap)]
+end
+
+-- The first flight of group g (rows in order: its nearest)
+local function FirstOf(rows, g)
+    for i, r in ipairs(rows) do if r.kind == "flight" and r.g == g then return i end end
+end
+
+-- The groups in the rows' order
+local function Groups(rows)
+    local out, seen = {}, {}
+    for _, r in ipairs(rows) do
+        if r.g and not seen[r.g] then seen[r.g] = true; out[#out + 1] = r.g end
+    end
+    return out
+end
+
+-- The first flight of the zone before / after sel's (dir -1 / 1), round the ends
+function FL.Zone(rows, sel, dir)
+    local gs = Groups(rows)
+    if #gs == 0 then return nil end
+    local cur = rows[sel] and rows[sel].g
+    local pos = 0
+    for p, g in ipairs(gs) do if g == cur then pos = p end end
+    return FirstOf(rows, gs[(pos - 1 + dir) % #gs + 1])
+end
+
+-- The zone with the most key ("ready" turn-ins, "open" quests): its first flight; again from
+-- there, the next such zone, round; nil when no zone has any
+function FL.Jump(rows, sel, key)
+    local gs = {}
+    for _, g in ipairs(Groups(rows)) do if (g[key] or 0) > 0 then gs[#gs + 1] = g end end
+    if #gs == 0 then return nil end
+    for i, g in ipairs(gs) do g.rank = i end
+    table.sort(gs, function(a, b)
+        if a[key] ~= b[key] then return a[key] > b[key] end
+        if (a.score or 0) ~= (b.score or 0) then return (a.score or 0) > (b.score or 0) end
+        return a.rank < b.rank
+    end)
+    local cur = rows[sel] and rows[sel].g
+    local pos = 0
+    for p, g in ipairs(gs) do if g == cur then pos = p end end
+    return FirstOf(rows, gs[pos % #gs + 1])
+end
+
+-- Every zone's count of key, added
+function FL.Total(rows, key)
+    local n = 0
+    for _, g in ipairs(Groups(rows)) do n = n + (g[key] or 0) end
+    return n
+end
+
+-- The row of the place named name, or nil
+function FL.Find(rows, name)
+    if not name then return nil end
+    for i, r in ipairs(rows) do if r.kind == "flight" and r.node.name == name then return i end end
+end
+
+-- The first row shown (offset) so row sel fits in view px, with its zone's header when it is
+-- the zone's first; height(row) in px; never a gap at the end
+function FL.Scroll(offset, sel, rows, view, height)
+    local n = #rows
     offset = tonumber(offset) or 0
-    if not sel or n <= visible then return 0 end
-    if sel <= offset then offset = sel - 1 end
-    if sel > offset + visible then offset = sel - visible end
-    return math.max(0, math.min(n - visible, offset))
+    if not sel or n == 0 then return 0 end
+    local top = sel
+    if sel > 1 and rows[sel - 1].kind == "header" then top = sel - 1 end
+    if top <= offset then offset = top - 1 end
+    local function Span(a, b)
+        local s = 0
+        for i = a, b do s = s + height(rows[i]) end
+        return s
+    end
+    while offset < sel - 1 and Span(offset + 1, sel) > view do offset = offset + 1 end
+    -- the lowest offset that still fills the view to the end
+    local last, acc = n, 0
+    while last > 0 and acc + height(rows[last]) <= view do acc = acc + height(rows[last]); last = last - 1 end
+    return math.max(0, math.min(offset, last))
 end
 
 -- The scroll thumb: top and length in a track of height px; nil when all fit
@@ -112,12 +328,6 @@ function FL.Thumb(offset, visible, n, height)
     if n <= visible or n < 1 then return nil end
     local len = math.max(16, height * visible / n)
     return (height - len) * offset / (n - visible), len
-end
-
--- Where to start: the last place flown to from here, else the first row
-function FL.Start(list, last)
-    for i, node in ipairs(list) do if last and node.name == last then return i end end
-    return #list > 0 and 1 or nil
 end
 
 -- A node's point on the map, from its BOTTOMLEFT (the game's own placing)
@@ -138,7 +348,11 @@ function FL.Enabled() return Sh.CharDB().flightList ~= false end
 function FL.Wanted(enabled, gamepadUI, mapShown)
     return enabled and gamepadUI == true and mapShown and true or false
 end
-function FL.Sorting() return Sh.CharDB().flightSort == "name" and "name" or "near" end
+-- "zones" (default) or "near"; (an older "name": near)
+function FL.View()
+    local v = Sh.CharDB().flightSort
+    return (v == "near" or v == "name") and "near" or "zones"
+end
 function FL.LastFrom(here)
     local t = Sh.CharDB().flightLast
     return here and type(t) == "table" and t[here] or nil
@@ -169,14 +383,25 @@ local INK = { 0.20, 0.12, 0.04 }
 local FADED = { 0.42, 0.31, 0.18 }
 local DEAR = { 0.62, 0.10, 0.04 }   -- a cost you can't pay
 local GOLD = { 1.00, 0.82, 0.38 }
-local ROW_H, HEAD_H, FOOT_H, WIDTH = 40, 62, 40, 260
+local HEAD_H, FOOT_H, WIDTH = 62, 66, 260
+local ROW_H = { zones = 32, near = 40 }   -- a flight's row: a line, or two (with its zone)
+local ZONE_H = 24                          -- a zone's row
+-- a zone's colour on parchment (the quest colours, inked)
+local TIERS = {
+    red = { 0.66, 0.08, 0.04 }, orange = { 0.72, 0.36, 0.04 }, yellow = { 0.52, 0.40, 0.00 },
+    green = { 0.14, 0.42, 0.08 }, grey = { 0.45, 0.42, 0.38 },
+}
+local OPEN_ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
+local READY_ICON = "Interface\\GossipFrame\\ActiveQuestIcon"
 local RING = "ChallengeMode-AffixRing-Sm"
 local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local GLOW = "Interface\\TaxiFrame\\UI-Taxi-Icon-Highlight"
 local NUB = "Interface\\TaxiFrame\\UI-Taxi-Icon-Nub"
 local HERE_ICON = "Interface\\TaxiFrame\\UI-Taxi-Icon-Green"
 
-local state = { here = nil, list = {}, sel = nil, offset = 0, visible = 10 }
+local state = { here = nil, nodes = {}, rows = {}, sel = nil, offset = 0, viewH = 400, view = "zones", quests = {} }
+
+local function RowHeight(row) return row.kind == "header" and ZONE_H or ROW_H[state.view] end
 
 local function Text(parent, font, size, color, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY")
@@ -253,15 +478,21 @@ thumb:SetWidth(2)
 thumb:SetColorTexture(INK[1], INK[2], INK[3], 0.35)
 
 -- Rows -------------------------------------------------------------------------
-local rows = {}
+-- (one widget per shown slot: a flight's row or a zone's, as the row asks)
+local slots = {}
 local Select, Fly   -- (below)
 
-local function Row(i)
-    if rows[i] then return rows[i] end
+local function Badge(parent, icon)
+    local t = parent:CreateTexture(nil, "ARTWORK")
+    t:SetTexture(icon)
+    t:SetSize(14, 14)
+    local n = Text(parent, BODY_FONT, 10, INK, "LEFT")
+    return t, n
+end
+
+local function Slot(i)
+    if slots[i] then return slots[i] end
     local r = CreateFrame("Button", nil, body)
-    r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 6, -(i - 1) * ROW_H)
-    r:SetPoint("TOPRIGHT", -10, -(i - 1) * ROW_H)
     r:RegisterForClicks("LeftButtonUp")
     -- the chosen row: a warm band of light fading to the right, a thin gilt edge
     r.band = r:CreateTexture(nil, "BACKGROUND", nil, 2)
@@ -276,12 +507,12 @@ local function Row(i)
     r.edge:SetPoint("BOTTOMLEFT", 0, 4)
     r.edge:SetColorTexture(0.55, 0.36, 0.10, 0.9)
     r.place = Text(r, BODY_FONT, 13, INK)
-    r.place:SetPoint("TOPLEFT", 10, -6)
     r.cost = Text(r, BODY_FONT, 11, INK, "RIGHT")
     r.cost:SetPoint("TOPRIGHT", -2, -7)
     r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
     r.zone = Text(r, BODY_FONT, 10, FADED)
     r.zone:SetPoint("TOPLEFT", r.place, "BOTTOMLEFT", 0, -3)
+    r.zone:SetPoint("RIGHT", r, "RIGHT", -40, 0)
     -- a pip per stop on the way
     r.pips = {}
     for p = 1, 4 do
@@ -289,46 +520,108 @@ local function Row(i)
         pip:SetTexture(NUB)
         pip:SetSize(9, 9)
         pip:SetVertexColor(INK[1], INK[2], INK[3], 0.7)
-        pip:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2 - (p - 1) * 8, 6)
+        pip:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2 - (p - 1) * 8, 4)
         r.pips[p] = pip
     end
-    r.zone:SetPoint("RIGHT", r, "RIGHT", -40, 0)
+    -- a zone's row: its name and levels, its quests, a hairline
+    r.head = CreateFrame("Frame", nil, r)
+    r.head:SetAllPoints()
+    r.head.name = Text(r.head, TITLE_FONT, 14, INK)
+    r.head.name:SetPoint("BOTTOMLEFT", 6, 5)
+    r.head.range = Text(r.head, BODY_FONT, 10, INK)
+    r.head.range:SetPoint("BOTTOMLEFT", r.head.name, "BOTTOMRIGHT", 6, 1)
+    r.head.readyIcon, r.head.ready = Badge(r.head, READY_ICON)
+    r.head.openIcon, r.head.open = Badge(r.head, OPEN_ICON)
+    r.head.line = r.head:CreateTexture(nil, "ARTWORK")
+    r.head.line:SetHeight(1)
+    r.head.line:SetPoint("BOTTOMLEFT", 4, 1)
+    r.head.line:SetPoint("BOTTOMRIGHT", -2, 1)
+    r.head.line:SetColorTexture(0.55, 0.36, 0.10, 0.45)
     r:SetScript("OnEnter", function(self) if self.at then Select(self.at) end end)
     r:SetScript("OnClick", function(self) if self.at then Select(self.at); Fly() end end)
-    rows[i] = r
+    slots[i] = r
     return r
 end
 
+-- the badges, right to left: turn-ins nearest the edge, then open quests
+local function Badges(h, g)
+    local right = -2
+    for _, b in ipairs({ { h.readyIcon, h.ready, g.ready }, { h.openIcon, h.open, g.open } }) do
+        local icon, num, count = b[1], b[2], b[3] or 0
+        icon:SetShown(count > 0)
+        num:SetShown(count > 0)
+        if count > 0 then
+            num:SetText(count)
+            num:ClearAllPoints()
+            num:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", right, 6)
+            icon:ClearAllPoints()
+            icon:SetPoint("RIGHT", num, "LEFT", -1, 1)
+            right = right - (num:GetStringWidth() or 8) - 22
+        end
+    end
+end
+
+local function DrawFlight(r, row, at)
+    local node, two = row.node, state.view == "near"
+    r.head:Hide()
+    r:EnableMouse(true)
+    r.place:ClearAllPoints()
+    r.place:SetPoint("TOPLEFT", 10, two and -6 or -9)
+    r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
+    r.place:SetText(node.place)
+    r.place:SetAlpha(row.g and row.g.dim and 0.6 or 1)
+    r.zone:SetShown(two)
+    r.zone:SetText(node.zone or "")
+    r.cost:SetText(FL.Coins(node.cost))
+    local c = node.cost > (Call(GetMoney) or 0) and DEAR or INK
+    r.cost:SetTextColor(c[1], c[2], c[3])
+    r.cost:Show()
+    for p, pip in ipairs(r.pips) do pip:SetShown(p < node.hops) end
+    local on = at == state.sel
+    r.band:SetShown(on)
+    r.edge:SetShown(on)
+end
+
+local function DrawZone(r, row)
+    local g, h = row.g, r.head
+    r:EnableMouse(false)
+    r.band:Hide(); r.edge:Hide(); r.place:SetText(""); r.zone:Hide(); r.cost:Hide()
+    for _, pip in ipairs(r.pips) do pip:Hide() end
+    local c = TIERS[g.tier] or INK
+    h.name:SetText(g.zone)
+    h.name:SetTextColor(c[1], c[2], c[3])
+    h.range:SetText(g.range and (g.range[1] .. "-" .. g.range[2]) or "")
+    h.range:SetTextColor(c[1], c[2], c[3])
+    Badges(h, g)
+    h:Show()
+end
+
 local function Draw()
-    local list, n = state.list, #state.list
+    local rowsList, n = state.rows, #state.rows
     local here = state.here
     head.place:SetText(here and here.place or "")
     head.zone:SetText(here and here.zone or "")
     empty:SetShown(n == 0)
-    state.offset = FL.Scroll(state.offset, state.sel, state.visible, n)
-    local money = Call(GetMoney) or 0
-    for i = 1, math.max(state.visible, #rows) do
-        local at = state.offset + i
-        local node = i <= state.visible and list[at]
-        if node then
-            local r = Row(i)
-            r.at = at
-            r.place:SetText(node.place)
-            r.zone:SetText(node.zone or "")
-            r.cost:SetText(FL.Coins(node.cost))
-            local c = node.cost > money and DEAR or INK
-            r.cost:SetTextColor(c[1], c[2], c[3])
-            for p, pip in ipairs(r.pips) do pip:SetShown(p < node.hops) end
-            local on = at == state.sel
-            r.band:SetShown(on)
-            r.edge:SetShown(on)
-            r:Show()
-        elseif rows[i] then
-            rows[i].at = nil
-            rows[i]:Hide()
-        end
+    state.offset = FL.Scroll(state.offset, state.sel, rowsList, state.viewH, RowHeight)
+    local y, shown, i = 0, 0, 0
+    while true do
+        local at = state.offset + i + 1
+        local row = rowsList[at]
+        if not row or y + RowHeight(row) > state.viewH then break end
+        i = i + 1
+        local r = Slot(i)
+        r.at = row.kind == "flight" and at or nil
+        r:SetHeight(RowHeight(row))
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 6, -y)
+        r:SetPoint("TOPRIGHT", -10, -y)
+        if row.kind == "flight" then DrawFlight(r, row, at) else DrawZone(r, row) end
+        r:Show()
+        y = y + RowHeight(row)
+        shown = shown + 1
     end
-    local top, len = FL.Thumb(state.offset, state.visible, n, track:GetHeight() or 0)
+    for k = i + 1, #slots do slots[k].at = nil; slots[k]:Hide() end
+    local top, len = FL.Thumb(state.offset, shown, n, track:GetHeight() or 0)
     thumb:SetShown(top ~= nil)
     if top then
         thumb:ClearAllPoints()
@@ -447,7 +740,8 @@ end
 
 local function DrawMap(instant)
     if not BuildMap() then return end
-    local node = state.sel and state.list[state.sel]
+    local row = state.sel and state.rows[state.sel]
+    local node = row and row.node
     if not node then marker:Hide(); ClearRoute(1); return end
     local x, y = Point(node.index)
     if not x then marker:Hide(); ClearRoute(1); return end
@@ -488,62 +782,70 @@ local function DrawMap(instant)
 end
 
 -- Choosing and flying ---------------------------------------------------------
+local function Node() local row = state.sel and state.rows[state.sel]; return row and row.node end
+
 function Select(at)
-    if not state.list[at] or at == state.sel then return end
+    local row = at and state.rows[at]
+    if not row or row.kind ~= "flight" or at == state.sel then return end
     state.sel = at
     Draw()
     DrawMap(false)
 end
 
 function Fly()
-    local node = state.sel and state.list[state.sel]
+    local node = Node()
     if not node or InCombat() then return end
     FL.Remember(state.here and state.here.name, node.name)
     Call(TakeTaxiNode, node.index)
 end
 
-local function Move(delta, wrap)
-    local n = #state.list
-    if n == 0 then return end
-    Select(FL.Step(state.sel or 0, n, delta, wrap))
+local function Move(delta, wrap) Select(FL.Next(state.rows, state.sel, delta, wrap)) end
+
+-- The rows again (another view), the chosen place kept
+local function Arrange(keep)
+    local rows, start = FL.Arrange(state.nodes, {
+        view = state.view, zone = state.here and state.here.zone or Call(GetZoneText),
+        level = Call(UnitLevel, "player"), money = Call(GetMoney), quests = state.quests,
+        last = FL.LastFrom(state.here and state.here.name),
+    })
+    state.rows = rows
+    state.sel = keep and FL.Find(rows, keep.name) or start
+    state.offset = 0
 end
 
-local function Resort()
-    local cur = state.sel and state.list[state.sel]
-    FL.Sort(state.list, FL.Sorting())
-    state.sel = nil
-    for i, node in ipairs(state.list) do if node == cur then state.sel = i end end
-    state.sel = state.sel or FL.Start(state.list)
+-- The legend (Blizzard's glyphs, as the bank's bar): two lines -----------------
+local legends, prompts = nil, {}
+local function MakeLegend(name, list)
+    local L = _G.InputPromptLegends
+    local l = L.CreateInputLegend(inner, name)
+    local divider = _G.GAMEPAD_PROMPT_DIVIDER_SLASH or "SLASH"
+    for _, a in ipairs(list) do
+        local prompt = l:GetOrCreatePromptFrameUsingTemplateAndInputs("StandardOneIcon", { a[1] }, divider)
+        prompt:SetPromptText(a[2])
+        prompt:EnablePrompt()
+        prompt:Show()
+        prompts[a[1]] = prompt
+    end
+    return l
 end
-
--- The legend (Blizzard's glyphs, as the bank's bar) -------------------------
-local legend, sortPrompt
-local function Legend()
-    if legend ~= nil then return legend or nil end
-    legend = false
+local function Legends()
+    if legends ~= nil then return legends or nil end
+    legends = false
     local L = _G.InputPromptLegends
     if not (L and L.CreateInputLegend) then return nil end
-    local ok, made = pcall(function()
-        local l = L.CreateInputLegend(inner, "legend")
-        local divider = _G.GAMEPAD_PROMPT_DIVIDER_SLASH or "SLASH"
-        for _, a in ipairs({
+    local ok, a, b = pcall(function()
+        return MakeLegend("legend", {
             { "PAD1", "Fly" },
             { "PAD2", type(_G.FRAME_ACTION_CLOSE) == "string" and _G.FRAME_ACTION_CLOSE or "Close" },
-            { "PAD4", "A-Z" },
-        }) do
-            local prompt = l:GetOrCreatePromptFrameUsingTemplateAndInputs("StandardOneIcon", { a[1] }, divider)
-            prompt:SetPromptText(a[2])
-            prompt:EnablePrompt()
-            prompt:Show()
-            if a[1] == "PAD4" then sortPrompt = prompt end
-        end
-        l:ApplyDefaultPromptPositioning()
-        l:ClearAllPoints()
-        l:SetPoint("BOTTOM", inner, "BOTTOM", 0, 8)
-        return l
+            { "PAD4", "Nearest" },
+        }), MakeLegend("legend2", {
+            { "PAD3", "Again" },
+            { "PADLTRIGGER", "Turn-ins" },
+            { "PADRTRIGGER", "Quests" },
+        })
     end)
-    if ok and made then legend = made end
-    return legend or nil
+    if ok and a and b then legends = { a, b } end
+    return legends or nil
 end
 
 -- (gamepad mode only: unknown counts as off)
@@ -552,33 +854,54 @@ local function GamepadUI()
     return util and util.IsGamepadUIEnabled and Call(util.IsGamepadUIEnabled) == true or false
 end
 
+-- Y names the other view; X, L2, R2 lit only when they can do something
 local function LegendText()
-    local l = Legend()
-    if not (l and sortPrompt) then return end
-    l:Show()
-    Call(sortPrompt.SetPromptText, sortPrompt, FL.Sorting() == "near" and "A-Z" or "Nearest")
-    Call(l.ApplyDefaultPromptPositioning, l)
-    l:ClearAllPoints()
-    l:SetPoint("BOTTOM", inner, "BOTTOM", 0, 8)
+    local ls = Legends()
+    if not ls then return end
+    local function Lit(key, on)
+        local p = prompts[key]
+        if p then if on then Call(p.EnablePrompt, p) else Call(p.DisablePrompt, p) end end
+    end
+    if prompts.PAD4 then Call(prompts.PAD4.SetPromptText, prompts.PAD4, state.view == "near" and "Zones" or "Nearest") end
+    Lit("PAD3", FL.Find(state.rows, FL.LastFrom(state.here and state.here.name)) ~= nil)
+    Lit("PADLTRIGGER", FL.Total(state.rows, "ready") > 0)
+    Lit("PADRTRIGGER", FL.Total(state.rows, "open") > 0)
+    for i, l in ipairs(ls) do
+        l:Show()
+        Call(l.ApplyDefaultPromptPositioning, l)
+        l:ClearAllPoints()
+        l:SetPoint("BOTTOM", inner, "BOTTOM", 0, i == 1 and 32 or 6)
+    end
 end
 
 -- The pad -------------------------------------------------------------------------
 local hold = { key = nil, wait = 0 }
 local REPEAT = { PADDUP = -1, PADDDOWN = 1 }
 
+-- a page: as many flights as fit
+local function Page() return math.max(1, math.floor(state.viewH / ROW_H[state.view]) - 1) end
+
+local function Zone(dir)
+    if #state.rows == 0 then return end
+    if state.view == "near" then Select(FL.Next(state.rows, nil, dir > 0 and -1 or 1, false)); return end
+    Select(FL.Zone(state.rows, state.sel, dir))
+end
+
 local ACTIONS = {
     PADDUP = function() Move(-1, true) end,
     PADDDOWN = function() Move(1, true) end,
-    PADLSHOULDER = function() Move(-state.visible, false) end,
-    PADRSHOULDER = function() Move(state.visible, false) end,
-    PADDLEFT = function() if #state.list > 0 then Select(1) end end,
-    PADDRIGHT = function() if #state.list > 0 then Select(#state.list) end end,
+    PADLSHOULDER = function() Move(-Page(), false) end,
+    PADRSHOULDER = function() Move(Page(), false) end,
+    PADDLEFT = function() Zone(-1) end,
+    PADDRIGHT = function() Zone(1) end,
     PAD1 = function() Fly() end,
     PAD2 = function() Call(CloseTaxiMap) end,
+    PAD3 = function() Select(FL.Find(state.rows, FL.LastFrom(state.here and state.here.name))) end,
     PAD4 = function()
-        Sh.CharDB().flightSort = FL.SORTS[FL.Sorting()]
-        Resort()
-        state.offset = 0
+        local keep = Node()
+        state.view = FL.VIEWS[state.view]
+        Sh.CharDB().flightSort = state.view
+        Arrange(keep)
         Draw()
         DrawMap(true)
         LegendText()
@@ -606,10 +929,27 @@ panel:SetScript("OnGamePadButtonDown", function(self, button)
     if REPEAT[button] then hold.key, hold.wait = button, 0.38 else hold.key = nil end
 end)
 
+-- L2 / R2: only read, never taken or rebound (the game still gets the press: L2 its bar,
+-- R2 its Ctrl); a press is the trigger going down, a quarter second after the last
+local trig = { lt = false, rt = false, at = 0 }
+local function Triggers()
+    local lt, rt = Sh.Held()
+    if lt == nil then return end
+    local now = GetTime and GetTime() or 0
+    local key = (lt and not trig.lt and "ready") or (rt and not trig.rt and "open") or nil
+    trig.lt, trig.rt = lt, rt
+    if key and now - trig.at >= 0.25 then
+        trig.at = now
+        Select(FL.Jump(state.rows, state.sel, key))
+    end
+end
+
 panel:SetScript("OnUpdate", function(_, elapsed)
+    if InCombat() then hold.key = nil; return end
+    Triggers()
     if not hold.key then return end
     local down = Sh.PadDown(Sh.PadButtons(), hold.key)
-    if not down or InCombat() then hold.key = nil; return end
+    if not down then hold.key = nil; return end
     hold.wait = hold.wait - (elapsed or 0)
     if hold.wait > 0 then return end
     hold.wait = 0.075
@@ -638,18 +978,47 @@ local function Layout(taxi)
     panel:SetFrameLevel((taxi:GetFrameLevel() or 1) + 5)
     local tall = inner:GetHeight() or 0
     if tall < 1 then tall = (panel:GetHeight() or 608) - 30 end
-    local h = tall - HEAD_H - FOOT_H - 2
-    state.visible = math.max(3, math.floor(h / ROW_H))
+    state.viewH = math.max(3 * ROW_H.near, tall - HEAD_H - FOOT_H - 2)
+end
+
+-- Quests per zone, from the log; closed zones opened to count, then closed again
+local function Quests()
+    local function Entry(i)
+        local title, _, _, isHeader, isCollapsed, isComplete = Call(GetQuestLogTitle, i)
+        return title, isHeader, isCollapsed, isComplete
+    end
+    if type(GetNumQuestLogEntries) ~= "function" then return {} end
+    local closed, any = {}, false
+    for i = 1, Call(GetNumQuestLogEntries) or 0 do
+        local title, isHeader, isCollapsed = Entry(i)
+        if isHeader and isCollapsed and title then closed[title] = true; any = true end
+    end
+    local opened = any and type(ExpandQuestHeader) == "function" and pcall(ExpandQuestHeader, 0)
+    local entries, n = {}, Call(GetNumQuestLogEntries) or 0
+    for i = 1, n do
+        local title, isHeader, _, isComplete = Entry(i)
+        entries[i] = { title = title, header = isHeader and true or false, complete = isComplete }
+    end
+    if opened and type(CollapseQuestHeader) == "function" then
+        -- (from the end: closing one moves the rows after it)
+        for i = n, 1, -1 do
+            local title, isHeader = Entry(i)
+            if isHeader and closed[title] then pcall(CollapseQuestHeader, i) end
+        end
+    end
+    return FL.QuestCounts(entries)
 end
 
 function FL.Open()
     local taxi = _G.TaxiFrame
     if not FL.Wanted(FL.Enabled(), GamepadUI(), taxi and taxi:IsShown()) then return FL.Close() end
     Layout(taxi)
-    state.here, state.list = FL.Read(Api())
-    FL.Sort(state.list, FL.Sorting())
-    state.sel = FL.Start(state.list, FL.LastFrom(state.here and state.here.name))
-    state.offset = 0
+    state.here, state.nodes = FL.Read(Api())
+    state.view = FL.View()
+    state.quests = Quests()
+    Arrange(nil)
+    trig.lt, trig.rt = Sh.Held()
+    trig.lt, trig.rt = trig.lt or false, trig.rt or false
     openedAt = GetTime and GetTime() or 0
     panel:Show()
     -- (out of combat: Blizzard's cursor kept off our rows; the d-pad is ours)
@@ -680,7 +1049,7 @@ if type(hooksecurefunc) == "function" and type(_G.TaxiNodeOnButtonEnter) == "fun
     hooksecurefunc("TaxiNodeOnButtonEnter", function(button)
         if not panel:IsShown() or (GetTime and GetTime() - openedAt < 0.4) then return end
         local index = button and button.GetID and button:GetID()
-        for i, node in ipairs(state.list) do if node.index == index then Select(i); return end end
+        for i, row in ipairs(state.rows) do if row.node and row.node.index == index then Select(i); return end end
     end)
 end
 
