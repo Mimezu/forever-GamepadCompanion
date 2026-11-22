@@ -718,18 +718,23 @@ eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI in place of Base")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: still one")
 eq(Create(), CLICK_CREATE, "L2 up: Base back")
--- (the game keeps a command and a click on one key as two entries: the Focus UI command ran
--- under Create's click, 2026-11-21. Every change clears the key's command first)
-local cleared = 0
-local setNil = SetOverrideBinding
-SetOverrideBinding = function(owner, p, key, action, ...)
-    if key == "PADSOCIAL" and action == nil and owner == keyOwner then cleared = cleared + 1 end
-    return setNil(owner, p, key, action, ...)
+-- (the game keeps SetOverrideBindingClick's entries apart from commands: a Focus UI command
+-- swapped for Create's click stayed and ran under it, 2026-11-21. Every key of ours is bound as a
+-- command string, the click too, so a layer's command replaces it and gives it back)
+local clicks = 0
+local setClickNow = SetOverrideBindingClick
+SetOverrideBindingClick = function(owner, ...)
+    if owner == keyOwner then clicks = clicks + 1 end
+    return setClickNow(owner, ...)
 end
 pressed.PADLTRIGGER = true; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI")
 pressed.PADLTRIGGER = nil; Keys.Watch()
-check(cleared >= 2, "the command cleared on the press and on the release: " .. cleared)
-SetOverrideBinding = setNil
+eq(Create(), CLICK_CREATE, "L2 up: the map")
+Keys.Apply(true)
+eq(Create(), CLICK_CREATE, "bound again: the map")
+eq(clicks, 0, "never a click entry on the keys' owner")
+SetOverrideBindingClick = setClickNow
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left
 -- with Focus UI by another owner. The moment the focus ends, Create is put right

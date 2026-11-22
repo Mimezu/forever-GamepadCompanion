@@ -228,7 +228,8 @@ function Keys.Apply(force)
         if command and commands[key] then
             SetOverrideBinding(owner, true, key, command)
         elseif command then
-            SetOverrideBindingClick(owner, true, key, Keys.BUTTON, CLICK_NAME[key])
+            -- (the click as a command string, never SetOverrideBindingClick: see Put)
+            SetOverrideBinding(owner, true, key, command)
         end
         bound[key] = command
         if command and (commands[key] or Keys.Get(key, "base")) then claimed[key] = command end
@@ -353,13 +354,12 @@ if UIErrorsFrame then
 end
 
 -- One command on key, on the keys' owner (nil: none of ours there)
+-- Every binding of ours is a command string, our click too ("CLICK GamepadCompanionKeys:p5"):
+-- the game keeps SetOverrideBindingClick's entries apart from commands, and a Focus UI command
+-- swapped for a click stayed and ran under it, cleared or not (Create, 50 times, the call stack
+-- the TOGGLEUIFOCUS binding: 2026-11-21). Options, command for command, never broke.
 local function Put(key, command)
-    local name = command and command:match("^CLICK " .. Keys.BUTTON .. ":(%w+)$")
-    -- (a command and a click on one key, one owner, can be two entries for the game: the
-    -- Focus UI command read back as Create's click and ran under it, 2026-11-21. Cleared first)
-    SetOverrideBinding(owner, true, key, nil)
-    if name then SetOverrideBindingClick(owner, true, key, Keys.BUTTON, name)
-    elseif command then SetOverrideBinding(owner, true, key, command) end
+    SetOverrideBinding(owner, true, key, command)
 end
 
 -- The held layer's bindings: each in place of the key's Base on the same
