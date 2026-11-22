@@ -831,6 +831,14 @@ do
     eq(#errors(), n1, "held on the pad too: not stuck")
     pressed.PADLTRIGGER = nil; gameDown.PADLTRIGGER = nil
     Keys.CheckStuck(602)
+    -- (any pad button: jump on A stuck, 2026-11-22 15:5x)
+    local n2 = #errors()
+    gameDown.PAD1 = true
+    Keys.CheckStuck(700); Keys.CheckStuck(700.6)
+    check(#errors() > n2 and errors()[#errors()]:find("STUCK PAD1: the game holds PAD1 down") ~= nil, "A stuck: written down")
+    gameDown.PAD1 = nil
+    Keys.CheckStuck(700.7)
+    check(errors()[#errors()]:find("STUCK PAD1: let go after") ~= nil, "A let go: written down")
     IsKeyDown, GetBindingKey = isKeyDown, getBindingKey
 end
 -- (a leftover the rebind can't clear: healed once, not every tick)
