@@ -49,6 +49,12 @@ local claimed = {}          -- the keys whose Base is ours: taken back from Bliz
 local modes = {}            -- key -> "click" | "binding" | nil (Blizzard's), last Apply
 local seen = {}             -- key -> what the game binds there without Companion
 local extras = {}           -- key -> the command the watcher bound now
+local lastDown = {}         -- key -> when it was last seen down (GetTime)
+-- A key's binding changes only once it has been up this long: the pad reads a key
+-- up a moment before the game has run its release, and Focus UI taken off Create
+-- in that moment stayed in the gamepad set till /reload (L2 and Create let go
+-- together, 2026-11-22 15:0x: "off PADSOCIAL: gamepad set TOGGLEUIFOCUS")
+Keys.GRACE = 0.25
 local used = 0              -- macro attributes set last time
 local pending, loaded = false, false
 local later, laterForce = false, false   -- a rebind waiting for every key of ours to be up
@@ -172,9 +178,16 @@ end
 -- bindings are left alone when they'd be the same: macro and spell changes
 -- (which can come while a trigger is held) only touch the attributes.
 -- Is a key of ours held down now (the pad itself)
+-- Is key down, or up for less than GRACE (`buttons`: Sh.PadButtons())
+local function Busy(buttons, key)
+    local now = GetTime and GetTime() or 0
+    if Sh.PadDown(buttons, key) == true then lastDown[key] = now; return true end
+    return lastDown[key] ~= nil and now - lastDown[key] < Keys.GRACE
+end
+
 local function AnyHeld()
     local buttons = Sh.PadButtons()
-    for _, key in ipairs(Keys.KEYS) do if Sh.PadDown(buttons, key) == true then return true end end
+    for _, key in ipairs(Keys.KEYS) do if Busy(buttons, key) then return true end end
     return false
 end
 
@@ -406,7 +419,7 @@ end
 -- taken off on release (Base uncovered). Only the keys that change are touched,
 -- and never a key held down: the game keeps the binding a press ran for its release,
 -- and Focus UI swapped off Create mid-press stayed on it for good (L2 let go a moment
--- before Create, 2026-11-22). A held key changes once it is up (the next tick)
+-- before Create, 2026-11-22). A held key changes once it has been up GRACE
 SetExtras = function(want)
     local same = true
     for key, command in pairs(want) do if extras[key] ~= command then same = false end end
@@ -416,7 +429,7 @@ SetExtras = function(want)
     for key, command in pairs(want) do list[#list + 1] = key .. "=" .. command end
     Trace("extras " .. (#list > 0 and table.concat(list, " ") or "none") .. "; down " .. Down() .. "; " .. PadState())
     local buttons = Sh.PadButtons()
-    local function Held(key) return Sh.PadDown(buttons, key) == true end
+    local function Held(key) return Busy(buttons, key) end
     for key in pairs(extras) do
         if not want[key] and not Held(key) then
             Layer(key, nil); extras[key] = nil
@@ -433,6 +446,11 @@ function Keys.Watch()
     if not loaded or (InCombatLockdown and InCombatLockdown()) then return end
     -- (no layer action: nothing to read; extras left from the last one still cleared)
     if not anyLayer and not next(extras) then return end
+    -- (each tick, when the layer's keys were last down: the grace before one changes)
+    if next(extras) then
+        local buttons = Sh.PadButtons()
+        for key in pairs(extras) do Busy(buttons, key) end
+    end
     SetExtras(Keys.Extras(Keys.HeldLayer()))
 end
 

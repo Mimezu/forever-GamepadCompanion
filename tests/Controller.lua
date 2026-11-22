@@ -76,7 +76,8 @@ local combat, cursor = false, nil
 local cvars = { ActionButtonUseKeyDown = "1", GamePadEmulateCtrl = "PADLSHOULDER", GamePadTouchCursorEnable = "0" }
 local overrides = {}
 InCombatLockdown = function() return combat end
-GetTime = function() return 100 end
+NOW = 100
+GetTime = function() return NOW end
 GetCVar = function(n) return cvars[n] end
 SetCVar = function(n, v) cvars[n] = tostring(v) end
 function print() end
@@ -282,6 +283,7 @@ for _, file in ipairs({ "Model.lua", "TouchModel.lua", "Shared.lua", "SlotMacros
     assert(loadfile(root .. "/" .. file))("GamepadCompanion", ns)
 end
 local C, Touch, Keys = ns.ControllerModel, ns.Touch, ns.Keys
+Keys.GRACE = 0   -- (the clock stands still here: the grace's own test sets it)
 for _, f in ipairs(created) do
     if f.events.ADDON_LOADED and f.scripts.OnEvent then f.scripts.OnEvent(f, "ADDON_LOADED", "GamepadCompanion") end
 end
@@ -789,6 +791,22 @@ pressed.PADSOCIAL = nil; Keys.Watch()
 eq(Create(), "TOGGLEUIFOCUS", "Create up, L2 held: Focus UI")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up: the map")
+-- L2 and Create let go together: the pad reads Create up a moment before the game ran its
+-- release. Focus UI stays on Create until it has been up GRACE (2026-11-22 15:0x)
+Keys.GRACE = 0.25
+NOW = NOW + 1
+pressed.PADLTRIGGER = true; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI")
+pressed.PADSOCIAL = true; Keys.Watch()
+pressed.PADSOCIAL = nil; pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "both just up: Create untouched for the grace")
+NOW = NOW + 0.1; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "0.1 s up: still")
+NOW = NOW + 0.2; Keys.Watch()
+eq(Create(), CLICK_CREATE, "0.3 s up: the map")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "no Focus UI left in the gamepad set")
+NOW = NOW + 1
+Keys.GRACE = 0
 -- (a leftover the rebind can't clear: healed once, not every tick)
 padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
 check(Keys.Heal(), "a stuck Focus UI: one try")

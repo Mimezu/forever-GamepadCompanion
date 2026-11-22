@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: Focus UI could stay on Create after L2 and Create were let go together. A button's binding now changes only once it has been up a quarter second
 - WoW Helper knows who plays: a marker at login (then every 30 s) and the characters you play in the export (name, class, race, sex, faction), for full feels that play only for a character, a race, a sex or a faction
 - Fixed: Halo rings picked in Choose open again, on buttons, gestures, touchpad zones and bar slots. The layout names them "Halo: <ring>"
 - Emote voices: only your own emotes on the pad's speaker, never those of players nearby
