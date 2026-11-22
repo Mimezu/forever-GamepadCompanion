@@ -148,8 +148,9 @@ FL.DOTS = 5   -- dots of each kind on a row, at most
 -- Each quest to the one flight path nearest it. quests = { { ready, zone (its log header's), at } },
 -- paths = { { name, zone, at } } (the places you can fly to), centres[zone] = at;
 -- at = { cont, x, y } in the world's yards (C_Map.GetWorldPosFromMapPos), nil when unknown.
--- A quest with a point (where to go, or whom to turn it in to): the nearest path on its continent.
--- Without: its zone's path nearest the zone's centre, else the zone's first. Neither: no dot.
+-- A quest with a point (where to go, or whom to turn it in to): the nearest path on its continent;
+-- none there: no dot. Without a point: its zone's path nearest the zone's centre, else the zone's
+-- first. Neither: no dot. (q.path: where it went, for the probe)
 -- -> per path name { open, ready, quests (the quests themselves) }
 function FL.Tally(quests, paths, centres)
     local counts = {}
@@ -169,8 +170,12 @@ function FL.Tally(quests, paths, centres)
         for _, p in ipairs(paths or {}) do if p.zone == zone then return p.name end end
     end
     for _, q in ipairs(quests or {}) do
-        local name = Nearest(q.at)
-        if not name and q.zone then name = Nearest((centres or {})[q.zone], q.zone) or First(q.zone) end
+        -- (a point elsewhere, the other continent say: no dot. Its log zone is where it was given:
+        -- a breadcrumb to Stranglethorn sat under Desolace and landed on Shadowprey Village)
+        local name
+        if q.at then name = Nearest(q.at)
+        elseif q.zone then name = Nearest((centres or {})[q.zone], q.zone) or First(q.zone) end
+        q.path = name
         if name then
             local c = counts[name] or { open = 0, ready = 0, quests = {} }
             counts[name] = c
@@ -189,6 +194,18 @@ function FL.Binds(on)
     local t = {}
     if on then for key, name in pairs(FL.TRIGGER_BUTTONS) do t[key] = "CLICK " .. name .. ":LeftButton" end end
     return t
+end
+
+-- The probe: each quest's log zone, point and path, in a line ("title: zone | how c:x,y -> path")
+FL.PROBE_MAX = 40
+function FL.Probe(quests)
+    local out = {}
+    for i, q in ipairs(quests or {}) do
+        if i > FL.PROBE_MAX then break end
+        local at = q.at and ("%d:%d,%d"):format(q.at.cont, q.at.x, q.at.y) or "-"
+        out[#out + 1] = ("%s: %s | %s %s -> %s"):format(tostring(q.title), tostring(q.zone), tostring(q.how or "-"), at, tostring(q.path or "no dot"))
+    end
+    return out
 end
 
 -- The quest note beside the chosen row: its quests, the ones to turn in first (the log's order
@@ -329,10 +346,10 @@ end
 
 -- L2 / R2: the flight path with the most key ("ready" turn-ins, "open" quests to do) near it;
 -- again, the next one, round. nil when none has any
-function FL.Jump(rows, sel, key)
+-- The rows with some key, most first; and sel's place among them (0: not one)
+local function Candidates(rows, sel, key)
     local cands = {}
     for i, r in ipairs(rows) do if r.kind == "flight" and (r[key] or 0) > 0 then cands[#cands + 1] = i end end
-    if #cands == 0 then return nil end
     table.sort(cands, function(a, b)
         local ra, rb = rows[a], rows[b]
         if ra[key] ~= rb[key] then return ra[key] > rb[key] end
@@ -342,7 +359,25 @@ function FL.Jump(rows, sel, key)
     end)
     local pos = 0
     for p, i in ipairs(cands) do if i == sel then pos = p end end
+    return cands, pos
+end
+
+function FL.Jump(rows, sel, key)
+    local cands, pos = Candidates(rows, sel, key)
+    if #cands == 0 then return nil end
     return cands[pos % #cands + 1]
+end
+
+-- Where sel is in L2's / R2's round: its place, of how many (0, n: not on one)
+function FL.Round(rows, sel, key)
+    local cands, pos = Candidates(rows, sel, key)
+    return pos, #cands
+end
+
+-- A trigger's hint: its ringed dot, its word, and "2/3" while on its round
+function FL.Hint(mark, word, pos, n)
+    if pos and pos > 0 and n and n > 1 then return mark .. word .. "  " .. pos .. "/" .. n end
+    return mark .. word
 end
 
 -- Every row's count of key, added
@@ -540,7 +575,7 @@ thumb:SetColorTexture(INK[1], INK[2], INK[3], 0.35)
 -- Rows -------------------------------------------------------------------------
 -- (one widget per shown slot: a flight's row or a zone's, as the row asks)
 local slots = {}
-local Select, Fly   -- (below)
+local Select, Fly, LegendText   -- (below)
 
 -- a dot: gold, a quest to turn in; brown, a quest to do; each in a thin ink ring (gold alone
 -- vanished on the parchment)
@@ -953,6 +988,7 @@ function Select(at)
     state.sel = at
     Draw()
     DrawMap(false)
+    if LegendText then LegendText() end
 end
 
 function Fly()
@@ -978,9 +1014,12 @@ end
 
 -- The legend (Blizzard's glyphs, as the bank's bar): two lines -----------------
 local legends, prompts = nil, {}
+-- a ringed dot in text: the ink ring, the dot drawn back over its middle
 local function Mark(c)
-    return ("|T%s:9:9:0:0:64:64:0:64:0:64:%d:%d:%d|t "):format(DISC, c[1] * 255, c[2] * 255, c[3] * 255)
+    return ("|T%s:11:11:0:0:64:64:0:64:0:64:41:23:5|t|T%s:7:7:-9:0:64:64:0:64:0:64:%d:%d:%d|t")
+        :format(DISC, DISC, c[1] * 255, c[2] * 255, c[3] * 255)
 end
+local MARKS = { PADLTRIGGER = { READY_DOT, "Turn-ins", "ready" }, PADRTRIGGER = { OPEN_DOT, "Quests", "open" } }
 local function MakeLegend(name, list)
     local L = _G.InputPromptLegends
     local l = L.CreateInputLegend(inner, name)
@@ -1021,7 +1060,7 @@ local function GamepadUI()
 end
 
 -- Y names the other view; X, L2, R2 lit only when they can do something
-local function LegendText()
+function LegendText()
     local ls = Legends()
     if not ls then return end
     local function Lit(key, on)
@@ -1030,8 +1069,14 @@ local function LegendText()
     end
     if prompts.PAD4 then Call(prompts.PAD4.SetPromptText, prompts.PAD4, state.view == "near" and "Zones" or "Nearest") end
     Lit("PAD3", FL.Find(state.rows, FL.LastFrom(state.here and state.here.name)) ~= nil)
-    Lit("PADLTRIGGER", FL.Total(state.rows, "ready") > 0)
-    Lit("PADRTRIGGER", FL.Total(state.rows, "open") > 0)
+    for key, m in pairs(MARKS) do
+        local p = prompts[key]
+        if p then
+            local pos, n = FL.Round(state.rows, state.sel, m[3])
+            Call(p.SetPromptText, p, FL.Hint(Mark(m[1]), m[2], pos, n))
+        end
+        Lit(key, FL.Total(state.rows, m[3]) > 0)
+    end
     for i, l in ipairs(ls) do
         l:Show()
         Call(l.ApplyDefaultPromptPositioning, l)
@@ -1274,17 +1319,19 @@ local function QuestList()
         return cache[mapID]
     end
     local here = C_Map and Call(C_Map.GetBestMapForUnit, "player")
+    -- -> at, how ("map <id>", "waypoint <id>", "none")
     local function At(id)
         for _, mapID in ipairs({ Call(_G.GetQuestUiMapID, id, true) or 0, Call(_G.GetQuestUiMapID, id, false) or 0, here or 0 }) do
             for _, poi in ipairs(OnMap(mapID)) do
                 if poi.questID == id and poi.x and poi.y and not poi.isQuestStart then
                     local at = WorldOf(mapID, poi.x, poi.y)
-                    if at then return at end
+                    if at then return at, "map " .. mapID end
                 end
             end
         end
         local wMap, wx, wy = Call(Q.GetNextWaypoint, id)
-        return WorldOf(wMap, wx, wy)
+        local at = WorldOf(wMap, wx, wy)
+        return at, at and ("waypoint " .. tostring(wMap)) or "none"
     end
     local list, zone = {}, nil
     for i = 1, Call(Q.GetNumQuestLogEntries) or 0 do
@@ -1295,7 +1342,8 @@ local function QuestList()
             elseif info.questID and not info.isHidden then
                 local id = info.questID
                 local ready = (Call(Q.ReadyForTurnIn, id) or Call(Q.IsComplete, id)) and true or false
-                list[#list + 1] = { ready = ready, zone = zone, at = At(id), title = info.title, level = info.level }
+                local at, how = At(id)
+                list[#list + 1] = { ready = ready, zone = zone, at = at, how = how, title = info.title, level = info.level }
             end
         end
     end
@@ -1305,7 +1353,10 @@ end
 -- Each flight path's quests: { [name] = { open, ready } }
 local function Quests(nodes)
     local paths, centres = Paths(nodes)
-    return FL.Tally(QuestList(), paths, centres)
+    local list = QuestList()
+    local counts = FL.Tally(list, paths, centres)
+    Sh.CharDB().flightProbe = FL.Probe(list)
+    return counts
 end
 
 function FL.Open()

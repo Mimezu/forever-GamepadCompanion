@@ -271,6 +271,23 @@ for _, c in pairs(pq) do total = total + c.open + c.ready end
 eq(total, 6, "the two with nothing known: no dot")
 eq(pq["Gone, Nowhere"], nil, "a path with no point: no quest by distance")
 eq(next(FL.Tally({}, paths, centres)), nil, "no quests")
+-- (Shadowprey Village, 2026-11-22: a breadcrumb to Stranglethorn, ready, under Desolace's header,
+-- its point the NPC in Stranglethorn: it went to Desolace's path)
+local kalimdor = { P("Shadowprey Village, Desolace", "Desolace", 1, 0, 0), P("Splintertree Post, Ashenvale", "Ashenvale", 1, 900, 900) }
+local crumb = { ready = true, zone = "Desolace", at = W(0, 100, 100), title = "Hunting in Stranglethorn" }
+local family = { ready = false, zone = "Desolace", at = W(1, 30, 20), title = "Family Tree" }
+local clam = { ready = false, zone = "Desolace", title = "Clam Bait" }
+local stv = { ready = false, zone = "Stranglethorn Vale", title = "The Green Hills" }
+local got = FL.Tally({ crumb, family, clam, stv }, kalimdor, {})
+eq(got["Shadowprey Village, Desolace"].ready, 0, "a point on the other continent: no dot, whatever its log zone")
+eq(got["Shadowprey Village, Desolace"].open, 2, "Desolace's own quests still there (a point, or its zone)")
+eq(crumb.path, nil, "the breadcrumb: no path")
+eq(family.path, "Shadowprey Village, Desolace", "a point near: that path")
+eq(clam.path, "Shadowprey Village, Desolace", "no point, a zone with a path: that path")
+eq(stv.path, nil, "no point, a zone on the other continent: no dot")
+local probe = FL.Probe({ crumb, family })
+eq(probe[1], "Hunting in Stranglethorn: Desolace | - 0:100,100 -> no dot", "the probe: where a quest went, and why")
+eq(probe[2], "Family Tree: Desolace | - 1:30,20 -> Shadowprey Village, Desolace", "the probe: a path")
 eq(next(FL.Tally({ { ready = true, at = W(1, 0, 0) } }, {}, {})), nil, "no paths")
 
 -- The quest note --------------------------------------------------------------------------------
@@ -311,6 +328,14 @@ eq(rq[at["Crossroads"]].ready, 1, "a row's turn-ins")
 eq(rq[at["Camp Taurajo"]].open, 2, "a row's quests to do")
 eq(rq[at["Orgrimmar"]].open, 0, "none: zero")
 eq(FL.Jump(rq, 2, "ready"), at["Crossroads"], "L2: the path with turn-ins")
+local pos, n = FL.Round(rq, at["Camp Taurajo"], "open")
+eq(pos, 1, "R2's round: the most first")
+eq(n, 3, "of three")
+pos, n = FL.Round(rq, at["Orgrimmar"], "open")
+eq(pos, 0, "not on the round: 0")
+eq(FL.Hint("o", "Quests", 2, 3), "oQuests  2/3", "the hint: where in the round")
+eq(FL.Hint("o", "Quests", 0, 3), "oQuests", "not on it: the word alone")
+eq(FL.Hint("o", "Turn-ins", 1, 1), "oTurn-ins", "only one: no count")
 eq(FL.Jump(rq, at["Crossroads"], "ready"), at["Crossroads"], "the only one: stays")
 eq(FL.Jump(rq, 2, "open"), at["Camp Taurajo"], "R2: the path with the most to do")
 local nx = FL.Jump(rq, at["Camp Taurajo"], "open")

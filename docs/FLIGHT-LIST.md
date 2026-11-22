@@ -17,7 +17,9 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
 - Each quest is one dot, on the flight path nearest it, compared in the world's yards
   (C_Map.GetWorldPosFromMapPos): the quest's mark on its map (GetQuestsOnMap: where to go, or
   whom to turn it in to), else its next waypoint; the paths from C_TaxiMap on the continents'
-  maps. No point known: its log zone's path nearest the zone's centre, else the zone's first.
+  maps. A point with no path on its continent: no dot (a log zone is where the quest was given,
+  not where it goes). No point known: its log zone's path nearest the zone's centre, else the
+  zone's first. The last opening's matches: SavedVariables flightProbe (40 lines).
   Read when the map opens.
 
 ## Quest note
@@ -43,7 +45,8 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
 L2 and R2: while the list shows, override bindings on the list's own frame (as the fishing pole's,
 Fishing.lua). They change only once both triggers have been up a quarter second (Sh.Settler: never
 mid-press), out of combat; a fight drops them at once. The list gone, they go back to the bars.
-X, L2 and R2 are greyed in the legend when they have nothing to do.
+X, L2 and R2 are greyed in the legend when they have nothing to do. L2 shows a gold ringed dot,
+R2 a brown one, and "2/3" while you are on their round.
 
 ## On the map
 
