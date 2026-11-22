@@ -49,6 +49,21 @@ mid-press), out of combat; a fight drops them at once. The list gone, they go ba
 X, L2 and R2 are greyed in the legend when they have nothing to do. L2 shows a gold ringed dot,
 R2 a brown one, and "2/3" while you are on their round.
 
+## In the air: the flight card (FlightCard.lua)
+
+- On a taxi, a slip of the catch card's paper in the lower left, fading in after takeoff and out on
+  landing. The destination's zone (red capitals) and place, the time left, and the way as a line:
+  a ringed dot per stop (filled once passed, a soft gold breath as it passes), the destination's
+  larger, a gold bead gliding along it.
+- Time: the game gives none. Each route's time is learned from flights taken (per character,
+  flightTimes: from > to, the mean of the last two). Never flown: the straight length (C_TaxiMap
+  world points) x 1.2 at 30 yd/s, plus 10 s, marked "~". The stops' places on the line: each
+  hop's share of the way.
+- B lands at the next stop (TaxiRequestEarlyLanding, Blizzard's own leave button's call): a first
+  press names it, a second within 3 s lands. B is an override binding only while on a taxi with
+  a stop ahead, changed once B has been up 0.25 s (Sh.Settler), never in a fight.
+- A /reload in the air: the flight goes on from what was saved. Off: Setup > Windows > Flight card.
+
 ## On the map
 
 - A gold ring on the chosen place, breathing slowly; the route there, stop by stop.

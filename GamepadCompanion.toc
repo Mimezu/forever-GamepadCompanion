@@ -60,6 +60,7 @@ MailOpenAll.lua
 OpenMapPad.lua
 BagGrid.lua
 FlightList.lua
+FlightCard.lua
 AutorunTurn.lua
 ControllerModel.lua
 Touchpad.lua

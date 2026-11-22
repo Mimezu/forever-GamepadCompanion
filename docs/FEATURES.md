@@ -17,6 +17,8 @@
 - **Flight list** (on): beside the flight map, the places you can fly to, chosen with
   the pad, grouped by zone (quests, level); L2 / R2 jump to turn-ins / quests; the map rings the chosen one and draws its route. [FLIGHT-LIST](FLIGHT-LIST.md).
   Tests: `tests/FlightList.lua`.
+- **Flight card** (on): in the air, the time left and the stops on the way; B twice lands at the
+  next stop. [FLIGHT-LIST](FLIGHT-LIST.md). Tests: `tests/FlightCard.lua`.
 - **Window styles** A (controller, default), B (Legacy window) and C (classic):
   `/gpc style A|B|C`.
 

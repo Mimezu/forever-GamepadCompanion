@@ -25,6 +25,7 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 | PAD3 at the bank | BankMove.lua | while the bank is open |
 | D-pad, L1 R1, A B X Y at a flight master | FlightList.lua's panel | pad buttons on its own frame (as the window, Focus.lua), one press at a time, out of combat, while the list shows; no binding changed |
 | L2, R2 at a flight master | FlightList.lua (GamepadCompanionFlightBinds) | override bindings while the list shows (L2: turn-ins, R2: quests), as the fishing pole's: changed only once both triggers have been up 0.25 s, out of combat; a state driver drops them in a fight |
+| B on a taxi | FlightCard.lua (GamepadCompanionFlightCardBinds) | override binding while flying with a stop ahead: two presses land there (TaxiRequestEarlyLanding); changed only once B has been up 0.25 s, out of combat |
 | Ctrl+Shift+Alt+F1-12 | Gestures.lua | WoW Helper's keys |
 | L1 R1 | nobody | Blizzard's target bars; the window reads them as pad buttons (Focus.lua) |
 

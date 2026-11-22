@@ -402,13 +402,13 @@ end
 -- Windows: the combined bag as a plain grid for the d-pad; the flight list
 ---------------------------------------------------------------------------
 local function BuildBags(frame)
-    local BG, FLT = ns.BagGrid, ns.FlightList
+    local BG, FLT, FC = ns.BagGrid, ns.FlightList, ns.FlightCard
     if not (BG or FLT) then return end
     local card = S.Card(frame, "Windows", 0, -450, COL, 110, "Interface\\Icons\\INV_Misc_Bag_08")
     if BG then
         local check = S.NewCheck(card, "Bag grid", 12, -38, function(self)
             BG.SetEnabled(self:GetChecked() == true)
-        end, COL - 60)
+        end, COL / 2 - 20)
         S.Tooltip(check, "Bag grid", "D-pad moves item by item")
         pg.bagGrid = check
         pg.refresh[#pg.refresh + 1] = function() check:SetChecked(BG.Enabled()) end
@@ -426,6 +426,14 @@ local function BuildBags(frame)
         S.Tooltip(noteCheck, "Quest note", "Beside the chosen flight")
         pg.flightNote = noteCheck
         pg.refresh[#pg.refresh + 1] = function() noteCheck:SetChecked(FLT.NoteOn()) end
+    end
+    if FC then
+        local check = S.NewCheck(card, "Flight card", COL / 2, -38, function(self)
+            FC.SetEnabled(self:GetChecked() == true)
+        end, COL / 2 - 20)
+        S.Tooltip(check, "Flight card", "Time left in the air")
+        pg.flightCard = check
+        pg.refresh[#pg.refresh + 1] = function() check:SetChecked(FC.Enabled()) end
     end
 end
 

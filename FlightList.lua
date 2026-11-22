@@ -1331,6 +1331,8 @@ local function Paths(nodes)
     return out, centres
 end
 
+FL.PathsOf = Paths   -- (FlightCard.lua: the route's lengths)
+
 -- The quests in the log (C_QuestLog), each with its zone (its log header) and its point: its own
 -- mark on its map (GetQuestsOnMap: where to go, or whom to turn it in to), else its next waypoint
 -- (GetNextWaypoint: the objective in another zone); as OpenMap on the gamepad finds them
