@@ -840,11 +840,11 @@ function C.Refresh()
 end
 
 ---------------------------------------------------------------------------
--- Emote voices: a voiced emote (/laugh, /cheer, /flirt...) by you or a player the game shows:
--- WoW Helper plays the game's own voice for their race and sex on the pad's speaker
+-- Emote voices: a voiced emote (/laugh, /cheer, /flirt...) by you, never a player nearby:
+-- WoW Helper plays the game's own voice for your race and sex on the pad's speaker
 -- (src/emote_voice.rs). Sent the frame the chat line comes in: the game plays the voice then.
 -- Which emote: its line, matched against the voiced ones WoW Helper read from the game
--- (WowHelperData.emoteVoices). Who: the sender's GUID, through a unit the client has for them
+-- (WowHelperData.emoteVoices). Who: the sender's GUID must be yours; race and sex through a unit
 -- (you, target, focus, mouseover, party, raid, nameplates), else the client's player cache
 -- (GetPlayerInfoByGUID). Race or sex unknown: nothing (no guess)
 ---------------------------------------------------------------------------
@@ -917,6 +917,9 @@ C.emoteLog = {}
 function C.OnTextEmote(text, guid)
     if not EmoteVoicesOn() then return false, "off" end
     if secret(text) then return false, "secret" end
+    -- yours only: the sender's GUID is your character's (others nearby play nothing)
+    local me = UnitGUID and UnitGUID("player")
+    if type(guid) ~= "string" or secret(guid) or secret(me) or guid ~= me then return false, "not yours" end
     local id, token = K.EmoteOfLine(EmoteLines(), text)
     if not id then return false, "not voiced" end
     local race, sex = C.EmoterRaceSex(guid)

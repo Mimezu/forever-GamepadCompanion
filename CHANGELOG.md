@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Emote voices: only your own emotes on the pad's speaker, never those of players nearby
 - Create (and any key with L2 Focus UI): no more "No interface frame to focus!" after L2 + key. The game kept Focus UI under the map; the key is now cleared before Base goes back, and a leftover is healed.
 - Fixed: after L2 + a button for Focus UI, Create, PS and Mute ran Focus UI alone. The L2 action now takes the button's place and gives it back, never stacked on top
 - **Flight list**: at a flight master, every place you can fly to in a list beside the map, nearest first: the place, its zone, its stops, the cost in coins. D-pad up / down chooses, L1 / R1 page, A flies, B closes, Y sorts A-Z. The map shows a gold ring on the chosen place and the route there. Setup › Windows › Flight list (on). docs/FLIGHT-LIST.md
