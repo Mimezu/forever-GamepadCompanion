@@ -332,8 +332,59 @@ function Keys.Snapshot(why)
     local focusKeys = { GetBindingKey and GetBindingKey("TOGGLEUIFOCUS") }
     local line = ("%s; down %s; layer %s; %s; focused %s; Focus UI keys %s; %s"):format(why, Down(), tostring(Sh.Layer()),
         PadState(), tostring(focus and focus.isUIFocused), #focusKeys > 0 and table.concat(focusKeys, ",") or "none",
-        table.concat(parts, " "))
+        table.concat(parts, " ")) .. (Keys.Reads and ("; Create reads " .. Keys.Reads("PADSOCIAL")) or "")
     Trace(line, why == "NO FRAME TO FOCUS" and "errors" or "focus")
+end
+
+-- A one-time self-test at login (out of combat), on a spare key no one uses
+-- (PADPADDLE4, a fresh owner): which ways of taking Focus UI off a key work. The
+-- game reads Blizzard's gamepad functions back as "" and ran Focus UI on Create
+-- after it was cleared or replaced by our click (2026-11-21). Each step: what
+-- GetBindingAction and C_KeyBindings.GetBindingByKey (each context) read
+local function Reads(key)
+    local out = { "act=" .. tostring(GetBindingAction(key, true)) }
+    local KB = C_KeyBindings
+    if KB and KB.GetBindingByKey then
+        for ctx = 0, 9 do
+            local ok, v = pcall(KB.GetBindingByKey, key, ctx)
+            if ok and v and v ~= "" then out[#out + 1] = ("c%d=%s"):format(ctx, tostring(v)) end
+        end
+        local ok, v = pcall(KB.GetBindingByKey, key)
+        out[#out + 1] = "any=" .. tostring(ok and v)
+    end
+    return table.concat(out, " ")
+end
+Keys.Reads = Reads
+function Keys.Probe()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local KB, key = C_KeyBindings, "PADPADDLE4"
+    local f = CreateFrame("Frame")
+    local lines = {}
+    local function Step(name) lines[#lines + 1] = name .. ": " .. Reads(key) end
+    if KB and KB.GetBindingContextForAction then
+        for _, a in ipairs({ "TOGGLEUIFOCUS", "OPENRADIAL", "TOGGLEWORLDMAP", "CLICK " .. Keys.BUTTON .. ":p5" }) do
+            local ok, v = pcall(KB.GetBindingContextForAction, a)
+            lines[#lines + 1] = "context " .. a .. " = " .. tostring(ok and v)
+        end
+    end
+    local click = "CLICK " .. Keys.BUTTON .. ":p8"
+    Step("start")
+    SetOverrideBinding(f, true, key, click); Step("click")
+    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus over click")
+    SetOverrideBinding(f, true, key, click); Step("click again")
+    SetOverrideBinding(f, true, key, nil); Step("nil")
+    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
+    SetOverrideBinding(f, true, key, ""); Step("empty string")
+    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
+    ClearOverrideBindings(f); Step("ClearOverrideBindings")
+    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
+    SetOverrideBinding(f, true, key, "OPENRADIAL"); Step("radial over focus")
+    ClearOverrideBindings(f); Step("cleared")
+    SetOverrideBinding(f, false, key, "TOGGLEUIFOCUS"); Step("focus, not priority")
+    SetOverrideBinding(f, false, key, nil); Step("nil, not priority")
+    ClearOverrideBindings(f); Step("end")
+    if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
+    GamepadCompanionTraceDB.probe = lines
 end
 
 -- The red message, however the game shows it (its error event, or straight
@@ -506,6 +557,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
         return
     end
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then HookBlizzard() end
+    if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then C_Timer.After(3, function() pcall(Keys.Probe) end) end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     Keys.Apply(event == "PLAYER_REGEN_ENABLED")
 end)
