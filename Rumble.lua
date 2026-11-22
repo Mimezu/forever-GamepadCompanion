@@ -914,10 +914,17 @@ function V.CastMomentKey()
     local own = V.castAction and ACTION_KIND[V.castAction] == V.castKind and V.ActionKey(V.castAction)
     return own or V.castKind
 end
--- An action's own feel (a pattern, "off"), nil: its kind's
+-- An action's own feel (a pattern; "off": switched off), nil: its kind's
 function V.ActionFeel(action)
-    local own = V.Settings().gatherFeels[action]
+    local s = V.Settings()
+    if s.actionOff[action] then return "off" end
+    local own = s.gatherFeels[action]
     return type(own) == "string" and own or nil
+end
+-- Its switch (off: its feel kept)
+function V.ActionOn(action) return not V.Settings().actionOff[action] end
+function V.SetActionOn(action, on)
+    if ACTION_KIND[action] then V.Settings().actionOff[action] = (not on) or nil end
 end
 -- What an action plays with its kind's set (nil: nothing)
 local function InheritedPattern(action)
@@ -925,6 +932,12 @@ local function InheritedPattern(action)
     if not preset or preset.key == "off" then return nil end
     if preset.auto then preset = PRESET[action] end
     return preset and preset.cast or nil
+end
+-- What an action plays when on: its own, else its kind's (kept while it's off)
+function V.ActionKept(action)
+    local own = V.Settings().gatherFeels[action]
+    if type(own) == "string" then return own end
+    return InheritedPattern(action)
 end
 -- What an action plays now (nil: nothing): its own while its kind is on, else its kind's
 function V.ActionPattern(action)
@@ -935,11 +948,13 @@ function V.ActionPattern(action)
     if own == "off" then return nil end
     return own
 end
--- pattern: its own ("off": none), nil or what its kind plays: its kind's
+-- pattern: its own (on), nil or what its kind plays: its kind's (on); "off": switched off, kept
 function V.SetActionFeel(action, pattern)
     if not ACTION_KIND[action] then return end
-    if pattern ~= nil and pattern ~= "off" and pattern == InheritedPattern(action) then pattern = nil end
-    V.Settings().gatherFeels[action] = pattern
+    local s = V.Settings()
+    if pattern == "off" then s.actionOff[action] = true; return end
+    if pattern ~= nil and pattern == InheritedPattern(action) then pattern = nil end
+    s.gatherFeels[action], s.actionOff[action] = pattern, nil
 end
 -- A craft's finish, once as it's made (nil: none; not while it's off)
 function V.CraftFinish(action)
@@ -980,6 +995,16 @@ function V.Settings()
     if s.enabled == nil then s.enabled = true end
     s.casts = s.casts or {}
     if type(s.gatherFeels) ~= "table" then s.gatherFeels = {} end
+    -- (Off is a switch, the choice kept: an "off" set or action feel from before 0.75
+    -- becomes switched off, Recommended kept for when it's back on)
+    if type(s.castOff) ~= "table" then s.castOff = {} end
+    if type(s.actionOff) ~= "table" then s.actionOff = {} end
+    for _, k in ipairs(V.CAST_KINDS) do
+        if s.casts[k.key] == "off" then s.casts[k.key], s.castOff[k.key] = k.preset, true end
+    end
+    for a, own in pairs(s.gatherFeels) do
+        if own == "off" then s.gatherFeels[a], s.actionOff[a] = nil, true end
+    end
     for _, k in ipairs(V.CAST_KINDS) do
         if not PRESET[s.casts[k.key]] then s.casts[k.key] = k.preset end
     end
@@ -1034,13 +1059,23 @@ function V.AddFeel(key, feel)
     return p
 end
 
--- A kind of cast's set ("off": none)
+-- A kind of cast's set ("off": none, or switched off)
 function V.CastPreset(kind)
-    return V.Settings().casts[kind or "spell"] or "off"
+    kind = kind or "spell"
+    local s = V.Settings()
+    if s.castOff[kind] then return "off" end
+    return s.casts[kind] or "off"
 end
+-- Its set, kept while it's off; its switch
+function V.CastSet(kind) return V.Settings().casts[kind or "spell"] or "off" end
+function V.CastOn(kind) return V.CastPreset(kind) ~= "off" end
+function V.SetCastOn(kind, on) V.Settings().castOff[kind] = (not on) or nil end
 
+-- A set (on); "off": switched off, the set kept
 function V.SetCastPreset(kind, presetKey)
-    V.Settings().casts[kind] = PRESET[presetKey] and presetKey or "off"
+    local s = V.Settings()
+    if presetKey == "off" or not PRESET[presetKey] then s.castOff[kind] = true; return end
+    s.casts[kind], s.castOff[kind] = presetKey, nil
 end
 
 function V.Preset(key)
@@ -1096,6 +1131,16 @@ end
 function V.EventChoice(eventKey)
     local cfg = V.Settings().events[eventKey]
     return cfg and cfg.on and cfg.pattern or "off"
+end
+-- Its choice kept while it's off; its switch
+function V.EventKept(eventKey)
+    local cfg = V.Settings().events[eventKey]
+    return cfg and cfg.pattern or nil
+end
+function V.SetEventOn(eventKey, on)
+    local cfg = V.Settings().events[eventKey]
+    if cfg then cfg.on = on and true or false end
+    V.Recheck()
 end
 
 -- An event's pattern, or nil when it is off (a cast's moments: from the

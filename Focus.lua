@@ -21,14 +21,14 @@
 --
 -- The d-pad moves to the nearest control that way; A picks (a click); B
 -- closes the popup, else the window; X is the focused row's Try, Y its
--- Default; L1 / R1 the side tabs, on the press (the focus starts on the new
--- page's first control); L2 / R2 the page's own (Moments: the group). Left / right on a
+-- Default; R3 its switch (where a page has them: Moments); L1 / R1 the side tabs, on the
+-- press (the focus starts on the new page's first control); L2 / R2 the page's own (Moments: the group). Left / right on a
 -- value row (a stepper) change its value. While the pad is in use a legend
 -- of glyphs replaces the status line and L1 / R1 glyphs sit at the tab
 -- strip's ends; the mouse hides them again.
 --
 -- Hooks for pages: a control or any frame above it may carry gpcTry /
--- gpcDefault (functions) or .try / .default (buttons: a MomentRow's);
+-- gpcDefault (functions) or .try / .default / .switch (buttons: a MomentRow's);
 -- gpcFocusSkip = true keeps a frame out of the ring; gpcNudge = fn(dir) makes
 -- a frame one value row (focused whole, its own buttons out of the ring, left /
 -- right call it with -1 / 1; .enabled = false: skipped); Focus.SetTrigger(page,
@@ -39,8 +39,10 @@ local S, Shell = ns.OptionsSkin, ns.Shell
 local Focus = {}
 ns.Focus = Focus
 
-local triggers, providers, listeners = {}, {}, {}
+local triggers, providers, listeners, switches = {}, {}, {}, {}
 function Focus.SetTrigger(page, fn) triggers[page] = fn end
+-- A page whose rows have a switch (R3)
+function Focus.SetSwitches(page) switches[page] = true end
 function Focus.SetProvider(page, fn) providers[page] = fn end
 function Focus.OnFocus(fn) listeners[#listeners + 1] = fn end
 
@@ -181,7 +183,8 @@ Focus.state = state
 -- after the other (inline glyph markup drew the trigger glyphs over the words)
 local LEGEND = {
     { { "Shp_Cross" }, "Pick" }, { { "Shp_Circle" }, "Back" }, { { "Shp_Square" }, "Try" },
-    { { "Shp_Triangle" }, "Default" }, { { "Shp_LTrigger", "Shp_RTrigger" }, "Groups", trigger = true },
+    { { "Shp_Triangle" }, "Default" }, { { "Shp_RStickIn" }, "On/Off", switch = true },
+    { { "Shp_LTrigger", "Shp_RTrigger" }, "Groups", trigger = true },
 }
 Focus.LEGEND = LEGEND
 local function BuildLegend(w, C)
@@ -237,11 +240,13 @@ local function Legend(show)
     else w.padLegend:SetPoint("LEFT", w.status, "LEFT", 0, 0) end
     w.padLegend:SetShown(show)
     -- (Groups: only where the page has L2 / R2)
-    local groups = triggers[Shell.Current and Shell.Current()] ~= nil
+    local page = Shell.Current and Shell.Current()
+    local groups = triggers[page] ~= nil
     for _, item in ipairs(w.padLegend.items) do
-        if item.trigger then
-            for _, t in ipairs(item.glyphs) do t:SetShown(groups) end
-            item.label:SetShown(groups)
+        local on = (item.trigger and groups) or (item.switch and switches[page] == true)
+        if item.trigger or item.switch then
+            for _, t in ipairs(item.glyphs) do t:SetShown(on) end
+            item.label:SetShown(on)
         end
     end
     w.status:SetAlpha(show and 0 or 1)
@@ -299,16 +304,22 @@ local function Move(dir)
     if to then Focus.Set(to[3]) end
 end
 
--- X and Y: the focused control's row (a frame above it) decides
-local function RowAction(which)
+-- X, Y and R3: the focused control's row (a frame above it) decides (look: only
+-- whether it has one)
+local HOOK = { try = "gpcTry", default = "gpcDefault", switch = "gpcSwitch" }
+local function RowAction(which, look)
     local f = state.focus
     while f do
-        local fn = rawget(f, which == "try" and "gpcTry" or "gpcDefault")
-        if type(fn) == "function" then fn(); return true end
+        local fn = rawget(f, HOOK[which])
+        if type(fn) == "function" then
+            if not look then fn() end
+            return true
+        end
         local b = rawget(f, which)
         if type(b) == "table" and type(b.Click) == "function" and (type(b.IsShown) ~= "function" or b:IsShown())
             and (type(b.IsEnabled) ~= "function" or b:IsEnabled()) then
-            b:Click(); return true
+            if not look then b:Click() end
+            return true
         end
         f = type(f.GetParent) == "function" and f:GetParent() or nil
     end
@@ -342,6 +353,7 @@ local ACTIONS = {
     end,
     PAD3 = function() RowAction("try") end,
     PAD4 = function() RowAction("default") end,
+    PADRSTICK = function() RowAction("switch") end,
     PADLTRIGGER = function() local t = triggers[Shell.Current()]; if t then t(-1); Focus.Set(nil) end end,
     PADRTRIGGER = function() local t = triggers[Shell.Current()]; if t then t(1); Focus.Set(nil) end end,
 }
@@ -372,6 +384,8 @@ function Focus.Press(frame, button)
     local act = ACTIONS[button]
     if not act then return false end
     if (button == "PADLTRIGGER" or button == "PADRTRIGGER") and not triggers[Shell.Current()] then return false end
+    -- (R3: only on a page with switches, on a row that has one; else the game's)
+    if button == "PADRSTICK" and not (switches[Shell.Current()] and state.active and RowAction("switch", true)) then return false end
     -- (this press stops here; from the next frame on, presses pass again)
     Call(frame, "SetPropagateKeyboardInput", false)
     if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
@@ -434,7 +448,8 @@ end
 
 if S.OnPopupChange then S.OnPopupChange(function() Focus.Rescope() end) end
 
--- Moments: L2 / R2 step through the groups
+-- Moments: L2 / R2 step through the groups; R3 a row's switch
+Focus.SetSwitches("moments")
 Focus.SetTrigger("moments", function(dir)
     local b = ns.RumblePage and ns.RumblePage.browser
     if b and b.Step then b.Step(dir) end

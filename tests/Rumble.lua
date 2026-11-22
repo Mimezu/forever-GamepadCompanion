@@ -259,16 +259,26 @@ assert(rowFor.wading and rowFor.footsteps, "Wading has its own row and switch be
 page.browser.Select("Progress")
 local level = rowFor.levelUp
 assert(level:IsVisible() and level.pick.label.text == "Crescendo", tostring(level.pick.label.text))
--- the palette: Off first
+-- the palette: no Off in it
 level.pick.scripts.OnClick(level.pick)
 local pal = GamepadCompanionPalette
 assert(pal and pal:IsShown(), "the palette")
-local off = pal.pal.specialTiles[1]
-off.scripts.OnClick(off, "LeftButton")
-assert(not pal:IsShown() and V.EventChoice("levelUp") == "off" and level.pick.label.text == "Off", "set off")
--- Default: back to Crescendo
+for _, t in ipairs(pal.pal.specialTiles) do assert(not (t:IsShown() and t.key == "off"), "no Off tile") end
+pal:Hide()
+-- the switch: off keeps Crescendo (dimmed), on brings it back
+local function Toggle(row, on)
+    row.switch:SetChecked(on); row.switch.scripts.OnClick(row.switch)
+end
+assert(level.switch and level.switch:GetChecked() == true, "Level up: its switch, on")
+Toggle(level, false)
+assert(V.EventChoice("levelUp") == "off" and V.EventKept("levelUp") == "rise" and level.pick.label.text == "Crescendo", "off: Crescendo kept")
+assert(level.icon.desaturated and level.default.enabled ~= false, "off: dimmed, not Recommended")
+Toggle(level, true)
+assert(V.EventChoice("levelUp") == "rise" and level.switch:GetChecked() == true, "on: Crescendo again")
+Toggle(level, false)
+-- Default: back to Crescendo, on
 level.default.scripts.OnClick(level.default)
-assert(V.EventChoice("levelUp") == "rise" and level.pick.label.text == "Crescendo", "default")
+assert(V.EventChoice("levelUp") == "rise" and level.pick.label.text == "Crescendo" and level.switch:GetChecked() == true, "default")
 -- a Beta feel on a Rumble event (any feel of the palette)
 level.pick.scripts.OnClick(level.pick)
 pal.pal:ShowGroup("Impacts")
@@ -337,12 +347,12 @@ do
     local fire, nova, renew = shown[1], shown[2], shown[3]
     assert(fire.label.text == "Fireball" and fire.pick.label.text == "Subtle" and fire.sub.text == "At the cast", "a cast set")
     assert(nova.sub.text == "At the cast", "when only: " .. tostring(nova.sub.text))
-    assert(renew.pick.label.text == "Off" and renew.default.enabled == false, "quiet: Off, as the picker says, nothing to undo")
-    assert(not renew.level:IsShown() and not renew.try:IsShown(), "nothing plays: no volume, no Try")
+    assert(renew.pick.label.text == "None" and renew.default.enabled == false, "quiet: None, nothing to undo")
+    assert(not renew.level:IsShown() and not renew.try:IsShown() and not renew.switch:IsShown(), "nothing plays: no volume, no Try, no switch")
     renew.pick.scripts.OnClick(renew.pick)
-    assert(GamepadCompanionPalette.current == "off", "its picker opens on Off")
-    PaletteTile("Off").scripts.OnClick(PaletteTile("Off"), "LeftButton")
-    assert(O.Get("Renew") == nil and renew.default.enabled == false, "Off again: still as it ships")
+    assert(GamepadCompanionPalette:IsShown() and not PaletteTile("Off"), "its picker, no Off in it")
+    GamepadCompanionPalette:Hide()
+    assert(O.Get("Renew") == nil and renew.default.enabled == false, "still as it ships")
     -- a cast set of its own (any feel, in the same picker), then Off, then Default
     fire.pick.scripts.OnClick(fire.pick)
     assert(GamepadCompanionPalette:IsShown() and GamepadCompanionPalette.current == "subtle", "the Feel picker, its set selected")
@@ -354,9 +364,13 @@ do
     pop.stepper.minus.scripts.OnClick(pop.stepper.minus)
     pop:Hide()
     assert(math.abs(O.Volume("Fireball") - 0.9) < 1e-9, "its volume")
-    fire.pick.scripts.OnClick(fire.pick)
-    PaletteTile("Off").scripts.OnClick(PaletteTile("Off"), "LeftButton")
-    assert(O.Get("Fireball").on == false and fire.pick.label.text == "Off" and not fire.level:IsShown(), "Off: no volume")
+    -- its switch off: Pulse and its volume kept, dimmed
+    assert(fire.switch:IsShown() and fire.switch:GetChecked() == true, "its switch, on")
+    fire.switch:SetChecked(false); fire.switch.scripts.OnClick(fire.switch)
+    assert(O.Get("Fireball").on == false and O.Get("Fireball").set == "feel:pulse" and fire.pick.label.text == "Pulse"
+        and fire.level:IsShown() and not fire.try:IsShown(), "off: Pulse kept, its volume kept, no Try")
+    fire.switch:SetChecked(true); fire.switch.scripts.OnClick(fire.switch)
+    assert(O.Get("Fireball").on == nil and O.Get("Fireball").set == "feel:pulse", "on: Pulse again")
     fire.default.scripts.OnClick(fire.default)
     assert(O.Get("Fireball") == nil and fire.pick.label.text == "Subtle" and fire.default.enabled == false, "Default: the rules")
     -- the General tab: Attack belongs to Auto attack, a link
@@ -387,7 +401,7 @@ do
     -- Light: each row the spell's own light, its parent's until it has one
     page.SetKind("light")
     assert(fire.pick.label.text == "Spell released" and fire.sub.text == "When released", "Fireball: Spell released's light: " .. tostring(fire.pick.label.text))
-    assert(nova.pick.label.text == "Off" and nova.default.enabled == false, "Frost Nova: Instant ability's light (off), nothing to undo")
+    assert(nova.switch:GetChecked() == false and nova.icon.desaturated and nova.default.enabled == false, "Frost Nova: Instant ability's light (off), nothing to undo")
     assert(not nova.level:IsShown(), "a light's strength is in its picker")
     assert(count.text == "1/4", "Light: the count follows the kind: " .. tostring(count.text))
     nova.pick.scripts.OnClick(nova.pick)
@@ -410,7 +424,7 @@ do
     assert(nova.pick.label.text == novaFeel and nova.default.enabled == false, "Feel: its feel again; the light is not the feel's")
     -- Sound: a sound for the spell on the pad's speaker, its volume
     page.SetKind("sound")
-    assert(nova.pick.label.text == "Off" and not nova.level:IsShown() and not nova.try:IsShown() and count.text == "0/4",
+    assert(nova.pick.label.text == "Choose" and not nova.level:IsShown() and not nova.try:IsShown() and count.text == "0/4",
         "Sound: none yet; nothing plays: no volume, no Try")
     nova.pick.scripts.OnClick(nova.pick)
     local chime
@@ -430,16 +444,103 @@ do
     assert(O.Field("Frost Nova", "sound") == nil and O.Field("Frost Nova", "soundVolume") == nil and O.Get("Frost Nova").light, "Default: its sound only")
     page.SetKind("light")
     nova.default.scripts.OnClick(nova.default)
-    assert(O.Get("Frost Nova") == nil and nova.pick.label.text == "Off", "Default: its light, nothing left")
+    assert(O.Get("Frost Nova") == nil and nova.switch:GetChecked() == false, "Default: its light, nothing left")
     -- a linked spell: its moment's light or sound, a link
     page.SetKind("sound")
     sp.tabs[2].scripts.OnClick(sp.tabs[2])
     local attack = sp.rows[1]
-    assert(attack.pick.label.text == "Off ›" and attack.sub.text == "With Auto attack" and not attack.level:IsShown(), "Attack: Auto attack's sound, a link")
+    assert(attack.pick.label.text == "Choose ›" and attack.sub.text == "With Auto attack" and not attack.level:IsShown()
+        and not attack.switch:IsShown(), "Attack: Auto attack's sound, a link (its switch is its moment's)")
     attack.pick.scripts.OnClick(attack.pick)
     assert(page.kind == "sound" and page.browser.current == "Attacks", "jumped to Auto attack's sound")
     page.SetKind("feel")
     io.write("PASS: Your spells follow Feel / Light / Sound: own light and sound (same picker), in its overrides, Default per kind, the count\n")
+end
+-- Off is a switch on the moment, its choice kept: each kind, the group count, the old "off" migrated
+do
+    local C, K, O = ns.HelperCues, ns.HelperLink, ns.SpellOverrides
+    local function Row(kind, key)
+        for _, r in ipairs(page.rows) do if r.kind == kind and r.key == key then return r end end
+    end
+    local function Toggle(r, on) r.switch:SetChecked(on); r.switch.scripts.OnClick(r.switch) end
+    -- a cast set: off keeps it, the count drops by one, on brings it back
+    page.SetKind("feel")
+    page.browser.Select("Abilities")
+    local btn = page.browser.buttons.Abilities
+    local gather = Row("c", "gather")
+    local before = btn.count.text
+    V.SetCastPreset("gather", "pulse"); page.Refresh()
+    Toggle(gather, false)
+    assert(V.CastPreset("gather") == "off" and V.CastSet("gather") == "pulse" and gather.pick.label.text == "Pulse", "Gathering off: Pulse kept")
+    local on, all = before:match("(%d+)/(%d+)")
+    local onNow, allNow = btn.count.text:match("(%d+)/(%d+)")
+    assert(allNow == all and tonumber(onNow) < tonumber(on), "the group counts what's on (Gathering and its actions off): " .. before .. " -> " .. tostring(btn.count.text))
+    assert(V.ActionPattern("mining") == nil, "its actions quiet with it")
+    Toggle(gather, true)
+    assert(V.CastPreset("gather") == "pulse" and btn.count.text == before, "on: Pulse, counted again")
+    gather.default.scripts.OnClick(gather.default)
+    -- an action: off keeps its own feel
+    V.SetActionFeel("mining", "x_boom")
+    V.SetActionOn("mining", false)
+    assert(V.ActionPattern("mining") == nil and V.ActionKept("mining") == "x_boom", "Mining off: its own feel kept")
+    V.SetActionOn("mining", true)
+    assert(V.ActionPattern("mining") == "x_boom", "Mining on: its own feel")
+    V.SetActionFeel("mining", nil)
+    -- a light: off keeps light, colour and strength
+    local LT = ns.Lights
+    LT.Own("crit").light, LT.Own("crit").color = LT.LightByKey("flash").id, "red"
+    page.SetKind("light")
+    page.browser.Select("Attacks")
+    local crit = Row("light", "crit")
+    Toggle(crit, false)
+    local s = LT.Settings("crit")
+    assert(s.on == false and s.light == LT.LightByKey("flash").id and s.color == "red" and crit.pick.label.text == "Flash", "light off: Flash, red kept")
+    Toggle(crit, true)
+    assert(LT.Settings("crit").on == true, "light on")
+    LT.Default("crit")
+    -- the export WoW Helper reads: off is false, as before; on again: the feel
+    V.SetEventOn("levelUp", false)
+    local Lab = ns.HapticsLab
+    local ex = Lab.Export()
+    assert(ex.moments.levelUp.feel == false, "exported off: no feel")
+    V.SetEventOn("levelUp", true)
+    assert(Lab.Export().moments.levelUp.feel ~= false, "exported on: its feel")
+    V.SetEventOn("levelUp", true)
+    -- a sound with none by default: on asks for one (the picker opens), nothing else changes
+    page.SetKind("sound")
+    page.browser.Select("Attacks")
+    local hitS = Row("sound", "hit")
+    assert(C.KeptSound("hit") == nil and hitS.pick.label.text == "Choose" and hitS.switch:GetChecked() == false, "no sound yet: Choose, off")
+    Toggle(hitS, true)
+    assert(C.MomentSound("hit") == nil and hitS.switch:GetChecked() == false, "on with nothing to play: still off")
+    ns.HapticsUI.HidePopup()
+    page.SetKind("feel")
+    -- the migration: 0.74's "off" choices become switched off, Recommended kept
+    local vs = V.Settings()
+    vs.casts.craft, vs.castOff.craft = "off", nil
+    vs.gatherFeels.skinning, vs.actionOff.skinning = "off", nil
+    V.Recheck()
+    vs = V.Settings()
+    assert(vs.castOff.craft == true and vs.casts.craft == "auto" and V.CastPreset("craft") == "off", "a cast set's Off: switched off, Recommended kept")
+    assert(vs.actionOff.skinning == true and vs.gatherFeels.skinning == nil and V.ActionPattern("skinning") == nil, "an action's Off: switched off")
+    V.SetCastOn("craft", true); V.SetActionOn("skinning", true)
+    assert(V.CastPreset("craft") == "auto" and V.ActionPattern("skinning") ~= nil, "on again: as it ships")
+    local link = ns.Haptics.DB().link
+    local savedSounds, savedOff = link.sounds, link.soundOff
+    link.sounds, link.soundOff = { loot = false, money = K.SOUNDS.chime }, {}
+    assert(C.MomentSound("loot") == nil and C.KeptSound("loot") == K.SOUNDS.coin, "a sound's Off: switched off, its coin kept")
+    assert(link.sounds.loot == nil and link.soundOff.loot == true and C.MomentSound("money") == K.SOUNDS.chime, "moved once; others untouched")
+    C.SetSoundOn("loot", true)
+    assert(C.MomentSound("loot") == K.SOUNDS.coin and C.IsSoundDefault("loot"), "on again: its coin, as it ships")
+    link.sounds, link.soundOff = savedSounds, savedOff
+    -- a spell's own sound (its overrides): off keeps it beside, as 0.74's false still reads off
+    O.SetField("Frost Nova", "sound", K.SOUNDS.chime)
+    C.SetSoundOn("spell:instant:Frost Nova", false)
+    assert(C.MomentSound("spell:instant:Frost Nova") == nil and C.KeptSound("spell:instant:Frost Nova") == K.SOUNDS.chime, "a spell's sound off: kept")
+    C.SetSoundOn("spell:instant:Frost Nova", true)
+    assert(C.MomentSound("spell:instant:Frost Nova") == K.SOUNDS.chime and O.Field("Frost Nova", "soundKept") == nil, "on: its own again")
+    O.Clear("Frost Nova")
+    io.write("PASS: Off is a switch: each kind keeps its choice, the counts, the old Off migrated, WoW Helper reads off\n")
 end
 -- Every row opens its kind's one picker: Feel the palette, Light the light picker, Sound the
 -- sound list; every moment's group and Your spells (every tab), cast sets and heals alike
@@ -556,7 +657,7 @@ do
     page.Refresh()
     assert(hit.default.enabled ~= false, "Hit on: not Recommended")
     hit.default.scripts.OnClick(hit.default)
-    assert(L.EventSettings("hit").on == false and hit.default.enabled == false and hit.pick.label.text == "Off", "Hit's Default: Off, as Recommended")
+    assert(L.EventSettings("hit").on == false and hit.default.enabled == false and hit.switch:GetChecked() == false, "Hit's Default: off, as Recommended")
     local offer = ns.ShellWindow().offer
     assert(offer.label.text == "Undo", "Undo for a while")
     offer.scripts.OnClick(offer)

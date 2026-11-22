@@ -25,7 +25,7 @@ P.Copy = Copy
 P.FEEL_TABLES = { "events", "lightEvents", "lightBase", "lightStack", "triggerStack", "feelStack", "spells", "when" }
 P.FEEL_VALUES = { "light", "lightGameOnly", "landMin", "landMax", "landLong", "stepNudge", "triggers", "kick", "minPulse", "fresh" }
 P.FEEL_NESTED = { { "link", "cues", "cues" }, { "link", "sounds", "sounds" }, { "link", "trigRules", "triggerRules" }, { "volume", "feel", "volumeFeel" },
-    { "volume", "sound", "volumeSound" } }
+    { "volume", "sound", "volumeSound" }, { "link", "soundOff", "soundOff" } }
 P.LEARNED = { "hitTiming", "strikes" }   -- inside vibration, but physical: account-wide
 P.UI_KEYS = { "optionsStyle", "optionsStyleVersion", "minimap" }
 

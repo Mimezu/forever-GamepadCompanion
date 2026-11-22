@@ -334,6 +334,13 @@ function HUI.MomentRow(parent, y, width, icon, label, onPick, onTry, tip, opts)
     r.pick.label:SetJustifyH("LEFT")
     r.pick:SetScript("OnClick", function(self) onPick(self) end)
     if tip then S.Tooltip(r.pick, label, tip) end
+    -- its switch, left of the plate (opts.switch(on, button)): off keeps the choice
+    if opts.switch then
+        x = x - 40
+        r.switch = S.NewCheck(r, "", x, -7, function(self) opts.switch(self:GetChecked() == true, self) end, 0)
+        S.Tooltip(r.switch, "On")
+        x = x - 2
+    end
     -- marks, just left of the plate
     r.marks = {}
     for i = 1, opts.marks or 0 do

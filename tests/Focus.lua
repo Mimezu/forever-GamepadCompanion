@@ -124,6 +124,18 @@ F.Set(plate1)
 F.Press(window, "PAD3")
 F.Press(window, "PAD4")
 assert(row1.try.clicked == 1 and row1.default.clicked == 1, "X / Y: its Try and Default buttons")
+-- R3: the row's switch, on Moments (a page with switches); a row without one, or another page: the game's
+row1.switch = Frame("Button", row1, 250, 400)
+F.Set(plate1)
+assert(F.Press(window, "PADRSTICK") == true and row1.switch.clicked == 1, "R3: its switch")
+F.Set(plate2)
+assert(F.Press(window, "PADRSTICK") == false, "R3 on a row with no switch: passes on")
+F.Set(plate1)
+current = "setup"
+assert(F.Press(window, "PADRSTICK") == false and row1.switch.clicked == 1, "R3 on a page without switches: passes on")
+current = "moments"
+row1.switch.shown = false
+for _, fn in ipairs(queued) do fn() end; queued = {}
 -- the shoulders: the window's (Forever binds them to its modifier highlight); the tab steps on the press
 assert(F.Press(window, "PADRSHOULDER") == true and stepped == 1, "R1: taken, the next tab at once")
 assert(window.propagate == false, "R1: stops here (the game's binding never sees it)")

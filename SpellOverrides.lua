@@ -76,7 +76,7 @@ end
 function O.Clear(name) DB()[name] = nil end
 
 -- Default for one kind only (a row of the Feel, Light or Sound view)
-O.KIND_FIELDS = { feel = { "on", "feel", "set", "volume" }, light = { "light" }, sound = { "sound", "soundVolume" } }
+O.KIND_FIELDS = { feel = { "on", "feel", "set", "volume" }, light = { "light" }, sound = { "sound", "soundVolume", "soundKept" } }
 function O.ClearKind(name, kind)
     local o = DB()[name]
     if not o then return end

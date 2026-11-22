@@ -2,6 +2,9 @@
 
 ## Unreleased (0.75.0)
 
+- **Moments: Off is a switch on each moment**, not a choice in its picker. Off keeps the feel, light or sound, its volume and shape; on brings them back. Feel, Light, Sound and Your spells alike; dimmed while off, and the groups count what's on. On the pad: R3 switches the row in focus (On/Off in the legend). A sound with none yet asks for one when switched on
+- Your earlier Off choices are now switched off, with Recommended kept for when you switch them back on (a spell's own sound keeps its sound). WoW Helper reads them as off, as before
+
 - **A new install plays well out of the box** (a second PC, any class): UI errors and a shield's block no longer rumble; a jump's take-off stays off (its landing plays); a kill's Boom at half, low health's heartbeat and melee swings at 60 %; trigger reactions no longer resist L2 / R2 (the layer buttons) on every global cooldown or all through combat (rage, energy). Only new or reset Feel profiles get these: older profiles keep what they had
 - Camera: Setup > Camera > **Low camera**. On for installs from before (as always); a new install leaves the game's camera alone (no experimental-setting warning). Turned off, the game's own framing comes back
 - Start here: WoW Helper is optional (its step says so, Play ticks without it); Connect the pad says when the gamepad UI is off. A new install prints one line at its first login: /gpc

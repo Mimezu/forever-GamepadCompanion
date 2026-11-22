@@ -79,7 +79,6 @@ local REVENT, KIND = {}, {}
 for _, e in ipairs(V.EVENTS) do REVENT[e.key] = e end
 for _, k in ipairs(V.CAST_KINDS) do KIND[k.key] = k end
 
-local OFF = { key = "off", label = "Off", icon = V.OFF_ICON }
 
 -- A moment's volume beside its plate (Volume.lua): kind "feel" or "sound"
 local function Volume(kind)
@@ -105,36 +104,37 @@ ITEM.r = {
     label = function(key) return REVENT[key].label end,
     icon = function(key) return REVENT[key].icon end,
     tip = function(key) return REVENT[key].tip end,
+    -- (off: its choice kept, shown dimmed)
     show = function(key)
         local e = REVENT[key]
-        local choice = V.EventChoice(key)
-        if choice == "off" then return "Off", V.OFF_ICON, nil, true end
+        local choice = V.EventKept(key)
+        local off = V.EventChoice(key) == "off"
         if choice == "auto" then
-            local now = V.Pattern(V.EventPattern(key))
-            return e.auto, e.icon, now and ("Now: " .. now.label) or "Each one its own feel"
+            local now = not off and V.Pattern(V.EventPattern(key))
+            return e.auto, e.icon, now and ("Now: " .. now.label) or "Each one its own feel", off
         end
         local p = V.Pattern(choice)
-        return p and p.label or choice, p and p.icon, e.loop and "While it lasts" or nil
+        return p and p.label or tostring(choice), p and p.icon, e.loop and "While it lasts" or nil, off
     end,
+    on = function(key) return V.EventChoice(key) ~= "off" end,
+    setOn = function(key, on) V.SetEventOn(key, on) end,
     current = function(key)
-        local choice = V.EventChoice(key)
-        if choice == "off" or choice == "auto" then return choice end
+        local choice = V.EventKept(key)
+        if choice == "auto" or choice == nil then return choice end
         return L.FeelFor(choice)
     end,
     specials = function(key)
         local e = REVENT[key]
-        local list = { OFF }
-        if e.auto then list[2] = { key = "auto", label = e.auto, icon = e.icon } end
-        return list
+        return e.auto and { { key = "auto", label = e.auto, icon = e.icon } } or {}
     end,
     pick = function(key, feel)
         local pattern = feel
-        if feel ~= "off" and feel ~= "auto" then
+        if feel ~= "auto" then
             L.RegisterInRumble()
             pattern = L.PatternFor(feel)
         end
         V.SetEventPattern(key, pattern)
-        if pattern ~= "off" and V.Settings().enabled then
+        if V.Settings().enabled then
             local now = V.EventPattern(key)
             if now then V.Play(now) end
         end
@@ -187,17 +187,20 @@ ITEM.c = {
     icon = function(key) return KIND[key].icon end,
     tip = function(key) return KIND[key].tip end,
     show = function(key)
-        local preset = V.Preset(V.CastPreset(key))
-        if not preset or preset.key == "off" then return "Off", V.OFF_ICON, nil, true end
-        if preset.auto then return preset.label, preset.icon, "Each action its own feel" end
+        local off = not V.CastOn(key)
+        local preset = V.Preset(V.CastSet(key))
+        if not preset or preset.key == "off" then return "?", nil, nil, true end
+        if preset.auto then return preset.label, preset.icon, "Each action its own feel", off end
         local parts = {}
         for _, phase in ipairs(V.CAST_PHASES) do
             local p = V.Pattern(preset[phase])
             if p then parts[#parts + 1] = p.label end
         end
-        return preset.label, preset.icon, table.concat(parts, " · ")
+        return preset.label, preset.icon, table.concat(parts, " · "), off
     end,
-    isDefault = function(key) return V.CastPreset(key) == KIND[key].preset end,
+    on = function(key) return V.CastOn(key) end,
+    setOn = function(key, on) V.SetCastOn(key, on) end,
+    isDefault = function(key) return V.CastOn(key) and V.CastSet(key) == KIND[key].preset end,
     default = function(key) V.SetCastPreset(key, KIND[key].preset) end,
     try = function(key)
         if not On() then return end
@@ -213,21 +216,25 @@ ITEM.g = {
     label = ActionLabel,
     icon = function(key) return KindOf(key).icon end,
     tip = function(key) return ActionLabel(key) end,
+    -- (off, or its kind off: what it plays when on, dimmed)
     show = function(key)
         local action = V.ActionOf(key)
-        local pattern = V.ActionPattern(action)
-        if not pattern then return "Off", V.OFF_ICON, nil, true end
+        local pattern = V.ActionKept(action)
+        local off = V.ActionPattern(action) == nil
+        local as = "As " .. KindOf(key).label
+        if not pattern then return as, KindOf(key).icon, nil, true end
         local p = V.Pattern(pattern)
-        return p and p.label or pattern, p and p.icon, V.ActionFeel(action) == nil and ("As " .. KindOf(key).label) or nil
+        return p and p.label or pattern, p and p.icon, V.Settings().gatherFeels[action] == nil and as or nil, off
     end,
+    on = function(key) return V.ActionOn(V.ActionOf(key)) end,
+    setOn = function(key, on) V.SetActionOn(V.ActionOf(key), on) end,
     current = function(key)
-        local pattern = V.ActionPattern(V.ActionOf(key))
-        return pattern and L.FeelFor(pattern) or "off"
+        local pattern = V.ActionKept(V.ActionOf(key))
+        return pattern and L.FeelFor(pattern) or nil
     end,
-    specials = function() return { OFF } end,
+    specials = function() return {} end,
     pick = function(key, feel)
         local action = V.ActionOf(key)
-        if feel == "off" then return V.SetActionFeel(action, "off") end
         L.RegisterInRumble()
         local pattern = L.PatternFor(feel)
         V.SetActionFeel(action, pattern)
@@ -263,19 +270,18 @@ ITEM.l = {
     show = function(key)
         local e = L.EVENT[key]
         local s = L.EventSettings(key)
-        if not s.on then return "Off", V.OFF_ICON, nil, true end
         local f = H.Feel(s.feel)
         local sub = e.live and "While it lasts" or nil
-        return f and (f.label or f.key) or "?", f and f.icon, sub
+        return f and (f.label or f.key) or "?", f and f.icon, sub, not s.on
     end,
-    current = function(key)
-        local s = L.EventSettings(key)
-        return s.on and s.feel or "off"
-    end,
-    specials = function() return { OFF } end,
+    on = function(key) return L.EventSettings(key).on == true end,
+    setOn = function(key, on) L.EventSettings(key).on = on and true or false end,
+    current = function(key) return L.EventSettings(key).feel end,
+    specials = function() return {} end,
     pick = function(key, feel)
         local s = L.EventSettings(key)
-        if feel == "off" then s.on = false else s.on, s.feel = true, feel; L.Try(key) end
+        s.on, s.feel = true, feel
+        L.Try(key)
     end,
     isDefault = function(key) return L.IsEventDefault(key) end,
     default = function(key) L.EventDefault(key) end,
@@ -353,7 +359,6 @@ ITEM.light = {
     tip = function() return "Light, colour, strength" end,
     show = function(key)
         local s = LT.Settings(key)
-        if not s.on then return "Off", V.OFF_ICON, nil, true end
         local l = LT.Light(s.light)
         if s.light == 0 then l = { name = "Pass" } end   -- (a state leaving the bar to what is below)
         -- who plays it: WoW Helper (every light, precisely) or the game (the bar)
@@ -361,8 +366,10 @@ ITEM.light = {
         local words = LT.PatternWords and LT.PatternWords(key)
         local sub = LT.Def(key).state and "While it lasts" or nil
         if words then sub = sub and (sub .. " · " .. words) or words end
-        return l and l.name or "?", nil, sub, false, LT.ColorRGB(s.color)
+        return l and l.name or "?", nil, sub, not s.on, LT.ColorRGB(s.color)
     end,
+    on = function(key) return LT.Settings(key).on ~= false end,
+    setOn = function(key, on) LT.Own(key).on = on and true or false end,
     pick = function(key, anchor) ns.LightPicker.Open(anchor, key, Refresh) end,
     isDefault = function(key) return LT.IsDefault(key) end,
     default = function(key) LT.Default(key) end,
@@ -379,18 +386,24 @@ ITEM.sound = {
     label = LabelOf,
     icon = IconOf,
     tip = function() return "Pad speaker" end,
+    -- (no sound yet: "Choose", off; on needs one)
     show = function(key)
-        local id = C.MomentSound(key)
-        if not id then return "Off", V.OFF_ICON, nil, true end
-        return C.SoundName(id), BELL
+        local id = C.KeptSound(key)
+        if not id then return "Choose", BELL, nil, true end
+        return C.SoundName(id), BELL, nil, C.MomentSound(key) == nil
+    end,
+    on = function(key) return C.MomentSound(key) ~= nil end,
+    setOn = function(key, on, anchor)
+        if on and not C.KeptSound(key) then return ITEM.sound.pick(key, anchor) end
+        C.SetSoundOn(key, on)
     end,
     pick = function(key, anchor)
-        local entries = { { key = "off", label = "Off", icon = V.OFF_ICON } }
+        local entries = {}
         for _, e in ipairs(C.SoundList()) do entries[#entries + 1] = { key = e.id, label = e.name, icon = BELL } end
-        HUI.Popup(anchor, LabelOf(key), entries, C.MomentSound(key) or "off", function(choice)
-            C.SetMomentSound(key, choice ~= "off" and choice or false)
+        HUI.Popup(anchor, LabelOf(key), entries, C.KeptSound(key), function(choice)
+            C.SetMomentSound(key, choice)
             Refresh()
-            if choice ~= "off" then ITEM.sound.try(key) end
+            ITEM.sound.try(key)
         end, 3, 150)
     end,
     isDefault = function(key) return C.IsSoundDefault(key) end,
@@ -547,19 +560,22 @@ local function Snapshot(kind, key)
         local on, pattern = cfg.on, cfg.pattern
         back = function() cfg.on, cfg.pattern = on, pattern end
     elseif kind == "c" then
-        local preset = V.CastPreset(key)
-        back = function() V.SetCastPreset(key, preset) end
+        local preset, on = V.CastSet(key), V.CastOn(key)
+        back = function() V.SetCastPreset(key, preset); V.SetCastOn(key, on) end
     elseif kind == "l" then
         local s = L.EventSettings(key)
         local on, feel = s.on, s.feel
         back = function() s.on, s.feel = on, feel end
     elseif kind == "g" then
         local action = V.ActionOf(key)
-        local own = V.ActionFeel(action)
-        back = function() V.Settings().gatherFeels[action] = own end
+        local own, on = V.Settings().gatherFeels[action], V.ActionOn(action)
+        back = function() V.Settings().gatherFeels[action] = own; V.SetActionOn(action, on) end
     elseif kind == "sound" then
-        local id = C.MomentSound(key)
-        back = function() C.SetMomentSound(key, id or false) end
+        local id, isDefault, on = C.KeptSound(key), C.IsSoundDefault(key), C.SoundOn(key)
+        back = function()
+            C.SetMomentSound(key, (not isDefault) and id or nil)
+            if not isDefault then C.SetSoundOn(key, on) end
+        end
     elseif kind == "light" then
         local db = H.DB().lightEvents
         local own = db and Copy(db[key])
@@ -702,11 +718,11 @@ local function MakeRow(parent, y, width, kind, key)
     end
     local row = HUI.MomentRow(parent, y, width, I.icon(key), label, function(anchor)
         if kind == "c" then
-            local specials = { OFF, SetTile("auto"), SetTile("alerts") }
-            PickSet(anchor, label, specials, SetCurrent(V.CastPreset(key), specials), function(preset)
+            local specials = { SetTile("auto"), SetTile("alerts") }
+            PickSet(anchor, label, specials, SetCurrent(V.CastSet(key), specials), function(preset)
                 V.SetCastPreset(key, preset)
                 Refresh()
-                if preset ~= "off" then I.try(key) end
+                I.try(key)
             end)
             return
         end
@@ -731,6 +747,10 @@ local function MakeRow(parent, y, width, kind, key)
         editTip = "In WoW Helper (else Lab)",
         defaultTip = "Recommended",
         level = I.level and I.level(key) or nil,
+        switch = I.setOn and function(on, anchor)
+            I.setOn(key, on, anchor)
+            Refresh()
+        end or nil,
         pg = pg, lazy = true,
         marks = 3,
     })
@@ -1835,18 +1855,19 @@ local function Shown()
     return list, pages
 end
 
--- A spell's plate: what plays (name, icon, off) from its plan
+-- A spell's plate: what plays (name, icon, off) from its plan; switched off: what it
+-- plays when on, dimmed (a spell the rules leave quiet: None)
 local function PlateOf(plan)
     local O = ns.SpellOverrides
     local o = O.Get(plan.name)
-    if o and o.on == false then return "Off", V.OFF_ICON, true end
+    local off = o ~= nil and o.on == false
     if plan.moment == "spell" then
         local p = V.Preset(plan.set)
-        return p and p.label or tostring(plan.set), p and p.icon, false
+        return p and p.label or tostring(plan.set), p and p.icon, off
     elseif plan.moment == "instant" or plan.moment == "quiet" then
         local f = plan.feel and H.Feel(plan.feel)
-        if not f then return "Off", V.OFF_ICON, true end
-        return (f.label or plan.feel) .. (plan.hd and " · HD" or ""), f.icon, false
+        if not f then return "None", V.OFF_ICON, true end
+        return (f.label or plan.feel) .. (plan.hd and " · HD" or ""), f.icon, off
     end
     return (MOMENT_LABEL[plan.moment] or plan.moment) .. " ›", nil, false
 end
@@ -1874,7 +1895,7 @@ local function SpellChoice(plan, kind)
     end
     local when = plan.base == "release" and "When released" or plan.when == "none" and "At the cast" or WHEN[plan.when] or ""
     local key, linked = SpellKey(plan, kind)
-    if not (key and ITEM[kind]) then return "Off", V.OFF_ICON, true, nil, "", true end
+    if not (key and ITEM[kind]) then return "None", V.OFF_ICON, true, nil, "", true end
     local I = ITEM[kind]
     local name, icon, _, off, rgb = I.show(key)
     if linked then return name .. " ›", icon, off, rgb, "With " .. LabelOf(key), true, key, true end
@@ -1891,30 +1912,29 @@ local function PickSpell(row, anchor)
         return ITEM[ui.kind].pick(key, anchor)
     end
     if Linked(plan) then return Jump(plan.moment, "feel") end
-    local o = O.Get(plan.name)
-    local off = o and o.on == false
     if plan.moment == "spell" then
-        -- (its set as it ships on top, beside Off; any feel below)
-        local specials = { OFF, SetTile(plan.ruleSet or plan.set) }
-        PickSet(anchor, plan.name, specials, off and "off" or SetCurrent(plan.set, specials), function(key)
-            if key == "off" then O.SetOn(plan.name, false)
-            elseif key == plan.ruleSet then O.SetSet(plan.name, nil)
-            else O.SetSet(plan.name, key) end
+        -- (its set as it ships on top; any feel below)
+        local specials = { SetTile(plan.ruleSet or plan.set) }
+        PickSet(anchor, plan.name, specials, SetCurrent(plan.set, specials), function(key)
+            if key == plan.ruleSet then O.SetSet(plan.name, nil) else O.SetSet(plan.name, key) end
             Refresh()
         end)
         return
     end
-    -- (a spell the rules leave quiet: Off, as the picker says it)
-    HUI.PickFeel(anchor, (off or not plan.feel) and "off" or plan.feel, function(feel)
-        if feel == "off" then
-            if plan.ruleFeel then O.SetOn(plan.name, false) else O.SetFeel(plan.name, nil) end
-        elseif feel == plan.ruleFeel then
-            O.SetFeel(plan.name, nil)
-        else
-            O.SetFeel(plan.name, feel)
-        end
+    HUI.PickFeel(anchor, plan.feel, function(feel)
+        O.SetFeel(plan.name, feel ~= plan.ruleFeel and feel or nil)
         Refresh()
-    end, { OFF }, plan.name)
+    end, {}, plan.name)
+end
+
+-- A spell row's switch: the spell's own (Feel), its moment's own light or sound (a
+-- linked one: none, it's its moment's)
+local function SpellSwitch(row, on, anchor)
+    local plan = row.plan
+    if not plan then return end
+    if ui.kind == "feel" then ns.SpellOverrides.SetOn(plan.name, on)
+    elseif row.key and not row.linked then ITEM[ui.kind].setOn(row.key, on, anchor) end
+    Refresh()
 end
 
 local function BuildSpells(panel, cw)
@@ -1980,6 +2000,7 @@ local function BuildSpells(panel, cw)
                         if Sound() then return Vol.SetSound(row.key, v) end
                         if row.plan then O.SetVolume(row.plan.name, v) end
                     end },
+                switch = function(on, anchor) SpellSwitch(row, on, anchor) end,
                 pg = pg,
             })
         row:Hide()
@@ -2013,10 +2034,16 @@ local function BuildSpells(panel, cw)
                     local name, icon, off, rgb, sub, isDefault, key, linked = SpellChoice(plan, kind)
                     row.key, row.linked = key, linked
                     row:SetChoice(name, icon, sub, off, rgb, isDefault)
+                    -- (its switch: its own feel, light or sound; a linked one and a quiet spell have none.
+                    -- Its volume while it has something to play, kept (dimmed) while off)
+                    local own = kind == "feel" and not Linked(plan) and (plan.moment == "spell" or plan.feel ~= nil)
+                        or kind ~= "feel" and key ~= nil and not linked
                     if row.level then
-                        row.level:SetShown(not off and (kind == "feel" and not Linked(plan) or kind == "sound" and key ~= nil and not linked))
+                        row.level:SetShown(own and (kind == "feel" or kind == "sound" and C.KeptSound(key) ~= nil))
                     end
                     if row.try then row.try:SetShown(not off) end
+                    row.switch:SetShown(own)
+                    row.switch:SetChecked(not off)
                     row:SetMarks({})
                     row:SetAlpha(live and 1 or 0.55)
                 end
@@ -2457,8 +2484,9 @@ RefreshRow = function(row)
     local name, icon, sub, off, rgb = I.show(row.key)
     row:SetChoice(name, icon, sub, off, rgb, I.isDefault(row.key) and VolumeDefault(row.kind, row.key, true))
     if row.ShowLevel then row.ShowLevel() end
-    -- (nothing plays: no volume, no Try)
-    if row.level then row.level:SetShown(not off) end
+    -- (off: nothing plays, no Try; its volume kept, dimmed)
+    if row.switch then row.switch:SetChecked(I.on(row.key) == true) end
+    if row.level then row.level:Show() end
     if row.try then row.try:SetShown(not off) end
     if row.edit then
         -- Shape, always: in WoW Helper; dim when it can't go there (Edit in Lab when Lab is on)

@@ -213,19 +213,29 @@ function C.HasHD(feelKey)
 end
 
 ---------------------------------------------------------------------------
--- A moment's sound: chosen (an id), none (false), else its default
+-- A moment's sound: chosen (an id), else its default. Its switch apart, the sound
+-- kept while off (link.soundOff: true off, false on; nil: its default's)
 ---------------------------------------------------------------------------
+local moved = setmetatable({}, { __mode = "k" })
 local function SoundDB()
     local db = H.DB()
     if type(db.link) ~= "table" then db.link = {} end
     if type(db.link.sounds) ~= "table" then db.link.sounds = {} end
-    local s = db.link.sounds
+    if type(db.link.soundOff) ~= "table" then db.link.soundOff = {} end
+    local s, off = db.link.sounds, db.link.soundOff
     -- (a sound picked for "Casting", 72, never a cue's now: Spell casting's, unless it has one)
     if s.cast ~= nil then
         if s.spell == nil then s.spell = s.cast end
         s.cast = nil
     end
-    return s
+    -- (before 0.75 Off was a sound, false: now switched off, its default kept; once a table)
+    if not moved[s] then
+        moved[s] = true
+        for k, v in pairs(s) do
+            if v == false then s[k], off[k] = nil, true end
+        end
+    end
+    return s, off
 end
 
 -- (a sub-moment, a spell's "spell:instant:Frost Nova": saved by its owner,
@@ -243,8 +253,27 @@ function C.MomentSound(key)
         if type(v) == "number" then return v end
         return C.MomentSound(parent)
     end
+    if not C.SoundOn(key) then return nil end
+    return C.KeptSound(key)
+end
+
+-- A profile's Recommended with no sound for it (fresh: "false")
+local function DefaultOff(key)
+    local P = ns.Profiles
+    return P and P.FreshOf and P.FreshOf("sounds", key) == false or false
+end
+
+-- The sound a moment plays when on (kept while it's off)
+function C.KeptSound(key)
+    local parent, name, O = Sub(key)
+    if O then
+        local own = O.Field(name, "sound")
+        if type(own) == "number" then return own end
+        own = O.Field(name, "soundKept")
+        if type(own) == "number" then return own end
+        return C.KeptSound(parent)
+    end
     local v = SoundDB()[key]
-    if v == false then return nil end
     if type(v) == "number" then return v end
     -- (an action, "gather:mining", "craft:cooking": its kind's until it has its own. Not the
     -- fishing cast: a throw, not a strike; WoW Helper adds the cast's own whoosh when it has none)
@@ -253,8 +282,36 @@ function C.MomentSound(key)
     if parent and key ~= "gather:fishing" then return C.MomentSound(parent) end
     local P = ns.Profiles
     local name = P and P.FreshOf and P.FreshOf("sounds", key)
-    if name == nil then name = C.DEFAULT_SOUND[key] end
+    if not name then name = C.DEFAULT_SOUND[key] end
     return name and K.SOUNDS[name] or nil
+end
+
+-- Its switch (a spell's sub-moment: its own field, false off)
+function C.SoundOn(key)
+    local _, name, O = Sub(key)
+    if O then return O.Field(name, "sound") ~= false end
+    local _, off = SoundDB()
+    if off[key] ~= nil then return not off[key] end
+    return not DefaultOff(key)
+end
+function C.SetSoundOn(key, on)
+    local _, name, O = Sub(key)
+    if O then
+        -- (a spell's sound off: false, its own kept beside; on: its own back, else its moment's)
+        local own = O.Field(name, "sound")
+        if not on then
+            if type(own) == "number" then O.SetField(name, "soundKept", own) end
+            return O.SetField(name, "sound", false)
+        end
+        if own == false then
+            O.SetField(name, "sound", O.Field(name, "soundKept"))
+            O.SetField(name, "soundKept", nil)
+        end
+        return
+    end
+    local _, off = SoundDB()
+    on = on and true or false
+    if on == not DefaultOff(key) then off[key] = nil else off[key] = not on end
 end
 
 -- The game's sounds WoW Helper adds on the pad's speaker when a moment's cue carries no sound
@@ -267,18 +324,26 @@ function C.HelperSound(key)
     return C.HELPER_SOUND[key]
 end
 
--- id: a sound, false: none, nil: its default
+-- id: a sound (on), nil: its default; false: switched off, the sound kept
 function C.SetMomentSound(key, id)
     if id ~= nil and id ~= false and type(id) ~= "number" then return end
     local _, name, O = Sub(key)
-    if O then return O.SetField(name, "sound", id) end
-    SoundDB()[key] = id
+    if O then
+        if id == false then return C.SetSoundOn(key, false) end
+        O.SetField(name, "soundKept", nil)
+        return O.SetField(name, "sound", id)
+    end
+    if id == false then return C.SetSoundOn(key, false) end
+    local s, off = SoundDB()
+    s[key] = id
+    if id == nil then off[key] = nil else C.SetSoundOn(key, true) end
 end
 
 function C.IsSoundDefault(key)
     local _, name, O = Sub(key)
-    if O then return O.Field(name, "sound") == nil end
-    return SoundDB()[key] == nil
+    if O then return O.Field(name, "sound") == nil and O.Field(name, "soundKept") == nil end
+    local s, off = SoundDB()
+    return s[key] == nil and off[key] == nil
 end
 
 -- The sound `key` plays now: the spell playing it's own, else its own

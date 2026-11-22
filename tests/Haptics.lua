@@ -883,20 +883,21 @@ do
             if type(rawget(f, "label")) == "table" and f.label.text == label and f:IsVisible() then return f end
         end
     end
-    -- an event row (Hit taken): its plate opens the palette, Off on top
-    local plate
+    -- an event row (Hit taken): its switch off keeps its feel; its plate opens the palette, no Off in it
+    local plate, hitRow
     for _, f in ipairs(created) do
-        if rawget(f, "pick") and rawget(f, "kind") == "l" and f.key == "hitTaken" then plate = f.pick end
+        if rawget(f, "pick") and rawget(f, "kind") == "l" and f.key == "hitTaken" then plate, hitRow = f.pick, f end
     end
     assert(plate, "Hit taken row")
+    local was = L.EventSettings("hitTaken").feel
+    assert(hitRow.switch and hitRow.switch:GetChecked() == true, "its switch, on")
+    hitRow.switch:SetChecked(false); hitRow.switch.scripts.OnClick(hitRow.switch)
+    assert(L.EventSettings("hitTaken").on == false and L.EventSettings("hitTaken").feel == was, "switched off, its feel kept")
+    assert(hitRow.pick.label.text ~= "Off" and hitRow.switch:GetChecked() == false, "the plate keeps its feel's name")
     plate.scripts.OnClick(plate)
     local pw = GamepadCompanionPalette
     assert(pw and pw:IsShown(), "the palette")
-    local off = pw.pal.specialTiles[1]
-    assert(off and off.key == "off", "Off first")
-    off.scripts.OnClick(off, "LeftButton")
-    assert(L.EventSettings("hitTaken").on == false, "set Off")
-    plate.scripts.OnClick(plate)
+    for _, t in ipairs(pw.pal.specialTiles) do assert(not (t:IsShown() and t.key == "off"), "no Off in the palette") end
     pw.pal:ShowGroup("Basics")
     local tick
     for _, t in ipairs(pw.pal.tiles) do if t:IsShown() and t.key == "r_tick" then tick = t end end
@@ -953,22 +954,27 @@ do
         for _, t in ipairs(GamepadCompanionBetaFeels.tiles) do if t.label.text == label and t:IsShown() then return t end end
     end
     assert(not critLight.level and not critLight.edit, "strength in the picker, no Edit on a light")
-    -- Sound: every moment, loot's coin by default, None
+    -- Sound: every moment, loot's coin by default; its switch off keeps the coin, no Off to pick
     M.SetKind("sound")
     M.browser.Select("Progress")
     local loot = row("sound", "loot")
     assert(loot:IsVisible() and loot.pick.label.text == "Coin" and not loot.edit, "loot: Coin, no Edit")
     loot.pick.scripts.OnClick(loot.pick)
-    tile("Off").scripts.OnClick(tile("Off"))
-    assert(ns.HelperCues.MomentSound("loot") == nil, "Off")
+    assert(not tile("Off"), "no Off in the sounds")
+    ns.HapticsUI.HidePopup()
+    local coin = ns.HelperCues.MomentSound("loot")
+    loot.switch:SetChecked(false); loot.switch.scripts.OnClick(loot.switch)
+    assert(ns.HelperCues.MomentSound("loot") == nil and ns.HelperCues.KeptSound("loot") == coin, "switched off, its coin kept")
+    assert(loot.pick.label.text == "Coin" and loot.switch:GetChecked() == false, "the plate still says Coin")
     loot.default.scripts.OnClick(loot.default)
-    assert(ns.HelperCues.MomentSound("loot") ~= nil, "back to its coin")
+    assert(ns.HelperCues.MomentSound("loot") == coin, "back to its coin")
     -- Default: as it ships, and Undo for a while
     local offer = ns.ShellWindow().offer
     assert(offer and offer:IsShown() and offer.label.text == "Undo", "as it ships · Undo")
     offer.scripts.OnClick(offer)
-    assert(ns.HelperCues.MomentSound("loot") == nil, "Undo: None again")
-    loot.default.scripts.OnClick(loot.default)
+    assert(ns.HelperCues.MomentSound("loot") == nil and ns.HelperCues.KeptSound("loot") == coin, "Undo: off again, coin kept")
+    loot.switch:SetChecked(true); loot.switch.scripts.OnClick(loot.switch)
+    assert(ns.HelperCues.MomentSound("loot") == coin, "switched on: its coin")
     -- one group per moment, whichever kind: feel, light and sound agree
     do
         local groupOf = {}

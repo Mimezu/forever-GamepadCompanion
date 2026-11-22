@@ -68,8 +68,6 @@ local function Build()
     pop.heads, pop.tiles, pop.swatches, pop.dots, pop.pats = {}, {}, {}, {}, {}
     pop:Hide()
     S.Popup(pop, "GamepadCompanionLightPicker", { outside = true })
-    pop.off = S.NewButton(pop, "Off", 0, 0, 70, nil, nil, 12, 26)
-    pop.off.label:SetTextColor(1, 0.48, 0.36)
     pop.try = S.NewButton(pop, "Try", 0, 0, 70, nil, nil, 12, 26)
     pop.colourHead = S.Text(pop, "Colour", 14, 0, 80, 11, DIM)
     pop.strengthHead = S.Text(pop, "Strength", 14, 0, 80, 11, DIM)
@@ -269,18 +267,11 @@ function LP.Open(anchor, key, onChange)
         pop.dotsHead:SetText("Dots")
         pop.micHead:SetText("Mic · orange")
     end
-    -- Off, Try
+    -- Try (Off: the row's switch)
     local width = 24 + COLS * (TILE_W + 3)
     pop.try:ClearAllPoints()
     pop.try:SetPoint("TOPRIGHT", -12, strengthY + 4)   -- (on the strength row)
     pop.try:SetScript("OnClick", function() LT.Try(key) end)
-    pop.off:ClearAllPoints()
-    pop.off:SetPoint("RIGHT", pop.try, "LEFT", -6, 0)
-    pop.off:SetScript("OnClick", function()
-        LT.Own(key).on = false
-        Changed()
-        pop:Hide()
-    end)
     y = y + 8
     pop:SetSize(width, -y + 8)
     pop.title:SetWidth(width - 56)
