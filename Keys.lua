@@ -338,7 +338,13 @@ end
 -- The red message, however the game shows it (its error event, or straight
 -- into the error frame)
 local function Said(text)
-    if text == ERROR_NO_FRAME_TO_FOCUS or text == "No interface frame to focus!" then Keys.Snapshot("NO FRAME TO FOCUS") end
+    if text == ERROR_NO_FRAME_TO_FOCUS or text == "No interface frame to focus!" then
+        Keys.Snapshot("NO FRAME TO FOCUS")
+        -- (who asked for Focus UI: a binding, a Blizzard footer button, the map...; the
+        -- bindings read back can't say, 2026-11-21)
+        local stack = debugstack and debugstack(2, 14, 0) or "?"
+        Trace("STACK " .. (stack:gsub("\n", " | ")), "errors")
+    end
 end
 if UIErrorsFrame then
     for _, method in ipairs({ "AddMessage", "AddExternalErrorMessage" }) do
@@ -349,8 +355,11 @@ end
 -- One command on key, on the keys' owner (nil: none of ours there)
 local function Put(key, command)
     local name = command and command:match("^CLICK " .. Keys.BUTTON .. ":(%w+)$")
+    -- (a command and a click on one key, one owner, can be two entries for the game: the
+    -- Focus UI command read back as Create's click and ran under it, 2026-11-21. Cleared first)
+    SetOverrideBinding(owner, true, key, nil)
     if name then SetOverrideBindingClick(owner, true, key, Keys.BUTTON, name)
-    else SetOverrideBinding(owner, true, key, command) end
+    elseif command then SetOverrideBinding(owner, true, key, command) end
 end
 
 -- The held layer's bindings: each in place of the key's Base on the same
@@ -406,7 +415,9 @@ function Keys.Heal()
             -- 4 heals a second, every key rebound each time, 2026-11-21. Only
             -- our own click, or another command in its place, is wrong)
             local ourClick = should:find("^CLICK " .. Keys.BUTTON .. ":") ~= nil
-            if actual ~= should and (ourClick or actual ~= "") then stale = true end
+            -- (a held layer's Blizzard function reads back as what's under it: not stale)
+            local unread = extras[key] and not ourClick
+            if actual ~= should and not unread and (ourClick or actual ~= "") then stale = true end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
             stale = true
         end

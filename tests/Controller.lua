@@ -718,6 +718,18 @@ eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI in place of Base")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: still one")
 eq(Create(), CLICK_CREATE, "L2 up: Base back")
+-- (the game keeps a command and a click on one key as two entries: the Focus UI command ran
+-- under Create's click, 2026-11-21. Every change clears the key's command first)
+local cleared = 0
+local setNil = SetOverrideBinding
+SetOverrideBinding = function(owner, p, key, action, ...)
+    if key == "PADSOCIAL" and action == nil and owner == keyOwner then cleared = cleared + 1 end
+    return setNil(owner, p, key, action, ...)
+end
+pressed.PADLTRIGGER = true; Keys.Watch()
+pressed.PADLTRIGGER = nil; Keys.Watch()
+check(cleared >= 2, "the command cleared on the press and on the release: " .. cleared)
+SetOverrideBinding = setNil
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left
 -- with Focus UI by another owner. The moment the focus ends, Create is put right
