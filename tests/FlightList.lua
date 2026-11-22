@@ -95,12 +95,6 @@ eq(FL.Coins(5), "5" .. C, "copper only")
 eq(FL.Coins(0), "", "free")
 eq(FL.Coins(nil), "", "unknown")
 
--- Stops in words ---------------------------------------------------------------------
-eq(FL.Stops(1), "", "direct: nothing")
-eq(FL.Stops(2), "1 stop", "one stop")
-eq(FL.Stops(4), "3 stops", "stops")
-eq(FL.Stops(nil), "", "unknown: direct")
-
 -- Moving -------------------------------------------------------------------------------
 eq(FL.Step(1, 5, 1, true), 2, "down")
 eq(FL.Step(5, 5, 1, true), 1, "down wraps")
@@ -152,19 +146,6 @@ eq(FL.Tier(30, false), nil, "a hub")
 eq(FL.Fit(30, { 30, 40 }), 25, "fit: in range")
 eq(FL.Fit(30, nil), 8, "fit: unknown")
 eq(FL.Fit(60, { 1, 10 }, true), 8, "fit: a city never nothing")
-local counts = FL.QuestCounts({
-    { title = "The Barrens", header = true },
-    { title = "a", complete = nil }, { title = "b", complete = 1 }, { title = "c", complete = -1 },
-    { title = "Warrior", header = true }, { title = "class quest" },
-    { title = "Thunder Bluff", header = true }, { title = "d", complete = 1 },
-    { title = "Ashenvale", header = true }, { title = "e" },
-})
-eq(counts["The Barrens"].open, 2, "open (failed ones too)")
-eq(counts["The Barrens"].ready, 1, "ready to turn in")
-eq(counts.Warrior, nil, "not a zone: not counted")
-eq(counts.Mulgore.ready, 1, "a city's quests: its zone")
-eq(counts.Ashenvale.open, 1, "another zone")
-eq(next(FL.QuestCounts({})), nil, "an empty log")
 
 -- Arranging (Thunder Bluff, level 30) ------------------------------------------------------
 local function N(i, name, dist, cost)
@@ -249,6 +230,57 @@ eq(FL.Find(rows, nil), nil, "none yet")
 -- nearest view: the jumps land on the zone's nearest
 rows = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, quests = ctx.quests })
 eq(rows[FL.Jump(rows, 1, "open")].node.place, "Camp Taurajo", "nearest view: the zone's nearest")
+
+-- Quests to flight paths ------------------------------------------------------------------
+local places = { ["The Barrens"] = { { name = "Crossroads, The Barrens", x = 0.5, y = 0.3 }, { name = "Ratchet, The Barrens", x = 0.6, y = 0.4 } } }
+local zq, pq = FL.Tally({
+    { ready = true, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.52, y = 0.31 } } },
+    { ready = false, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.61, y = 0.42 } } },
+    { ready = false, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.59, y = 0.39 } } },
+    { ready = false, zone = "The Barrens", points = {} },
+    { ready = true, zone = nil, points = { { zone = "Durotar", x = 0.1, y = 0.1 }, { zone = "The Barrens", x = 0.5, y = 0.2 } } },
+    { ready = false, zone = "Ashenvale", points = { { zone = "Ashenvale", x = 0.5, y = 0.5 } } },
+    { ready = false, zone = nil, points = {} },
+}, places)
+eq(pq["Crossroads, The Barrens"].ready, 2, "turn-ins to the nearest path (a point in a zone without paths skipped)")
+eq(pq["Ratchet, The Barrens"].open, 2, "quests to do to the nearest path")
+eq(pq["Crossroads, The Barrens"].open, 0, "none to do there")
+eq(zq["The Barrens"].open, 3, "the zone: every quest in it, with a point or not")
+eq(zq["The Barrens"].ready, 2, "the zone's turn-ins")
+eq(zq.Ashenvale.open, 1, "a zone without paths read: its log zone")
+eq(next(select(2, FL.Tally({}, {}))), nil, "no quests")
+
+-- Rows carry their path's quests; L2 / R2 go to the paths with the most -----------------------
+local rq = FL.Arrange(tb, { zone = "Mulgore", level = 30,
+    quests = { ["The Barrens"] = { open = 3, ready = 1 }, ["Ashenvale"] = { open = 1, ready = 0 } },
+    places = { ["Crossroads, The Barrens"] = { open = 1, ready = 1 }, ["Camp Taurajo, The Barrens"] = { open = 2, ready = 0 },
+        ["Splintertree Post, Ashenvale"] = { open = 1, ready = 0 } } })
+local at = {}
+for i, r in ipairs(rq) do if r.node then at[r.node.place] = i end end
+eq(rq[at["Crossroads"]].ready, 1, "a row's turn-ins")
+eq(rq[at["Camp Taurajo"]].open, 2, "a row's quests to do")
+eq(rq[at["Orgrimmar"]].open, 0, "none: zero")
+eq(FL.Jump(rq, 2, "ready"), at["Crossroads"], "L2: the path with turn-ins")
+eq(FL.Jump(rq, at["Crossroads"], "ready"), at["Crossroads"], "the only one: stays")
+eq(FL.Jump(rq, 2, "open"), at["Camp Taurajo"], "R2: the path with the most to do")
+local nx = FL.Jump(rq, at["Camp Taurajo"], "open")
+check(nx == at["Crossroads"] or nx == at["Splintertree Post"], "R2 again: the next path with quests")
+check(FL.Jump(rq, nx, "open") ~= nx, "and on, round")
+
+-- L2 / R2 presses ------------------------------------------------------------------------------
+local t = { lt = false, rt = false, at = -1 }
+eq(FL.Press(t, false, false, 1), nil, "up: nothing")
+eq(FL.Press(t, true, false, 2), "ready", "L2 down: turn-ins")
+eq(FL.Press(t, true, false, 2.1), nil, "held: once")
+eq(FL.Press(t, true, true, 2.1), nil, "R2 down too soon after: nothing")
+eq(FL.Press(t, false, false, 3), nil, "both up")
+eq(FL.Press(t, false, true, 3.5), "open", "R2 down: quests")
+eq(FL.Press(t, nil, nil, 4), nil, "no pad to read: nothing")
+eq(FL.Tap(t, "ready", 3.6), nil, "the button's own press, same moment: not twice")
+eq(FL.Tap(t, "ready", 4), "ready", "the button's own press alone")
+eq(FL.Tap(t, nil, 5), nil, "no trigger")
+local u = { lt = true, rt = false, at = -1 }
+eq(FL.Press(u, true, false, 1), nil, "held when the map opened: no press")
 
 -- Settings ----------------------------------------------------------------------------------
 eq(FL.Wanted(true, true, true), true, "shown: on, gamepad UI, map open")

@@ -230,3 +230,4 @@ CollapseQuestHeader
 ExpandQuestHeader
 GetNumQuestLogEntries
 GetQuestLogTitle
+C_TaxiMap

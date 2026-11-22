@@ -75,23 +75,6 @@ function FL.Fit(L, range, city)
     return fit
 end
 
--- The quest log's entries { title, header, complete } -> { [zone] = { open, ready } };
--- headers that are no zone (class, dungeon, ...) and their quests count for nothing
-function FL.QuestCounts(entries)
-    local counts, zone = {}, nil
-    for _, e in ipairs(entries or {}) do
-        if e.header then
-            zone = FL.ZoneName(e.title)
-            if FL.ZONES[zone] == nil then zone = nil end
-        elseif zone then
-            local c = counts[zone] or { open = 0, ready = 0 }
-            counts[zone] = c
-            if e.complete == 1 then c.ready = c.ready + 1 else c.open = c.open + 1 end
-        end
-    end
-    return counts
-end
-
 -- "Ironforge, Dun Morogh" -> "Ironforge", "Dun Morogh"; no comma: name, nil
 function FL.SplitName(name)
     name = tostring(name or "")
@@ -160,11 +143,51 @@ function FL.Coins(copper)
     return table.concat(parts, "  ")
 end
 
--- Stops on the way, in words: hops 1 (direct): ""; 2: "1 stop"; 3: "2 stops"
-function FL.Stops(hops)
-    local n = math.max(0, (tonumber(hops) or 1) - 1)
-    if n == 0 then return "" end
-    return n == 1 and "1 stop" or (n .. " stops")
+FL.DOTS = 5   -- dots of each kind on a row, at most
+
+-- Each quest to its flight path: quests = { { ready, zone (its log header's), points =
+-- { { zone, x, y } } } }, places[zone] = { { name, x, y } } on that zone's map.
+-- A quest goes to the flight path nearest its first point in a zone with flights; no such point:
+-- its log zone only. -> per zone { open, ready }, per flight path (name) { open, ready }
+function FL.Tally(quests, places)
+    local zones, paths = {}, {}
+    local function Add(t, key, ready)
+        local c = t[key] or { open = 0, ready = 0 }
+        t[key] = c
+        if ready then c.ready = c.ready + 1 else c.open = c.open + 1 end
+    end
+    for _, q in ipairs(quests or {}) do
+        local zone, near = q.zone, nil
+        for _, pt in ipairs(q.points or {}) do
+            local best, bd = nil, nil
+            for _, n in ipairs((places or {})[pt.zone] or {}) do
+                local dx, dy = n.x - pt.x, n.y - pt.y
+                local d = dx * dx + dy * dy
+                if not bd or d < bd then best, bd = n.name, d end
+            end
+            if best then zone, near = pt.zone, best; break end
+        end
+        if zone then Add(zones, zone, q.ready) end
+        if near then Add(paths, near, q.ready) end
+    end
+    return zones, paths
+end
+
+-- L2 / R2 read from the pad: t = { lt, rt, at } (what they were, the last press's time);
+-- a press is a trigger going down, a quarter second after the last one.
+-- -> "ready" (L2), "open" (R2) or nil
+function FL.Press(t, lt, rt, now)
+    if lt == nil and rt == nil then return nil end
+    local key = (lt and not t.lt and "ready") or (rt and not t.rt and "open") or nil
+    t.lt, t.rt = lt and true or false, rt and true or false
+    return FL.Tap(t, key, now)
+end
+
+-- A press of key, unless one came a quarter second ago (the button and the pad's state both see it)
+function FL.Tap(t, key, now)
+    if not key or (now or 0) - (t.at or -1) < 0.25 then return nil end
+    t.at = now or 0
+    return key
 end
 
 -- One row on: wrap = true goes round the ends, else stops there
@@ -176,7 +199,7 @@ function FL.Step(sel, n, delta, wrap)
 end
 
 -- The rows: zone groups ("zones") or one list ("near"), and the row to start on.
--- ctx = { view, zone (yours), level, money, last (a node's name), quests = FL.QuestCounts,
+-- ctx = { view, zone (yours), level, money, last (a node's name), quests (per zone) and places (per flight path) = FL.Tally,
 -- ranges = FL.ZONES }. Rows: { kind = "header", g } or { kind = "flight", node, g };
 -- g = { zone, range, tier, open, ready, score, dim }.
 -- A group's score: turn-ins, open quests, the level's fit, the last place flown to, near;
@@ -213,8 +236,12 @@ function FL.Arrange(nodes, ctx)
             + (g.zone == lastZone and 5 or 0) - 20 * g.minDist - (g.afford and 0 or 1000)
     end
     local rows = {}
+    local function Flight(node, g)
+        local q = (ctx.places or {})[node.name] or {}
+        return { kind = "flight", node = node, g = g, open = q.open or 0, ready = q.ready or 0 }
+    end
     if ctx.view == "near" then
-        for _, node in ipairs(flights) do rows[#rows + 1] = { kind = "flight", node = node, g = byZone[FL.ZoneName(node.zone) or node.place] } end
+        for _, node in ipairs(flights) do rows[#rows + 1] = Flight(node, byZone[FL.ZoneName(node.zone) or node.place]) end
         return rows, #rows > 0 and 1 or nil
     end
     local here = FL.ZoneName(ctx.zone)
@@ -227,7 +254,7 @@ function FL.Arrange(nodes, ctx)
     end)
     for _, g in ipairs(groups) do
         rows[#rows + 1] = { kind = "header", g = g }
-        for _, node in ipairs(g.nodes) do rows[#rows + 1] = { kind = "flight", node = node, g = g } end
+        for _, node in ipairs(g.nodes) do rows[#rows + 1] = Flight(node, g) end
     end
     -- (the first flight: the nearest in your zone, else in the best zone)
     return rows, #rows > 1 and 2 or nil
@@ -278,9 +305,24 @@ function FL.Zone(rows, sel, dir)
     return FirstOf(rows, gs[(pos - 1 + dir) % #gs + 1])
 end
 
--- The zone with the most key ("ready" turn-ins, "open" quests): its first flight; again from
--- there, the next such zone, round; nil when no zone has any
+-- L2 / R2: the flight path with the most key ("ready" turn-ins, "open" quests to do) near it;
+-- again, the next one, round. No path known for any: the zone with the most, its first flight.
+-- nil when none has any
 function FL.Jump(rows, sel, key)
+    local cands = {}
+    for i, r in ipairs(rows) do if r.kind == "flight" and (r[key] or 0) > 0 then cands[#cands + 1] = i end end
+    if #cands > 0 then
+        table.sort(cands, function(a, b)
+            local ra, rb = rows[a], rows[b]
+            if ra[key] ~= rb[key] then return ra[key] > rb[key] end
+            local sa, sb = ra.g and ra.g.score or 0, rb.g and rb.g.score or 0
+            if sa ~= sb then return sa > sb end
+            return a < b
+        end)
+        local pos = 0
+        for p, i in ipairs(cands) do if i == sel then pos = p end end
+        return cands[pos % #cands + 1]
+    end
     local gs = {}
     for _, g in ipairs(Groups(rows)) do if (g[key] or 0) > 0 then gs[#gs + 1] = g end end
     if #gs == 0 then return nil end
@@ -375,7 +417,7 @@ end
 if not CreateFrame then return end
 
 local function Pass(ok, ...) if ok then return ... end end
--- (every return passed on: GetQuestLogTitle's isComplete is its sixth)
+-- (every return passed on: a game call can return more than five)
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
     return Pass(pcall(fn, ...))
@@ -399,8 +441,8 @@ local TIERS = {
     red = { 0.66, 0.08, 0.04 }, orange = { 0.72, 0.36, 0.04 }, yellow = { 0.52, 0.40, 0.00 },
     green = { 0.14, 0.42, 0.08 }, grey = { 0.45, 0.42, 0.38 },
 }
-local OPEN_ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
-local READY_ICON = "Interface\\GossipFrame\\ActiveQuestIcon"
+local READY_DOT = { 1.00, 0.78, 0.18 }   -- a quest to turn in: gold
+local OPEN_DOT = { 0.42, 0.25, 0.08 }    -- a quest to do: brown
 local RING = "ChallengeMode-AffixRing-Sm"
 local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local GLOW = "Interface\\TaxiFrame\\UI-Taxi-Icon-Highlight"
@@ -490,12 +532,17 @@ thumb:SetColorTexture(INK[1], INK[2], INK[3], 0.35)
 local slots = {}
 local Select, Fly   -- (below)
 
-local function Badge(parent, icon)
+-- a dot: gold, a quest to turn in; brown, a quest to do
+local function Dot(parent, color, size)
     local t = parent:CreateTexture(nil, "ARTWORK")
-    t:SetTexture(icon)
-    t:SetSize(15, 15)
-    local n = Text(parent, BODY_FONT, 11, INK, "LEFT")
-    return t, n
+    t:SetTexture(DISC)
+    t:SetSize(size, size)
+    t:SetVertexColor(color[1], color[2], color[3], 1)
+    return t
+end
+
+local function Badge(parent, color)
+    return Dot(parent, color, 8), Text(parent, BODY_FONT, 11, INK, "LEFT")
 end
 
 local function Slot(i)
@@ -520,11 +567,12 @@ local function Slot(i)
     r.pointer:SetVertexColor(0.30, 0.16, 0.04, 1)
     r.place = Text(r, BODY_FONT, 12, INK)
     r.cost = Text(r, BODY_FONT, 11, INK, "RIGHT")
-    -- stops on the way, in words, by the cost ("2 stops"; none: direct)
-    r.stops = Text(r, BODY_FONT, 9, FADED, "RIGHT")
     r.zone = Text(r, BODY_FONT, 10, FADED)
     r.zone:SetPoint("TOPLEFT", r.place, "BOTTOMLEFT", 0, -2)
     r.zone:SetPoint("RIGHT", r, "RIGHT", -60, 0)
+    -- the quests near this flight path: a gold dot each to turn in, a brown dot each to do
+    r.dots = {}
+    for d = 1, 2 * FL.DOTS do r.dots[d] = Dot(r, d <= FL.DOTS and READY_DOT or OPEN_DOT, 6) end
     -- a zone's row: its name and levels, its quests, a hairline
     r.head = CreateFrame("Frame", nil, r)
     r.head:SetAllPoints()
@@ -532,8 +580,8 @@ local function Slot(i)
     r.head.name:SetPoint("BOTTOMLEFT", 6, 4)
     r.head.range = Text(r.head, BODY_FONT, 10, INK)
     r.head.range:SetPoint("BOTTOMLEFT", r.head.name, "BOTTOMRIGHT", 6, 1)
-    r.head.readyIcon, r.head.ready = Badge(r.head, READY_ICON)
-    r.head.openIcon, r.head.open = Badge(r.head, OPEN_ICON)
+    r.head.readyIcon, r.head.ready = Badge(r.head, READY_DOT)
+    r.head.openIcon, r.head.open = Badge(r.head, OPEN_DOT)
     r.head.line = r.head:CreateTexture(nil, "ARTWORK")
     r.head.line:SetHeight(1)
     r.head.line:SetPoint("BOTTOMLEFT", 4, 1)
@@ -545,7 +593,7 @@ local function Slot(i)
     return r
 end
 
--- the badges, right to left: turn-ins nearest the edge, then open quests
+-- the zone's totals, right to left: turn-ins nearest the edge, then quests to do
 local function Badges(h, g)
     local right = -2
     for _, b in ipairs({ { h.readyIcon, h.ready, g.ready }, { h.openIcon, h.open, g.open } }) do
@@ -557,40 +605,63 @@ local function Badges(h, g)
             num:ClearAllPoints()
             num:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", right, 5)
             icon:ClearAllPoints()
-            icon:SetPoint("RIGHT", num, "LEFT", -1, 1)
-            right = right - (num:GetStringWidth() or 8) - 22
+            icon:SetPoint("RIGHT", num, "LEFT", -2, 0)
+            right = right - (num:GetStringWidth() or 8) - 16
         end
     end
+end
+
+local function HideDots(r) for _, d in ipairs(r.dots) do d:Hide() end end
+
+-- the dots right to left from x (px from the row's right edge), y from its top; their width
+local function DrawDots(r, row, x, y)
+    HideDots(r)
+    local ready, open = math.min(FL.DOTS, row.ready or 0), math.min(FL.DOTS, row.open or 0)
+    local n = 0
+    for k = open, 1, -1 do
+        local d = r.dots[FL.DOTS + k]
+        d:ClearAllPoints()
+        d:SetPoint("CENTER", r, "TOPRIGHT", x - 3 - n * 7, y)
+        d:Show()
+        n = n + 1
+    end
+    if ready > 0 and open > 0 then n = n + 0.5 end
+    for k = ready, 1, -1 do
+        local d = r.dots[k]
+        d:ClearAllPoints()
+        d:SetPoint("CENTER", r, "TOPRIGHT", x - 3 - n * 7, y)
+        d:Show()
+        n = n + 1
+    end
+    return n * 7
 end
 
 local function DrawFlight(r, row, at)
     local node, two = row.node, state.view == "near"
     r.head:Hide()
     r:EnableMouse(true)
-    -- one line (zones): place, stops, cost; two (nearest): the zone under the place, stops under the cost
+    r.cost:SetText(FL.Coins(node.cost))
+    local c = node.cost > (Call(GetMoney) or 0) and DEAR or INK
+    r.cost:SetTextColor(c[1], c[2], c[3])
     r.cost:ClearAllPoints()
-    r.stops:ClearAllPoints()
+    r.cost:Show()
     r.place:ClearAllPoints()
-    r.place:SetPoint("TOPLEFT", 14, two and -5 or -7)
+    local top = two and -5 or -7
+    r.place:SetPoint("TOPLEFT", 14, top)
+    -- one line (zones): place, dots, cost; two (nearest): the zone under the place, the dots under the cost
+    r.cost:SetPoint("TOPRIGHT", -2, top)
+    local costW = (r.cost:GetStringWidth() or 40)
     if two then
-        r.cost:SetPoint("TOPRIGHT", -2, -5)
-        r.stops:SetPoint("TOPRIGHT", r.cost, "BOTTOMRIGHT", 0, -3)
-        r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
+        DrawDots(r, row, -2, -24)
+        r.place:SetPoint("TOPRIGHT", r, "TOPRIGHT", -costW - 10, top)
     else
-        r.cost:SetPoint("TOPRIGHT", -2, -7)
-        r.stops:SetPoint("RIGHT", r.cost, "LEFT", -8, 0)
-        r.place:SetPoint("RIGHT", r.stops, "LEFT", -6, 0)
+        local w = DrawDots(r, row, -costW - 10, -12)
+        r.place:SetPoint("TOPRIGHT", r, "TOPRIGHT", -costW - 14 - w, top)
     end
-    r.stops:SetText(FL.Stops(node.hops))
-    r.stops:Show()
     r.place:SetText(node.place)
     r.place:SetAlpha(row.g and row.g.dim and 0.6 or 1)
     r.zone:SetShown(two)
     r.zone:SetText(node.zone or "")
-    r.cost:SetText(FL.Coins(node.cost))
-    local c = node.cost > (Call(GetMoney) or 0) and DEAR or INK
-    r.cost:SetTextColor(c[1], c[2], c[3])
-    r.cost:Show()
     local on = at == state.sel
     r.band:SetShown(on)
     r.edge:SetShown(on)
@@ -602,7 +673,8 @@ end
 local function DrawZone(r, row)
     local g, h = row.g, r.head
     r:EnableMouse(false)
-    r.band:Hide(); r.edge:Hide(); r.pointer:Hide(); r.place:SetText(""); r.zone:Hide(); r.cost:Hide(); r.stops:Hide()
+    r.band:Hide(); r.edge:Hide(); r.pointer:Hide(); r.place:SetText(""); r.zone:Hide(); r.cost:Hide()
+    HideDots(r)
     local c = TIERS[g.tier] or INK
     h.name:SetText(g.zone)
     h.name:SetTextColor(c[1], c[2], c[3])
@@ -822,7 +894,7 @@ local function Arrange(keep)
     local rows, start = FL.Arrange(state.nodes, {
         view = state.view, zone = state.here and state.here.zone or Call(GetZoneText),
         level = Call(UnitLevel, "player"), money = Call(GetMoney), quests = state.quests,
-        last = FL.LastFrom(state.here and state.here.name),
+        last = FL.LastFrom(state.here and state.here.name), places = state.places,
     })
     state.rows = rows
     state.sel = keep and FL.Find(rows, keep.name) or start
@@ -831,7 +903,9 @@ end
 
 -- The legend (Blizzard's glyphs, as the bank's bar): two lines -----------------
 local legends, prompts = nil, {}
-local function Mark(icon) return "|T" .. icon .. ":14:14|t" end
+local function Mark(c)
+    return ("|T%s:9:9:0:0:64:64:0:64:0:64:%d:%d:%d|t "):format(DISC, c[1] * 255, c[2] * 255, c[3] * 255)
+end
 local function MakeLegend(name, list)
     local L = _G.InputPromptLegends
     local l = L.CreateInputLegend(inner, name)
@@ -857,8 +931,8 @@ local function Legends()
             { "PAD4", "Nearest" },
         }), MakeLegend("legend2", {
             { "PAD3", "Again" },
-            { "PADLTRIGGER", Mark(READY_ICON) .. "Turn-ins" },
-            { "PADRTRIGGER", Mark(OPEN_ICON) .. "Quests" },
+            { "PADLTRIGGER", Mark(READY_DOT) .. "Turn-ins" },
+            { "PADRTRIGGER", Mark(OPEN_DOT) .. "Quests" },
         })
     end)
     if ok and a and b then legends = { a, b } end
@@ -926,6 +1000,17 @@ local ACTIONS = {
 }
 FL.ACTIONS = ACTIONS
 
+-- L2 / R2: only read, never taken or rebound (the game still gets the press: L2 its bar,
+-- R2 its Ctrl). Two ways in, one press: the pad's state (each frame) and the button's own press
+local trig = { lt = false, rt = false, at = -1 }
+local function Now() return GetTime and GetTime() or 0 end
+local function Jump(key) if key then Select(FL.Jump(state.rows, state.sel, key)) end end
+local function Triggers()
+    local lt, rt = Sh.Held()
+    Jump(FL.Press(trig, lt, rt, Now()))
+end
+FL.TRIGGERS = { PADLTRIGGER = "ready", PADRTRIGGER = "open" }
+
 local function Take(on)
     if on and InCombat() then on = false end
     if on then Call(panel.SetPropagateKeyboardInput, panel, true) end
@@ -934,6 +1019,8 @@ end
 
 panel:SetScript("OnGamePadButtonDown", function(self, button)
     if InCombat() then return end
+    -- (a trigger: read, passed on to the game as it is)
+    if FL.TRIGGERS[button] then Jump(FL.Tap(trig, FL.TRIGGERS[button], Now())); return end
     local act = ACTIONS[button]
     if not act then return end
     -- (this press stops here; from the next frame on, presses pass again)
@@ -945,21 +1032,6 @@ panel:SetScript("OnGamePadButtonDown", function(self, button)
     -- held up / down: on after a breath, stopping at the ends (no wrap)
     if REPEAT[button] then hold.key, hold.wait = button, 0.38 else hold.key = nil end
 end)
-
--- L2 / R2: only read, never taken or rebound (the game still gets the press: L2 its bar,
--- R2 its Ctrl); a press is the trigger going down, a quarter second after the last
-local trig = { lt = false, rt = false, at = 0 }
-local function Triggers()
-    local lt, rt = Sh.Held()
-    if lt == nil then return end
-    local now = GetTime and GetTime() or 0
-    local key = (lt and not trig.lt and "ready") or (rt and not trig.rt and "open") or nil
-    trig.lt, trig.rt = lt, rt
-    if key and now - trig.at >= 0.25 then
-        trig.at = now
-        Select(FL.Jump(state.rows, state.sel, key))
-    end
-end
 
 panel:SetScript("OnUpdate", function(_, elapsed)
     if InCombat() then hold.key = nil; return end
@@ -998,32 +1070,82 @@ local function Layout(taxi)
     state.viewH = math.max(3 * ROW_H.near, tall - HEAD_H - FOOT_H - 2)
 end
 
--- Quests per zone, from the log; closed zones opened to count, then closed again
-local function Quests()
-    local function Entry(i)
-        local title, _, _, isHeader, isCollapsed, isComplete = Call(GetQuestLogTitle, i)
-        return title, isHeader, isCollapsed, isComplete
+-- The quests, from the game's own quest log (C_QuestLog, as OpenMap reads them): each one's zone
+-- (its log header), ready or not, and its points on the zones' maps (GetQuestsOnMap: where to
+-- go, or the one to turn it in to); the flight paths on the same maps (C_TaxiMap)
+local zoneMaps   -- zone name -> uiMapID (the world's zones, once)
+local function ZoneMaps()
+    if zoneMaps then return zoneMaps end
+    zoneMaps = {}
+    local kind = _G.Enum and Enum.UIMapType and Enum.UIMapType.Zone or 3
+    local list = C_Map and Call(C_Map.GetMapChildrenInfo, 947, kind, true)
+    for _, info in ipairs(type(list) == "table" and list or {}) do
+        if type(info.name) == "string" and info.mapID and not zoneMaps[info.name] then zoneMaps[info.name] = info.mapID end
     end
-    if type(GetNumQuestLogEntries) ~= "function" then return {} end
-    local closed, any = {}, false
-    for i = 1, Call(GetNumQuestLogEntries) or 0 do
-        local title, isHeader, isCollapsed = Entry(i)
-        if isHeader and isCollapsed and title then closed[title] = true; any = true end
+    return zoneMaps
+end
+
+local function XY(pos)
+    if type(pos) ~= "table" then return nil end
+    if pos.x and pos.y then return pos.x, pos.y end
+    if pos.GetXY then return Call(pos.GetXY, pos) end
+end
+
+local function Quests(nodes)
+    local Q = _G.C_QuestLog
+    if not Q then return {}, {} end
+    local list, byId = {}, {}
+    local function Ready(id)
+        return (Call(Q.ReadyForTurnIn, id) or Call(Q.IsComplete, id)) and true or false
     end
-    local opened = any and type(ExpandQuestHeader) == "function" and pcall(ExpandQuestHeader, 0)
-    local entries, n = {}, Call(GetNumQuestLogEntries) or 0
+    local function Add(id, zone)
+        local q = { id = id, ready = Ready(id), zone = zone, points = {} }
+        list[#list + 1] = q
+        byId[id] = q
+        return q
+    end
+    -- the log: each quest under its zone's header
+    local n = Call(Q.GetNumQuestLogEntries) or 0
+    local zone
     for i = 1, n do
-        local title, isHeader, _, isComplete = Entry(i)
-        entries[i] = { title = title, header = isHeader and true or false, complete = isComplete }
-    end
-    if opened and type(CollapseQuestHeader) == "function" then
-        -- (from the end: closing one moves the rows after it)
-        for i = n, 1, -1 do
-            local title, isHeader = Entry(i)
-            if isHeader and closed[title] then pcall(CollapseQuestHeader, i) end
+        local info = Call(Q.GetInfo, i)
+        if type(info) == "table" then
+            if info.isHeader then
+                zone = FL.ZoneName(info.title)
+                if FL.ZONES[zone] == nil then zone = nil end
+            elseif info.questID and not info.isHidden and not byId[info.questID] then
+                Add(info.questID, zone)
+            end
         end
     end
-    return FL.QuestCounts(entries)
+    -- the zones with flights: their quests' points and their flight paths
+    local maps, places, seen = ZoneMaps(), {}, {}
+    for _, node in ipairs(nodes) do
+        local z = FL.ZoneName(node.zone) or node.place
+        local id = maps[z] or maps[node.zone or ""]
+        if not seen[z] and id then
+            seen[z] = true
+            places[z] = {}
+            local taxi = _G.C_TaxiMap and Call(C_TaxiMap.GetTaxiNodesForMap, id)
+            for _, info in ipairs(type(taxi) == "table" and taxi or {}) do
+                local place = FL.SplitName(info.name)
+                local x, y = XY(info.position)
+                for _, other in ipairs(nodes) do
+                    if other.place == place and x then places[z][#places[z] + 1] = { name = other.name, x = x, y = y } end
+                end
+            end
+            local pois = Call(Q.GetQuestsOnMap, id)
+            for _, poi in ipairs(type(pois) == "table" and pois or {}) do
+                local qid = poi.questID
+                if qid and poi.x and poi.y and not poi.isMapIndicatorQuest then
+                    local q = byId[qid]
+                    if not q and (not Q.IsOnQuest or Call(Q.IsOnQuest, qid)) then q = Add(qid, nil) end
+                    if q then q.points[#q.points + 1] = { zone = z, x = poi.x, y = poi.y } end
+                end
+            end
+        end
+    end
+    return FL.Tally(list, places)
 end
 
 function FL.Open()
@@ -1032,7 +1154,7 @@ function FL.Open()
     Layout(taxi)
     state.here, state.nodes = FL.Read(Api())
     state.view = FL.View()
-    state.quests = Quests()
+    state.quests, state.places = Quests(state.nodes)
     Arrange(nil)
     trig.lt, trig.rt = Sh.Held()
     trig.lt, trig.rt = trig.lt or false, trig.rt or false
