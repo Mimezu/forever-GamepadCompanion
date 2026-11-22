@@ -95,7 +95,16 @@ local function Push(key, entry)
     list[#list + 1] = entry
     overrides[key] = entry
 end
+-- (the game's gamepad functions live in a set of their own, binding context 9: another
+-- command put over one leaves it there; only clearing the key removes it. Login probe, 2026-11-22)
+local PAD_SET = { TOGGLEUIFOCUS = true, OPENRADIAL = true }
+local padSet = {}   -- key -> { owner, action }
+C_KeyBindings = { GetBindingByKey = function(key, context)
+    if context == 9 and padSet[key] then return padSet[key].action end
+    return overrides[key] and overrides[key].action or nil
+end }
 function ClearOverrideBindings(owner)
+    for key, b in pairs(padSet) do if b.owner == owner then padSet[key] = nil end end
     for key, list in pairs(stacks) do
         for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
         if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
@@ -110,7 +119,11 @@ local function Drop(owner, key)
     if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
 end
 function SetOverrideBinding(owner, _, key, action)
-    if action == nil then return Drop(owner, key) end
+    if action == nil then
+        if padSet[key] and padSet[key].owner == owner then padSet[key] = nil end
+        return Drop(owner, key)
+    end
+    if PAD_SET[action] then padSet[key] = { owner = owner, action = action } end
     Push(key, { owner = owner, action = action })
 end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
@@ -734,6 +747,14 @@ eq(Create(), CLICK_CREATE, "L2 up: the map")
 Keys.Apply(true)
 eq(Create(), CLICK_CREATE, "bound again: the map")
 eq(clicks, 0, "never a click entry on the keys' owner")
+pressed.PADLTRIGGER = true; Keys.Watch()
+pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "L2 up: no Focus UI left in the gamepad set under the map")
+-- (one left there anyway: the heal clears it)
+padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+check(Keys.Heal(), "Focus UI under the map: healed")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "healed: the map alone")
+check(not Keys.Heal(), "then nothing to heal")
 SetOverrideBindingClick = setClickNow
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left

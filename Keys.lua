@@ -355,38 +355,6 @@ local function Reads(key)
     return table.concat(out, " ")
 end
 Keys.Reads = Reads
-function Keys.Probe()
-    if InCombatLockdown and InCombatLockdown() then return end
-    local KB, key = C_KeyBindings, "PADPADDLE4"
-    local f = CreateFrame("Frame")
-    local lines = {}
-    local function Step(name) lines[#lines + 1] = name .. ": " .. Reads(key) end
-    if KB and KB.GetBindingContextForAction then
-        for _, a in ipairs({ "TOGGLEUIFOCUS", "OPENRADIAL", "TOGGLEWORLDMAP", "CLICK " .. Keys.BUTTON .. ":p5" }) do
-            local ok, v = pcall(KB.GetBindingContextForAction, a)
-            lines[#lines + 1] = "context " .. a .. " = " .. tostring(ok and v)
-        end
-    end
-    local click = "CLICK " .. Keys.BUTTON .. ":p8"
-    Step("start")
-    SetOverrideBinding(f, true, key, click); Step("click")
-    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus over click")
-    SetOverrideBinding(f, true, key, click); Step("click again")
-    SetOverrideBinding(f, true, key, nil); Step("nil")
-    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
-    SetOverrideBinding(f, true, key, ""); Step("empty string")
-    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
-    ClearOverrideBindings(f); Step("ClearOverrideBindings")
-    SetOverrideBinding(f, true, key, "TOGGLEUIFOCUS"); Step("focus")
-    SetOverrideBinding(f, true, key, "OPENRADIAL"); Step("radial over focus")
-    ClearOverrideBindings(f); Step("cleared")
-    SetOverrideBinding(f, false, key, "TOGGLEUIFOCUS"); Step("focus, not priority")
-    SetOverrideBinding(f, false, key, nil); Step("nil, not priority")
-    ClearOverrideBindings(f); Step("end")
-    if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
-    GamepadCompanionTraceDB.probe = lines
-end
-
 -- The red message, however the game shows it (its error event, or straight
 -- into the error frame)
 local function Said(text)
@@ -405,12 +373,18 @@ if UIErrorsFrame then
 end
 
 -- One command on key, on the keys' owner (nil: none of ours there)
--- Every binding of ours is a command string, our click too ("CLICK GamepadCompanionKeys:p5"):
--- the game keeps SetOverrideBindingClick's entries apart from commands, and a Focus UI command
--- swapped for a click stayed and ran under it, cleared or not (Create, 50 times, the call stack
--- the TOGGLEUIFOCUS binding: 2026-11-21). Options, command for command, never broke.
+-- The game keeps its gamepad functions (Focus UI, Radial) in a set of their own (binding
+-- context 9): a click or command put over Focus UI leaves it there, and it runs under the map
+-- on Create. Only clearing the key removes it (login probe, 2026-11-22): cleared first, then set.
 local function Put(key, command)
-    SetOverrideBinding(owner, true, key, command)
+    SetOverrideBinding(owner, true, key, nil)
+    if command then SetOverrideBinding(owner, true, key, command) end
+end
+
+-- What key runs in the game's gamepad set (nil: no way to read it)
+local function PadSet(key)
+    local K = C_KeyBindings
+    if K and K.GetBindingByKey then return K.GetBindingByKey(key, 9) end
 end
 
 -- The held layer's bindings: each in place of the key's Base on the same
@@ -457,7 +431,7 @@ end
 -- True when something was put right.
 function Keys.Heal()
     if not loaded or not GetBindingAction or (InCombatLockdown and InCombatLockdown()) then return false end
-    local stale = false
+    local stale, ghost = false, false
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
         local should = extras[key] or bound[key]
@@ -469,6 +443,9 @@ function Keys.Heal()
             -- (a held layer's Blizzard function reads back as what's under it: not stale)
             local unread = extras[key] and not ourClick
             if actual ~= should and not unread and (ourClick or actual ~= "") then stale = true end
+            -- (a layer's function of ours left in the gamepad set, under Base)
+            local pad = PadSet(key)
+            if pad and pad ~= should and Keys.Ours(key, pad) then stale = true; ghost = true end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
             stale = true
         end
@@ -478,6 +455,7 @@ function Keys.Heal()
     -- (the held layer's off, Base back; the old owner emptied of a leftover)
     ClearOverrideBindings(layerOwner)
     SetExtras({})
+    if ghost then Keys.Apply(true) end
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
         if bound[key] and actual ~= bound[key] and (bound[key]:find("^CLICK " .. Keys.BUTTON .. ":") or actual ~= "") then Keys.Apply(true); break end
@@ -557,7 +535,6 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
         return
     end
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then HookBlizzard() end
-    if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then C_Timer.After(3, function() pcall(Keys.Probe) end) end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     Keys.Apply(event == "PLAYER_REGEN_ENABLED")
 end)
