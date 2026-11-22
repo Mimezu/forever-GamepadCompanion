@@ -748,6 +748,7 @@ local commandHelp = {
     "/gpc debug  why it vibrates",
     "/gpc perf  Moments timing",
     "/gpc nav  bag cursor log",
+    "/gpc flights  quests to flight paths",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
@@ -778,6 +779,12 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "water" and API.WaterProbe then
         API.WaterProbe(rest)
+        return
+    end
+    if command == "flights" and ns.FlightList then
+        local lines = ns.Shared.CharDB().flightProbe
+        if type(lines) ~= "table" or #lines == 0 then Say("no flight map opened yet") return end
+        for _, line in ipairs(lines) do print(line) end
         return
     end
     if command == "nav" and ns.BagGrid then

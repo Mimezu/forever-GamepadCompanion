@@ -19,7 +19,8 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
   whom to turn it in to), else its next waypoint; the paths from C_TaxiMap on the continents'
   maps. A point with no path on its continent: no dot (a log zone is where the quest was given,
   not where it goes). No point known: its log zone's path nearest the zone's centre, else the
-  zone's first. The last opening's matches: SavedVariables flightProbe (40 lines).
+  zone's first. A continent: the world id and the continent map (map parents), both. The last
+  opening's matches: /gpc flights (SavedVariables flightProbe, 40 lines).
   Read when the map opens.
 
 ## Quest note

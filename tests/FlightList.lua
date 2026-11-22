@@ -286,8 +286,16 @@ eq(family.path, "Shadowprey Village, Desolace", "a point near: that path")
 eq(clam.path, "Shadowprey Village, Desolace", "no point, a zone with a path: that path")
 eq(stv.path, nil, "no point, a zone on the other continent: no dot")
 local probe = FL.Probe({ crumb, family })
-eq(probe[1], "Hunting in Stranglethorn: Desolace | - 0:100,100 -> no dot", "the probe: where a quest went, and why")
-eq(probe[2], "Family Tree: Desolace | - 1:30,20 -> Shadowprey Village, Desolace", "the probe: a path")
+eq(probe[1], "Hunting in Stranglethorn: Desolace | - 0/nil:100,100 -> no dot", "the probe: where a quest went, and why")
+eq(probe[2], "Family Tree: Desolace | - 1/nil:30,20 -> Shadowprey Village, Desolace", "the probe: a path")
+-- the same world id for both continents (a client's quirk): the continent maps still tell them apart
+local M = function(cont, map, x, y) return { cont = cont, map = map, x = x, y = y } end
+local twins = { { name = "Shadowprey Village, Desolace", zone = "Desolace", at = M(1, 1414, 0, 0) } }
+local far = { ready = true, zone = "Desolace", at = M(1, 1415, 5, 5) }
+eq(FL.Tally({ far }, twins, {})["Shadowprey Village, Desolace"], nil, "a point on the other continent map: no dot, yards close or not")
+eq(FL.Tally({ { ready = true, at = M(1, 1414, 5, 5) } }, twins, {})["Shadowprey Village, Desolace"].ready, 1, "the same continent map: the path")
+eq(FL.Tally({ { ready = true, at = M(1, nil, 5, 5) } }, twins, {})["Shadowprey Village, Desolace"].ready, 1, "a map unknown: the world id decides")
+eq(FL.SameContinent(nil, M(1, 1414, 0, 0)), false, "no point: not the same")
 eq(next(FL.Tally({ { ready = true, at = W(1, 0, 0) } }, {}, {})), nil, "no paths")
 
 -- The quest note --------------------------------------------------------------------------------

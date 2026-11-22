@@ -151,6 +151,15 @@ FL.DOTS = 5   -- dots of each kind on a row, at most
 -- A quest with a point (where to go, or whom to turn it in to): the nearest path on its continent;
 -- none there: no dot. Without a point: its zone's path nearest the zone's centre, else the zone's
 -- first. Neither: no dot. (q.path: where it went, for the probe)
+-- Two points on one continent: the same world id (cont) and, when both are known, the same
+-- continent map (map: climbed from the point's own map by its parents), so a point is never
+-- matched by its yards alone
+function FL.SameContinent(a, b)
+    if not (a and b) or a.cont ~= b.cont then return false end
+    if a.map and b.map then return a.map == b.map end
+    return true
+end
+
 -- -> per path name { open, ready, quests (the quests themselves) }
 function FL.Tally(quests, paths, centres)
     local counts = {}
@@ -158,7 +167,7 @@ function FL.Tally(quests, paths, centres)
         if not at then return nil end
         local best, bd
         for _, p in ipairs(paths or {}) do
-            if p.at and p.at.cont == at.cont and (not zone or p.zone == zone) then
+            if FL.SameContinent(p.at, at) and (not zone or p.zone == zone) then
                 local dx, dy = p.at.x - at.x, p.at.y - at.y
                 local d = dx * dx + dy * dy
                 if not bd or d < bd then best, bd = p.name, d end
@@ -202,7 +211,7 @@ function FL.Probe(quests)
     local out = {}
     for i, q in ipairs(quests or {}) do
         if i > FL.PROBE_MAX then break end
-        local at = q.at and ("%d:%d,%d"):format(q.at.cont, q.at.x, q.at.y) or "-"
+        local at = q.at and ("%d/%s:%d,%d"):format(q.at.cont, tostring(q.at.map), q.at.x, q.at.y) or "-"
         out[#out + 1] = ("%s: %s | %s %s -> %s"):format(tostring(q.title), tostring(q.zone), tostring(q.how or "-"), at, tostring(q.path or "no dot"))
     end
     return out
@@ -1263,12 +1272,31 @@ local function XY(pos)
 end
 
 -- A map point in the world's yards: { cont, x, y } (nil: unknown)
+-- A map's continent map: its parents climbed to the first continent (nil: none known)
+local CONTINENT = _G.Enum and Enum.UIMapType and Enum.UIMapType.Continent or 2
+local continentOf = {}
+local function ContinentOf(mapID)
+    if type(mapID) ~= "number" then return nil end
+    if continentOf[mapID] ~= nil then return continentOf[mapID] or nil end
+    local id, found = mapID, false
+    for _ = 1, 8 do
+        local info = C_Map and Call(C_Map.GetMapInfo, id)
+        if type(info) ~= "table" then break end
+        if info.mapType == CONTINENT then found = id; break end
+        if not info.parentMapID or info.parentMapID == 0 then break end
+        id = info.parentMapID
+    end
+    continentOf[mapID] = found
+    return found or nil
+end
+
+-- A map point in the world's yards: { cont, map (its continent map), x, y } (nil: unknown)
 local function WorldOf(mapID, x, y)
     if not (mapID and x and y and C_Map and CreateVector2D) then return nil end
     local cont, pos = Call(C_Map.GetWorldPosFromMapPos, mapID, CreateVector2D(x, y))
     local wx, wy = XY(pos)
     if type(cont) ~= "number" or type(wx) ~= "number" or type(wy) ~= "number" then return nil end
-    return { cont = cont, x = wx, y = wy }
+    return { cont = cont, map = ContinentOf(mapID), x = wx, y = wy }
 end
 
 -- The flight paths you can fly to, where they stand (C_TaxiMap on the continents' maps, as
