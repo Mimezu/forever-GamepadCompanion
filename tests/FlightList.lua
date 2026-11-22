@@ -10,6 +10,15 @@ local function check(ok, label)
 end
 local function eq(a, b, label) check(a == b, label .. " (got " .. tostring(a) .. ", want " .. tostring(b) .. ")") end
 
+-- (the real Sh.Settler: the triggers' grace, shared with fishing)
+local realSettler
+do
+    local shared = {}
+    hooksecurefunc = function() end
+    assert(loadfile(root .. "/Shared.lua"))("GamepadCompanion", shared)
+    hooksecurefunc = nil
+    realSettler = shared.Shared.Settler
+end
 CreateFrame = nil   -- (the logic only: no game wiring)
 local db = {}
 local ns = { Shared = { CharDB = function() return db end } }
@@ -267,21 +276,6 @@ local nx = FL.Jump(rq, at["Camp Taurajo"], "open")
 check(nx == at["Crossroads"] or nx == at["Splintertree Post"], "R2 again: the next path with quests")
 check(FL.Jump(rq, nx, "open") ~= nx, "and on, round")
 
--- L2 / R2 presses ------------------------------------------------------------------------------
-local t = { lt = false, rt = false, at = -1 }
-eq(FL.Press(t, false, false, 1), nil, "up: nothing")
-eq(FL.Press(t, true, false, 2), "ready", "L2 down: turn-ins")
-eq(FL.Press(t, true, false, 2.1), nil, "held: once")
-eq(FL.Press(t, true, true, 2.1), nil, "R2 down too soon after: nothing")
-eq(FL.Press(t, false, false, 3), nil, "both up")
-eq(FL.Press(t, false, true, 3.5), "open", "R2 down: quests")
-eq(FL.Press(t, nil, nil, 4), nil, "no pad to read: nothing")
-eq(FL.Tap(t, "ready", 3.6), nil, "the button's own press, same moment: not twice")
-eq(FL.Tap(t, "ready", 4), "ready", "the button's own press alone")
-eq(FL.Tap(t, nil, 5), nil, "no trigger")
-local u = { lt = true, rt = false, at = -1 }
-eq(FL.Press(u, true, false, 1), nil, "held when the map opened: no press")
-
 -- Settings ----------------------------------------------------------------------------------
 eq(FL.Wanted(true, true, true), true, "shown: on, gamepad UI, map open")
 eq(FL.Wanted(true, false, true), false, "not with mouse and keyboard")
@@ -311,6 +305,121 @@ eq(FL.Ease(0), 0, "ease from")
 eq(FL.Ease(1), 1, "ease to")
 eq(FL.Ease(0.5), 0.5, "ease midway")
 eq(FL.Ease(2), 1, "ease clamped")
+
+-- L2 / R2's bindings ------------------------------------------------------------------------
+local on = FL.Binds(true)
+eq(on.PADLTRIGGER, "CLICK GamepadCompanionFlightTurnIns:LeftButton", "L2: turn-ins")
+eq(on.PADRTRIGGER, "CLICK GamepadCompanionFlightQuests:LeftButton", "R2: quests to do")
+eq(next(FL.Binds(false)), nil, "off: none")
+eq(FL.TRIGGER_JUMPS.PADLTRIGGER, "ready", "L2 jumps to turn-ins")
+eq(FL.TRIGGER_JUMPS.PADRTRIGGER, "open", "R2 jumps to quests")
+
+-- The game wiring: L2 / R2 bound while the list shows, changed only when both have been up
+-- a quarter second (as the fishing pole's), dropped in a fight -----------------------------------
+do
+    local clock, lt, rt, combat = 100, false, false, false
+    local overrides, frames, drivers = {}, {}, {}
+    local function Frame(name)
+        local f = { scripts = {}, attrs = {}, shown = false, points = {}, name = name }
+        return setmetatable(f, { __index = function(t, k)
+            if k == "TitleText" or k == "CloseButton" or k == "InsetBg" then return nil end
+            if k == "SetScript" then return function(_, a, b) t.scripts[a] = b end end
+            if k == "HookScript" then return function(_, a, b) t.scripts[a] = b end end
+            if k == "SetAttribute" then return function(_, a, b) t.attrs[a] = b end end
+            if k == "Show" then return function() t.shown = true end end
+            if k == "Hide" then return function() t.shown = false end end
+            if k == "IsShown" then return function() return t.shown end end
+            if k == "SetShown" then return function(_, v) t.shown = v and true or false end end
+            if k == "GetHeight" or k == "GetWidth" then return function() return 500 end end
+            if k == "GetFrameLevel" then return function() return 3 end end
+            if k == "GetParent" then return function() return rawget(t, "parent") end end
+            if k == "SetParent" then return function(_, v) t.parent = v end end
+            if k == "GetStringWidth" then return function() return 30 end end
+            if k:match("^Create") then return function() return Frame() end end
+            return function() end
+        end })
+    end
+    _G.CreateFrame = function(_, name, parent)
+        local f = Frame(name)
+        f.parent = parent
+        if name then _G[name] = f; frames[name] = f end
+        return f
+    end
+    UIParent = Frame("UIParent")
+    InputUtil = { IsGamepadUIEnabled = function() return true end }
+    C_Timer = { After = function(_, fn) fn() end }
+    InCombatLockdown = function() return combat end
+    GetTime = function() return clock end
+    GetMoney = function() return 1000 end
+    hooksecurefunc = function() end
+    SetOverrideBindingClick = function(owner, _, key, name) overrides[key] = { owner = owner, action = "CLICK " .. name .. ":LeftButton" } end
+    ClearOverrideBindings = function(owner) for k, v in pairs(overrides) do if v.owner == owner then overrides[k] = nil end end end
+    RegisterStateDriver = function(f, st, cond) drivers[#drivers + 1] = { f = f, st = st, cond = cond } end
+    TaxiFrame = Frame("TaxiFrame")
+    TaxiRouteMap = Frame("TaxiRouteMap")
+    local map = { { "Orgrimmar, Durotar", "CURRENT" }, { "Crossroads, The Barrens", "REACHABLE" } }
+    NumTaxiNodes = function() return #map end
+    TaxiNodeName = function(i) return map[i][1] end
+    TaxiNodeGetType = function(i) return map[i][2] end
+    TaxiNodeCost = function() return 100 end
+    TaxiNodePosition = function(i) return 0.1 * i, 0.5 end
+    GetNumRoutes = function() return 1 end
+    TaxiGetNodeSlot = function() return 1 end
+    local wdb = {}
+    local wns = { Shared = {
+        CharDB = function() return wdb end,
+        Held = function() return lt, rt end,
+        PadButtons = function() return {} end,
+        PadDown = function() return false end,
+        Settler = realSettler,
+    } }
+    assert(loadfile(root .. "/FlightList.lua"))("GamepadCompanion", wns)
+    local W = wns.FlightList
+    local function L2() return overrides.PADLTRIGGER and overrides.PADLTRIGGER.action end
+    eq(drivers[1] and drivers[1].cond, "[combat] on; off", "a fight drops them (state driver)")
+    TaxiFrame.shown = true
+    W.Open()
+    eq(L2(), nil, "map just open: L2 the bars' till both have been up a quarter second")
+    clock = clock + 0.3
+    eq(W.Bind(), true, "then")
+    eq(L2(), "CLICK GamepadCompanionFlightTurnIns:LeftButton", "map open: L2 ours")
+    eq(overrides.PADRTRIGGER and overrides.PADRTRIGGER.action, "CLICK GamepadCompanionFlightQuests:LeftButton", "and R2")
+    -- the map closes with L2 held: L2 stays till both are up a quarter second
+    lt = true
+    TaxiFrame.shown = false
+    W.Close()
+    eq(L2(), "CLICK GamepadCompanionFlightTurnIns:LeftButton", "L2 held: no change mid-press")
+    clock = clock + 1
+    eq(W.Bind(), false, "still held: still waiting")
+    lt = false
+    eq(W.Bind(), false, "just released: not yet")
+    clock = clock + 0.1
+    eq(W.Bind(), false, "0.1 s up: not yet")
+    clock = clock + 0.2
+    eq(W.Bind(), true, "a quarter second up: done")
+    eq(L2(), nil, "map closed: L2 back to the bars")
+    eq(overrides.PADRTRIGGER, nil, "R2 too")
+    -- opened in a fight's wake: waits till it's over
+    combat = true
+    TaxiFrame.shown = true
+    W.Open()
+    eq(L2(), nil, "in combat: nothing changed")
+    combat = false
+    W.Bind()
+    clock = clock + 0.3
+    W.Bind()
+    eq(L2(), "CLICK GamepadCompanionFlightTurnIns:LeftButton", "after it: ours")
+    -- a fight starts: the driver clears them (the bars' again at once); after it, ours again
+    combat = true
+    ClearOverrideBindings(drivers[1].f)
+    drivers[1].f.Fight(drivers[1].f, "on")
+    eq(L2(), nil, "a fight: L2 the bars'")
+    combat = false
+    W.Bind()
+    clock = clock + 0.3
+    W.Bind()
+    eq(L2(), "CLICK GamepadCompanionFlightTurnIns:LeftButton", "after it: ours again")
+end
 
 io.write(("FlightList: %d checks, %d failures\n"):format(checks, failures))
 os.exit(failures == 0 and 0 or 1)

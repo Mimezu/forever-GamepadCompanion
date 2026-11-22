@@ -171,7 +171,16 @@ local function Driver(newstate)
 end
 
 -- R2 as the line ---------------------------------------------------------------------
-local ns = { Shared = { CharDB = function() return char end, Claim = function() end } }
+-- (the real Sh.Settler: the triggers' grace, shared with the flight list)
+local realSh = {}
+do
+    local hook = hooksecurefunc
+    hooksecurefunc = hook or function() end
+    assert(loadfile(root .. "/Shared.lua"))("GamepadCompanion", realSh)
+    hooksecurefunc = hook
+end
+local Settler = realSh.Shared.Settler
+local ns = { Shared = { CharDB = function() return char end, Claim = function() end, Settler = Settler } }
 local fired = {}
 ns.HapticsLab = { Fire = function(key, gain) fired[#fired + 1] = { key = key, gain = gain, at = now } end }
 assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", ns)
@@ -285,7 +294,7 @@ eq(cvars.GamePadEmulateCtrl, "PADRTRIGGER", "R2's modifier never touched")
 local function Reload(charDB)
     for _, f in ipairs(frames) do f.handler, f.onUpdate = nil, nil end
     frames, overrides = {}, {}
-    local ns2 = { Shared = { CharDB = function() return charDB end, Claim = function() end },
+    local ns2 = { Shared = { CharDB = function() return charDB end, Claim = function() end, Settler = Settler },
         HapticsLab = { Fire = function() end } }
     assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", ns2)
     for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
@@ -412,7 +421,7 @@ do
     local F2 = Reload(lchar)
     local lure = { id = 6530 }
     -- (FishingLure.lua's pick, as Fishing asks it)
-    local nsL = { Shared = { CharDB = function() return lchar end, Claim = function() end }, HapticsLab = { Fire = function() end },
+    local nsL = { Shared = { CharDB = function() return lchar end, Claim = function() end, Settler = Settler }, HapticsLab = { Fire = function() end },
         FishingLure = { Current = function() return lure end } }
     for _, f in ipairs(frames) do f.handler, f.onUpdate = nil, nil end
     frames, overrides = {}, {}

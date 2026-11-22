@@ -33,8 +33,9 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
 | L2 | Turn-ins: the flight path with the most gold dots; again: the next |
 | R2 | Quests: the flight path with the most brown dots; again: the next |
 
-L2 and R2 are only read, never taken or rebound: the game still gets them (L2 its bar, R2 its Ctrl).
-Two ways in, one press: the button's own press on the panel, and the pad's state each frame.
+L2 and R2: while the list shows, override bindings on the list's own frame (as the fishing pole's,
+Fishing.lua). They change only once both triggers have been up a quarter second (Sh.Settler: never
+mid-press), out of combat; a fight drops them at once. The list gone, they go back to the bars.
 X, L2 and R2 are greyed in the legend when they have nothing to do.
 
 ## On the map

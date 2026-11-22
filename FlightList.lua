@@ -173,21 +173,14 @@ function FL.Tally(quests, places)
     return zones, paths
 end
 
--- L2 / R2 read from the pad: t = { lt, rt, at } (what they were, the last press's time);
--- a press is a trigger going down, a quarter second after the last one.
--- -> "ready" (L2), "open" (R2) or nil
-function FL.Press(t, lt, rt, now)
-    if lt == nil and rt == nil then return nil end
-    local key = (lt and not t.lt and "ready") or (rt and not t.rt and "open") or nil
-    t.lt, t.rt = lt and true or false, rt and true or false
-    return FL.Tap(t, key, now)
-end
-
--- A press of key, unless one came a quarter second ago (the button and the pad's state both see it)
-function FL.Tap(t, key, now)
-    if not key or (now or 0) - (t.at or -1) < 0.25 then return nil end
-    t.at = now or 0
-    return key
+-- L2 / R2 while the list shows: override bindings to our own buttons (as Fishing.lua's pole)
+FL.TRIGGER_BUTTONS = { PADLTRIGGER = "GamepadCompanionFlightTurnIns", PADRTRIGGER = "GamepadCompanionFlightQuests" }
+FL.TRIGGER_JUMPS = { PADLTRIGGER = "ready", PADRTRIGGER = "open" }   -- L2: turn-ins, R2: quests to do
+-- key -> the binding's action, while on; nothing while off
+function FL.Binds(on)
+    local t = {}
+    if on then for key, name in pairs(FL.TRIGGER_BUTTONS) do t[key] = "CLICK " .. name .. ":LeftButton" end end
+    return t
 end
 
 -- One row on: wrap = true goes round the ends, else stops there
@@ -1000,16 +993,70 @@ local ACTIONS = {
 }
 FL.ACTIONS = ACTIONS
 
--- L2 / R2: only read, never taken or rebound (the game still gets the press: L2 its bar,
--- R2 its Ctrl). Two ways in, one press: the pad's state (each frame) and the button's own press
-local trig = { lt = false, rt = false, at = -1 }
+-- L2 / R2 -----------------------------------------------------------------------------
+-- While the list shows, L2 and R2 are ours: override bindings on our own secure frame, to two
+-- buttons that jump (L2: turn-ins, R2: quests to do). As Fishing.lua does with the pole: they
+-- change only when both triggers have been up FL.GRACE (Sh.Settler: never mid-press, the
+-- stuck-L2 lesson), out of combat; in a fight the state driver drops them at once. The list
+-- gone, L2 / R2 go back to the bars.
+FL.GRACE = 0.25
 local function Now() return GetTime and GetTime() or 0 end
-local function Jump(key) if key then Select(FL.Jump(state.rows, state.sel, key)) end end
-local function Triggers()
-    local lt, rt = Sh.Held()
-    Jump(FL.Press(trig, lt, rt, Now()))
+local function Jump(key)
+    if key and panel:IsShown() and not InCombat() then Select(FL.Jump(state.rows, state.sel, key)) end
 end
-FL.TRIGGERS = { PADLTRIGGER = "ready", PADRTRIGGER = "open" }
+for key, name in pairs(FL.TRIGGER_BUTTONS) do
+    local b = CreateFrame("Button", name, UIParent)
+    b:RegisterForClicks("AnyDown")
+    b:SetScript("OnClick", function() Jump(FL.TRIGGER_JUMPS[key]) end)
+end
+local binds = CreateFrame("Frame", "GamepadCompanionFlightBinds", UIParent, "SecureHandlerStateTemplate")
+binds:SetAttribute("_onstate-fight", [[ if newstate == "on" then self:ClearBindings() end self:CallMethod("Fight", newstate) ]])
+local bound, bindsOn, bindsPending = {}, false, false
+local function Wipe(t) for k in pairs(t) do t[k] = nil end end
+local function TriggerHeld() local lt, rt = Sh.Held(); return lt or rt end
+local settle = Sh.Settler(TriggerHeld, function() return FL.GRACE end, Now)
+local bindWaiter = CreateFrame("Frame")
+bindWaiter:Hide()
+
+-- L2 / R2 to what they should be now (the list shown: ours; else the bars'); true when done
+function FL.Bind()
+    if InCombat() then bindsPending = true; return false end
+    bindsPending = false
+    local want = panel:IsShown() and true or false
+    if want == bindsOn then bindWaiter:Hide(); return true end
+    if not settle.Settled() then bindWaiter:Show(); return false end
+    settle.Reset()
+    bindWaiter:Hide()
+    ClearOverrideBindings(binds)
+    Wipe(bound)
+    for key, action in pairs(FL.Binds(want)) do
+        SetOverrideBindingClick(binds, true, key, FL.TRIGGER_BUTTONS[key], "LeftButton")
+        bound[key] = action
+    end
+    bindsOn = want
+    return true
+end
+
+-- (a trigger held: the change that waited)
+bindWaiter:SetScript("OnUpdate", function()
+    if InCombat() then bindWaiter:Hide(); bindsPending = true; return end
+    if settle.Settled() then FL.Bind() end
+end)
+-- (a fight: the driver dropped them; after it, decided again)
+function binds:Fight(newstate)
+    if newstate == "on" then bindsOn = false; Wipe(bound) end
+    bindsPending = true
+    if not InCombat() then FL.Bind() end
+end
+if RegisterStateDriver then RegisterStateDriver(binds, "fight", "[combat] on; off") end
+-- (Blizzard's sets took a trigger: ours again)
+if Sh.Claim then
+    Sh.Claim(bound, function()
+        if InCombat() then bindsPending = true; return end
+        bindsOn = false
+        FL.Bind()
+    end)
+end
 
 local function Take(on)
     if on and InCombat() then on = false end
@@ -1019,8 +1066,6 @@ end
 
 panel:SetScript("OnGamePadButtonDown", function(self, button)
     if InCombat() then return end
-    -- (a trigger: read, passed on to the game as it is)
-    if FL.TRIGGERS[button] then Jump(FL.Tap(trig, FL.TRIGGERS[button], Now())); return end
     local act = ACTIONS[button]
     if not act then return end
     -- (this press stops here; from the next frame on, presses pass again)
@@ -1035,7 +1080,6 @@ end)
 
 panel:SetScript("OnUpdate", function(_, elapsed)
     if InCombat() then hold.key = nil; return end
-    Triggers()
     if not hold.key then return end
     local down = Sh.PadDown(Sh.PadButtons(), hold.key)
     if not down then hold.key = nil; return end
@@ -1156,8 +1200,6 @@ function FL.Open()
     state.view = FL.View()
     state.quests, state.places = Quests(state.nodes)
     Arrange(nil)
-    trig.lt, trig.rt = Sh.Held()
-    trig.lt, trig.rt = trig.lt or false, trig.rt or false
     openedAt = GetTime and GetTime() or 0
     panel:Show()
     -- (out of combat: Blizzard's cursor kept off our rows; the d-pad is ours)
@@ -1165,6 +1207,7 @@ function FL.Open()
         pcall(SmartNavigation_MarkFrameIgnored, panel)
     end
     Take(true)
+    FL.Bind()
     Draw()
     DrawMap(true)
     LegendText()
@@ -1174,6 +1217,7 @@ function FL.Close()
     Take(false)
     hold.key = nil
     panel:Hide()
+    FL.Bind()
     if marker then marker:Hide() end
     if mapFrame then ClearRoute(1) end
 end
@@ -1208,7 +1252,9 @@ end
 events:SetScript("OnEvent", function(_, event)
     Hook()
     if event == "PLAYER_REGEN_DISABLED" then Take(false); hold.key = nil
-    elseif event == "PLAYER_REGEN_ENABLED" then if panel:IsShown() then Take(true) end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        if panel:IsShown() then Take(true) end
+        if bindsPending then FL.Bind() end
     elseif event == "TAXIMAP_CLOSED" then FL.Close()
     elseif event == "PLAYER_MONEY" then if panel:IsShown() then Draw() end
     elseif event == "TAXIMAP_OPENED" and not panel:IsShown() then

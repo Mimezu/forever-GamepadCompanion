@@ -59,6 +59,23 @@ function Sh.PadDown(buttons, key)
     return buttons[index + 1] and true or false
 end
 
+-- A trigger's binding changes only once both have been up a while: the pad reads a trigger up a
+-- moment before the game has run its release, and L2 rebound in that moment lost the bars' L2
+-- release (the L2 bar stuck till /reload, 2026-11-22). held(): a trigger down now; grace():
+-- how long (s); now(): the clock. Settled() true once nothing held for grace; Reset() after a change
+function Sh.Settler(held, grace, now)
+    local upSince
+    local s = {}
+    function s.Settled()
+        if held() then upSince = nil; return false end
+        local t = now()
+        upSince = upSince or t
+        return t - upSince >= grace()
+    end
+    function s.Reset() upSince = nil end
+    return s
+end
+
 -- L2, R2 down now: true / false each; nil, nil without a pad to read
 function Sh.Held()
     local buttons = Sh.PadButtons()

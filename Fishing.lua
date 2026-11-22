@@ -191,12 +191,8 @@ local function Held() return F.R2Held() or F.Down(F.LURE_KEY) end
 -- up a moment before the game has run its release, and L2 rebound in that moment (the lure on
 -- or off it) lost the bars' L2 release: the L2 bar stuck as if held till /reload (2026-11-22)
 F.GRACE = 0.25
-local upSince
-local function Settled()
-    if Held() then upSince = nil; return false end
-    upSince = upSince or Now()
-    return Now() - upSince >= F.GRACE
-end
+local settle = Sh.Settler(Held, function() return F.GRACE end, Now)
+local Settled = settle.Settled
 
 -- What R2 runs now (nil: yours)
 local current, lureMacro
@@ -229,7 +225,7 @@ function F.Apply()
         waiter:Show()
         return false
     end
-    upSince = nil
+    settle.Reset()
     waiter:Hide()
     current, lureMacro, lureNow = want, lure, lure and pick.id or nil
     ClearOverrideBindings(owner)
