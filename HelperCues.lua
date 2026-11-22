@@ -718,10 +718,11 @@ local function Wrap()
             end
         end
     end
-    -- (water and weather taps: one HD cue each, level by how strong the tap is,
-    -- 1 the designed level = intensity 4)
-    if L and not L.onSprinkle then
-        L.onSprinkle = function(key, level)
+    -- (weather and water, each to WoW Helper as one HD cue: a rain, snow, ember or bubble tap,
+    -- a sand gust, a thunder roll; level by how strong, 1 the designed level = intensity 4.
+    -- While WoW Helper's HD drives the pad the game's rumble is not felt: this is the weather)
+    if L and not L.onWeather then
+        L.onWeather = function(key, level)
             local V = ns.Rumble
             if V and V.cueTimed then return end
             if not (L.EVENT and L.EVENT[key] and C.MOMENT_N[key]) then return end

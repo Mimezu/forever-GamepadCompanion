@@ -368,8 +368,8 @@ function H.Set(id, l, r, target)
         voices[id] = nil
     else
         local v = voices[id]
-        if v and v.level then v.l, v.r, v.target = l, r, target
-        else voices[id] = { id = id, level = true, l = l, r = r, target = target, gain = 1, left = 1, right = 1 } end
+        if v and v.held then v.l, v.r, v.target = l, r, target
+        else voices[id] = { id = id, held = true, l = l, r = r, target = target, gain = 1, left = 1, right = 1 } end
     end
     Wake()
 end
@@ -430,7 +430,9 @@ end
 
 -- One voice's sides now (nil: done)
 local function VoiceLevel(v, now)
-    if v.level then return v.l, v.r end
+    -- (held: H.Set's; a function voice keeps its own fields, `level` among them: the
+    -- weather's taps once died on their first frame for the name they shared)
+    if v.held then return v.l, v.r end
     if v.fn then return v.fn(now, v) end
     v.start = v.start or now
     local t = (now - v.start) / (v.stretch or 1)

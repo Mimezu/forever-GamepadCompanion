@@ -540,6 +540,7 @@ function L.Facts()
         { "Pad style", type(state) == "table" and tostring(state.labelStyle) or "?" },
         { "Weather API", (C_Weather and C_Weather.GetCurrentWeather) and ("C_Weather: "
             .. tostring((L.ReadWeather() or {}).raw)) or "none" },
+        { "Weather seen", L.WeatherSeen() },
         { "Zone climate", tostring(L.Climate and L.Climate() or "?") },
         { "Frame rate", GetFramerate and string.format("%.0f fps (faster steps blur)", GetFramerate() or 0) or "?" },
         { "SetVibration", tostring(C_GamePad ~= nil and C_GamePad.SetVibration ~= nil) },
@@ -1748,6 +1749,33 @@ local function TypeName(t)
     return tostring(t)
 end
 
+-- The kind a weather type's name means (Enum.WeatherType: Rain, Snow, Sandstorm; retail's
+-- Storm, Thunders, BlackRain, BlackSnow read the same way), and whether it thunders.
+-- A bare number (no Enum to name it): the client's order, Rain 1, Snow 2, Sandstorm 3.
+local KIND_BY_NUMBER = { ["1"] = "rain", ["2"] = "snow", ["3"] = "sand" }
+function L.WeatherKind(name)
+    local n = name and tostring(name):lower() or ""
+    if n:find("rain") or n:find("thunder") then return "rain", n:find("thunder") ~= nil end
+    if n:find("snow") then return "snow", false end
+    if n:find("sand") or n:find("storm") or n:find("dust") then return "sand", false end
+    return KIND_BY_NUMBER[n], false
+end
+
+-- What the game reported, kept across sessions (the last few changes: zone, type,
+-- intensity, when) for the Probes report: proof of what the API gives in each weather
+L.WEATHER_LOG_MAX = 12
+local function LogWeather(raw)
+    local db = H.DB()
+    if type(db.weatherLog) ~= "table" then db.weatherLog = {} end
+    local log = db.weatherLog
+    local zone = call(GetRealZoneText) or call(GetZoneText) or "?"
+    if secret(zone) then zone = "?" end
+    local last = log[#log]
+    if last and last.raw == raw and last.zone == zone then return end
+    log[#log + 1] = { raw = raw, zone = zone, at = date and date("%m-%d %H:%M") or "" }
+    while #log > L.WEATHER_LOG_MAX do table.remove(log, 1) end
+end
+
 function L.ReadWeather()
     if not (C_Weather and C_Weather.GetCurrentWeather) then return nil end
     local ok, a, b = pcall(C_Weather.GetCurrentWeather)
@@ -1762,8 +1790,8 @@ function L.ReadWeather()
     weatherNow.name = TypeName(t)
     weatherNow.intensity = tonumber(intensity)
     weatherNow.at = GetTime and GetTime() or 0
-    local n = weatherNow.name and weatherNow.name:lower() or ""
-    weatherNow.kind = n:find("rain") and "rain" or n:find("snow") and "snow" or n:find("sand") and "sand" or nil
+    weatherNow.kind, weatherNow.thunders = L.WeatherKind(weatherNow.name)
+    pcall(LogWeather, weatherNow.raw)
     return weatherNow
 end
 
@@ -1782,7 +1810,7 @@ function L.Sky()
         local brings = wipe(sky)
         if weatherNow.kind == "rain" then
             brings.rain = true
-            if i >= 0.6 then brings.thunder = true end
+            if i >= 0.6 or weatherNow.thunders then brings.thunder = true end
         elseif weatherNow.kind then
             brings[weatherNow.kind] = true
         end
@@ -1792,6 +1820,18 @@ function L.Sky()
     end
     local climate = L.Climate()
     return climate and CLIMATE_EVENTS[climate] or NONE, 0.5, false
+end
+
+-- The weather changes the game reported, latest first: "Tanaris 3, 0.5 (11-22 16:31)"
+function L.WeatherSeen(n)
+    local log = H.DB().weatherLog
+    if type(log) ~= "table" or #log == 0 then return "none yet" end
+    local parts = {}
+    for i = #log, max(1, #log - (n or 4) + 1), -1 do
+        local e = log[i]
+        parts[#parts + 1] = tostring(e.zone) .. " " .. tostring(e.raw) .. (e.at ~= "" and (" (" .. e.at .. ")") or "")
+    end
+    return table.concat(parts, "; ")
 end
 
 function L.Climate()
@@ -1832,7 +1872,7 @@ local function Sprinkle(key, gap0, gap1, lo, hi, chance2)
             v.second = random() < double and now + 0.09 + random() * 0.05 or nil
             v.next = now + (gap0 + random() * (gap1 - gap0)) * spacing
             -- (each tap to WoW Helper too: its HD plays while it drives the pad)
-            if L.onSprinkle then pcall(L.onSprinkle, key, level) end
+            if L.onWeather then pcall(L.onWeather, key, level) end
         end
         if v.second and now >= v.second then v.tapEnd, v.second = now + PULSE, nil end
         if v.tapEnd and now < v.tapEnd then
@@ -1848,7 +1888,12 @@ local THUNDER = { { 0, 0.06, 0.2, 0 }, { 0.14, 0.5, 0.15, -0.2 }, { 0.72, 0.35, 
 local function Thunder(now, v)
     if not live.weather.thunder then return nil end
     if not v.next then v.next = now + 8 + random() * 25 end
-    if now >= v.next and not v.roll then v.roll = now; v.scale = 0.6 + random() * 0.5 end
+    if now >= v.next and not v.roll then
+        v.roll, v.scale = now, 0.6 + random() * 0.5
+        -- (the roll to WoW Helper too, as far or near: while its HD drives the pad,
+        -- the game's rumble is not felt, so without this a thunderstorm went silent)
+        if L.onWeather then pcall(L.onWeather, "thunder", v.scale) end
+    end
     if v.roll then
         local t = now - v.roll
         if t > 1.4 then v.roll, v.next = nil, now + 18 + random() * 45; return 0, 0 end
@@ -1862,18 +1907,29 @@ local function Thunder(now, v)
     return 0, 0
 end
 
--- A gust of sand: a handful of faint taps sweeping across, now and then
+-- A gust of sand: a handful of faint taps sweeping across (5-7 grains, the
+-- middle ones firmest), now and then; a heavier storm's gusts closer and a
+-- little stronger. Each gust to WoW Helper as one cue (its HD plays the gust).
+L.GUST_GAP, L.GUST_STEP = 0.18, 0.18
 local function Gust(now, v)
     if not live.weather.sand then return nil end
     if not v.next then v.next = now + 2 + random() * 6 end
-    if now >= v.next and not v.gust then v.gust, v.dir = now, random() < 0.5 and -1 or 1 end
+    local k = live.weatherIntensity or 0.5
+    if now >= v.next and not v.gust then
+        v.gust, v.dir, v.n, v.level = now, random() < 0.5 and -1 or 1, 5 + floor(random() * 3), 0.7 + 0.5 * k
+        if L.onWeather then pcall(L.onWeather, "sand", v.level) end
+    end
     if v.gust then
         local t = now - v.gust
-        if t > 1.2 then v.gust, v.next = nil, now + 5 + random() * 7; return 0, 0 end
-        local i = floor(t / 0.18)
-        if t - i * 0.18 < PULSE then
-            local side = v.dir * (-1 + 2 * i / 6)
-            local s = 0.03 + 0.03 * math.sin(i / 6 * math.pi)
+        if t > v.n * L.GUST_STEP then
+            v.gust, v.next = nil, now + (5 + random() * 7) * (1.6 - 0.6 * k)
+            return 0, 0
+        end
+        local i = floor(t / L.GUST_STEP)
+        if i < v.n and t - i * L.GUST_STEP < PULSE then
+            local p = i / (v.n - 1)
+            local side = v.dir * (-1 + 2 * p)
+            local s = (0.03 + 0.03 * sin(p * pi)) * v.level
             return s * min(1, 1 - side), s * min(1, 1 + side)
         end
     end
