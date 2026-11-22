@@ -172,6 +172,70 @@ end
 P.Free = Free
 
 ---------------------------------------------------------------------------
+-- The characters this account plays (for WoW Helper: a full feel for one character, a race, a
+-- sex, a faction): each with a number of its own, never reused (its marker, HelperLink K.Who),
+-- its class, race, sex and faction once it has logged in with this version
+---------------------------------------------------------------------------
+local function secret(v) return issecretvalue ~= nil and issecretvalue(v) or false end
+
+function P.Characters()
+    local h = HDB()
+    if type(h.characters) ~= "table" then h.characters = {} end
+    return h.characters
+end
+
+-- A character in the list (a new one: the next number); the one logged in: what it is now
+local function Entry(list, key)
+    local c = list[key]
+    if type(c) ~= "table" then
+        local h = HDB()
+        local top = tonumber(h.characterNext) or 0
+        for _, x in pairs(list) do
+            if type(x) == "table" and type(x.n) == "number" and x.n > top then top = x.n end
+        end
+        c = { n = math.min(top + 1, 1023) }
+        h.characterNext = c.n
+        list[key] = c
+    end
+    return c
+end
+
+function P.Register(key, class)
+    if type(key) ~= "string" or key == "" or key:sub(-1) == "-" then return nil end
+    local list = P.Characters()
+    -- (the characters with profiles from before this version: listed too, their class unknown)
+    for k in pairs(P.DB().use) do
+        if type(k) == "string" and k ~= key and k:find("-", 1, true) and k:sub(-1) ~= "-" then Entry(list, k) end
+    end
+    local c = Entry(list, key)
+    if type(class) == "string" and not secret(class) then c.class = class end
+    -- (UnitRace's third value: the race id; "a and f()" would keep only the first)
+    local okr, _, _, race = pcall(function() if UnitRace then return UnitRace("player") end end)
+    if okr and type(race) == "number" and not secret(race) and race >= 1 and race <= 127 then c.race = race end
+    local oks, sex = pcall(function() return UnitSex and UnitSex("player") end)
+    if oks and (sex == 2 or sex == 3) then c.sex = sex end
+    local okf, faction = pcall(function() return UnitFactionGroup and UnitFactionGroup("player") end)
+    if okf and (faction == "Horde" or faction == "Alliance") then c.faction = faction end
+    return c
+end
+
+-- Who plays now, for WoW Helper's marker: number, faction, race, sex (nil: no profile this session)
+function P.Who()
+    if not state.key then return nil end
+    local c = P.Register(state.key, state.class)
+    if not c then return nil end
+    return c.n, c.faction, c.race, c.sex
+end
+
+function P.SendWho()
+    local K = ns.HelperLink
+    if not (K and K.Who) then return false end
+    local n, faction, race, sex = P.Who()
+    if not n then return false end
+    return K.Who(n, faction, race, sex)
+end
+
+---------------------------------------------------------------------------
 -- Load: migrate once, give the character its profiles, point the live places
 ---------------------------------------------------------------------------
 function P.Load(name, realm, class)
@@ -201,6 +265,7 @@ function P.Load(name, realm, class)
     p.use[name .. "-"] = nil
     local key = name .. "-" .. realm
     state.key, state.name, state.class = key, name, class
+    P.Register(key, class)
     -- (once: the account parts frozen as they were, the backup)
     if not p.version then
         p.before = { feel = TakeFeel(h), bars = TakeBars(GamepadCompanionDB) }
@@ -550,5 +615,12 @@ frame:SetScript("OnEvent", function(_, event, arg)
         state.logout = CreateFrame("Frame")
         state.logout:RegisterEvent("PLAYER_LOGOUT")
         state.logout:SetScript("OnEvent", function() P.Release() end)
+        -- who plays, for WoW Helper: at login (race, sex and faction known by now), then every
+        -- 30 s (a WoW Helper started later learns it too)
+        if state.key then P.Register(state.key, state.class) end
+        if C_Timer and C_Timer.After then
+            C_Timer.After(3, P.SendWho)
+            if C_Timer.NewTicker then C_Timer.NewTicker(30, P.SendWho) end
+        end
     end
 end)

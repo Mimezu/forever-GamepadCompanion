@@ -207,6 +207,31 @@ for row in io.lines(root .. "/tests/fixtures/helperlink-emote-vectors.txt") do
 end
 assert(emotecount == 8, "8 emote vectors: " .. emotecount)
 
+-- Who plays (marker 127): the character's number in side/gain/intensity, the faction in level,
+-- race and sex in the seed (WoW Helper's src/who.rs writes the vectors)
+local whocount = 0
+for row in io.lines(root .. "/tests/fixtures/helperlink-who-vectors.txt") do
+    if row:sub(1, 1) ~= "#" and row:find(":") then
+        local num, f, race, sex, head, digits = row:match("^(%d+) (%d+) (%d+) (%d+) : (.-)%s*:%s*(%d+)%s*$")
+        num, f, race, sex = tonumber(num), tonumber(f), tonumber(race), tonumber(sex)
+        local faction = ({ [1] = "Horde", [2] = "Alliance" })[f]
+        local n, i = {}, 0
+        for x in head:gmatch("%d+") do i = i + 1; n[FIELDS[i]] = tonumber(x) end
+        assert(i == 19 and #digits == 34 and n.moment == K.WHO_MARKER and n.touch == 0 and n.sound == 0, "who vector line: " .. row)
+        local side, gain, intensity, level = K.WhoFields(num, faction)
+        assert(side == n.side and gain == n.gain and intensity == n.intensity and level == n.level, "who vector fields: " .. row)
+        assert(K.RaceSexSeed(race, sex) == n.seed, "who vector seed: " .. row)
+        local s = { seq = n.seq, left = {}, right = {}, touch = 0, sound = 0, side = side, gain = gain, intensity = intensity,
+            level = level, seed = K.RaceSexSeed(race, sex), moment = K.WHO_MARKER }
+        local cells, out = K.EncodeV2(s), {}
+        for c = 1, #cells do out[c] = tostring(cells[c][1] * 4 + cells[c][2] * 2 + cells[c][3]) end
+        assert(table.concat(out) == digits, "who vector: " .. row .. " got " .. table.concat(out))
+        whocount = whocount + 1
+    end
+end
+assert(whocount == 8, "8 who vectors: " .. whocount)
+assert(select(1, K.WhoFields(5000, "Horde")) == 15 and select(3, K.WhoFields(5000)) == 7, "who: the number capped at 1023")
+
 -- Emote voices: a chat line to its emote, the longest wording first
 do
     local list = K.EmoteLines({
@@ -366,6 +391,16 @@ for _ = 1, 50 do
     prev = d
 end
 assert(fallCue and fallCue.moment == 92 and fallCue.seed == 136, "the fall's seed: " .. tostring(fallCue and fallCue.seed))
+-- Who plays: a marker on screen as sent (an Undead man of the Horde, character 3)
+assert(K.Who(3, "Horde", 5, 2), "who: queued")
+local whoSeen
+for _ = 1, 50 do
+    local d = renderV2()
+    if d.seq ~= prev.seq and d.moment == K.WHO_MARKER then whoSeen = d end
+    prev = d
+end
+assert(whoSeen and whoSeen.side == 3 and whoSeen.gain == 0 and whoSeen.level == 1 and whoSeen.seed == 5 and whoSeen.touch == 0
+    and whoSeen.sound == 0, "who on screen")
 do
     local stack = ns.Stack
     ns.Stack = { Is = function(k) return k == "hush" end }

@@ -670,8 +670,9 @@ K.MARKER_FIRST, K.MARKER_LAST = 100, 126
 function K.Marker(item)
     if not (K.Enabled() and K.V2()) then return false end
     local m = Int(item.moment, 127)
-    -- (96-98 footsteps, 99 an emote's voice, 100-108 gathering, 109 its node, 110-126 swings)
-    if not ((m >= 96 and m <= 99) or (m >= 100 and m <= 109) or (m >= 110 and m <= 126)) then return false end
+    -- (96-98 footsteps, 99 an emote's voice, 100-108 gathering, 109 its node, 110-126 swings,
+    -- 127 who plays)
+    if not ((m >= 96 and m <= 99) or (m >= 100 and m <= 109) or (m >= 110 and m <= 127)) then return false end
     local touch = Int(item.touch, 4095)
     if touch > 0 and touch < 128 then touch = 0 end
     -- (ahead of the cues, behind the markers already waiting: a stop and a
@@ -733,6 +734,24 @@ function K.EmoteVoice(id, race, sex)
     if ns.Stack and ns.Stack.Is("hush") and not K.previewing then return false end
     local side, gain, intensity, level = K.EmoteFields(id)
     return K.Marker({ moment = K.EMOTE_MARKER, touch = 0, sound = 0, side = side, gain = gain, intensity = intensity,
+        level = level, seed = K.RaceSexSeed(race, sex) })
+end
+
+-- Who plays (WoW Helper's src/who.rs): its full feels can play a card for one character, a race,
+-- a sex or a faction. Marker moment 127, touch 0 and sound 0 (an older WoW Helper plays nothing);
+-- the character's number (1-1023, Profiles' list, never reused) in side (bits 0-3), gain (4-6) and
+-- intensity (7-9); level: the faction (0 unknown, 1 Horde, 2 Alliance); the seed: race + 128 if
+-- female (K.RaceSexSeed). Sent at login and every 30 s (Profiles). Vectors:
+-- tests/fixtures/helperlink-who-vectors.txt
+K.WHO_MARKER = 127
+function K.WhoFields(n, faction)
+    n = Int(n, 1023)
+    local f = (faction == "Horde" and 1) or (faction == "Alliance" and 2) or 0
+    return n % 16, floor(n / 16) % 8, floor(n / 128) % 8, f
+end
+function K.Who(n, faction, race, sex)
+    local side, gain, intensity, level = K.WhoFields(n, faction)
+    return K.Marker({ moment = K.WHO_MARKER, touch = 0, sound = 0, side = side, gain = gain, intensity = intensity,
         level = level, seed = K.RaceSexSeed(race, sex) })
 end
 

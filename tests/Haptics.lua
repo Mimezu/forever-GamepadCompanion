@@ -3982,6 +3982,11 @@ do
     -- the export: its marker's number, for WoW Helper's full feels
     local ex = C.ExportMoments({})
     assert(ex.moments.emoteVoice and ex.moments.emoteVoice.n == 99, "exported as 99")
+    -- the characters this account plays and who exported, for WoW Helper's cards
+    if ns.Profiles and ns.Profiles.state.key then
+        local me = ex.characters and ex.characters[ns.Profiles.state.key]
+        assert(ex.player == ns.Profiles.state.key and me and type(me.n) == "number", "exported: the characters, who plays")
+    end
     K.Marker, K.Enabled, K.V2 = marker, enabled, v2
     WowHelperData, UnitGUID, UnitRace, UnitSex, GetPlayerInfoByGUID, C_CreatureInfo = savedData, savedGuid, savedRace, savedSex, savedInfo, savedCI
     io.write("PASS: emote voices: a voiced line, yours only (never a player nearby), as marker 99 with your race and sex" .. string.char(10))

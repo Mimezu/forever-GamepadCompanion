@@ -216,6 +216,47 @@ do
     Logout()
 end
 
+-- 6d. The characters this account plays (WoW Helper's cards for one of them): a number each,
+-- never reused; class, race, sex and faction from the one logged in; who plays, for the marker
+do
+    UnitRace = function() return "Undead", "Scourge", 5 end
+    UnitSex = function() return 3 end
+    UnitFactionGroup = function() return "Horde", "Horde" end
+    P = Login("Mortia", "Noir", "WARLOCK")
+    local list = GamepadCompanionHapticsDB.characters
+    local me = list["Mortia-Noir"]
+    check(me and me.class == "WARLOCK" and me.race == 5 and me.sex == 3 and me.faction == "Horde", "her entry, all of it")
+    check(list["Alberich-Noir"] and list["Celes-Aria"] and list["Alberich-"] == nil, "the characters with profiles listed too")
+    local nums = {}
+    for _, c in pairs(list) do
+        check(type(c.n) == "number" and c.n >= 1 and c.n <= 1023 and not nums[c.n], "a number each")
+        nums[c.n] = true
+    end
+    local sent
+    ns.HelperLink = { Who = function(...) sent = { ... }; return true end }
+    check(P.SendWho() and sent[1] == me.n and sent[2] == "Horde" and sent[3] == 5 and sent[4] == 3, "who: her number, faction, race, sex")
+    local mine = me.n
+    Logout()
+    check(disk.account.haptics.characters["Mortia-Noir"].n == mine, "kept at logout")
+    -- her number stays hers at the next login; a number gone from the list is never given again
+    P = Login("Mortia", "Noir", "WARLOCK")
+    check(GamepadCompanionHapticsDB.characters["Mortia-Noir"].n == mine, "the same number next time")
+    local top = GamepadCompanionHapticsDB.characterNext
+    GamepadCompanionHapticsDB.characters["Mortia-Noir"] = nil
+    Logout()
+    UnitRace, UnitSex, UnitFactionGroup = nil, nil, nil
+    P = Login("Newbie", "Noir", "MAGE")
+    local nb = GamepadCompanionHapticsDB.characters["Newbie-Noir"]
+    check(nb and nb.n > top and nb.class == "MAGE" and nb.race == nil and nb.faction == nil, "a new one: the next number; unknown parts left out")
+    ns.HelperLink = nil
+    check(not P.SendWho(), "no link: nothing sent")
+    Logout()
+    -- no name: no entry, nothing sent
+    P = Login(nil, nil, nil)
+    check(P.Who() == nil, "no name: nobody")
+    Logout()
+end
+
 -- 7. Recommended's keys exist in the game's lists
 local known = {}
 local f = io.open(root .. "/HapticsLab.lua"):read("*a") .. io.open(root .. "/Rumble.lua"):read("*a")

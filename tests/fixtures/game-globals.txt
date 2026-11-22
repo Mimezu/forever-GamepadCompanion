@@ -150,6 +150,7 @@ UnitCastingInfo
 UnitChannelInfo
 UnitClass
 UnitExists
+UnitFactionGroup
 UnitGUID
 UnitHealth
 UnitHealthMax

@@ -588,6 +588,19 @@ local function ExportMoments(export)
     export.moments = moments
     local d = Data()
     export.helperData = d and d.at or false
+    -- the characters this account plays, and who exported (WoW Helper: a full feel's card for
+    -- one of them, by name in their class colour)
+    local PR = ns.Profiles
+    if PR and PR.Characters then
+        local chars = {}
+        for key, c in pairs(PR.Characters()) do
+            if type(key) == "string" and type(c) == "table" then
+                chars[key] = { n = c.n, class = c.class, race = c.race, sex = c.sex, faction = c.faction }
+            end
+        end
+        export.characters = chars
+        export.player = PR.state and PR.state.key or false
+    end
     return export
 end
 C.ExportMoments = ExportMoments
