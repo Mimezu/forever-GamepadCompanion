@@ -10,6 +10,8 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
   Zones you can't pay for sink to the end.
 - A zone's row: its name and levels in the quest colours (red, orange, yellow, green, grey), a
   ? per quest to turn in, a ! per open quest. Grey zones' places are dimmed (capitals never).
+- A place's row: its name, its stops on the way ("2 stops"; direct: nothing), the cost.
+  The chosen row: an amber band, a dark ink bar and a pointer.
 - Inside a zone: nearest first. The list starts on the nearest place in your zone,
   else in the best zone.
 - Quests come from the log when the map opens; closed log headers are opened to count, then closed.

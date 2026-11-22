@@ -160,6 +160,13 @@ function FL.Coins(copper)
     return table.concat(parts, "  ")
 end
 
+-- Stops on the way, in words: hops 1 (direct): ""; 2: "1 stop"; 3: "2 stops"
+function FL.Stops(hops)
+    local n = math.max(0, (tonumber(hops) or 1) - 1)
+    if n == 0 then return "" end
+    return n == 1 and "1 stop" or (n .. " stops")
+end
+
 -- One row on: wrap = true goes round the ends, else stops there
 function FL.Step(sel, n, delta, wrap)
     if n < 1 then return nil end
@@ -367,10 +374,11 @@ end
 -- Game wiring ------------------------------------------------------------------
 if not CreateFrame then return end
 
+local function Pass(ok, ...) if ok then return ... end end
+-- (every return passed on: GetQuestLogTitle's isComplete is its sixth)
 local function Call(fn, ...)
     if type(fn) ~= "function" then return nil end
-    local ok, a, b, c, d, e = pcall(fn, ...)
-    if ok then return a, b, c, d, e end
+    return Pass(pcall(fn, ...))
 end
 local function InCombat() return InCombatLockdown and InCombatLockdown() end
 local function HasAtlas(name)
@@ -384,8 +392,8 @@ local FADED = { 0.42, 0.31, 0.18 }
 local DEAR = { 0.62, 0.10, 0.04 }   -- a cost you can't pay
 local GOLD = { 1.00, 0.82, 0.38 }
 local HEAD_H, FOOT_H, WIDTH = 62, 66, 260
-local ROW_H = { zones = 32, near = 40 }   -- a flight's row: a line, or two (with its zone)
-local ZONE_H = 24                          -- a zone's row
+local ROW_H = { zones = 25, near = 34 }   -- a flight's row: a line, or two (with its zone)
+local ZONE_H = 20                          -- a zone's row
 -- a zone's colour on parchment (the quest colours, inked)
 local TIERS = {
     red = { 0.66, 0.08, 0.04 }, orange = { 0.72, 0.36, 0.04 }, yellow = { 0.52, 0.40, 0.00 },
@@ -396,7 +404,7 @@ local READY_ICON = "Interface\\GossipFrame\\ActiveQuestIcon"
 local RING = "ChallengeMode-AffixRing-Sm"
 local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local GLOW = "Interface\\TaxiFrame\\UI-Taxi-Icon-Highlight"
-local NUB = "Interface\\TaxiFrame\\UI-Taxi-Icon-Nub"
+local POINTER = "Interface\\ChatFrame\\ChatFrameExpandArrow"
 local HERE_ICON = "Interface\\TaxiFrame\\UI-Taxi-Icon-Green"
 
 local state = { here = nil, nodes = {}, rows = {}, sel = nil, offset = 0, viewH = 400, view = "zones", quests = {} }
@@ -485,8 +493,8 @@ local Select, Fly   -- (below)
 local function Badge(parent, icon)
     local t = parent:CreateTexture(nil, "ARTWORK")
     t:SetTexture(icon)
-    t:SetSize(14, 14)
-    local n = Text(parent, BODY_FONT, 10, INK, "LEFT")
+    t:SetSize(15, 15)
+    local n = Text(parent, BODY_FONT, 11, INK, "LEFT")
     return t, n
 end
 
@@ -494,40 +502,34 @@ local function Slot(i)
     if slots[i] then return slots[i] end
     local r = CreateFrame("Button", nil, body)
     r:RegisterForClicks("LeftButtonUp")
-    -- the chosen row: a warm band of light fading to the right, a thin gilt edge
+    -- the chosen row: a strong amber band fading to the right, a dark ink bar, a pointer
     r.band = r:CreateTexture(nil, "BACKGROUND", nil, 2)
     r.band:SetAllPoints()
     r.band:SetColorTexture(1, 1, 1, 1)
     local faded = r.band.SetGradient and CreateColor and pcall(r.band.SetGradient, r.band, "HORIZONTAL",
-        CreateColor(GOLD[1], GOLD[2], GOLD[3], 0.55), CreateColor(GOLD[1], GOLD[2], GOLD[3], 0.05))
-    if not faded then r.band:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.35) end
+        CreateColor(0.93, 0.62, 0.18, 0.85), CreateColor(0.93, 0.62, 0.18, 0.20))
+    if not faded then r.band:SetVertexColor(0.93, 0.62, 0.18, 0.6) end
     r.edge = r:CreateTexture(nil, "ARTWORK")
-    r.edge:SetWidth(2)
-    r.edge:SetPoint("TOPLEFT", 0, -4)
-    r.edge:SetPoint("BOTTOMLEFT", 0, 4)
-    r.edge:SetColorTexture(0.55, 0.36, 0.10, 0.9)
-    r.place = Text(r, BODY_FONT, 13, INK)
+    r.edge:SetWidth(3)
+    r.edge:SetPoint("TOPLEFT", 0, -2)
+    r.edge:SetPoint("BOTTOMLEFT", 0, 2)
+    r.edge:SetColorTexture(0.30, 0.16, 0.04, 1)
+    r.pointer = r:CreateTexture(nil, "OVERLAY")
+    r.pointer:SetTexture(POINTER)
+    r.pointer:SetSize(10, 10)
+    r.pointer:SetVertexColor(0.30, 0.16, 0.04, 1)
+    r.place = Text(r, BODY_FONT, 12, INK)
     r.cost = Text(r, BODY_FONT, 11, INK, "RIGHT")
-    r.cost:SetPoint("TOPRIGHT", -2, -7)
-    r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
+    -- stops on the way, in words, by the cost ("2 stops"; none: direct)
+    r.stops = Text(r, BODY_FONT, 9, FADED, "RIGHT")
     r.zone = Text(r, BODY_FONT, 10, FADED)
-    r.zone:SetPoint("TOPLEFT", r.place, "BOTTOMLEFT", 0, -3)
-    r.zone:SetPoint("RIGHT", r, "RIGHT", -40, 0)
-    -- a pip per stop on the way
-    r.pips = {}
-    for p = 1, 4 do
-        local pip = r:CreateTexture(nil, "ARTWORK")
-        pip:SetTexture(NUB)
-        pip:SetSize(9, 9)
-        pip:SetVertexColor(INK[1], INK[2], INK[3], 0.7)
-        pip:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2 - (p - 1) * 8, 4)
-        r.pips[p] = pip
-    end
+    r.zone:SetPoint("TOPLEFT", r.place, "BOTTOMLEFT", 0, -2)
+    r.zone:SetPoint("RIGHT", r, "RIGHT", -60, 0)
     -- a zone's row: its name and levels, its quests, a hairline
     r.head = CreateFrame("Frame", nil, r)
     r.head:SetAllPoints()
-    r.head.name = Text(r.head, TITLE_FONT, 14, INK)
-    r.head.name:SetPoint("BOTTOMLEFT", 6, 5)
+    r.head.name = Text(r.head, TITLE_FONT, 13, INK)
+    r.head.name:SetPoint("BOTTOMLEFT", 6, 4)
     r.head.range = Text(r.head, BODY_FONT, 10, INK)
     r.head.range:SetPoint("BOTTOMLEFT", r.head.name, "BOTTOMRIGHT", 6, 1)
     r.head.readyIcon, r.head.ready = Badge(r.head, READY_ICON)
@@ -553,7 +555,7 @@ local function Badges(h, g)
         if count > 0 then
             num:SetText(count)
             num:ClearAllPoints()
-            num:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", right, 6)
+            num:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", right, 5)
             icon:ClearAllPoints()
             icon:SetPoint("RIGHT", num, "LEFT", -1, 1)
             right = right - (num:GetStringWidth() or 8) - 22
@@ -565,9 +567,22 @@ local function DrawFlight(r, row, at)
     local node, two = row.node, state.view == "near"
     r.head:Hide()
     r:EnableMouse(true)
+    -- one line (zones): place, stops, cost; two (nearest): the zone under the place, stops under the cost
+    r.cost:ClearAllPoints()
+    r.stops:ClearAllPoints()
     r.place:ClearAllPoints()
-    r.place:SetPoint("TOPLEFT", 10, two and -6 or -9)
-    r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
+    r.place:SetPoint("TOPLEFT", 14, two and -5 or -7)
+    if two then
+        r.cost:SetPoint("TOPRIGHT", -2, -5)
+        r.stops:SetPoint("TOPRIGHT", r.cost, "BOTTOMRIGHT", 0, -3)
+        r.place:SetPoint("RIGHT", r.cost, "LEFT", -6, 0)
+    else
+        r.cost:SetPoint("TOPRIGHT", -2, -7)
+        r.stops:SetPoint("RIGHT", r.cost, "LEFT", -8, 0)
+        r.place:SetPoint("RIGHT", r.stops, "LEFT", -6, 0)
+    end
+    r.stops:SetText(FL.Stops(node.hops))
+    r.stops:Show()
     r.place:SetText(node.place)
     r.place:SetAlpha(row.g and row.g.dim and 0.6 or 1)
     r.zone:SetShown(two)
@@ -576,17 +591,18 @@ local function DrawFlight(r, row, at)
     local c = node.cost > (Call(GetMoney) or 0) and DEAR or INK
     r.cost:SetTextColor(c[1], c[2], c[3])
     r.cost:Show()
-    for p, pip in ipairs(r.pips) do pip:SetShown(p < node.hops) end
     local on = at == state.sel
     r.band:SetShown(on)
     r.edge:SetShown(on)
+    r.pointer:ClearAllPoints()
+    r.pointer:SetPoint("LEFT", r, "LEFT", 3, 0)
+    r.pointer:SetShown(on)
 end
 
 local function DrawZone(r, row)
     local g, h = row.g, r.head
     r:EnableMouse(false)
-    r.band:Hide(); r.edge:Hide(); r.place:SetText(""); r.zone:Hide(); r.cost:Hide()
-    for _, pip in ipairs(r.pips) do pip:Hide() end
+    r.band:Hide(); r.edge:Hide(); r.pointer:Hide(); r.place:SetText(""); r.zone:Hide(); r.cost:Hide(); r.stops:Hide()
     local c = TIERS[g.tier] or INK
     h.name:SetText(g.zone)
     h.name:SetTextColor(c[1], c[2], c[3])
@@ -815,6 +831,7 @@ end
 
 -- The legend (Blizzard's glyphs, as the bank's bar): two lines -----------------
 local legends, prompts = nil, {}
+local function Mark(icon) return "|T" .. icon .. ":14:14|t" end
 local function MakeLegend(name, list)
     local L = _G.InputPromptLegends
     local l = L.CreateInputLegend(inner, name)
@@ -840,8 +857,8 @@ local function Legends()
             { "PAD4", "Nearest" },
         }), MakeLegend("legend2", {
             { "PAD3", "Again" },
-            { "PADLTRIGGER", "Turn-ins" },
-            { "PADRTRIGGER", "Quests" },
+            { "PADLTRIGGER", Mark(READY_ICON) .. "Turn-ins" },
+            { "PADRTRIGGER", Mark(OPEN_ICON) .. "Quests" },
         })
     end)
     if ok and a and b then legends = { a, b } end

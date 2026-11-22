@@ -95,6 +95,12 @@ eq(FL.Coins(5), "5" .. C, "copper only")
 eq(FL.Coins(0), "", "free")
 eq(FL.Coins(nil), "", "unknown")
 
+-- Stops in words ---------------------------------------------------------------------
+eq(FL.Stops(1), "", "direct: nothing")
+eq(FL.Stops(2), "1 stop", "one stop")
+eq(FL.Stops(4), "3 stops", "stops")
+eq(FL.Stops(nil), "", "unknown: direct")
+
 -- Moving -------------------------------------------------------------------------------
 eq(FL.Step(1, 5, 1, true), 2, "down")
 eq(FL.Step(5, 5, 1, true), 1, "down wraps")
