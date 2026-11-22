@@ -807,6 +807,32 @@ eq(Create(), CLICK_CREATE, "0.3 s up: the map")
 eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "no Focus UI left in the gamepad set")
 NOW = NOW + 1
 Keys.GRACE = 0
+-- L2 stuck: the game holds the key down, the pad has it up. Written down after STUCK_AFTER,
+-- its binding put again once (out of combat), its end written down
+do
+    local gameDown = {}
+    local isKeyDown, getBindingKey = IsKeyDown, GetBindingKey
+    IsKeyDown = function(k) return gameDown[k] == true end
+    GetBindingKey = function(b) if b == "GAMEPADLEFTMOD" then return "PADLTRIGGER" end if b == "GAMEPADRIGHTMOD" then return "PADRTRIGGER" end return getBindingKey and getBindingKey(b) end
+    local errors = function() return GamepadCompanionTraceDB and GamepadCompanionTraceDB.errors or {} end
+    local n0 = #errors()
+    gameDown.PADLTRIGGER = true
+    Keys.CheckStuck(500)
+    Keys.CheckStuck(500.3)
+    eq(#errors(), n0, "0.3 s: nothing yet")
+    Keys.CheckStuck(500.6)
+    check(#errors() > n0 and errors()[#errors()]:find("STUCK L2: the game holds PADLTRIGGER down") ~= nil, "0.6 s: written down")
+    gameDown.PADLTRIGGER = nil
+    Keys.CheckStuck(500.7)
+    check(errors()[#errors()]:find("STUCK L2: let go after") ~= nil, "let go: written down")
+    pressed.PADLTRIGGER = true; gameDown.PADLTRIGGER = true
+    local n1 = #errors()
+    Keys.CheckStuck(600); Keys.CheckStuck(601)
+    eq(#errors(), n1, "held on the pad too: not stuck")
+    pressed.PADLTRIGGER = nil; gameDown.PADLTRIGGER = nil
+    Keys.CheckStuck(602)
+    IsKeyDown, GetBindingKey = isKeyDown, getBindingKey
+end
 -- (a leftover the rebind can't clear: healed once, not every tick)
 padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
 check(Keys.Heal(), "a stuck Focus UI: one try")

@@ -595,6 +595,50 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     Keys.Apply(event == "PLAYER_REGEN_ENABLED")
 end)
 
+-- A trigger stuck: the game holds L2 (or R2) down, the pad has it up. Blizzard's bars read the
+-- game's key (IsKeyDown on GAMEPADLEFTMOD's key), so a release the game never got leaves the
+-- L2 bar on: jump and every shortcut on L2's page till /reload (2026-11-22, twice while
+-- fishing). Seen STUCK_AFTER: written down (the errors list: what the key runs, the pad), and
+-- the key's binding put again once (out of combat) so the game lets go of it; then whether
+-- that worked. Keys.STUCK_AFTER s.
+Keys.STUCK_AFTER = 0.5
+local MODS = { { "GAMEPADLEFTMOD", "L2" }, { "GAMEPADRIGHTMOD", "R2" } }
+local stuck = {}             -- binding -> { since, tried, said }
+local unstickOwner = CreateFrame("Frame", "GamepadCompanionKeyUnstick")
+function Keys.CheckStuck(now)
+    if not (GetBindingKey and IsKeyDown) then return end
+    local buttons = Sh.PadButtons()
+    for _, m in ipairs(MODS) do
+        local binding, name = m[1], m[2]
+        local key = GetBindingKey(binding)
+        local game = key and IsKeyDown(key)
+        local pad = key and Sh.PadDown(buttons, key)
+        local s = stuck[binding]
+        if game and pad == false then
+            if not s then s = { since = now }; stuck[binding] = s end
+            if now - s.since >= Keys.STUCK_AFTER and not s.said then
+                s.said = true
+                Trace(("STUCK %s: the game holds %s down, the pad has it up; it runs %s; %s"):format(name, key,
+                    tostring(GetBindingAction and GetBindingAction(key, true)), PadState()), "errors")
+            end
+            if s.said and not s.tried and not (InCombatLockdown and InCombatLockdown()) then
+                -- (the key's own binding put on top, then off: the game takes it as a new one)
+                s.tried = now
+                SetOverrideBinding(unstickOwner, true, key, binding)
+                SetOverrideBinding(unstickOwner, true, key, nil)
+            elseif s.tried and s.tried ~= true and now - s.tried >= 0.3 then
+                Trace(("STUCK %s: still held after a rebind"):format(name), "errors")
+                s.tried = true
+            end
+        elseif s then
+            if s.said then
+                Trace(("STUCK %s: let go after %.1f s%s"):format(name, now - s.since, s.tried and " (rebound)" or ""), "errors")
+            end
+            stuck[binding] = nil
+        end
+    end
+end
+
 -- The watcher: L2 / R2 out of combat, every 20 ms; every key checked 4 times a second
 local since, healIn = 0, 0
 events:SetScript("OnUpdate", function(_, elapsed)
@@ -608,4 +652,5 @@ events:SetScript("OnUpdate", function(_, elapsed)
         healIn = 0.25
         Keys.Heal()
     end
+    Keys.CheckStuck(GetTime and GetTime() or 0)
 end)
