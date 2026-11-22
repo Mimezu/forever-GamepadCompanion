@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: the L2 bar could stay on as if L2 were held while fishing (jump and the shortcuts all on L2) until /reload. R2 and L2 now change their fishing job only once both have been up a quarter second
 - Moments > Sound > Volume now sets everything the pad's speaker plays, WoW Helper's full feels and its Try included (WoW Helper applies it; told at once when you change it)
 - **Catch card**: each fish caught shows a small parchment card above the lure float: the catch, one moment (first of its kind, a rare one, the 10th, new here...), how many of it, this outing's count and, once a water has given 20 catches, how often it gives this one. Every catch is kept in a fishing journal
 - Fixed: Focus UI could stay on Create after L2 and Create were let go together. A button's binding now changes only once it has been up a quarter second

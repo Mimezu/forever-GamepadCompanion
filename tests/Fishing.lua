@@ -176,6 +176,7 @@ local fired = {}
 ns.HapticsLab = { Fire = function(key, gain) fired[#fired + 1] = { key = key, gain = gain, at = now } end }
 assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", ns)
 local F = ns.Fishing
+F.GRACE = 0   -- (the grace's own check below sets it)
 eq(F.Want(true, false, false), nil, "no pole: R2 is yours")
 eq(F.Want(true, true, false), "cast", "a pole: R2 casts")
 eq(F.Want(true, true, true), "catch", "the line out: R2 catches")
@@ -207,9 +208,15 @@ eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "R2 held: its binding doesn
 eq(cvars.SoftTargetInteractRange, "30", "Interact's reach longer")
 Tick()
 eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "still held: still waiting")
+F.GRACE = 0.25
 r2Down = false
 Tick()
-eq(R2(), "INTERACTTARGET", "R2 released: the line out, R2 interacts")
+eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "just released: not yet (the game may not have run its release)")
+Advance(0.1); Tick()
+eq(R2(), "CLICK GamepadCompanionFishing:LeftButton", "0.1 s up: not yet")
+Advance(0.2); Tick()
+eq(R2(), "INTERACTTARGET", "R2 released a quarter second: the line out, R2 interacts")
+F.GRACE = 0
 eq(F.Catching(), true, "R2 catches (the bobber's prompt shows R2)")
 check(changes >= 2, "R2's job changes are told (" .. changes .. ")")
 Advance(F.LAND_AT)
@@ -283,6 +290,7 @@ local function Reload(charDB)
     assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", ns2)
     for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
     binds = _G.GamepadCompanionFishingBinds
+    ns2.Fishing.GRACE = 0
     return ns2.Fishing
 end
 local function Fresh()
@@ -410,6 +418,7 @@ do
     frames, overrides = {}, {}
     assert(loadfile(root .. "/Fishing.lua"))("GamepadCompanion", nsL)
     F2 = nsL.Fishing
+    F2.GRACE = 0
     for _, f in ipairs(frames) do if f.events.UNIT_SPELLCAST_CHANNEL_START then events = f end end
     binds = _G.GamepadCompanionFishingBinds
     local function L2() return overrides[binds] and overrides[binds].PADLTRIGGER end

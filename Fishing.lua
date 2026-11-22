@@ -187,6 +187,16 @@ end
 function F.R2Held() return F.Down(F.KEY) end
 -- Either trigger fishing owns down: no binding changes now
 local function Held() return F.R2Held() or F.Down(F.LURE_KEY) end
+-- A trigger's binding changes only once both have been up this long: the pad reads a trigger
+-- up a moment before the game has run its release, and L2 rebound in that moment (the lure on
+-- or off it) lost the bars' L2 release: the L2 bar stuck as if held till /reload (2026-11-22)
+F.GRACE = 0.25
+local upSince
+local function Settled()
+    if Held() then upSince = nil; return false end
+    upSince = upSince or Now()
+    return Now() - upSince >= F.GRACE
+end
 
 -- What R2 runs now (nil: yours)
 local current, lureMacro
@@ -214,11 +224,12 @@ function F.Apply()
     local lure = F.LureMacro(s.l2, poleOn, pick and pick.id)
     -- (nothing to change: the bindings stay as they are, a trigger held or not)
     if want == current and lure == lureMacro then waiter:Hide(); return true end
-    -- (never mid-press: a trigger held, the change waits for its release)
-    if Held() then
+    -- (never mid-press: a trigger held, the change waits till both have been up GRACE)
+    if not Settled() then
         waiter:Show()
         return false
     end
+    upSince = nil
     waiter:Hide()
     current, lureMacro, lureNow = want, lure, lure and pick.id or nil
     ClearOverrideBindings(owner)
@@ -248,7 +259,7 @@ end
 -- (R2 released: the change that waited)
 waiter:SetScript("OnUpdate", function()
     if InCombat() then waiter:Hide(); pending = true; return end
-    if not Held() then F.Apply() end
+    if Settled() then F.Apply() end
 end)
 
 -- (L2 pressed: the lure it put on is the one the float names)
