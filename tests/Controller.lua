@@ -99,12 +99,17 @@ end
 -- command put over one leaves it there; only clearing the key removes it. Login probe, 2026-11-22)
 local PAD_SET = { TOGGLEUIFOCUS = true, OPENRADIAL = true }
 local padSet = {}   -- key -> { owner, action }
+-- (and a key held down keeps the gamepad function its press ran, for good, whatever is
+-- done to its owner's binding meanwhile: Create, L2 let go first, 2026-11-22)
+local function Latched(key) return padSet[key] and HELD_KEYS and HELD_KEYS[key] end
 C_KeyBindings = { GetBindingByKey = function(key, context)
     if context == 9 and padSet[key] then return padSet[key].action end
     return overrides[key] and overrides[key].action or nil
 end }
 function ClearOverrideBindings(owner)
-    for key, b in pairs(padSet) do if b.owner == owner then padSet[key] = nil end end
+    for key, b in pairs(padSet) do
+        if b.owner == owner then if Latched(key) then b.owner = "latched" else padSet[key] = nil end end
+    end
     for key, list in pairs(stacks) do
         for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
         if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
@@ -120,10 +125,13 @@ local function Drop(owner, key)
 end
 function SetOverrideBinding(owner, _, key, action)
     if action == nil then
-        if padSet[key] and padSet[key].owner == owner then padSet[key] = nil end
+        if padSet[key] and padSet[key].owner == owner then
+            if Latched(key) then padSet[key].owner = "latched" else padSet[key] = nil end
+        end
         return Drop(owner, key)
     end
-    if PAD_SET[action] then padSet[key] = { owner = owner, action = action } end
+    if PAD_SET[action] then padSet[key] = { owner = owner, action = action }
+    elseif Latched(key) then padSet[key].owner = "latched" end
     Push(key, { owner = owner, action = action })
 end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
@@ -161,6 +169,7 @@ function methods:GetFrameLevel() return 1 end
 -- Action bars --------------------------------------------------------------------
 local actions = {}   -- storage -> { kind, id, texture, name }
 local pressed = {}   -- key -> true
+HELD_KEYS = pressed
 local activePage = 2
 Constants = { GamepadActionBarConstants = { NUM_PAGEABLE_SLOTS_PER_GAMEPAD_ACTION_BAR_PAGE_UNIT_STANDARD_PAGE = 32,
     NUM_RESERVED_SLOTS_PER_GAMEPAD_ACTION_BAR_PAGE_UNIT = 4, NUM_STANDARD_PAGES_PER_GAMEPAD_ACTION_BAR_PAGE_UNIT = 3,
@@ -191,7 +200,7 @@ GetBindingAction = function(key, override)
     return bindings[key] or overridesRead(key)
 end
 -- As the game: binding indexes are 0-based, the state's buttons 1-based
-local ButtonIndex = { PADRSHOULDER = 9, PADLTRIGGER = 10, PADRTRIGGER = 11, PAD1 = 0, PADDUP = 12, PADBACK = 18 }
+local ButtonIndex = { PADRSHOULDER = 9, PADLTRIGGER = 10, PADRTRIGGER = 11, PAD1 = 0, PADDUP = 12, PADBACK = 18, PADSOCIAL = 16 }
 C_GamePad.ButtonBindingToIndex = function(key) return ButtonIndex[key] end
 C_GamePad.GetDeviceMappedState = function()
     local buttons = {}
@@ -755,6 +764,28 @@ padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
 check(Keys.Heal(), "Focus UI under the map: healed")
 eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "healed: the map alone")
 check(not Keys.Heal(), "then nothing to heal")
+-- L2 + Create, L2 let go a moment before Create: Create is left alone while held, Base back once up
+pressed.PADLTRIGGER = true; Keys.Watch()
+pressed.PADSOCIAL = true
+pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "L2 up, Create still held: untouched till it is up")
+pressed.PADSOCIAL = nil; Keys.Watch()
+eq(Create(), CLICK_CREATE, "Create up: the map")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "no Focus UI kept under the map")
+-- (Create held first, then L2: Focus UI waits for Create to be up)
+pressed.PADSOCIAL = true
+pressed.PADLTRIGGER = true; Keys.Watch()
+eq(Create(), CLICK_CREATE, "Create held, then L2: Create untouched")
+pressed.PADSOCIAL = nil; Keys.Watch()
+eq(Create(), "TOGGLEUIFOCUS", "Create up, L2 held: Focus UI")
+pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(Create(), CLICK_CREATE, "L2 up: the map")
+-- (a leftover the rebind can't clear: healed once, not every tick)
+padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
+check(Keys.Heal(), "a stuck Focus UI: one try")
+check(not Keys.Heal(), "then left (no rebind 4 times a second)")
+padSet.PADSOCIAL = nil
+check(not Keys.Heal(), "gone: nothing to heal")
 SetOverrideBindingClick = setClickNow
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left

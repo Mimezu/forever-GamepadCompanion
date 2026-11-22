@@ -388,7 +388,10 @@ local function PadSet(key)
 end
 
 -- The held layer's bindings: each in place of the key's Base on the same
--- owner, and the Base put back on release. Only the keys that change are touched
+-- owner, and the Base put back on release. Only the keys that change are touched,
+-- and never a key held down: the game keeps the binding a press ran for its release,
+-- and Focus UI swapped off Create mid-press stayed on it for good (L2 let go a moment
+-- before Create, 2026-11-22). A held key changes once it is up (the next tick)
 SetExtras = function(want)
     local same = true
     for key, command in pairs(want) do if extras[key] ~= command then same = false end end
@@ -396,12 +399,14 @@ SetExtras = function(want)
     if same then return end
     local list = {}
     for key, command in pairs(want) do list[#list + 1] = key .. "=" .. command end
-    Trace("extras " .. (#list > 0 and table.concat(list, " ") or "none") .. "; " .. PadState())
+    Trace("extras " .. (#list > 0 and table.concat(list, " ") or "none") .. "; down " .. Down() .. "; " .. PadState())
+    local buttons = Sh.PadButtons()
+    local function Held(key) return Sh.PadDown(buttons, key) == true end
     for key in pairs(extras) do
-        if not want[key] then Put(key, bound[key]); extras[key] = nil end
+        if not want[key] and not Held(key) then Put(key, bound[key]); extras[key] = nil end
     end
     for key, command in pairs(want) do
-        if extras[key] ~= command then Put(key, command); extras[key] = command end
+        if extras[key] ~= command and not Held(key) then Put(key, command); extras[key] = command end
     end
 end
 
@@ -429,6 +434,7 @@ end
 -- again, Base put back on top when a key of ours reads otherwise. A key left
 -- to the game is only checked for a leftover of ours; the game's own stays.
 -- True when something was put right.
+local ghosts = {}
 function Keys.Heal()
     if not loaded or not GetBindingAction or (InCombatLockdown and InCombatLockdown()) then return false end
     local stale, ghost = false, false
@@ -445,7 +451,13 @@ function Keys.Heal()
             if actual ~= should and not unread and (ourClick or actual ~= "") then stale = true end
             -- (a layer's function of ours left in the gamepad set, under Base)
             local pad = PadSet(key)
-            if pad and pad ~= should and Keys.Ours(key, pad) then stale = true; ghost = true end
+            -- (once: one the rebind can't clear is the game's own, left till /reload)
+            if pad and pad ~= should and Keys.Ours(key, pad) then
+                if not ghosts[key] then stale = true; ghost = true end
+                ghosts[key] = true
+            else
+                ghosts[key] = nil
+            end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
             stale = true
         end
