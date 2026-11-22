@@ -52,6 +52,8 @@ Quick.lua
 Fishing.lua
 BobberPrompt.lua
 FishingLure.lua
+FishingJournal.lua
+FishingToast.lua
 SlotMacros.lua
 BankMove.lua
 MailOpenAll.lua

@@ -201,6 +201,8 @@ PetFollow
 PetWait
 UnitAura
 GetNumLootItems
+GetLootSlotInfo
+GetLootSlotLink
 LootSlot
 GetNumSkillLines
 GetSkillLineInfo
