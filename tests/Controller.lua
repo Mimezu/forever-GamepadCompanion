@@ -103,7 +103,16 @@ function ClearOverrideBindings(owner)
     for k, b in pairs(overrides) do if b.owner == owner then overrides[k] = nil end end
 end
 function SetOverrideBindingClick(owner, _, key) Push(key, { owner = owner, action = "CLICK" }) end
-function SetOverrideBinding(owner, _, key, action) Push(key, { owner = owner, action = action }) end
+-- (nil: that owner's override on key gone, the one set before it uncovered)
+local function Drop(owner, key)
+    local list = stacks[key] or {}
+    for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
+    if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
+end
+function SetOverrideBinding(owner, _, key, action)
+    if action == nil then return Drop(owner, key) end
+    Push(key, { owner = owner, action = action })
+end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
@@ -698,6 +707,17 @@ eq(GetBindingAction("PADFORWARD", true), "TOGGLEUIFOCUS", "the map focused, L2 s
 eq(Create(), "TOGGLEUIFOCUS", "L2 still held: Focus UI stays above Base on Create")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
+-- (one owner per key: the held layer's binding in place of Base, never stacked on another owner;
+-- the game ran a stacked Focus UI on Create with L2 up, 2026-11-21)
+for key, list in pairs(stacks) do
+    for _, entry in ipairs(list) do check(entry.owner ~= layerOwner, "no layer binding on a second owner: " .. key) end
+end
+pressed.PADLTRIGGER = true; Keys.Watch()
+eq(#(stacks.PADSOCIAL or {}), 1, "L2 held: Create has one binding of ours")
+eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI in place of Base")
+pressed.PADLTRIGGER = nil; Keys.Watch()
+eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: still one")
+eq(Create(), CLICK_CREATE, "L2 up: Base back")
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left
 -- with Focus UI by another owner. The moment the focus ends, Create is put right

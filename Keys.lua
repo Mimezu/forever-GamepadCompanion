@@ -15,7 +15,8 @@
 -- function chosen there, stays that binding; while L2 / R2 is held out of
 -- combat, a watcher puts that layer's action on the key (the secure click, or
 -- the Blizzard function's binding) and takes it off on release: only for a
--- layer that has one, on its own binding owner. In combat those wait: the key
+-- layer that has one, in place of the key's Base on the same owner (never a
+-- second owner stacked on top: 2026-11-21). In combat those wait: the key
 -- runs its Base. Keys.Runs says which run where.
 --
 -- The watcher reads L2 / R2 from the pad itself (Sh.Held), the same state the
@@ -51,7 +52,7 @@ local extras = {}           -- key -> the command the watcher bound now
 local used = 0              -- macro attributes set last time
 local pending, loaded = false, false
 local listeners = {}
-local SetExtras             -- (below: the held layer's bindings on layerOwner)
+local SetExtras             -- (below: the held layer's bindings, on the keys' own owner)
 
 --[[ The secure click (pre-body: self, button, down). button is the key's
 click name ("p6"); attributes, set out of combat:
@@ -91,7 +92,11 @@ button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
 local owner = CreateFrame("Frame", "GamepadCompanionKeyBinds")
-local layerOwner = CreateFrame("Frame", "GamepadCompanionKeyLayers")   -- the watcher's, while a layer is held
+-- (the watcher's owner until 0.75.0; now only emptied, of a leftover: a
+-- held layer's binding goes on owner, in place of the key's Base. Two owners
+-- on one key: the game ran the other's, not the newest; Create ran Focus UI
+-- with the map on it and L2 up, 2026-11-21)
+local layerOwner = CreateFrame("Frame", "GamepadCompanionKeyLayers")
 
 -- A button's index in GetGamePadState().buttons (1-based)
 local function PadIndex(binding)
@@ -233,7 +238,7 @@ function Keys.Apply(force)
     if next(extras) then
         local keep = {}
         for key, command in pairs(extras) do keep[key] = command end
-        SetExtras({})
+        wipe(extras)
         SetExtras(keep)
     end
     return true
@@ -341,21 +346,28 @@ if UIErrorsFrame then
     end
 end
 
+-- One command on key, on the keys' owner (nil: none of ours there)
+local function Put(key, command)
+    local name = command and command:match("^CLICK " .. Keys.BUTTON .. ":(%w+)$")
+    if name then SetOverrideBindingClick(owner, true, key, Keys.BUTTON, name)
+    else SetOverrideBinding(owner, true, key, command) end
+end
+
+-- The held layer's bindings: each in place of the key's Base on the same
+-- owner, and the Base put back on release. Only the keys that change are touched
 SetExtras = function(want)
     local same = true
     for key, command in pairs(want) do if extras[key] ~= command then same = false end end
     for key in pairs(extras) do if not want[key] then same = false end end
     if same then return end
-    ClearOverrideBindings(layerOwner)
-    wipe(extras)
     local list = {}
     for key, command in pairs(want) do list[#list + 1] = key .. "=" .. command end
     Trace("extras " .. (#list > 0 and table.concat(list, " ") or "none") .. "; " .. PadState())
+    for key in pairs(extras) do
+        if not want[key] then Put(key, bound[key]); extras[key] = nil end
+    end
     for key, command in pairs(want) do
-        local name = command:match("^CLICK " .. Keys.BUTTON .. ":(%w+)$")
-        if name then SetOverrideBindingClick(layerOwner, true, key, Keys.BUTTON, name)
-        else SetOverrideBinding(layerOwner, true, key, command) end
-        extras[key] = command
+        if extras[key] ~= command then Put(key, command); extras[key] = command end
     end
 end
 
@@ -401,9 +413,9 @@ function Keys.Heal()
     end
     if not stale then return false end
     Keys.Snapshot("heal")
-    -- (layerOwner emptied outright: a leftover there may not be in extras)
+    -- (the held layer's off, Base back; the old owner emptied of a leftover)
     ClearOverrideBindings(layerOwner)
-    wipe(extras)
+    SetExtras({})
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
         if bound[key] and actual ~= bound[key] and (bound[key]:find("^CLICK " .. Keys.BUTTON .. ":") or actual ~= "") then Keys.Apply(true); break end
