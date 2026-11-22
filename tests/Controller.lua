@@ -786,6 +786,22 @@ check(Keys.Heal(), "a stuck Focus UI: one try")
 check(not Keys.Heal(), "then left (no rebind 4 times a second)")
 padSet.PADSOCIAL = nil
 check(not Keys.Heal(), "gone: nothing to heal")
+-- L2 + Create opens a window: Blizzard binds its keys on UIParent while Create is still down.
+-- No rebind then (it took Focus UI off Create mid-press, and the game kept it: 2026-11-22)
+pressed.PADLTRIGGER = true; Keys.Watch()
+pressed.PADSOCIAL = true
+SetOverrideBindingClick(UIParent, true, "PADDUP", "SomeFooterButton", "LeftButton")
+for _, fn in ipairs(hooks.SetOverrideBindingClick or {}) do fn(UIParent, true, "PADDUP", "SomeFooterButton") end
+RunTimers()
+Keys.Apply(true)
+for _ = 1, 3 do Keys.Heal() end
+eq(Create(), "TOGGLEUIFOCUS", "Create held: Focus UI untouched by any rebind")
+pressed.PADSOCIAL = nil
+pressed.PADLTRIGGER = nil; Keys.Watch()
+Keys.Apply(true)
+eq(Create(), CLICK_CREATE, "both up: the map")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "both up: no Focus UI left under the map")
+SetOverrideBinding(UIParent, true, "PADDUP", nil)
 SetOverrideBindingClick = setClickNow
 eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "L2 up: Options is Radial, back on top of the footer's binding")
 -- the map closes while focused: Blizzard's core set binds Options again, and Create is left

@@ -51,6 +51,7 @@ local seen = {}             -- key -> what the game binds there without Companio
 local extras = {}           -- key -> the command the watcher bound now
 local used = 0              -- macro attributes set last time
 local pending, loaded = false, false
+local later, laterForce = false, false   -- a rebind waiting for every key of ours to be up
 local listeners = {}
 local SetExtras             -- (below: the held layer's bindings, on the keys' own owner)
 
@@ -170,8 +171,21 @@ end
 -- force: bind again even when nothing changed (Blizzard took a key). Else the
 -- bindings are left alone when they'd be the same: macro and spell changes
 -- (which can come while a trigger is held) only touch the attributes.
+-- Is a key of ours held down now (the pad itself)
+local function AnyHeld()
+    local buttons = Sh.PadButtons()
+    for _, key in ipairs(Keys.KEYS) do if Sh.PadDown(buttons, key) == true then return true end end
+    return false
+end
+
 function Keys.Apply(force)
     if InCombatLockdown and InCombatLockdown() then pending = true; return false end
+    -- (never with a key held: the game keeps the binding a press ran for the release, and
+    -- Focus UI taken off Create mid-press stayed on it for good. The map focused by L2 +
+    -- Create binds Blizzard's keys, and the rebind that followed ran with Create still
+    -- down, 2026-11-22. Done once every key is up, the next tick)
+    if AnyHeld() then later = true; laterForce = laterForce or force or false; return true end
+    later, laterForce = false, false
     pending = false
     button:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
     button:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
@@ -480,7 +494,15 @@ end
 -- for its layers gives way to Blizzard instead)
 Sh.Claim(claimed, function()
     if InCombatLockdown and InCombatLockdown() then pending = true; return end
-    Keys.Apply(true)
+    -- (a key under a held layer's function reads as that, or empty: not taken. A Blizzard
+    -- function reads back empty too: only our click, or another command, is taken)
+    for key, command in pairs(claimed) do
+        local actual, should = GetBindingAction(key, true) or "", extras[key] or command
+        if actual ~= should and (should:find("^CLICK " .. Keys.BUTTON .. ":") or actual ~= "") then
+            Keys.Apply(true)
+            return
+        end
+    end
 end)
 
 -- Blizzard's gamepad UI, hooked once it is there (at load, else at login):
@@ -558,6 +580,7 @@ events:SetScript("OnUpdate", function(_, elapsed)
     if since < 0.02 then return end
     healIn = healIn - since
     since = 0
+    if later and not AnyHeld() then Keys.Apply(laterForce) end
     Keys.Watch()
     if healIn <= 0 then
         healIn = 0.25
