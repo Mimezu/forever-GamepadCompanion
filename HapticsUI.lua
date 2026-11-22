@@ -882,6 +882,43 @@ function HUI.Palette(parent, x, y, w, h, opts)
         for _, t in ipairs(pal.tiles) do t.sel:SetShown(t:IsShown() and t.key == current) end
         for g, b in pairs(pal.buttons) do S.SetSelected(b, g == pal.group) end
     end
+    -- (the rows that fit under the specials; more: the wheel scrolls them, a thin thumb shows
+    -- where, as Moments' lists. A big group, Moves, ran out of the window, 2026-11-22)
+    pal.offset = 0
+    pal.thumb = pal:CreateTexture(nil, "OVERLAY")
+    pal.thumb:SetColorTexture(1, 0.78, 0.25, 0.6)
+    pal.thumb:Hide()
+    local function Fit()
+        return math.max(1, floor((pal:GetHeight() + top + 4) / (TILE_H + 4)))
+    end
+    function pal:Place()
+        local n = pal.count or 0
+        local rows, fit = math.max(1, math.ceil(n / cols)), Fit()
+        pal.offset = math.max(0, math.min(pal.offset, rows - fit))
+        for i = 1, n do
+            local t = pal.tiles[i]
+            local row = floor((i - 1) / cols) - pal.offset
+            local shown = row >= 0 and row < fit
+            t:SetShown(shown)
+            if shown then
+                t:ClearAllPoints()
+                t:SetPoint("TOPLEFT", listW + ((i - 1) % cols) * (TILE_W + 4), top - row * (TILE_H + 4))
+            end
+        end
+        pal.thumb:SetShown(rows > fit)
+        if rows > fit then
+            local h = fit * (TILE_H + 4) - 4
+            local th = math.max(18, h * fit / rows)
+            pal.thumb:ClearAllPoints()
+            pal.thumb:SetPoint("TOPLEFT", listW + cols * (TILE_W + 4) + 2, top - (h - th) * pal.offset / (rows - fit))
+            pal.thumb:SetSize(3, th)
+        end
+    end
+    pal:EnableMouseWheel(true)
+    pal:SetScript("OnMouseWheel", function(_, delta)
+        pal.offset = pal.offset - delta
+        pal:Place()
+    end)
     function pal:ShowGroup(g)
         pal.group = g
         local list = {}
@@ -890,18 +927,21 @@ function HUI.Palette(parent, x, y, w, h, opts)
             if fg == g then list[#list + 1] = f end
         end
         for _, t in ipairs(pal.tiles) do t:Hide() end
+        local current = opts.current and opts.current()
+        local at
         for i, f in ipairs(list) do
             local t = Tile(pal.tiles, i, pal)
-            local col, row = (i - 1) % cols, floor((i - 1) / cols)
-            t:ClearAllPoints()
-            t:SetPoint("TOPLEFT", listW + col * (TILE_W + 4), top - row * (TILE_H + 4))
             t.key = f.key
             t.icon:SetTexture(f.icon or "Interface\\AddOns\\GamepadCompanion\\art\\rumble\\ic_vibe_pulse")
             t.label:SetText(f.label or f.key)
             t.label:SetTextColor(S.GOLD[1], S.GOLD[2], S.GOLD[3])
-            t:Show()
+            if f.key == current then at = i end
         end
+        pal.count = #list
         pal.rows = math.max(1, math.ceil(#list / cols))
+        -- (the current feel in view)
+        pal.offset = at and math.max(0, floor((at - 1) / cols) - Fit() + 1) or 0
+        pal:Place()
         if opts.onSelect then opts.onSelect(g) end
         pal:Update()
     end
@@ -960,9 +1000,12 @@ function HUI.PickFeel(anchor, current, onPick, specials, title)
         specials = specials and { { key = "off", label = "Off", icon = ns.Rumble and ns.Rumble.OFF_ICON } } or {}
     end
     palWin.pal:SetSpecials(specials)
-    palWin.pal:ShowGroup(palWin.pal:GroupOf(current) or ns.HapticsLab.GROUPS[1])
     local tilesH = (#specials > 0 and (TILE_H + 10) or 0) + 3 * (TILE_H + 4)
-    palWin:SetSize(24 + 150 + 8 * (TILE_W + 4), 48 + math.max(palWin.pal.listHeight, tilesH))
+    local bodyH = math.max(palWin.pal.listHeight, tilesH)
+    palWin:SetSize(24 + 150 + 8 * (TILE_W + 4), 48 + bodyH)
+    -- (the tiles kept inside the window: the rows past it scroll)
+    palWin.pal:SetHeight(bodyH)
+    palWin.pal:ShowGroup(palWin.pal:GroupOf(current) or ns.HapticsLab.GROUPS[1])
     palWin:ClearAllPoints()
     palWin:SetPoint("CENTER", Shell.Window(), "CENTER", 0, 0)
     palWin:SetClampedToScreen(true)

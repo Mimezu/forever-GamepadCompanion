@@ -291,6 +291,23 @@ page.browser.Select("Abilities")
 local gather = rowFor.gather
 gather.pick.scripts.OnClick(gather.pick)
 assert(GamepadCompanionPalette:IsShown() and PaletteTile("Match the action") and PaletteTile("Alerts only"), "the palette, the sets on top")
+-- (a big group stays inside the window: the rows past it hidden, a thumb, the wheel scrolls)
+do
+    local p = GamepadCompanionPalette.pal
+    local big, most = nil, 0
+    for _, g in ipairs(p.groups) do p:ShowGroup(g); if p.count > most then big, most = g, p.count end end
+    p:ShowGroup(big)
+    local function Shown() local n = 0; for i = 1, p.count do if p.tiles[i]:IsShown() then n = n + 1 end end; return n end
+    local fit = math.max(1, math.floor((p:GetHeight() + (#p.specialTiles > 0 and -(70 + 10) or 0) + 4) / 74))
+    assert(Shown() <= fit * p.cols, "never more rows than fit: " .. Shown() .. " of " .. p.count)
+    if p.count > fit * p.cols then
+        assert(p.thumb:IsShown(), "more than fit: the thumb")
+        p.scripts.OnMouseWheel(p, -1)
+        assert(p.offset == 1 and not p.tiles[1]:IsShown() and p.tiles[p.cols * fit + 1]:IsShown(), "the wheel: a row down")
+        p.scripts.OnMouseWheel(p, 5)
+        assert(p.offset == 0 and p.tiles[1]:IsShown(), "back up, not past the top")
+    end
+end
 local pulse = PaletteTile("Pulse")
 pulse.scripts.OnClick(pulse, "LeftButton")
 assert(V.CastPreset("gather") == "feel:pulse" and gather.pick.label.text == "Pulse", "gathering: Pulse while casting: " .. tostring(V.CastPreset("gather")))

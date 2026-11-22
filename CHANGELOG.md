@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: the feel picker no longer spills out of its window with a big group (Moves): its rows scroll with the wheel, with a thin thumb, and open on the current feel
 - A watchdog for a stuck trigger: when the game holds L2 or R2 down while the pad has it up, the trigger is let go (rebound once, out of combat) and the moment is written down for the next look
 - Fixed: the L2 bar could stay on as if L2 were held while fishing (jump and the shortcuts all on L2) until /reload. R2 and L2 now change their fishing job only once both have been up a quarter second
 - Moments > Sound > Volume now sets everything the pad's speaker plays, WoW Helper's full feels and its Try included (WoW Helper applies it; told at once when you change it)
