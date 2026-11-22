@@ -168,7 +168,7 @@ local tb = {
     N(7, "Bloodhoof Village, Mulgore", 0.05), N(8, "Splintertree Post, Ashenvale", 0.40),
 }
 local ctx = { zone = "Mulgore", level = 30, money = 1000,
-    quests = { ["Ashenvale"] = { open = 1, ready = 2 }, ["The Barrens"] = { open = 4, ready = 0 } } }
+    places = { ["Splintertree Post, Ashenvale"] = { open = 1, ready = 2 }, ["Crossroads, The Barrens"] = { open = 4, ready = 0 } } }
 local rows, start = FL.Arrange(tb, ctx)
 eq(rows[1].kind, "header", "zones: a header first")
 eq(rows[1].g.zone, "Mulgore", "your own zone first")
@@ -177,11 +177,13 @@ eq(rows[start].node.place, "Bloodhoof Village", "the nearest in your zone")
 eq(rows[3].g.zone, "Ashenvale", "then turn-ins")
 eq(rows[5].g.zone, "The Barrens", "then open quests")
 eq(rows[6].node.place, "Camp Taurajo", "in a zone: nearest first")
+eq(rows[3].g.ready, 2, "a zone's turn-ins: its paths'")
+eq(rows[5].g.open, 4, "a zone's quests: its paths'")
 eq(rows[#rows].node.place, "Gadgetzan", "a zone you can't pay for: last")
 eq(rows[#rows - 1].g.zone, "Tanaris", "its header")
 eq(rows[#rows].g.tier, "red", "Tanaris red at 30")
 -- no flight in your zone: the best zone first
-rows, start = FL.Arrange(tb, { zone = "Moonglade", level = 30, money = 1000, quests = ctx.quests })
+rows, start = FL.Arrange(tb, { zone = "Moonglade", level = 30, money = 1000, places = ctx.places })
 eq(rows[1].g.zone, "Ashenvale", "no flight here: the best zone first")
 eq(rows[start].node.place, "Splintertree Post", "and its nearest")
 -- level only: a grey zone dimmed, a city not
@@ -196,7 +198,7 @@ local a2 = FL.Arrange({ N(1, "A, Desolace", 0.3), N(2, "B, Feralas", 0.3) }, { l
 eq(a1[1].g.zone, "Feralas", "the zone your level fits")
 eq(a2[1].g.zone, "Desolace", "equal fit: the last place's zone")
 -- nearest view: no headers
-rows, start = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, quests = ctx.quests })
+rows, start = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, places = ctx.places })
 eq(#rows, #tb, "nearest: flights only")
 eq(rows[1].node.place, "Bloodhoof Village", "nearest first")
 eq(start, 1, "nearest: the first")
@@ -237,31 +239,42 @@ eq(rows[FL.Find(rows, "Crossroads, The Barrens")].node.place, "Crossroads", "X: 
 eq(FL.Find(rows, "Gone, z"), nil, "gone: none")
 eq(FL.Find(rows, nil), nil, "none yet")
 -- nearest view: the jumps land on the zone's nearest
-rows = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, quests = ctx.quests })
-eq(rows[FL.Jump(rows, 1, "open")].node.place, "Camp Taurajo", "nearest view: the zone's nearest")
+rows = FL.Arrange(tb, { view = "near", zone = "Mulgore", level = 30, places = ctx.places })
+eq(rows[FL.Jump(rows, 1, "open")].node.place, "Crossroads", "nearest view: the path itself")
 
--- Quests to flight paths ------------------------------------------------------------------
-local places = { ["The Barrens"] = { { name = "Crossroads, The Barrens", x = 0.5, y = 0.3 }, { name = "Ratchet, The Barrens", x = 0.6, y = 0.4 } } }
-local zq, pq = FL.Tally({
-    { ready = true, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.52, y = 0.31 } } },
-    { ready = false, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.61, y = 0.42 } } },
-    { ready = false, zone = "The Barrens", points = { { zone = "The Barrens", x = 0.59, y = 0.39 } } },
-    { ready = false, zone = "The Barrens", points = {} },
-    { ready = true, zone = nil, points = { { zone = "Durotar", x = 0.1, y = 0.1 }, { zone = "The Barrens", x = 0.5, y = 0.2 } } },
-    { ready = false, zone = "Ashenvale", points = { { zone = "Ashenvale", x = 0.5, y = 0.5 } } },
-    { ready = false, zone = nil, points = {} },
-}, places)
-eq(pq["Crossroads, The Barrens"].ready, 2, "turn-ins to the nearest path (a point in a zone without paths skipped)")
-eq(pq["Ratchet, The Barrens"].open, 2, "quests to do to the nearest path")
-eq(pq["Crossroads, The Barrens"].open, 0, "none to do there")
-eq(zq["The Barrens"].open, 3, "the zone: every quest in it, with a point or not")
-eq(zq["The Barrens"].ready, 2, "the zone's turn-ins")
-eq(zq.Ashenvale.open, 1, "a zone without paths read: its log zone")
-eq(next(select(2, FL.Tally({}, {}))), nil, "no quests")
+-- Quests to flight paths (world yards, by continent) -----------------------------------------
+local P = function(name, zone, cont, x, y) return { name = name, zone = zone, at = cont and { cont = cont, x = x, y = y } } end
+local paths = {
+    P("Crossroads, The Barrens", "The Barrens", 1, 0, 0), P("Ratchet, The Barrens", "The Barrens", 1, 500, 100),
+    P("Camp Taurajo, The Barrens", "The Barrens", 1, 100, 900), P("Orgrimmar, Durotar", "Durotar", 1, 900, -900),
+    P("Booty Bay, Stranglethorn Vale", "Stranglethorn Vale", 0, 0, 0), P("Gone, Nowhere", "Nowhere"),
+}
+local centres = { ["The Barrens"] = { cont = 1, x = 120, y = 800 } }
+local W = function(cont, x, y) return { cont = cont, x = x, y = y } end
+local pq = FL.Tally({
+    { ready = true, zone = "The Barrens", at = W(1, 20, 10) },        -- by Crossroads
+    { ready = false, zone = "The Barrens", at = W(1, 480, 90) },      -- by Ratchet
+    { ready = false, zone = "Durotar", at = W(1, 480, 120) },         -- a Durotar quest by Ratchet: the point wins
+    { ready = true, zone = "The Barrens", at = W(0, 10, 10) },        -- on the other continent: Booty Bay
+    { ready = false, zone = "The Barrens" },                          -- no point: the path by the zone's centre
+    { ready = false, zone = "Durotar" },                              -- no point, no centre: the zone's first
+    { ready = false, zone = "Warrior" },                              -- no point, no zone of paths: no dot
+    { ready = true, zone = nil },                                     -- nothing known: no dot
+}, paths, centres)
+eq(pq["Crossroads, The Barrens"].ready, 1, "a turn-in: the nearest path")
+eq(pq["Ratchet, The Barrens"].open, 2, "quests to do: the nearest path, whatever their zone")
+eq(pq["Booty Bay, Stranglethorn Vale"].ready, 1, "only paths on the quest's continent")
+eq(pq["Camp Taurajo, The Barrens"].open, 1, "no point: the zone's path by its centre")
+eq(pq["Orgrimmar, Durotar"].open, 1, "no point, no centre: the zone's first path")
+local total = 0
+for _, c in pairs(pq) do total = total + c.open + c.ready end
+eq(total, 6, "the two with nothing known: no dot")
+eq(pq["Gone, Nowhere"], nil, "a path with no point: no quest by distance")
+eq(next(FL.Tally({}, paths, centres)), nil, "no quests")
+eq(next(FL.Tally({ { ready = true, at = W(1, 0, 0) } }, {}, {})), nil, "no paths")
 
 -- Rows carry their path's quests; L2 / R2 go to the paths with the most -----------------------
 local rq = FL.Arrange(tb, { zone = "Mulgore", level = 30,
-    quests = { ["The Barrens"] = { open = 3, ready = 1 }, ["Ashenvale"] = { open = 1, ready = 0 } },
     places = { ["Crossroads, The Barrens"] = { open = 1, ready = 1 }, ["Camp Taurajo, The Barrens"] = { open = 2, ready = 0 },
         ["Splintertree Post, Ashenvale"] = { open = 1, ready = 0 } } })
 local at = {}

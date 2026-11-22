@@ -231,3 +231,4 @@ ExpandQuestHeader
 GetNumQuestLogEntries
 GetQuestLogTitle
 C_TaxiMap
+CreateVector2D
