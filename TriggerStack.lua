@@ -177,6 +177,21 @@ TS.RECOMMENDED = {
 
 function TS.Recommended(class)
     local list = TS.RECOMMENDED[class or Class() or ""] or TS.RECOMMENDED.DEFAULT
+    -- (a profile made with Profiles' FRESH: its reactions off on the held layer buttons)
+    local P = ns.Profiles
+    if P and P.Fresh and P.Fresh() and P.FRESH.triggersOff then
+        local copy = {}
+        for i, r in ipairs(list) do
+            copy[i] = r
+            if P.FRESH.triggersOff[r.id] then
+                local c = {}
+                for k2, v in pairs(r) do c[k2] = v end
+                c.on = false
+                copy[i] = c
+            end
+        end
+        list = copy
+    end
     -- (the ready rows: their conditions exist)
     for _, r in ipairs(list) do
         local name = type(r.condition) == "string" and r.condition:match("^ready:(.+)$")
@@ -189,7 +204,13 @@ end
 -- The Feel profile's table (Profiles: P.FEEL_TABLES), and the silent move of
 -- Setup › Triggers' rules (TriggerRules.lua) into reactions, once
 ---------------------------------------------------------------------------
+local pointedRecommended   -- (the Recommended read again once the profile is pointed: FRESH's)
 local function Store()
+    local P = ns.Profiles
+    if not pointedRecommended and TS.kind and P and P.state and P.state.pointed then
+        pointedRecommended = true
+        TS.kind.spec.recommended = TS.Recommended()
+    end
     local db = H.DB()
     if type(db.triggerStack) ~= "table" then db.triggerStack = {} end
     local store = db.triggerStack

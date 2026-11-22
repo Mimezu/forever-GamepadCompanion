@@ -43,10 +43,17 @@ P.RECOMMENDED = {
 -- keeps the code's own, and none of its rows turns "changed".
 P.FRESH = {
     version = 1,
-    events = { money = true },
+    -- (UI errors: every mashed button out of range; a shield's block: every few seconds tanking)
+    events = { money = true, uiError = false, block = false },
     feels = { landing = "flick", money = "gravel" },   -- (events' feels other than the code's own)
-    vibration = { autoAttack = true, jump = true },
+    -- (a jump's take-off: off, it comes often and outweighs its landing)
+    vibration = { autoAttack = true },
     intensity = 1,   -- Strength: full (the code's own is 80 %)
+    -- (the frequent big ones softer: a kill's Boom on every mob, low health's loop, a two-hander's swing)
+    feelVolumes = { kill = 0.5, lowHp = 0.6, autoAttack = 0.6 },
+    -- (trigger reactions off: L2 / R2 are the layer buttons, held most; resisting them on every
+    -- global cooldown or all through combat fights the player)
+    triggersOff = { gcd = true, rage = true, energy = true },
     sounds = { loot = "thud", lowHp = "heartbeat_thump", money = "coin", uiError = false },   -- (false: none)
     soundVolumes = { loot = 0.5, whisper = 0.7, money = 0.8, emoteVoice = 0.8 },
     lightBase = { light = "ember", level = 0.375 },
@@ -246,10 +253,43 @@ function P.SendWho()
 end
 
 ---------------------------------------------------------------------------
+-- A brand-new install (nothing saved yet, at ADDON_LOADED): what only a player who chose it
+-- gets starts off. Account-wide, in the profiles' UI part (never cleared at logout).
+---------------------------------------------------------------------------
+function P.MarkNewInstall()
+    local h0 = GamepadCompanionHapticsDB
+    if GamepadCompanionDB ~= nil or (type(h0) == "table" and type(h0.profiles) == "table") then return false end
+    local h = HDB()
+    if type(h.ui) ~= "table" then h.ui = {} end
+    if h.ui.cameraFraming == nil then h.ui.cameraFraming = false end
+    return true
+end
+
+-- Camera framing (CameraPitch.lua): on unless turned off (an install from before it was a choice
+-- keeps it; a new one starts off)
+function P.CameraFraming()
+    local h = GamepadCompanionHapticsDB
+    local ui = type(h) == "table" and type(h.ui) == "table" and h.ui or nil
+    return not (ui and ui.cameraFraming == false)
+end
+function P.SetCameraFraming(on)
+    local h = HDB()
+    if type(h.ui) ~= "table" then h.ui = {} end
+    h.ui.cameraFraming = on and true or false
+end
+
+---------------------------------------------------------------------------
 -- Load: migrate once, give the character its profiles, point the live places
 ---------------------------------------------------------------------------
+-- (profiles off this session: a character with nothing saved yet stays new for the next
+-- login, not "existing" with the code's own defaults: its file says so)
+local function KeepNew()
+    if GamepadCompanionCharDB == nil then GamepadCompanionCharDB = { version = 1, fresh = true } end
+end
+
 function P.Load(name, realm, class)
     if not (type(name) == "string" and name ~= "" and type(realm) == "string") then
+        KeepNew()
         state.note = "Profiles: off this session (no character name yet)"
         return false
     end
@@ -266,6 +306,7 @@ function P.Load(name, realm, class)
             end
         end
         if not found then
+            KeepNew()
             state.note = "Profiles: off this session (no realm yet)"
             return false
         end
@@ -290,7 +331,7 @@ function P.Load(name, realm, class)
     if type(use) ~= "table" or not (p.controls[use.controls] and p.feel[use.feel]) then
         use = type(use) == "table" and use or {}
         local char = GamepadCompanionCharDB
-        local existing = type(char) == "table" and not char.profiled
+        local existing = type(char) == "table" and not char.profiled and not char.fresh
         if existing then
             -- an existing character: its own tables and the account parts as they were
             p.beforeChar[key] = p.beforeChar[key] or Copy(char)
@@ -614,6 +655,7 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function(_, event, arg)
     if event == "ADDON_LOADED" and arg == ADDON then
+        P.MarkNewInstall()
         local name = UnitName and UnitName("player")
         local realm = GetRealmName and GetRealmName()
         local _, class = nil, nil

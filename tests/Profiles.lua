@@ -146,11 +146,13 @@ P = Login("Dahlia", "Noir", "ROGUE")
 h = GamepadCompanionHapticsDB
 check(P.Current("feel") == "Dahlia" and P.state.note:find("Recommended", 1, true), "a new rogue: Recommended, said once")
 check(h.events.hit.on == false and h.events.combo.on == true, "the calm set, combo points for a rogue")
--- (Alberich's choices, 2026-11-20: Money on with Gravel, Landing's Flick, swings and jumps, full strength)
+-- (Alberich's choices, 2026-11-20: Money on with Gravel, Landing's Flick, swings, full strength; 2026-11-22:
+-- a jump's take-off left off, UI errors and blocks off)
 check(h.events.money.on == true and h.events.money.feel == "gravel" and h.events.landing.feel == "flick"
     and h.events.landing.on == nil and h.events.combo.feel == nil, "Recommended feels; a feel alone leaves on to the code")
 local vib = GamepadCompanionCharDB.vibration
-check(vib.intensity == 1 and vib.events.autoAttack.on == true and vib.events.jump.on == true, "swings, jumps, full strength")
+check(vib.intensity == 1 and vib.events.autoAttack.on == true and vib.events.jump == nil
+    and h.events.uiError.on == false and h.events.block.on == false, "swings, full strength; no jumps, UI errors or blocks")
 check(h.fresh == P.FRESH.version and P.Fresh(), "stamped FRESH: its sounds, levels and lights are its defaults")
 check(type(GamepadCompanionCharDB) == "table" and GamepadCompanionCharDB.keys == nil, "fresh controls")
 Logout()

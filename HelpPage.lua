@@ -243,6 +243,12 @@ local function PadReady()
     local id = C_GamePad and C_GamePad.GetActiveDeviceID and C_GamePad.GetActiveDeviceID()
     return type(id) == "number" and id >= 0
 end
+-- (the game's gamepad UI: off, the pad moves nothing of ours; unknown counts as on)
+local function GamepadUI()
+    if not (InputUtil and InputUtil.IsGamepadUIEnabled) then return true end
+    local ok, on = pcall(InputUtil.IsGamepadUIEnabled)
+    return not ok or on ~= false
+end
 local function HelperReady()
     local K, C = ns.HelperLink, ns.HelperCues
     return K and K.Enabled() and C and C.Data and C.Data() ~= nil or false
@@ -254,12 +260,12 @@ FeelIt = function()
     if page and page.PlayTour then page.PlayTour() end
 end
 
--- /gpc: Start here while the pad or WoW Helper isn't ready (a client that
--- can't tell about the pad counts as ready), once; then the last page (playing
--- without WoW Helper is fine: Start here isn't forced every time, U2-7)
+-- /gpc: Start here while the pad or the gamepad UI isn't ready (a client that
+-- can't tell about the pad counts as ready), once; then the last page. WoW
+-- Helper is optional: never a reason (U2-7)
 function help.NeedsStart()
     local padKnown = C_GamePad and C_GamePad.GetActiveDeviceID
-    return (padKnown and not PadReady()) or not HelperReady()
+    return (padKnown and not PadReady()) or not GamepadUI()
 end
 local function UI()
     if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
@@ -273,6 +279,20 @@ function API.OpenStart()
     Shell.Open("help")
     if help.ShowTopic then help.ShowTopic(1) end
     return true
+end
+
+-- A new install: one chat line at its first login, where the window is (nothing else pops up)
+if CreateFrame then
+    local hello = CreateFrame("Frame")
+    if hello and hello.RegisterEvent then
+        hello:RegisterEvent("PLAYER_LOGIN")
+        hello:SetScript("OnEvent", function()
+            local ui = UI()
+            if ui.hello or ui.startSeen then return end
+            ui.hello = true
+            if print then print("|cffffd100Gamepad Companion|r: /gpc") end
+        end)
+    end
 end
 
 local TOPICS = {
@@ -332,10 +352,12 @@ end
 
 local function StartSteps()
     local s = help.start
-    local ready = { PadReady(), HelperReady(), PadReady() and HelperReady() }
+    local pad, ui = PadReady(), GamepadUI()
+    local ready = { pad and ui, HelperReady(), pad and ui }
+    local waiting = { pad and "Gamepad UI off" or "Not yet", "Optional", "After 1" }
     for i, tile in ipairs(s.tiles) do
         local on = ready[i]
-        tile.state:SetText(i == 4 and "Crit · Loot · Level up" or on and "Ready" or (i == 3 and "After 1 and 2" or "Not yet"))
+        tile.state:SetText(i == 4 and "Crit · Loot · Level up" or on and "Ready" or waiting[i])
         tile.state:SetTextColor(on and 0.35 or S.GREY[1], on and 0.85 or S.GREY[2], on and 0.4 or S.GREY[3])
         tile.tick:SetShown(on)
     end
@@ -470,7 +492,7 @@ local function Build(frame)
     help.start.tiles = {}
     local tw, gap = 186, 18
     local x0 = (WELL_W - (4 * tw + 3 * gap)) / 2
-    for i, step in ipairs({ { "controller", "Connect the pad" }, { "setup", "Start WoW Helper" }, { "moments", "Play" },
+    for i, step in ipairs({ { "controller", "Connect the pad" }, { "setup", "WoW Helper" }, { "moments", "Play" },
         { "gestures", "Feel it", FeelIt } }) do
         local tile = S.Card(help.start, nil, x0 + (i - 1) * (tw + gap), -24, tw, WELL_H - 48)
         -- (a step opens its page: Controller, Setup, Moments; Feel it plays three)

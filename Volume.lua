@@ -39,7 +39,9 @@ end
 function Vol.FeelDefault(key)
     local parent = Parent(key)
     if parent then return Vol.Feel(parent) end
-    return Vol.FEEL_DEFAULT[key] or 1
+    -- (a profile made with Profiles' FRESH: its frequent big feels softer)
+    local P = ns.Profiles
+    return P and P.FreshOf and P.FreshOf("feelVolumes", key) or Vol.FEEL_DEFAULT[key] or 1
 end
 function Vol.SoundDefault(key)
     local parent = Parent(key)

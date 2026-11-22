@@ -378,9 +378,24 @@ local function BuildCamera(frame)
     local check = S.NewCheck(card, "Autorun turns too", 12, -38, function(self)
         AT.SetEnabled(self:GetChecked() == true)
     end, COL - 60)
-    S.Tooltip(check, "Autorun turns too", "When moving: autorun counts")
+    S.Tooltip(check, "Autorun turns too", "Needs Turn with camera: When moving")
     pg.autorun = check
-    pg.refresh[#pg.refresh + 1] = function() check:SetChecked(AT.Enabled()) end
+    pg.refresh[#pg.refresh + 1] = function()
+        check:SetChecked(AT.Enabled())
+        -- (it acts only with the game's "When moving": dimmed otherwise)
+        local get = C_CVar and C_CVar.GetCVar
+        local ok, v = pcall(function() return get and get(AT.CVAR) end)
+        check:SetAlpha((not ok or v == nil or tostring(v) == AT.MOVING) and 1 or 0.45)
+    end
+    local CP = ns.CameraPitch
+    if CP then
+        local frame = S.NewCheck(card, "Low camera", 12, -66, function(self)
+            CP.SetEnabled(self:GetChecked() == true)
+        end, COL - 60)
+        S.Tooltip(frame, "Low camera", "Changes game camera settings")
+        pg.cameraFraming = frame
+        pg.refresh[#pg.refresh + 1] = function() frame:SetChecked(CP.Enabled()) end
+    end
 end
 
 ---------------------------------------------------------------------------

@@ -2,6 +2,11 @@
 
 ## Unreleased (0.75.0)
 
+- **A new install plays well out of the box** (a second PC, any class): UI errors and a shield's block no longer rumble; a jump's take-off stays off (its landing plays); a kill's Boom at half, low health's heartbeat and melee swings at 60 %; trigger reactions no longer resist L2 / R2 (the layer buttons) on every global cooldown or all through combat (rage, energy). Only new or reset Feel profiles get these: older profiles keep what they had
+- Camera: Setup > Camera > **Low camera**. On for installs from before (as always); a new install leaves the game's camera alone (no experimental-setting warning). Turned off, the game's own framing comes back
+- Start here: WoW Helper is optional (its step says so, Play ticks without it); Connect the pad says when the gamepad UI is off. A new install prints one line at its first login: /gpc
+- Fixed: a new character whose first session came with a blank realm got the code's own defaults at the next login (every combat moment on) instead of Recommended
+- Setup > Camera: Autorun turns too is dimmed unless the game's Turn with camera is When moving (the only setting it acts on)
 - Weather felt with WoW Helper again: a sand gust and a thunder roll now reach it as HD cues (while its HD drives the pad the game's rumble is not felt, so sandstorms and thunder went silent); rain, snow and embers cue one drop, flake or pop per tap, at the tap's strength. A heavier sandstorm gusts closer. The Probes report lists what the game reported (Weather seen)
 - Fixed: a rain, snow or ember tap and a bubble under water died on their first frame (the mixer read the tap's strength as a held level and dropped the voice), so each lasted one frame and the rhythm started over: not denser when heavier, never a second drop. They play as designed now
 - **Flight list by zone**: places grouped by zone, your own first, then the zones worth flying to (turn-ins, open quests, your level, near); each zone shows its levels in the quest colours and its ? and ! counts. Starts on the nearest place in your zone. L2 jumps to the zone with the most turn-ins, R2 to the most open quests (both only read, never rebound); X: the last place flown to from here; Y: Nearest / Zones
