@@ -1620,6 +1620,71 @@ do
     io.write("PASS: water: wading steps, shallow landing splash, one scaled splash into deep water" .. string.char(10))
 end
 
+-- Footsteps handed to WoW Helper: it says it can (stepTiming.play), the HD link is on: the
+-- markers carry the speed and what is handed over; this addon plays none of its own. HD off,
+-- or an older WoW Helper: its own, as before. Learned per character first.
+do
+    H.DB().engine = true
+    V.Settings().enabled = true
+    L.SetEngine(true)
+    local K, C, P = ns.HelperLink, ns.HelperCues, ns.Profiles
+    local saved = { K.Marker, K.Enabled, K.V2, WowHelperData, P.Key, GetUnitSpeed, IsSubmerged, IsSwimming, IsFalling, IsMounted, UnitRace, UnitSex, C.Settings().hdFeels }
+    local sent = {}
+    K.Marker = function(item) sent[#sent + 1] = item; return true end
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    P.Key = function() return "Alberich-Forever" end
+    UnitRace = function() return "Undead", "Scourge", 5 end
+    UnitSex = function() return 2 end
+    local speed = 8.05
+    GetUnitSpeed = function() return speed end
+    IsSubmerged = function() return false end
+    IsSwimming = function() return false end
+    IsFalling = function() return false end
+    IsMounted = function() return false end
+    L.EventSettings("footsteps").on = true
+    L.EventSettings("wading").on = true
+    C.Settings().hdFeels = true
+    WowHelperData = { stepTiming = { play = 1,
+        ["Alberich-Forever|run"] = { rate = 3.31, offset = 0.21, speed = 7, steps = 120 },
+        ["5-2|run"] = { rate = 5.0, offset = 0.18, speed = 7, steps = 555 } } }
+    assert(L.HelperPlaysSteps(), "WoW Helper plays them")
+    assert(math.abs(L.StepCal("run").rate - 3.31) < 1e-9, "learned for this character first")
+    L.Poll()
+    assert(not H.Playing("live_footsteps") and not H.Playing("live_wading"), "none of its own")
+    local m = sent[#sent]
+    assert(m and m.moment == 96 and m.touch == 128 + 3 and m.sound == 805 and m.gain > 0 and m.side == 5, "run marker: footsteps and wading handed over, 8.05 yd/s")
+    local n = #sent
+    L.Poll()
+    assert(#sent == n, "the same speed: nothing new")
+    speed = 9.5
+    L.Poll()
+    m = sent[#sent]
+    assert(#sent == n + 1 and m.moment == 96 and m.touch == 128 + 3 + 4 and m.sound == 950, "quicker: the same cycle, its speed")
+    L.EventSettings("wading").on = false
+    L.Poll()
+    assert(sent[#sent].touch == 128 + 1 + 4, "wading switched off: said at once")
+    speed = 0
+    L.Poll()
+    assert(sent[#sent].moment == 98 and sent[#sent].touch == 0, "stopped")
+    -- HD off: its own, the markers only for learning
+    C.Settings().hdFeels = false
+    speed = 7
+    L.Poll()
+    assert(not L.HelperPlaysSteps() and H.Playing("live_footsteps"), "HD off: its own footsteps")
+    assert(sent[#sent].moment == 96 and sent[#sent].touch == 0 and sent[#sent].sound == 700, "marker: the speed, nothing handed")
+    -- an older WoW Helper (no play): its own
+    C.Settings().hdFeels = true
+    WowHelperData = { stepTiming = { ["5-2|run"] = { rate = 3.2, offset = 0.18, speed = 7, steps = 50 } } }
+    assert(not L.HelperPlaysSteps(), "an older WoW Helper: not handed over")
+    assert(math.abs(L.StepCal("run").rate - 3.2) < 1e-9, "no key of this character: the model's")
+    speed = 0
+    L.Poll()
+    K.Marker, K.Enabled, K.V2, WowHelperData, P.Key, GetUnitSpeed, IsSubmerged, IsSwimming, IsFalling, IsMounted, UnitRace, UnitSex = saved[1], saved[2], saved[3], saved[4], saved[5], saved[6], saved[7], saved[8], saved[9], saved[10], saved[11], saved[12]
+    C.Settings().hdFeels = saved[13]
+    L.EventDefault("footsteps"); L.EventDefault("wading")
+    io.write("PASS: footsteps handed to WoW Helper: speed and switches on the markers, none of our own; per character first" .. string.char(10))
+end
+
 -- Mining: a knock and a ring on each swing, in time from the cast's start, a crack on success
 do
     H.DB().engine = true

@@ -1136,10 +1136,14 @@ function L.StepCal(band)
     if own then return own end
     local d = _G.WowHelperData
     if learnedFrom ~= d then learnedCal, learnedFrom = {}, d end
-    -- (WoW Helper's key: the race the markers carry, Timing.HelperModel; a Skyborne's is 15)
-    local key = (ns.Timing and ns.Timing.HelperModel and ns.Timing.HelperModel() or m) .. "|" .. band
+    -- (WoW Helper's keys: this character's, learned per character since 2026-11-22; else the
+    -- race the markers carry, Timing.HelperModel; a Skyborne's is 15)
+    local who = ns.Profiles and ns.Profiles.Key and ns.Profiles.Key()
+    local model = (ns.Timing and ns.Timing.HelperModel and ns.Timing.HelperModel() or m) .. "|" .. band
+    local steps = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming
+    local key = (steps and who and type(steps[who .. "|" .. band]) == "table") and (who .. "|" .. band) or model
     if learnedCal[key] == nil then
-        local l = type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming[key]
+        local l = steps and steps[key]
         if type(l) == "table" and tonumber(l.rate) and tonumber(l.speed) then
             learnedCal[key] = { rate = tonumber(l.rate), offset = tonumber(l.offset) or 0, speed = tonumber(l.speed),
                 taps = 0, learned = tonumber(l.steps) or 0 }
@@ -1166,13 +1170,40 @@ end
 -- poll sees the gait a moment after the move). It learns the steps' period
 -- and timing by listening.
 ---------------------------------------------------------------------------
+-- WoW Helper plays the steps itself when it says it can (WowHelperData.stepTiming.play) and HD
+-- is on: it hears the game's footfalls, locks to them, and hears the water (no API tells shallow
+-- water: IsSubmerged reads false in it). Then the markers carry the speed (sound: 0.01 yd/s) and
+-- what is handed over (touch: 128 + 1 footsteps on + 2 wading on + 4 the speed changed, the same
+-- cycle), gain their strength; this addon plays none of its own.
+function L.HelperPlaysSteps()
+    local K, C = ns.HelperLink, ns.HelperCues
+    if not (K and K.Enabled and K.Enabled() and K.V2 and K.V2()) then return false end
+    if C and C.HDMode and C.HDMode() == "off" then return false end
+    local d = _G.WowHelperData
+    return type(d) == "table" and type(d.stepTiming) == "table" and d.stepTiming.play == 1
+end
+
+-- What the markers hand over now: touch (0: nothing) and gain
+function L.StepHand()
+    if not L.HelperPlaysSteps() then return 0, 4 end
+    local steps, wade = L.LiveOnForSteps("footsteps"), L.LiveOnForSteps("wading")
+    if not (steps or wade) then return 0, 4 end
+    local vol = L.LiveVolumeForSteps(steps and "footsteps" or "wading")
+    return 128 + (steps and 1 or 0) + (wade and 2 or 0), floor(max(0, min(1, Strength() * vol)) * 7 + 0.5)
+end
+
 local stepMark = {}
-local function SendStep(moment, late)
+local function SendStep(moment, late, speed, update)
     local K = ns.HelperLink
     local race = select(3, UnitRace("player")) or 0
     if secret(race) or type(race) ~= "number" then race = 0 end
     local sex = UnitSex("player")
-    K.Marker({ moment = moment, side = min(15, race), level = 0,
+    local touch, gain = 0, 4
+    if moment ~= 98 then touch, gain = L.StepHand() end
+    if touch > 0 and update then touch = touch + 4 end
+    stepMark.hand = moment ~= 98 and touch - (update and touch > 0 and 4 or 0) or nil
+    K.Marker({ moment = moment, side = min(15, race), level = 0, touch = touch, gain = gain,
+        sound = speed and min(4095, max(0, floor(speed * 100 + 0.5))) or 0,
         seed = (sex == 3 and 128 or 0) + min(126, max(0, floor(late / 0.01 + 0.5))) })
 end
 
@@ -1188,8 +1219,13 @@ function L.StepMarkers(now, onFoot, speed)
     if stepMark.start and band ~= stepMark.band then live.moveStart = now end
     local start = live.moveStart or now
     if start ~= stepMark.start or band ~= stepMark.band then
-        stepMark.start, stepMark.band = start, band
-        SendStep(band == "walk" and 97 or 96, now - start)
+        stepMark.start, stepMark.band, stepMark.speed = start, band, speed
+        SendStep(band == "walk" and 97 or 96, now - start, speed)
+    elseif ((stepMark.hand or 0) > 0 and math.abs(speed - (stepMark.speed or speed)) > 0.08 * max(0.5, stepMark.speed or speed))
+        or (stepMark.hand or 0) ~= (L.StepHand()) then
+        -- (the same cycle: quicker or slower, or a feel switched; WoW Helper follows)
+        stepMark.speed = speed
+        SendStep(band == "walk" and 97 or 96, now - start, speed, true)
     end
 end
 
@@ -1344,6 +1380,8 @@ local liveFeel = {}
 local AMBIENT = { rain = true, thunder = true, snow = true, sand = true, embers = true, underwater = true }
 
 local function LiveVolume(key) return ns.Volume and ns.Volume.Feel(key) or 1 end
+-- (for the step markers, above)
+L.LiveOnForSteps, L.LiveVolumeForSteps = LiveOn, LiveVolume
 
 local function StartLive(key, fn)
     local id = "live_" .. key
@@ -1889,8 +1927,10 @@ local function Poll()
     L.water = L.WaterState()
     live.wading = L.water.wading
     L.StepMarkers(now, live.moving and not mounted and not beast, speed)
-    if live.moving and not mounted and not beast and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
-    if live.moving and not mounted and not beast and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
+    -- (WoW Helper plays them, in time with the footfalls it hears, and wading by ear)
+    local own = not L.HelperPlaysSteps()
+    if own and live.moving and not mounted and not beast and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
+    if own and live.moving and not mounted and not beast and live.wading then StartLive("wading", Wades) else H.Stop("live_wading") end
     if live.moving and mounted then StartLive("riding", Gallop) else H.Stop("live_riding") end
     -- Heartbeat: under half health when it can be read, else the game's warning
     local hp = HealthFraction("player")

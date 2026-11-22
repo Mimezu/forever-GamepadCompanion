@@ -219,6 +219,10 @@ function P.Register(key, class)
     return c
 end
 
+-- This character's key ("Name-Realm"), nil: no profile this session (WoW Helper learns the
+-- footsteps under it)
+function P.Key() return state.key end
+
 -- Who plays now, for WoW Helper's marker: number, faction, race, sex (nil: no profile this session)
 function P.Who()
     if not state.key then return nil end

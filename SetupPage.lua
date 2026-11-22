@@ -255,7 +255,7 @@ local function BuildTiming(frame)
     -- (hits and mining: Moments › Learned, one place, U2-14; Landing: its row's When chip)
     local steps = Row(-40, "Footsteps")
     local wading = Row(-84, "Wading")
-    wading.text:SetText("Not yet")
+    wading.text:SetText(L.HelperPlaysSteps() and "By ear" or "Not yet")
     local status = S.Note(card, 12, -128, COL - 24, 2, 11, GOLD)
     local learned = S.NewButton(card, "Learned ›", 12, -160, 120, function()
         Shell.Open("moments")
@@ -272,6 +272,7 @@ local function BuildTiming(frame)
             parts[#parts + 1] = g[2] .. " " .. word(source, sn)
         end
         local footsteps = L.EventSettings("footsteps").on
+        wading.text:SetText(L.HelperPlaysSteps() and "By ear" or "Not yet")
         steps.text:SetText(table.concat(parts, " · ") .. (footsteps and "" or " · off in Moments"))
     end
 end
