@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: Halo rings picked in Choose open again, on buttons, gestures, touchpad zones and bar slots. The layout names them "Halo: <ring>"
 - Emote voices: only your own emotes on the pad's speaker, never those of players nearby
 - Create (and any key with L2 Focus UI): no more "No interface frame to focus!" after L2 + key. L2's Focus UI now sits above the button's own action and is only taken off on release, the way a Halo ring under it always worked; the button's action is never rewritten.
 - Fixed: after L2 + a button for Focus UI, Create, PS and Mute ran Focus UI alone. The L2 action now takes the button's place and gives it back, never stacked on top

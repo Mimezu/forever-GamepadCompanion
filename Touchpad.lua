@@ -527,7 +527,7 @@ local function ActionLook(action)
     elseif kind == "halo" then
         local ring = ns.Shared.HaloRing(value)
         if not ring then return "Halo ring" end
-        return ring.name or "Halo ring", ns.Shared.HaloIcon(ring)
+        return T.HaloLabel(ring.name), ns.Shared.HaloIcon(ring)
     elseif kind == "quick" then
         if ns.Quick then return ns.Quick.Look(value) end
     elseif kind == "bind" then

@@ -831,9 +831,24 @@ function T.MacroText(action, lookup)
     elseif kind == "text" then
         return value
     elseif kind == "halo" then
-        -- (Halo opens a ring from a macro like its tap mode)
-        return lookup.haloRing and lookup.haloRing(value) and ("/click HaloButton t" .. value .. " LeftButton true") or nil
+        return T.HaloMacro(value, lookup)
     end
+end
+
+-- A Halo ring's macro: "/click HaloButton t<id> true". The game's /click reads
+-- <name> <mouse button> <down>, and Halo opens a ring from t<id> on a down
+-- click only, like its tap mode. (Not "t<id> LeftButton true": the down was
+-- "LeftButton true", read as false, and the ring never opened, 2026-11-22.)
+function T.HaloMacro(id, lookup)
+    id = tostring(id or ""):match("^%d+$")
+    if not id or not (lookup and lookup.haloRing and lookup.haloRing(id)) then return nil end
+    return "/click HaloButton t" .. id .. " true"
+end
+
+-- A Halo ring's name in the layout: "Halo: Utility"
+function T.HaloLabel(name)
+    if type(name) ~= "string" or name == "" then return "Halo ring" end
+    return "Halo: " .. name
 end
 
 return T
