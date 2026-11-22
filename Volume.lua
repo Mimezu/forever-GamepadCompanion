@@ -88,9 +88,21 @@ end
 function Vol.Sounds() return Clamp(Vol.DB().sounds) end
 function Vol.SetSounds(v)
     Vol.DB().sounds = Clamp(v)
-    -- (WoW Helper applies it to every sound on the speaker: told at once, with who plays)
-    local P = ns.Profiles
-    if P and P.SendWho then P.SendWho() end
+    -- (WoW Helper applies it to every sound on the speaker: told with who plays, once, 0.3 s
+    -- after the last click: a click each sent filled the marker queue ahead of the cues)
+    Vol.sendAt = (GetTime and GetTime() or 0) + 0.3
+    if Vol.sending then return end
+    local function Send()
+        local P = ns.Profiles
+        local now = GetTime and GetTime() or 0
+        if now < (Vol.sendAt or 0) - 0.01 and C_Timer and C_Timer.After then
+            return C_Timer.After((Vol.sendAt or 0) - now, Send)
+        end
+        Vol.sending = false
+        if P and P.SendWho then P.SendWho() end
+    end
+    Vol.sending = true
+    if C_Timer and C_Timer.After then C_Timer.After(0.3, Send) else Send() end
 end
 
 -- A moment's sound, all told (0-1): what the speaker plays (WoW Helper applies Sounds)

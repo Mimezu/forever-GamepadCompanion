@@ -20,7 +20,7 @@ end
 --   outing           { start, last, n, kinds = { [id] = n }, runs = { [id] = catches in a row } }
 --   outings          { { start, stop, n } } the last OUTINGS_MAX outings
 ---------------------------------------------------------------------------
-J.LOG_MAX, J.OUTINGS_MAX = 5000, 100
+J.LOG_MAX, J.OUTINGS_MAX = 500, 100
 J.OUTING_GAP = 15 * 60   -- s without a catch: a new outing
 
 function J.Fresh(db)

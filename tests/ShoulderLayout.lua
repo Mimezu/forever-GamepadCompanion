@@ -112,6 +112,8 @@ held.PADRSHOULDER = true
 ns.Refresh()
 assert(api.GetState().bothShouldersHeld == true)
 held.PADLSHOULDER = nil
+-- (a pad without that button: another pad, its indexes read again)
+ns.Shared.ForgetPadIndexes()
 ns.Refresh()
 assert(api.GetState().leftShoulderHeld == nil and api.GetState().bothShouldersHeld == nil)
 

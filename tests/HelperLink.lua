@@ -401,6 +401,16 @@ for _ = 1, 50 do
 end
 assert(whoSeen and whoSeen.side == 3 and whoSeen.gain == 0 and whoSeen.level == 1 and whoSeen.seed == 5 and whoSeen.touch == 0
     and whoSeen.sound == 0, "who on screen")
+-- (with the speaker's master: 128 + percent in touch, on screen as sent; under 128 a marker
+-- keeps no touch, and the master never reached WoW Helper, 2026-11-22)
+assert(K.Who(3, "Horde", 5, 2, 0.7), "who with the master: queued")
+whoSeen = nil
+for _ = 1, 50 do
+    local d = renderV2()
+    if d.seq ~= prev.seq and d.moment == K.WHO_MARKER then whoSeen = d end
+    prev = d
+end
+assert(whoSeen and whoSeen.touch == 198 and whoSeen.side == 3, "the master on screen: " .. tostring(whoSeen and whoSeen.touch))
 do
     local stack = ns.Stack
     ns.Stack = { Is = function(k) return k == "hush" end }

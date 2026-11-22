@@ -235,7 +235,13 @@ function P.SendWho()
     local K = ns.HelperLink
     if not (K and K.Who) then return false end
     local n, faction, race, sex = P.Who()
-    if not n then return false end
+    -- (no profile this session: number 0, the rest read now; the speaker's master goes all the same)
+    if not n then
+        local okr, _, _, r = pcall(function() if UnitRace then return UnitRace("player") end end)
+        local oks, x = pcall(function() return UnitSex and UnitSex("player") end)
+        local okf, f = pcall(function() return UnitFactionGroup and UnitFactionGroup("player") end)
+        n, faction, race, sex = 0, okf and f or nil, okr and r or nil, oks and x or nil
+    end
     return K.Who(n, faction, race, sex, ns.Volume and ns.Volume.Sounds() or nil)
 end
 

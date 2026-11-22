@@ -741,9 +741,9 @@ end
 -- a sex or a faction. Marker moment 127, touch 0 and sound 0 (an older WoW Helper plays nothing);
 -- the character's number (1-1023, Profiles' list, never reused) in side (bits 0-3), gain (4-6) and
 -- intensity (7-9); level: the faction (0 unknown, 1 Horde, 2 Alliance); the seed: race + 128 if
--- female (K.RaceSexSeed); touch: the Sounds volume, the pad speaker's master (1 + percent,
--- 1-101; 0: not said), which WoW Helper applies to every sound it plays on the speaker. Sent at
--- login, every 30 s and when Volume changes (Profiles). Vectors:
+-- female (K.RaceSexSeed); touch: the Sounds volume, the pad speaker's master (128 + percent,
+-- 128-228; 0: not said: K.Marker keeps no touch under 128), which WoW Helper applies to every
+-- sound it plays on the speaker. Sent at login, every 30 s and when Volume changes (Profiles). Vectors:
 -- tests/fixtures/helperlink-who-vectors.txt
 K.WHO_MARKER = 127
 function K.WhoFields(n, faction)
@@ -751,11 +751,11 @@ function K.WhoFields(n, faction)
     local f = (faction == "Horde" and 1) or (faction == "Alliance" and 2) or 0
     return n % 16, floor(n / 16) % 8, floor(n / 128) % 8, f
 end
--- The speaker's master in the who marker's touch: 1 + percent, 0 when not given
+-- The speaker's master in the who marker's touch: 128 + percent, 0 when not given
 function K.SpeakerTouch(volume)
     local v = tonumber(volume)
     if not v then return 0 end
-    return 1 + floor(math.max(0, math.min(1, v)) * 100 + 0.5)
+    return 128 + floor(math.max(0, math.min(1, v)) * 100 + 0.5)
 end
 function K.Who(n, faction, race, sex, speaker)
     local side, gain, intensity, level = K.WhoFields(n, faction)

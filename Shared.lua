@@ -41,11 +41,21 @@ function Sh.PadButtons()
 end
 
 -- Is key ("PADLTRIGGER") down in buttons (Sh.PadButtons()); nil when unknown
+-- (each key's index, kept: the watchers read every key ten times a second; a new pad
+-- clears them, Sh.ForgetPadIndexes)
+local padIndex, padLookup = {}, nil
+function Sh.ForgetPadIndexes() padIndex = {} end
 function Sh.PadDown(buttons, key)
     local P = C_GamePad
     if not (buttons and P and P.ButtonBindingToIndex) then return nil end
-    local ok, index = pcall(P.ButtonBindingToIndex, key)
-    if not ok or type(index) ~= "number" then return nil end
+    if padLookup ~= P.ButtonBindingToIndex then padIndex, padLookup = {}, P.ButtonBindingToIndex end
+    local index = padIndex[key]
+    if index == nil then
+        local ok, i = pcall(P.ButtonBindingToIndex, key)
+        if not ok or type(i) ~= "number" then return nil end
+        index = i
+        padIndex[key] = i
+    end
     return buttons[index + 1] and true or false
 end
 

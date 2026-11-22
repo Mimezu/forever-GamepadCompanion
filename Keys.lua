@@ -584,6 +584,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     if event == "GAME_PAD_ACTIVE_CHANGED" or event == "GAME_PAD_CONNECTED" then
         -- (another pad: the triggers' indexes again; the bindings stay, the
         -- held layer's extras come off until the new pad is read)
+        if Sh.ForgetPadIndexes then Sh.ForgetPadIndexes() end
         if InCombatLockdown and InCombatLockdown() then pending = true; return end
         button:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
         button:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
@@ -607,7 +608,7 @@ local MODS = { GAMEPADLEFTMOD = "L2", GAMEPADRIGHTMOD = "R2" }
 local stuck = {}             -- key -> { since, tried, said }
 local unstickOwner = CreateFrame("Frame", "GamepadCompanionKeyUnstick")
 function Keys.CheckStuck(now)
-    if not IsKeyDown then return end
+    if not (loaded and IsKeyDown) then return end
     local buttons = Sh.PadButtons()
     if not buttons then return end
     for _, key in ipairs(PAD_NAMES) do
