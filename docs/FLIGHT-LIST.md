@@ -20,6 +20,13 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
   maps. No point known: its log zone's path nearest the zone's centre, else the zone's first.
   Read when the map opens.
 
+## Quest note
+
+- Beside the chosen row, past the panel's right edge: a small floating note on the catch card's
+  paper (FishingToast.lua's T.Paper / T.Kicker). The place in red capitals; its quests, a dot each:
+  turn-ins first, then the ones to do; the level where it fits; 8 lines, then "+n more".
+- No dots on the row: no note. Never takes the mouse. Off: Setup > Windows > Quest note.
+
 ## Controls (out of combat, while the map is open)
 
 | Button | Does |

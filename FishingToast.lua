@@ -129,17 +129,10 @@ local function Text(parent, font, size, ink)
     return fs
 end
 
-local function Build()
-    local f = CreateFrame("Frame", "GamepadCompanionCatchCard", UIParent)
-    f:SetSize(W, H)
-    f:SetFrameStrata("LOW")
-    f:SetClampedToScreen(true)
-    if f.EnableMouse then f:EnableMouse(false) end
-    f:SetAlpha(0)
-    f:Hide()
+-- The slip's paper, on any frame f (also the flight list's quest note): two soft shadows under
+-- it, the paper, a wash darker to the foot, the cut edge and its lit lip along the top and the left
+function T.Paper(f)
     local skin = ns.OptionsSkin
-
-    -- two soft shadows under the slip, the paper, a wash darker to the foot
     local function Shadow(sub, grow, x, y, a)
         local t = f:CreateTexture(nil, "BACKGROUND", nil, sub)
         t:SetColorTexture(0, 0, 0, a)
@@ -158,7 +151,6 @@ local function Build()
     else
         Color(wash, T.INK, 0.04)
     end
-    -- the cut edge, and its lit lip along the top and the left
     local function Line(p1, p2, horizontal, c, a, inset)
         local t = f:CreateTexture(nil, "BORDER")
         t:SetColorTexture(c[1], c[2], c[3], a)
@@ -173,15 +165,19 @@ local function Build()
     local LIP = { 0.95, 0.90, 0.74 }
     Line("TOPLEFT", "TOPRIGHT", true, LIP, 0.35, { 1, -1, -1, -1 })
     Line("TOPLEFT", "BOTTOMLEFT", false, LIP, 0.35, { 1, -1, 1, 1 })
+end
 
-    -- the kicker: a lapis lozenge, red capitals, a red rule fading right
+-- The kicker on f, at x px in, y px down: a lapis lozenge, red capitals (f.kicker), a red rule
+-- fading right (f.rule); T.SetKicker writes it
+function T.Kicker(f, x, y)
+    local skin = ns.OptionsSkin
     f.paraph = f:CreateTexture(nil, "ARTWORK")
     f.paraph:SetSize(5, 5)
     Color(f.paraph, T.LAPIS)
-    f.paraph:SetPoint("CENTER", f, "TOPLEFT", M + 2, -17)
+    f.paraph:SetPoint("CENTER", f, "TOPLEFT", x + 2, y)
     if f.paraph.SetRotation then pcall(f.paraph.SetRotation, f.paraph, math.pi / 4) end
     f.kicker = Text(f, BODY_FONT, 11, T.RUBRIC)
-    f.kicker:SetPoint("LEFT", f, "TOPLEFT", M + 12, -17)
+    f.kicker:SetPoint("LEFT", f, "TOPLEFT", x + 12, y)
     f.rule = f:CreateTexture(nil, "ARTWORK")
     f.rule:SetHeight(1)
     if skin and skin.Gradient then
@@ -189,6 +185,38 @@ local function Build()
     else
         Color(f.rule, T.RUBRIC, 0.25)
     end
+    f.kickerAt = { x, y }
+end
+
+local function Width(fs)
+    local v = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth()
+    return tonumber(v) or 0
+end
+
+-- The kicker's words; the rule fills the rest up to right (px from f's left)
+function T.SetKicker(f, text, right)
+    local x, y = f.kickerAt[1], f.kickerAt[2]
+    f.kicker:SetWidth(0)
+    f.kicker:SetText(text)
+    local kw = Width(f.kicker)
+    if kw > right - (x + 12) then f.kicker:SetWidth(right - (x + 12)); kw = right - (x + 12) end
+    local room = right - (x + 12 + kw + 6)
+    f.rule:ClearAllPoints()
+    f.rule:SetPoint("LEFT", f, "TOPLEFT", x + 12 + kw + 6, y)
+    f.rule:SetWidth(math.max(1, room))
+    f.rule:SetShown(room >= 12)
+end
+
+local function Build()
+    local f = CreateFrame("Frame", "GamepadCompanionCatchCard", UIParent)
+    f:SetSize(W, H)
+    f:SetFrameStrata("LOW")
+    f:SetClampedToScreen(true)
+    if f.EnableMouse then f:EnableMouse(false) end
+    f:SetAlpha(0)
+    f:Hide()
+    T.Paper(f)
+    T.Kicker(f, M, -17)
 
     -- the catch, round, in a ring of its quality's ink
     local function Round(t)
@@ -230,21 +258,8 @@ local function Anchor(y)
     if float and float.GetFrameLevel then card:SetFrameLevel((float:GetFrameLevel() or 0) + 10) end
 end
 
-local function Width(fs)
-    local v = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth()
-    return tonumber(v) or 0
-end
-
 local function Fill(w, icon, q)
-    card.kicker:SetWidth(0)
-    card.kicker:SetText(w.kicker)
-    local kw = Width(card.kicker)
-    if kw > W - M - (M + 12) then card.kicker:SetWidth(W - M - (M + 12)); kw = W - M - (M + 12) end
-    local room = W - M - (M + 12 + kw + 6)
-    card.rule:ClearAllPoints()
-    card.rule:SetPoint("LEFT", card, "TOPLEFT", M + 12 + kw + 6, -17)
-    card.rule:SetWidth(math.max(1, room))
-    card.rule:SetShown(room >= 12)
+    T.SetKicker(card, w.kicker, W - M)
 
     card.title:SetWidth(0)
     card.title:SetFont(TITLE_FONT, 20, "")

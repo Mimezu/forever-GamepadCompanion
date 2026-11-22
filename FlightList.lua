@@ -150,7 +150,7 @@ FL.DOTS = 5   -- dots of each kind on a row, at most
 -- at = { cont, x, y } in the world's yards (C_Map.GetWorldPosFromMapPos), nil when unknown.
 -- A quest with a point (where to go, or whom to turn it in to): the nearest path on its continent.
 -- Without: its zone's path nearest the zone's centre, else the zone's first. Neither: no dot.
--- -> per path name { open, ready }
+-- -> per path name { open, ready, quests (the quests themselves) }
 function FL.Tally(quests, paths, centres)
     local counts = {}
     local function Nearest(at, zone)
@@ -172,9 +172,10 @@ function FL.Tally(quests, paths, centres)
         local name = Nearest(q.at)
         if not name and q.zone then name = Nearest((centres or {})[q.zone], q.zone) or First(q.zone) end
         if name then
-            local c = counts[name] or { open = 0, ready = 0 }
+            local c = counts[name] or { open = 0, ready = 0, quests = {} }
             counts[name] = c
             if q.ready then c.ready = c.ready + 1 else c.open = c.open + 1 end
+            c.quests[#c.quests + 1] = q
         end
     end
     return counts
@@ -188,6 +189,24 @@ function FL.Binds(on)
     local t = {}
     if on then for key, name in pairs(FL.TRIGGER_BUTTONS) do t[key] = "CLICK " .. name .. ":LeftButton" end end
     return t
+end
+
+-- The quest note beside the chosen row: its quests, the ones to turn in first (the log's order
+-- kept), at most max lines; -> lines { title, level, ready }, how many more
+FL.NOTE_LINES = 8
+function FL.NoteLines(quests, max)
+    max = max or FL.NOTE_LINES
+    local lines = {}
+    for pass = 1, 2 do
+        for _, q in ipairs(quests or {}) do
+            if (q.ready and true or false) == (pass == 1) then
+                lines[#lines + 1] = { title = q.title or "?", level = tonumber(q.level), ready = q.ready and true or false }
+            end
+        end
+    end
+    local more = math.max(0, #lines - max)
+    for i = #lines, max + 1, -1 do lines[i] = nil end
+    return lines, more
 end
 
 -- One row on: wrap = true goes round the ends, else stops there
@@ -241,7 +260,7 @@ function FL.Arrange(nodes, ctx)
     local rows = {}
     local function Flight(node, g)
         local q = places[node.name] or {}
-        return { kind = "flight", node = node, g = g, open = q.open or 0, ready = q.ready or 0 }
+        return { kind = "flight", node = node, g = g, open = q.open or 0, ready = q.ready or 0, quests = q.quests or {} }
     end
     if ctx.view == "near" then
         for _, node in ipairs(flights) do rows[#rows + 1] = Flight(node, byZone[FL.ZoneName(node.zone) or node.place]) end
@@ -382,6 +401,9 @@ end
 function FL.Enabled() return Sh.CharDB().flightList ~= false end
 
 -- Shown: on, in the gamepad UI only, while the flight map is open
+-- The quest note: on by default (Setup: Quest note)
+function FL.NoteOn() return Sh.CharDB().flightNote ~= false end
+
 function FL.Wanted(enabled, gamepadUI, mapShown)
     return enabled and gamepadUI == true and mapShown and true or false
 end
@@ -653,6 +675,87 @@ local function DrawZone(r, row)
     h:Show()
 end
 
+-- The quest note: the catch card's paper (FishingToast.lua), floating right of the panel, level
+-- with the chosen row; its quests, a dot each. Never takes the mouse.
+local NOTE_W, NOTE_M, NOTE_LINE = 214, 12, 16
+local note
+local function Note()
+    if note ~= nil then return note or nil end
+    note = false
+    local toast = ns.FishingToast
+    if not (toast and toast.Paper and toast.Kicker) then return nil end
+    local f = CreateFrame("Frame", nil, panel)
+    f:SetWidth(NOTE_W)
+    f:SetFrameLevel((panel:GetFrameLevel() or 1) + 30)
+    f:EnableMouse(false)
+    f:SetClampedToScreen(true)
+    toast.Paper(f)
+    toast.Kicker(f, NOTE_M, -15)
+    f.lines = {}
+    for i = 1, FL.NOTE_LINES do
+        local l = {}
+        l.ready = Dot(f, READY_DOT)
+        l.open = Dot(f, OPEN_DOT)
+        l.title = Text(f, BODY_FONT, 11, INK)
+        l.level = Text(f, BODY_FONT, 10, FADED, "RIGHT")
+        local y = -30 - (i - 1) * NOTE_LINE
+        for _, d in ipairs({ l.ready, l.open }) do d.ring:SetPoint("CENTER", f, "TOPLEFT", NOTE_M + 4, y - 6) end
+        l.title:SetPoint("TOPLEFT", f, "TOPLEFT", NOTE_M + 13, y)
+        l.level:SetPoint("TOPRIGHT", f, "TOPRIGHT", -NOTE_M, y)
+        f.lines[i] = l
+    end
+    f.more = Text(f, BODY_FONT, 10, FADED)
+    f:Hide()
+    note = f
+    return f
+end
+
+local function StringWidth(fs)
+    local v = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth() or fs:GetStringWidth()
+    return tonumber(v) or 0
+end
+
+local function DrawNote(slot, row)
+    local f = Note()
+    if not f then return end
+    if not (slot and row and FL.NoteOn() and #(row.quests or {}) > 0) then f:Hide(); return end
+    local lines, more = FL.NoteLines(row.quests)
+    if ns.FishingToast.SetKicker then ns.FishingToast.SetKicker(f, row.node.place:upper(), NOTE_W - NOTE_M) end
+    local room = NOTE_W - (NOTE_M + 13) - NOTE_M
+    for i, l in ipairs(f.lines) do
+        local q = lines[i]
+        for _, d in ipairs({ l.ready, l.open }) do d.dot:Hide(); d.ring:Hide() end
+        l.title:SetShown(q ~= nil)
+        l.level:SetShown(false)
+        if q then
+            local d = q.ready and l.ready or l.open
+            d.dot:Show(); d.ring:Show()
+            l.title:SetWidth(0)
+            l.title:SetText(q.title)
+            -- (the level only where it fits)
+            l.level:SetText(q.level and tostring(q.level) or "")
+            local lw = q.level and StringWidth(l.level) + 6 or 0
+            local tw = StringWidth(l.title)
+            l.level:SetShown(q.level ~= nil and tw + lw <= room)
+            l.title:SetWidth(math.min(tw, room - (l.level:IsShown() and lw or 0)))
+        end
+    end
+    local h = 30 + #lines * NOTE_LINE + 6
+    f.more:ClearAllPoints()
+    f.more:SetPoint("TOPLEFT", f, "TOPLEFT", NOTE_M + 13, -30 - #lines * NOTE_LINE)
+    f.more:SetText(more > 0 and ("+" .. more .. " more") or "")
+    f.more:SetShown(more > 0)
+    if more > 0 then h = h + 14 end
+    f:SetHeight(h)
+    -- level with the row, past the panel's right edge
+    local dx = 8
+    local pr, sr = panel.GetRight and panel:GetRight(), slot.GetRight and slot:GetRight()
+    if type(pr) == "number" and type(sr) == "number" then dx = pr - sr + 8 end
+    f:ClearAllPoints()
+    f:SetPoint("LEFT", slot, "RIGHT", dx, 0)
+    f:Show()
+end
+
 local function Draw()
     local rowsList, n = state.rows, #state.rows
     local here = state.here
@@ -678,6 +781,9 @@ local function Draw()
         shown = shown + 1
     end
     for k = i + 1, #slots do slots[k].at = nil; slots[k]:Hide() end
+    local chosen
+    for k = 1, i do if slots[k].at and slots[k].at == state.sel then chosen = slots[k] end end
+    DrawNote(chosen, chosen and rowsList[state.sel])
     local top, len = FL.Thumb(state.offset, shown, n, track:GetHeight() or 0)
     thumb:SetShown(top ~= nil)
     if top then
@@ -1189,7 +1295,7 @@ local function QuestList()
             elseif info.questID and not info.isHidden then
                 local id = info.questID
                 local ready = (Call(Q.ReadyForTurnIn, id) or Call(Q.IsComplete, id)) and true or false
-                list[#list + 1] = { ready = ready, zone = zone, at = At(id) }
+                list[#list + 1] = { ready = ready, zone = zone, at = At(id), title = info.title, level = info.level }
             end
         end
     end
@@ -1230,6 +1336,11 @@ function FL.Close()
     FL.Bind()
     if marker then marker:Hide() end
     if mapFrame then ClearRoute(1) end
+end
+
+function FL.SetNote(on)
+    Sh.CharDB().flightNote = on and true or false
+    if panel:IsShown() then Draw() end
 end
 
 function FL.SetEnabled(on)

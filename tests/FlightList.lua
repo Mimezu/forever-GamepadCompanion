@@ -273,6 +273,34 @@ eq(pq["Gone, Nowhere"], nil, "a path with no point: no quest by distance")
 eq(next(FL.Tally({}, paths, centres)), nil, "no quests")
 eq(next(FL.Tally({ { ready = true, at = W(1, 0, 0) } }, {}, {})), nil, "no paths")
 
+-- The quest note --------------------------------------------------------------------------------
+local qs = {
+    { title = "Kolkar Leaders", level = 16, ready = false }, { title = "Wharfmaster Dizzywig", level = 15, ready = true },
+    { title = "Raptor Thieves", level = 12, ready = false }, { title = "The Angry Scytheclaws", ready = true },
+}
+local lines, more = FL.NoteLines(qs)
+eq(#lines, 4, "every quest a line")
+eq(lines[1].title, "Wharfmaster Dizzywig", "turn-ins first")
+eq(lines[1].ready, true, "a gold mark")
+eq(lines[2].title, "The Angry Scytheclaws", "then the next turn-in")
+eq(lines[2].level, nil, "no level known: none")
+eq(lines[3].title, "Kolkar Leaders", "then the quests to do, in the log's order")
+eq(lines[3].level, 16, "its level")
+eq(lines[4].ready, false, "a brown mark")
+eq(more, 0, "nothing more")
+lines, more = FL.NoteLines(qs, 3)
+eq(#lines, 3, "at most max lines")
+eq(more, 1, "and how many more")
+lines, more = FL.NoteLines({})
+eq(#lines, 0, "no quests: no lines")
+eq(more, 0, "none more")
+local tallied = FL.Tally({ { ready = true, zone = "The Barrens", title = "Wharfmaster Dizzywig", level = 15 } },
+    { { name = "Ratchet, The Barrens", zone = "The Barrens" } }, {})
+eq(tallied["Ratchet, The Barrens"].quests[1].title, "Wharfmaster Dizzywig", "a path keeps its quests")
+local noted = FL.Arrange({ N(1, "Ratchet, The Barrens", 0.2) }, { places = tallied })
+eq(noted[2].quests[1].title, "Wharfmaster Dizzywig", "a row carries them: the note's quests")
+eq(#FL.Arrange({ N(1, "Ratchet, The Barrens", 0.2) }, {})[2].quests, 0, "none: no note")
+
 -- Rows carry their path's quests; L2 / R2 go to the paths with the most -----------------------
 local rq = FL.Arrange(tb, { zone = "Mulgore", level = 30,
     places = { ["Crossroads, The Barrens"] = { open = 1, ready = 1 }, ["Camp Taurajo, The Barrens"] = { open = 2, ready = 0 },
@@ -309,6 +337,10 @@ FL.Remember("Stormwind, Elwynn", "Sentinel Hill, Westfall")
 eq(FL.LastFrom("Ironforge, Dun Morogh"), "Stormwind, Elwynn", "per place")
 eq(FL.LastFrom("Stormwind, Elwynn"), "Sentinel Hill, Westfall", "the other place")
 eq(FL.LastFrom(nil), nil, "no here")
+eq(FL.NoteOn(), true, "the quest note on by default")
+db.flightNote = false
+eq(FL.NoteOn(), false, "off")
+db.flightNote = nil
 
 -- The map ------------------------------------------------------------------------------------
 local x, y = FL.NodePoint(0.25, 0.75, 580, 580)
@@ -386,12 +418,24 @@ do
         PadDown = function() return false end,
         Settler = realSettler,
     } }
+    local kicked
+    wns.FishingToast = { Paper = function() end, Kicker = function() end, SetKicker = function(_, text) kicked = text end }
+    C_QuestLog = {
+        GetNumQuestLogEntries = function() return 2 end,
+        GetInfo = function(i) return ({ { title = "The Barrens", isHeader = true }, { title = "Wharfmaster Dizzywig", level = 15, questID = 7 } })[i] end,
+        ReadyForTurnIn = function() return true end,
+    }
     assert(loadfile(root .. "/FlightList.lua"))("GamepadCompanion", wns)
     local W = wns.FlightList
     local function L2() return overrides.PADLTRIGGER and overrides.PADLTRIGGER.action end
     eq(drivers[1] and drivers[1].cond, "[combat] on; off", "a fight drops them (state driver)")
     TaxiFrame.shown = true
     W.Open()
+    eq(kicked, "CROSSROADS", "the note: the chosen path's quests, named after it")
+    kicked = nil
+    W.SetNote(false)
+    eq(kicked, nil, "the note off: not drawn")
+    W.SetNote(true)
     eq(L2(), nil, "map just open: L2 the bars' till both have been up a quarter second")
     clock = clock + 0.3
     eq(W.Bind(), true, "then")

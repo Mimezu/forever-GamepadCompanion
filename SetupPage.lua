@@ -416,10 +416,16 @@ local function BuildBags(frame)
     if FLT then
         local check = S.NewCheck(card, "Flight list", 12, -66, function(self)
             FLT.SetEnabled(self:GetChecked() == true)
-        end, COL - 60)
+        end, COL / 2 - 20)
         S.Tooltip(check, "Flight list", "Beside the flight map")
         pg.flightList = check
         pg.refresh[#pg.refresh + 1] = function() check:SetChecked(FLT.Enabled()) end
+        local noteCheck = S.NewCheck(card, "Quest note", COL / 2, -66, function(self)
+            FLT.SetNote(self:GetChecked() == true)
+        end, COL / 2 - 20)
+        S.Tooltip(noteCheck, "Quest note", "Beside the chosen flight")
+        pg.flightNote = noteCheck
+        pg.refresh[#pg.refresh + 1] = function() noteCheck:SetChecked(FLT.NoteOn()) end
     end
 end
 
