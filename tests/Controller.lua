@@ -103,6 +103,11 @@ local padSet = {}   -- key -> { owner, action }
 -- (and a key held down keeps the gamepad function its press ran, for good, whatever is
 -- done to its owner's binding meanwhile: Create, L2 let go first, 2026-11-22)
 local function Latched(key) return padSet[key] and HELD_KEYS and HELD_KEYS[key] end
+-- (an owner that once had a gamepad function on a key keeps it in its slot for the key, through
+-- a clear or ClearOverrideBindings: a command it puts there later sits over it, the function
+-- still in the gamepad set, till /reload. Login probe "click again", "focus" after "nil";
+-- Mute ran Focus UI under L2 + R2's click, 2026-11-22)
+local slotFn = {}   -- owner -> key -> the gamepad function its slot keeps
 C_KeyBindings = { GetBindingByKey = function(key, context)
     if context == 9 and padSet[key] then return padSet[key].action end
     return overrides[key] and overrides[key].action or nil
@@ -131,7 +136,12 @@ function SetOverrideBinding(owner, _, key, action)
         end
         return Drop(owner, key)
     end
-    if PAD_SET[action] then padSet[key] = { owner = owner, action = action }
+    local kept = slotFn[owner] and slotFn[owner][key]
+    if PAD_SET[action] then
+        padSet[key] = { owner = owner, action = action }
+        slotFn[owner] = slotFn[owner] or {}
+        slotFn[owner][key] = action
+    elseif kept then padSet[key] = { owner = owner, action = kept }
     elseif Latched(key) then padSet[key].owner = "latched" end
     Push(key, { owner = owner, action = action })
 end
@@ -916,6 +926,30 @@ check(Keys.Set("PAD5", "lt", "text:/wave"), "L2 + Mute")
 eq(overrides.PAD5 and overrides.PAD5.action, "CLICK GamepadCompanionKeys:p8", "Mute on the secure click")
 eq(PressKey("PAD5"), nil, "plain Mute: nothing")
 eq(PressKey("PAD5", true), "/wave", "L2 + Mute")
+Keys.Set("PAD5", "lt", nil)
+-- Mute is Halo's ring (the game's), L2 + Mute Focus UI, L2 + R2 + Mute a Halo ring from Choose
+-- (the player's setup, 2026-11-22). L2 first, then R2: the press runs the ring, never a Focus UI
+-- kept under the click (it ran Focus UI and no ring opened, the click on Focus UI's owner)
+bindings.PAD5 = "CLICK HaloButton:p3"
+local clickOwner = _G.GamepadCompanionKeyLayerClicks
+check(Keys.Set("PAD5", "lt", "bind:focus") and Keys.Set("PAD5", "both", "halo:1"), "Mute: L2 Focus UI, L2 + R2 a ring")
+eq(overrides.PAD5, nil, "Mute stays Halo's own ring")
+local function MuteRuns() return C_KeyBindings.GetBindingByKey("PAD5", 9) or bindings.PAD5 end
+for round = 1, 2 do
+    pressed.PADLTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "TOGGLEUIFOCUS", "L2: Focus UI on Mute " .. round)
+    pressed.PADRTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "CLICK GamepadCompanionKeys:p8", "L2 + R2: the click, no Focus UI under it " .. round)
+    eq(overrides.PAD5 and overrides.PAD5.owner, clickOwner, "the click on an owner of its own")
+    eq(PressKey("PAD5", true, true), "/click HaloButton t1 true", "L2 + R2 + Mute opens the ring " .. round)
+    pressed.PADLTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "TOGGLEUIFOCUS", "R2 up: Focus UI again " .. round)
+    pressed.PADLTRIGGER = nil; Keys.Watch()
+    eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's own ring " .. round)
+end
+check(not Keys.Heal(), "Mute: nothing to heal")
+Keys.Set("PAD5", "lt", nil); Keys.Set("PAD5", "both", nil)
+bindings.PAD5 = nil
 -- Base back to Blizzard: Options is Radial again
 for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, nil) end
 Keys.Set("PAD5", "lt", nil)

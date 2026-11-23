@@ -99,11 +99,14 @@ button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
 local owner = CreateFrame("Frame", "GamepadCompanionKeyBinds")
--- (the watcher's owner until 0.75.0; now only emptied, of a leftover: a
--- held layer's binding goes on owner, in place of the key's Base. Two owners
--- on one key: the game ran the other's, not the newest; Create ran Focus UI
--- with the map on it and L2 up, 2026-11-21)
+-- A held layer's bindings, above Base: a Blizzard function (Focus UI, Radial)
+-- on layerOwner, our secure click on clickOwner. Never both on one owner's
+-- key: the game keeps a function's binding-context-9 entry in that owner's
+-- slot for the key, and a click put there later (even after clearing it)
+-- runs the function instead, till /reload (login probe). Mute: L2 Focus UI,
+-- then R2 for L2 + R2's Halo ring, ran Focus UI and never the ring, 2026-11-22
 local layerOwner = CreateFrame("Frame", "GamepadCompanionKeyLayers")
+local clickOwner = CreateFrame("Frame", "GamepadCompanionKeyLayerClicks")
 
 -- A button's index in GetGamePadState().buttons (1-based)
 local function PadIndex(binding)
@@ -399,14 +402,19 @@ if UIErrorsFrame then
     end
 end
 
--- A held layer's function on key, on the layer owner above Base (nil: taken off).
+-- A held layer's command on key, above Base (nil: taken off): a function on
+-- layerOwner, a click on clickOwner, the other owner's cleared.
 -- Base itself is never touched: Focus UI taken off Create and the map's click put back
 -- in its place left Focus UI in the game's gamepad set (binding context 9) for good,
 -- held key or not (2026-11-22). Halo's ring on Create, under our Focus UI on another
 -- owner, only ever uncovered, never broke: the same way here
 local function Layer(key, command)
     SetOverrideBinding(layerOwner, true, key, nil)
-    if command then SetOverrideBinding(layerOwner, true, key, command) end
+    SetOverrideBinding(clickOwner, true, key, nil)
+    if command then
+        local o = command:find("^CLICK ") and clickOwner or layerOwner
+        SetOverrideBinding(o, true, key, command)
+    end
 end
 
 -- What key runs in the game's gamepad set (nil: no way to read it)
@@ -502,6 +510,7 @@ function Keys.Heal()
     Keys.Snapshot("heal")
     -- (the held layer's off, Base back; the old owner emptied of a leftover)
     ClearOverrideBindings(layerOwner)
+    ClearOverrideBindings(clickOwner)
     SetExtras({})
     if ghost then Keys.Apply(true) end
     for _, key in ipairs(Keys.KEYS) do

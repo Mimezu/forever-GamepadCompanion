@@ -19,7 +19,7 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 | Keys | Owner | How |
 | --- | --- | --- |
 | L3 R3 Create Options PS Mute | Keys.lua `owner` | Base: one secure click per key (the snippet picks the layer at the press, in combat too), or a Blizzard function's binding |
-| the same, a held layer | Keys.lua `layerOwner` | out of combat: the layer's binding or click while the pad says L2 / R2 is down; off on release (Blizzard's modifier hook, a 20 ms poll), in combat, on a pad change, without a pad |
+| the same, a held layer | Keys.lua `layerOwner` (a Blizzard function), `clickOwner` (our click) | out of combat: the layer's binding or click while the pad says L2 / R2 is down; off on release (Blizzard's modifier hook, a 20 ms poll), in combat, on a pad change, without a pad. Never a function and a click on one owner's key: the game keeps the function under a later click |
 | Touchpad PADBACK / PAD6, 8 prefixes | Touchpad.lua `binds` | always the zones' secure click; a 0.5 s watcher and Sh.Claim take it back |
 | R2 with a pole in hand | Fishing.lua `owner` | cast / catch; changed only with R2 up |
 | PAD3 at the bank | BankMove.lua | while the bank is open |
