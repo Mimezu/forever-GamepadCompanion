@@ -5,7 +5,7 @@
 -- seconds, then fades. No sound, no mouse.
 -- The buffs are read on UNIT_AURA (player), out of combat only (a meal is never
 -- in a fight; in one the auras may be secret): a buff not on the player at the
--- last read is new. It counts as a meal when it is one we know (M.MEALS: Well
+-- last read, landed in the last M.FRESH s, is new. It counts as a meal when it is one we know (M.MEALS: Well
 -- Fed and the foods that name their own), or when the player was eating or
 -- drinking as it landed (the Food / Drink auras, Rumble's REST_SPELLS) and it is
 -- their own; as the fire's when the campfire timer aura (Forever's Welcoming
@@ -45,6 +45,7 @@ M.MEALS = {
 M.MIN_LAST = 60      -- s: a meal's buff lasts at least a minute (a swallow's 30 s Food does not count)
 M.RECENT = 3         -- s: eating or the fire seen this long ago still counts as now
 M.HOLD = 5           -- s the card stays
+M.FRESH = 5          -- s: a buff that landed longer ago than this is not new (one already on, sent again)
 
 local function Named(set, aura) return (aura.name ~= nil and set.names[aura.name]) or (aura.spellId ~= nil and set.ids[aura.spellId]) or nil end
 function M.IsRest(aura) return aura.name ~= nil and M.REST_NAMES[aura.name] == true end
@@ -72,6 +73,15 @@ function M.Kind(aura, state)
     return nil
 end
 
+-- Did it just land? Its time run so far, from its length and when it ends; one sent again after
+-- a hearthstone or a loading screen has run for minutes (2026-11-23: Well Fed's card after a
+-- hearth). No time to read (a buff without one): it may be new
+function M.Fresh(aura, now)
+    local d, e = tonumber(aura.duration) or 0, tonumber(aura.expirationTime) or 0
+    if d <= 0 or e <= 0 then return true end
+    return d - (e - (now or 0)) <= M.FRESH
+end
+
 -- One sentence, short: "Increases Stamina and Spirit by 4 for 15 min" -> "+4 Stamina and Spirit";
 -- "Faction Banner: Spirit increased by 14" -> "+14 Spirit"; "Restores 8 mana per 5 sec" ->
 -- "+8 mana per 5 sec"; nil: not a gain
@@ -83,6 +93,8 @@ local function Gain(s)
     -- (Forever's camp: "<what gives it>: <stat> increased by <n>")
     what, n = s:match("^[^:]-:%s*(.-)%s+increased%s+by%s+(%d+%%?)$")
     if not what then what, n = s:match("^(.-)%s+increased%s+by%s+(%d+%%?)$") end
+    -- ("Attack Power is increased by 20")
+    if what then what = what:gsub("%s+[Ii]s$", ""):gsub("%s+[Aa]re$", "") end
     if what and n and what ~= "" then return "+" .. n .. " " .. what:gsub("^[Yy]our%s+", "") end
     local rest = s:match("^[Rr]estores%s+(.+)$") or s:match("^[Rr]egenerates%s+(.+)$")
     if rest then return "+" .. rest end
@@ -174,19 +186,22 @@ local function Buffs()
             local ok, v = pcall(get, "player", i)
             if not ok then return nil end
             if v == nil then break end
-            a = { name = v.name, spellId = v.spellId, icon = v.icon, duration = v.duration, sourceUnit = v.sourceUnit,
-                isFromPlayerOrPlayerPet = v.isFromPlayerOrPlayerPet, auraInstanceID = v.auraInstanceID }
+            a = { name = v.name, spellId = v.spellId, icon = v.icon, duration = v.duration, expirationTime = v.expirationTime,
+                sourceUnit = v.sourceUnit, isFromPlayerOrPlayerPet = v.isFromPlayerOrPlayerPet, auraInstanceID = v.auraInstanceID }
         elseif UnitBuff then
-            local ok, name, icon, _, _, duration, _, source, _, _, spellId, _, _, mine = pcall(UnitBuff, "player", i)
+            local ok, name, icon, _, _, duration, expires, source, _, _, spellId, _, _, mine = pcall(UnitBuff, "player", i)
             if not ok then return nil end
             if name == nil then break end
-            a = { name = name, spellId = spellId, icon = icon, duration = duration, sourceUnit = source, isFromPlayerOrPlayerPet = mine }
+            a = { name = name, spellId = spellId, icon = icon, duration = duration, expirationTime = expires, sourceUnit = source,
+                isFromPlayerOrPlayerPet = mine }
         else
             break
         end
-        if secret(a.name) or secret(a.spellId) or secret(a.duration) or secret(a.sourceUnit) then return nil end
+        if secret(a.name) or secret(a.spellId) or secret(a.duration) or secret(a.sourceUnit) or secret(a.expirationTime) then return nil end
         a.index = i
-        a.key = a.auraInstanceID or a.spellId or a.name
+        -- (by the buff, not its instance: the game sends the buffs on again under new
+        -- instance ids after a hearthstone)
+        a.key = a.spellId or a.name
         list[#list + 1] = a
     end
     return list
@@ -289,7 +304,7 @@ function M.Scan(now)
         here[a.key] = true
         if M.IsRest(a) then eating.now, eating.at = true, now end
         if M.IsFireTimer(a) then fire.now, fire.at = true, now end
-        if primed and not seen[a.key] then fresh[#fresh + 1] = a end
+        if primed and not seen[a.key] and M.Fresh(a, now) then fresh[#fresh + 1] = a end
     end
     seen, primed = here, true
     for _, a in ipairs(fresh) do

@@ -267,8 +267,17 @@ function T.FillSlip(f, w, icon, ring)
     if Width(f.title) > room then f.title:SetWidth(room) end
     local ink = w.grey and T.INK or T.INK_STRONG
     f.title:SetTextColor(ink[1], ink[2], ink[3])
-    f.line1:SetText(w.line1 or "")
-    f.line2:SetText(w.line2 or "")
+    -- (a line kept on the paper: a point smaller, then cut. A meal's long line ran past the
+    -- slip's edge, 2026-11-23)
+    local function Line(fs, text, size)
+        fs:SetWidth(0)
+        fs:SetFont(BODY_FONT, size, "")
+        fs:SetText(text or "")
+        if Width(fs) > room then fs:SetFont(BODY_FONT, size - 1, "") end
+        if Width(fs) > room then fs:SetWidth(room) end
+    end
+    Line(f.line1, w.line1, 12)
+    Line(f.line2, w.line2, 11)
     f.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
     ring = ring or T.RINGS[1]
     f.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])

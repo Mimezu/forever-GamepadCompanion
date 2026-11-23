@@ -15,6 +15,8 @@ local function Obj()
     local o = {}
     return setmetatable(o, { __index = function(t, k)
         if k == "SetText" then return function(self, v) self.text = v end end
+        if k == "SetWidth" then return function(self, v) self.width = v end end
+        if k == "SetFont" then return function(self, _, size) self.size = size end end
         if k == "SetTexture" then return function(self, v) self.texture = v end end
         if k == "SetAlpha" then return function(self, v) self.alpha = v end end
         if k == "Show" then return function(self) self.shown = true end end
@@ -48,7 +50,7 @@ C_UnitAuras = { GetBuffDataByIndex = function(unit, i)
     local b = buffs[i]
     if not b then return nil end
     return { name = b.name, spellId = b.id, icon = "icon" .. b.id, duration = b.duration, sourceUnit = b.source,
-        isFromPlayerOrPlayerPet = b.mine, auraInstanceID = b.instance }
+        isFromPlayerOrPlayerPet = b.mine, auraInstanceID = b.instance, expirationTime = b.expires }
 end }
 C_TooltipInfo = { GetUnitBuffByAuraInstanceID = function(unit, instance)
     for _, b in ipairs(buffs) do
@@ -82,6 +84,10 @@ eq(M.Gives("Gained the following camp benefits:\n\nFaction Banner: Spirit increa
 eq(M.Gives("Gained the following camp benefits:\nFaction Banner: Spirit increased by 14.\nCampfire: Stamina increased by 5."), "+14 Spirit · +5 Stamina", "two gains")
 eq(M.Gives("Gained the following camp benefits:\nA: Spirit increased by 1.\nB: Stamina increased by 2.\nC: Agility increased by 3."), "+1 Spirit · +2 Stamina", "two at most")
 eq(M.Gives("Spirit increased by 14."), "+14 Spirit", "no source named")
+eq(M.Gives("Attack Power is increased by 20."), "+20 Attack Power", "'is increased by': no 'is' left (2026-11-23)")
+eq(M.Fresh({ duration = 900, expirationTime = 1000 }, 102), true, "landed 2 s ago: new")
+eq(M.Fresh({ duration = 900, expirationTime = 1000 }, 400), false, "running 5 min: not new")
+eq(M.Fresh({ duration = 0 }, 400), true, "no time to read: may be new")
 eq(M.Gives("Gained the following camp benefits:"), nil, "a heading alone: nothing")
 eq(M.Kind({ name = "Camp Benefits", duration = 3600 }, { now = 0 }), "fire", "Camp Benefits: the fire's, by name")
 eq(M.Gives(""), nil, "nothing: nil")
@@ -217,6 +223,34 @@ eq(M.Enabled(), true, "on by default")
 buffs[#buffs + 1] = { id = 19709, name = "Well Fed", duration = 900, source = "player", mine = true, instance = 13 }
 events.scripts.OnEvent(events, "PLAYER_ENTERING_WORLD")
 eq(shows, 4, "after a loading screen: the buffs on are not new")
+
+-- a hearthstone, no loading screen: the buffs sent again under new instance ids, a read
+-- with none between (2026-11-23: Well Fed's card after a hearth)
+for _, b in ipairs(buffs) do b.expires = clock + b.duration - 300 end
+Aura()
+local kept = buffs
+buffs = {}
+Aura()
+buffs = kept
+for i, b in ipairs(buffs) do b.instance = 100 + i end
+Aura()
+eq(shows, 4, "after a hearthstone: Well Fed running 5 min is not new")
+-- eaten again later: a fresh Well Fed still shows
+table.remove(buffs)
+Aura()
+buffs[#buffs + 1] = { id = 19709, name = "Well Fed", duration = 900, source = "player", mine = true, instance = 200,
+    expires = clock + 899, desc = "Attack Power is increased by 20. Spirit is increased by 10. A long third line of nothing." }
+Aura()
+eq(shows, 5, "a fresh Well Fed: the card")
+eq(M.shown.line1, "+20 Attack Power · +10 Spirit", "its gains")
+buffs[#buffs].desc = nil
+local T = ns.FishingToast
+T.FillSlip(card, { kicker = "A GOOD MEAL", title = "Well Fed", line1 = "+4 Spirit" }, "icon")
+eq(card.line1.width .. "/" .. card.line1.size, "0/12", "a line that fits: as it was")
+-- a line too long for the paper: a point smaller, then cut at the paper's edge
+T.FillSlip(card, { kicker = "A GOOD MEAL", title = "Well Fed", line1 = string.rep("x", 60) }, "icon")
+eq(card.line1.size, 11, "a long line: a point smaller")
+eq(card.line1.width, 280 - (14 + 46) - 14, "and cut at the paper's edge")
 
 -- Edit Mode: a sample rests over the player frame
 M.EditMode(true)
