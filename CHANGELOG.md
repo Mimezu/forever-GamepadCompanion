@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: PS takes screenshots again. With L2 + PS set to Focus UI, a rebind while L2 was held read PS as a free key (the game reads its Focus UI back as empty) and put Companion's click on it until the next login; the game's own binding under it is read now.
 - Fixed: the character window's equipment sets with the pad. Blizzard's gamepad setup tied the set list to a frame Forever's window no longer has, so the sets were drawn 0 px wide (only New Set showed) and Equip and Save were hidden: nothing could be picked, saved or renamed. The list is back in its place with Equip and Save, as with the mouse; Cross on a set keeps the pad menu (Equip, Save, Bind, Change name and icon, Delete).
 - Meal card: a camp's buff says what it gives ("+14 Spirit"): every line of its tooltip is read, Forever's "Spirit increased by 14" understood, and Camp Benefits known by name.
 - Flight card: the time left follows the flight. Once a second it reads how fast the way to the destination shrinks; a guess gives way to it within 30 s, and no clock runs out in the air (Tarren Mill showed ~0:00 with the way still ahead). Each whole flight also teaches your pace, so routes not flown yet start closer.

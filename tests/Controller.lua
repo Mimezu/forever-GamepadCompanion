@@ -957,6 +957,32 @@ end
 check(not Keys.Heal(), "Mute: nothing to heal")
 Keys.Set("PAD5", "lt", nil); Keys.Set("PAD5", "both", nil)
 bindings.PAD5 = nil
+-- PS is the game's screenshot, L2 + PS Focus UI. Held L2's Focus UI reads back empty in
+-- game; a rebind then took PS for the click and kept it: no screenshot (2026-11-23)
+bindings.PADSYSTEM = "FRAMEGAMBIT_CLEAN_SCREENSHOT"
+for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADSYSTEM", l, nil) end
+check(Keys.Set("PADSYSTEM", "lt", "bind:focus"), "L2 + PS: Focus UI")
+eq(overrides.PADSYSTEM, nil, "PS stays the game's screenshot")
+do
+    local engine = GetBindingAction
+    GetBindingAction = function(key, override)
+        local v = engine(key, override)
+        if override and v == "TOGGLEUIFOCUS" then return "" end   -- (as the game reads a Blizzard function)
+        return v
+    end
+    pressed.PADLTRIGGER = true; Keys.Watch()
+    eq(overrides.PADSYSTEM and overrides.PADSYSTEM.action, "TOGGLEUIFOCUS", "L2: Focus UI on PS")
+    Keys.Apply(true)
+    pressed.PADLTRIGGER = nil; Keys.Watch()
+    NOW = NOW + 1; Keys.Watch()
+    eq(overrides.PADSYSTEM, nil, "a rebind with L2 held: PS still the screenshot")
+    Keys.Apply(true)
+    eq(overrides.PADSYSTEM, nil, "and after it")
+    eq(GetBindingAction("PADSYSTEM", true), "FRAMEGAMBIT_CLEAN_SCREENSHOT", "PS takes the screenshot")
+    GetBindingAction = engine
+end
+Keys.Set("PADSYSTEM", "lt", nil)
+bindings.PADSYSTEM = nil
 -- Base back to Blizzard: Options is Radial again
 for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, nil) end
 Keys.Set("PAD5", "lt", nil)

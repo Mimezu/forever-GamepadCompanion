@@ -212,6 +212,10 @@ function Keys.Apply(force)
         -- (what the game binds there without Companion: under ours, the last seen)
         local game = GetBindingAction and GetBindingAction(key, true) or ""
         if (bound[key] and game == bound[key]) or (extras[key] and game == extras[key]) then game = seen[key] or "" end
+        -- (read empty: a held layer's Blizzard function reads back "" in game, and so did what
+        -- was seen under our click. The player's own binding then: PS's screenshot, under
+        -- L2's Focus UI, was taken for a free key and became our click, 2026-11-23)
+        if game == "" and GetBindingAction then game = GetBindingAction(key) or "" end
         seen[key] = game
         local mode, command = Keys.Mode(key, game)
         modes[key] = mode
