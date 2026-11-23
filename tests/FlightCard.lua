@@ -77,6 +77,51 @@ eq(frac, 1, "late: at the end, no further")
 eq(left, 0, "nothing left, never below")
 eq(C.NextStop(C.Plan(direct, {}), 0), nil, "direct: nowhere to land on the way")
 
+-- seen in flight (a guess ran out with Tarren Mill ahead, "~0:00", 2026-11-22)
+do
+    eq(C.LiveLeft({}), nil, "no samples: nothing seen")
+    local s = {}
+    for t = 0, 4 do s[#s + 1] = { t = t, d = 3000 - 20 * t } end
+    eq(C.LiveLeft(s), nil, "4 s seen: too soon to say")
+    s = {}
+    for t = 0, 40 do s[#s + 1] = { t = t, d = 3000 - 20 * t } end
+    local live, span = C.LiveLeft(s)
+    near(live, 2200 / 20, "20 yd/s closing in, 2200 yd left: 110 s")
+    eq(span, C.WINDOW, "read over the last 20 s")
+    s = {}
+    for t = 0, 20 do s[#s + 1] = { t = t, d = 3000 + t } end
+    eq(C.LiveLeft(s), nil, "the way turns away for now: no say")
+    -- a guess runs out in the air: what's seen takes over
+    local g = C.Plan(direct, {})
+    local left, guess = C.Left(g, g.total + 30, 95, 20)
+    eq(left, 95, "the guess ran out: the time seen")
+    eq(guess, true, "still a guess (~)")
+    -- a guess gives way as the samples build
+    left = C.Left({ total = 100, guess = true }, 40, 120, 15)
+    near(left, 0.5 * 120 + 0.5 * 60, "half trusted at 15 s")
+    left = C.Left({ total = 100, guess = true }, 40, 120, 45)
+    eq(left, 120, "fully trusted from 30 s")
+    -- a learned route holds, unless it ran out
+    left, guess = C.Left({ total = 100, guess = false }, 40, 120, 45)
+    eq(left, 60, "learned: its time")
+    eq(guess, false, "no ~")
+    left = C.Left({ total = 100, guess = false }, 110, 25, 20)
+    eq(left, 25, "learned but slower today: the time seen")
+    eq((C.Left({ total = 100, guess = true }, 40)), 60, "nothing seen: the plan")
+    -- progress against the time seen
+    local frac = C.Progress({ total = 100, marks = { 1 } }, 60, 60)
+    near(frac, 0.5, "60 s flown, 60 left: halfway")
+    -- the pace, learned from whole flights, guesses the next routes
+    local d = {}
+    eq(C.LearnPace(d, 452, 9000), true, "a whole flight teaches the pace")
+    near(d.flightPace, (452 - C.TAKEOFF) / 9000, "s per straight yard, after rising and setting down")
+    eq(C.LearnPace(d, 452, nil), false, "a hop of unknown length: nothing")
+    eq(C.LearnPace(d, 452, 100), false, "too short to say")
+    eq(C.LearnPace(d, 30, 9000), false, "300 yd/s: not a flight")
+    local p = C.Plan(direct, {}, 0.06)
+    near(p.total, 1500 * 0.06 + C.TAKEOFF, "a new route at the learned pace")
+end
+
 -- the clock
 eq(C.Clock(125), "2:05", "minutes and seconds")
 eq(C.Clock(125, true), "~2:05", "a guess")

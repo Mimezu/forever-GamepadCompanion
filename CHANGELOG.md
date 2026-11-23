@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Flight card: the time left follows the flight. Once a second it reads how fast the way to the destination shrinks; a guess gives way to it within 30 s, and no clock runs out in the air (Tarren Mill showed ~0:00 with the way still ahead). Each whole flight also teaches your pace, so routes not flown yet start closer.
 - Fixed: when another addon makes the game block its own pad hand-back as a window closes (jump and Interact then do nothing until /reload), a note names the addon the game blames ("Pad stuck by Auctionator · /reload"). Fishing's pole state driver no longer raises "Invalid method 'PoleState'" at every load.
 - **Meal card**: a slip of the catch card's paper above your player frame when a meal's buff lands (Well Fed after eating, a campfire's after a minute by the fire): the buff, what it gives, for how long. Setup > Windows > Meal card; the Catch card's switch sits beside it
 - Fixed: a Halo ring from Choose on L2 + R2 of a button the game or Halo holds (Mute) opens; it ran L2's Focus UI instead (a layer's click and its Blizzard function shared a binding owner, and the game kept the function under the click)

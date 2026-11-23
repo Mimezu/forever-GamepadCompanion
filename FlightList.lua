@@ -1332,6 +1332,7 @@ local function Paths(nodes)
 end
 
 FL.PathsOf = Paths   -- (FlightCard.lua: the route's lengths)
+FL.WorldOf = WorldOf -- (FlightCard.lua: where you are in flight)
 
 -- The quests in the log (C_QuestLog), each with its zone (its log header) and its point: its own
 -- mark on its map (GetQuestsOnMap: where to go, or whom to turn it in to), else its next waypoint
