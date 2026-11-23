@@ -35,7 +35,8 @@ M.FIRE_TIMER = { ids = { [1229739] = true }, names = { ["Welcoming Campfire"] = 
 -- foods name their own; a Basic Campfire's is Cozy Fire
 M.MEALS = {
     names = { ["Well Fed"] = true, ["Blessed Sunfruit"] = true, ["Blessed Sunfruit Juice"] = true, ["Grilled Squid"] = true,
-        ["Nightfin Soup"] = true, ["Runn Tum Tuber Surprise"] = true, ["Hot Smoked Bass"] = true, ["Cozy Fire"] = "fire" },
+        ["Nightfin Soup"] = true, ["Runn Tum Tuber Surprise"] = true, ["Hot Smoked Bass"] = true, ["Cozy Fire"] = "fire",
+        ["Camp Benefits"] = "fire" },   -- (Forever's, after a sit by a camp's fire, 2026-11-22)
     ids = { [19705] = true, [19706] = true, [19708] = true, [19709] = true, [19710] = true, [19711] = true, [24799] = true,
         [24800] = true, [24870] = true, [25661] = true, [25694] = true, [25941] = true, [18125] = true, [18141] = true,
         [18192] = true, [18194] = true, [18222] = true, [22730] = true,
@@ -71,20 +72,43 @@ function M.Kind(aura, state)
     return nil
 end
 
--- What it gives, from its tooltip's line, short: "Increases Stamina and Spirit by 4 for 15 min."
--- -> "+4 Stamina and Spirit"; "Restores 8 mana per 5 sec." -> "+8 mana per 5 sec"
+-- One sentence, short: "Increases Stamina and Spirit by 4 for 15 min" -> "+4 Stamina and Spirit";
+-- "Faction Banner: Spirit increased by 14" -> "+14 Spirit"; "Restores 8 mana per 5 sec" ->
+-- "+8 mana per 5 sec"; nil: not a gain
+local function Gain(s)
+    s = s:match("^%s*(.-)%s*$"):gsub("%.$", "")
+    s = s:gsub("%s+for%s+%d+%s*%a+$", "")              -- (" for 15 min")
+    local what, n = s:match("^[Ii]ncreases%s+(.-)%s+by%s+(%d+%%?)$")
+    if what and n then return "+" .. n .. " " .. what:gsub("^your%s+", "") end
+    -- (Forever's camp: "<what gives it>: <stat> increased by <n>")
+    what, n = s:match("^[^:]-:%s*(.-)%s+increased%s+by%s+(%d+%%?)$")
+    if not what then what, n = s:match("^(.-)%s+increased%s+by%s+(%d+%%?)$") end
+    if what and n and what ~= "" then return "+" .. n .. " " .. what:gsub("^[Yy]our%s+", "") end
+    local rest = s:match("^[Rr]estores%s+(.+)$") or s:match("^[Rr]egenerates%s+(.+)$")
+    if rest then return "+" .. rest end
+    return nil
+end
+
+-- What it gives, from its tooltip, short: each gain found ("+14 Spirit", two at most, " · "
+-- between), else its first sentence that isn't a heading ("...the following camp benefits:")
 function M.Gives(desc)
     if type(desc) ~= "string" then return nil end
-    desc = desc:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|n", " "):gsub("\n", " ")
-    desc = desc:match("^%s*(.-)%s*$")
-    local first = desc:match("^(.-)%.%s") or desc:match("^(.-)%.$") or desc
-    first = first:gsub("%s+for%s+%d+%s*%a+%.?$", "")   -- (" for 15 min")
-    first = first:gsub("%.$", "")
-    local what, n = first:match("^[Ii]ncreases%s+(.-)%s+by%s+(%d+%%?)$")
-    if what and n then return "+" .. n .. " " .. what:gsub("^your%s+", "") end
-    local rest = first:match("^[Rr]estores%s+(.+)$") or first:match("^[Rr]egenerates%s+(.+)$")
-    if rest then return "+" .. rest end
-    if first == "" then return nil end
+    desc = desc:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|n", "\n")
+    local gains, first = {}, nil
+    for line in (desc .. "\n"):gmatch("(.-)\n") do
+        for sentence in (line:gsub("%.%s+", ".\1") .. "\1"):gmatch("(.-)\1") do
+            local s = sentence:match("^%s*(.-)%s*$")
+            if s ~= "" then
+                local g = Gain(s)
+                if g then
+                    if #gains < 2 then gains[#gains + 1] = g end
+                elseif not first and not s:find(":%s*$") then
+                    first = s:gsub("%.$", "")
+                end
+            end
+        end
+    end
+    if #gains > 0 then return table.concat(gains, " · ") end
     return first
 end
 
@@ -176,12 +200,16 @@ local function Describe(a)
     if tip and tip.GetUnitBuffByAuraInstanceID and a.auraInstanceID then info = Call(tip.GetUnitBuffByAuraInstanceID, "player", a.auraInstanceID) end
     if not info and tip and tip.GetUnitAura and a.index then info = Call(tip.GetUnitAura, "player", a.index, "HELPFUL") end
     if type(info) == "table" and type(info.lines) == "table" then
+        -- (every line after the name: Forever's camp names its gains under a heading,
+        -- "Gained the following camp benefits:" then "Faction Banner: Spirit increased by 14.")
+        local out = {}
         for i, line in ipairs(info.lines) do
             local text = type(line) == "table" and line.leftText
             if i > 1 and type(text) == "string" and not secret(text) and text ~= "" and not text:lower():find("remaining", 1, true) then
-                return text
+                out[#out + 1] = text
             end
         end
+        if #out > 0 then return table.concat(out, "\n") end
     end
     local desc = C_Spell and C_Spell.GetSpellDescription and a.spellId and Call(C_Spell.GetSpellDescription, a.spellId)
     if type(desc) == "string" and not secret(desc) and desc ~= "" then return desc end
