@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: the character window's equipment sets with the pad. Blizzard's gamepad setup tied the set list to a frame Forever's window no longer has, so the sets were drawn 0 px wide (only New Set showed) and Equip and Save were hidden: nothing could be picked, saved or renamed. The list is back in its place with Equip and Save, as with the mouse; Cross on a set keeps the pad menu (Equip, Save, Bind, Change name and icon, Delete).
 - Meal card: a camp's buff says what it gives ("+14 Spirit"): every line of its tooltip is read, Forever's "Spirit increased by 14" understood, and Camp Benefits known by name.
 - Flight card: the time left follows the flight. Once a second it reads how fast the way to the destination shrinks; a guess gives way to it within 30 s, and no clock runs out in the air (Tarren Mill showed ~0:00 with the way still ahead). Each whole flight also teaches your pace, so routes not flown yet start closer.
 - Fixed: when another addon makes the game block its own pad hand-back as a window closes (jump and Interact then do nothing until /reload), a note names the addon the game blames ("Pad stuck by Auctionator · /reload"). Fishing's pole state driver no longer raises "Invalid method 'PoleState'" at every load.

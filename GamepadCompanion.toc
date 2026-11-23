@@ -60,6 +60,7 @@ BankMove.lua
 MailOpenAll.lua
 OpenMapPad.lua
 BagGrid.lua
+GearSets.lua
 FlightList.lua
 FlightCard.lua
 AutorunTurn.lua
