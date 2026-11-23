@@ -75,7 +75,8 @@ button:SetAttribute("type", "macro")
 local owner = CreateFrame("Frame", "GamepadCompanionFishingBinds", UIParent, "SecureHandlerStateTemplate")
 owner:SetAttribute("_onstate-pole", [[ if newstate == "off" then self:ClearBindings() end self:CallMethod("PoleState", newstate) ]])
 function F.PoleCondition() return "[equipped:" .. lib.PoleType() .. "] on; off" end
-if RegisterStateDriver then RegisterStateDriver(owner, "pole", F.PoleCondition()) end
+-- (the driver is registered below, once owner:PoleState exists: it fires as it registers, and
+-- "Invalid method 'PoleState'" was raised at every load, 2026-11-22)
 -- L2: the lure on the pole (its macro: the lure, then the main hand)
 local lureButton = CreateFrame("Button", F.LURE_BUTTON, UIParent, "SecureActionButtonTemplate")
 lureButton:SetSize(1, 1)
@@ -272,6 +273,7 @@ function owner:PoleState()
     wipe(bound)
     if InCombat() then pending = true else F.Apply() end
 end
+if RegisterStateDriver then RegisterStateDriver(owner, "pole", F.PoleCondition()) end
 
 Sh.Claim(bound, function()
     if InCombat() then pending = true; return end

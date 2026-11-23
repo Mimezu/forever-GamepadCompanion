@@ -396,6 +396,22 @@ local function Said(text)
         Trace("STACK " .. (stack:gsub("\n", " | ")), "errors")
     end
 end
+-- The game's own pad hand-back blocked: a window closing runs Blizzard's code that takes the
+-- window's bindings off the pad (FrameControlsManager -> RemoveSet -> UpdateInteractIcons ->
+-- SetPreferredGamepadInteractTarget). Another addon's taint on that path makes the game stop
+-- it halfway: the window's bindings stay on Cross and Circle, so jump and Interact do nothing
+-- until /reload (2026-11-22 21:25 and 21:29: "AddOn 'Auctionator' tried to call the protected
+-- function 'SetPreferredGamepadInteractTarget()'", the mailbox closing). Nothing here can undo
+-- it; it is said at once, with the addon the game blames, and kept in the trace.
+Keys.PAD_HANDBACK = { SetPreferredGamepadInteractTarget = true, ["SetPreferredGamepadInteractTarget()"] = true }
+function Keys.Blocked(addon, fn)
+    if not (fn and Keys.PAD_HANDBACK[fn]) then return end
+    Trace(("BLOCKED %s by %s: the pad's hand-back stopped (jump, Interact)"):format(tostring(fn), tostring(addon)), "errors")
+    if UIErrorsFrame and UIErrorsFrame.AddMessage then
+        UIErrorsFrame:AddMessage(("Pad stuck by %s · /reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
+    end
+end
+
 if UIErrorsFrame then
     for _, method in ipairs({ "AddMessage", "AddExternalErrorMessage" }) do
         if type(UIErrorsFrame[method]) == "function" then hooksecurefunc(UIErrorsFrame, method, function(_, text) Said(text) end) end
@@ -566,7 +582,7 @@ HookBlizzard()
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED",
     "PLAYER_REGEN_DISABLED", "UPDATE_MACROS", "SPELLS_CHANGED", "GAME_PAD_ACTIVE_CHANGED", "GAME_PAD_CONNECTED",
-    "UI_ERROR_MESSAGE" }) do
+    "UI_ERROR_MESSAGE", "ADDON_ACTION_FORBIDDEN", "ADDON_ACTION_BLOCKED" }) do
     pcall(events.RegisterEvent, events, event)
 end
 events:SetScript("OnEvent", function(_, event, arg, msg)
@@ -583,6 +599,10 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     if event == "UI_ERROR_MESSAGE" then
         -- (the trace: what every key reads the moment Focus UI found nothing)
         Said(msg or arg)   -- (errorType, message)
+        return
+    end
+    if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
+        Keys.Blocked(arg, msg)
         return
     end
     if event == "PLAYER_REGEN_DISABLED" then

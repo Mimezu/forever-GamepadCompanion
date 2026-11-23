@@ -850,6 +850,13 @@ do
     Keys.CheckStuck(700.7)
     check(errors()[#errors()]:find("STUCK PAD1: let go after") ~= nil, "A let go: written down")
     IsKeyDown, GetBindingKey = isKeyDown, getBindingKey
+    -- the game's pad hand-back blocked by another addon's taint (2026-11-22 21:25): written down
+    local n3 = #errors()
+    Keys.Blocked("Auctionator", "SetPreferredGamepadInteractTarget()")
+    check(#errors() > n3 and errors()[#errors()]:find("BLOCKED SetPreferredGamepadInteractTarget%(%) by Auctionator") ~= nil, "hand-back blocked: written down")
+    local n4 = #errors()
+    Keys.Blocked("Someone", "CastSpellByName()")
+    eq(#errors(), n4, "another blocked call: not ours to say")
 end
 -- (a leftover the rebind can't clear: healed once, not every tick)
 padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
