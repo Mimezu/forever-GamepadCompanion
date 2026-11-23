@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Fixed: Create's map gone ("No interface frame to focus") when Focus UI is left in the game's gamepad set under it. Companion rebinds again every 5 s while it stays (it tried once, and it was put back), three times; then a note says to /reload ("Create stuck on Focus UI · /reload"). Each try is written in the trace.
 - Fixed: the meal card no longer shows a buff you already had after a hearthstone (the game sends the buffs again under new ids): only one that landed in the last 5 seconds is new. Its lines stay on the paper (a point smaller, then cut), and "Attack Power is increased by 20" reads "+20 Attack Power".
 - Fixed: PS takes screenshots again. With L2 + PS set to Focus UI, a rebind while L2 was held read PS as a free key (the game reads its Focus UI back as empty) and put Companion's click on it until the next login; the game's own binding under it is read now.
 - Fixed: the character window's equipment sets with the pad. Blizzard's gamepad setup tied the set list to a frame Forever's window no longer has, so the sets were drawn 0 px wide (only New Set showed) and Equip and Save were hidden: nothing could be picked, saved or renamed. The list is back in its place with Equip and Save, as with the mouse; Cross on a set keeps the pad menu (Equip, Save, Bind, Change name and icon, Delete).

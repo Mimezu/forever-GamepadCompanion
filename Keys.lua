@@ -498,10 +498,19 @@ end
 -- again, Base put back on top when a key of ours reads otherwise. A key left
 -- to the game is only checked for a leftover of ours; the game's own stays.
 -- True when something was put right.
-local ghosts = {}
+-- A function of ours left in the game's gamepad set under a key's Base (Create ran Focus UI,
+-- no map): a rebind, again every GHOST_EVERY s while it stays, GHOST_TRIES times, each written
+-- down with what it left; then a note to /reload. Once only, it stayed for good: something
+-- puts it back after a rebind clears it (2026-11-23 01:15, Create's map gone till /reload)
+Keys.GHOST_EVERY, Keys.GHOST_TRIES = 5, 3
+local KEY_NAMES = { PADSOCIAL = "Create", PADFORWARD = "Options", PADSYSTEM = "PS", PAD5 = "Mute", PADLSTICK = "L3", PADRSTICK = "R3" }
+local FN_NAMES = { TOGGLEUIFOCUS = "Focus UI", OPENRADIAL = "Radial" }
+local ghosts = {}           -- key -> { tries, at, said }
 function Keys.Heal()
     if not loaded or not GetBindingAction or (InCombatLockdown and InCombatLockdown()) then return false end
+    local now = GetTime and GetTime() or 0
     local stale, ghost = false, false
+    local tried = {}
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
         local should = extras[key] or bound[key]
@@ -515,11 +524,23 @@ function Keys.Heal()
             if actual ~= should and not unread and (ourClick or actual ~= "") then stale = true end
             -- (a layer's function of ours left in the gamepad set, under Base)
             local pad = PadSet(key)
-            -- (once: one the rebind can't clear is the game's own, left till /reload)
             if pad and pad ~= should and Keys.Ours(key, pad) then
-                if not ghosts[key] then stale = true; ghost = true end
-                ghosts[key] = true
-            else
+                local g = ghosts[key]
+                if not g then g = { tries = 0, at = -math.huge }; ghosts[key] = g end
+                if g.tries < Keys.GHOST_TRIES and now - g.at >= Keys.GHOST_EVERY then
+                    g.tries, g.at = g.tries + 1, now
+                    stale, ghost = true, true
+                    tried[key] = pad
+                elseif g.tries >= Keys.GHOST_TRIES and not g.said then
+                    g.said = true
+                    Trace(("GHOST %s: %s stays in the gamepad set after %d rebinds"):format(key, pad, g.tries), "errors")
+                    if UIErrorsFrame and UIErrorsFrame.AddMessage then
+                        UIErrorsFrame:AddMessage(("%s stuck on %s · /reload"):format(KEY_NAMES[key] or key,
+                            FN_NAMES[pad] or pad), 1, 0.82, 0, 1, 6)
+                    end
+                end
+            elseif ghosts[key] then
+                Trace(("GHOST %s: gone after %d rebinds"):format(key, ghosts[key].tries), "errors")
                 ghosts[key] = nil
             end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
@@ -532,7 +553,13 @@ function Keys.Heal()
     ClearOverrideBindings(layerOwner)
     ClearOverrideBindings(clickOwner)
     SetExtras({})
-    if ghost then Keys.Apply(true) end
+    if ghost then
+        Keys.Apply(true)
+        for key, was in pairs(tried) do
+            Trace(("GHOST %s: %s in the gamepad set; rebind %d, now %s"):format(key, was, ghosts[key].tries,
+                tostring(PadSet(key))), "errors")
+        end
+    end
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
         if bound[key] and actual ~= bound[key] and (bound[key]:find("^CLICK " .. Keys.BUTTON .. ":") or actual ~= "") then Keys.Apply(true); break end

@@ -858,12 +858,43 @@ do
     Keys.Blocked("Someone", "CastSpellByName()")
     eq(#errors(), n4, "another blocked call: not ours to say")
 end
--- (a leftover the rebind can't clear: healed once, not every tick)
-padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
-check(Keys.Heal(), "a stuck Focus UI: one try")
-check(not Keys.Heal(), "then left (no rebind 4 times a second)")
-padSet.PADSOCIAL = nil
-check(not Keys.Heal(), "gone: nothing to heal")
+-- (a leftover the rebind can't clear: tried again every GHOST_EVERY s, GHOST_TRIES times, never
+-- every tick; then a note to /reload. Once only left Create's map gone, 2026-11-23)
+do
+    local errors = function() return GamepadCompanionTraceDB.errors end
+    local said = {}
+    local add = UIErrorsFrame and UIErrorsFrame.AddMessage
+    UIErrorsFrame = UIErrorsFrame or {}
+    UIErrorsFrame.AddMessage = function(_, text) said[#said + 1] = text end
+    padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
+    check(Keys.Heal(), "a stuck Focus UI: a try")
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: TOGGLEUIFOCUS in the gamepad set; rebind 1, now TOGGLEUIFOCUS", 1, true) ~= nil, "the try written down, with what it left")
+    check(not Keys.Heal(), "then left (no rebind 4 times a second)")
+    NOW = NOW + Keys.GHOST_EVERY
+    check(Keys.Heal(), "5 s on, still there: another try")
+    NOW = NOW + Keys.GHOST_EVERY
+    check(Keys.Heal(), "and a third")
+    NOW = NOW + Keys.GHOST_EVERY
+    check(not Keys.Heal(), "three tries: no more")
+    eq(said[#said], "Create stuck on Focus UI · /reload", "a note to /reload")
+    local n = #said
+    NOW = NOW + Keys.GHOST_EVERY; Keys.Heal()
+    eq(#said, n, "said once")
+    padSet.PADSOCIAL = nil
+    check(not Keys.Heal(), "gone: nothing to heal")
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 rebinds", 1, true) ~= nil, "its end written down")
+    -- put back after a rebind (a window closing): cleared again on the next try
+    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    NOW = NOW + 1
+    check(Keys.Heal(), "back again: a try")
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "cleared: the map")
+    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    Keys.Heal()
+    NOW = NOW + Keys.GHOST_EVERY
+    check(Keys.Heal(), "put back once more, 5 s on: tried again")
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "the map again")
+    UIErrorsFrame.AddMessage = add
+end
 -- L2 + Create opens a window: Blizzard binds its keys on UIParent while Create is still down.
 -- No rebind then (it took Focus UI off Create mid-press, and the game kept it: 2026-11-22)
 pressed.PADLTRIGGER = true; Keys.Watch()
