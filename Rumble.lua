@@ -2360,6 +2360,7 @@ local REST_SPELLS = {
     drink = { 430, 18140, 23698 },
     both = { 167152, 25990, 26263, 29055, 1312719, 1269354 },
 }
+V.REST_SPELLS = REST_SPELLS   -- (the meal card reads them too: MealCard.lua)
 local smeltByName = {}
 local gatherByName, craftByName, spellByName, ticksByName, shotByName, moveByName, restByName
 -- (built again until every gathering spell has its name: a name not loaded

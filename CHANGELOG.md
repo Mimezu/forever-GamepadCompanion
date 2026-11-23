@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- **Meal card**: a slip of the catch card's paper above your player frame when a meal's buff lands (Well Fed after eating, a campfire's after a minute by the fire): the buff, what it gives, for how long. Setup > Windows > Meal card; the Catch card's switch sits beside it
 - Fixed: a Halo ring from Choose on L2 + R2 of a button the game or Halo holds (Mute) opens; it ran L2's Focus UI instead (a layer's click and its Blizzard function shared a binding owner, and the game kept the function under the click)
 - **Moments: Off is a switch on each moment**, not a choice in its picker. Off keeps the feel, light or sound, its volume and shape; on brings them back. Feel, Light, Sound and Your spells alike; dimmed while off, and the groups count what's on. On the pad: R3 switches the row in focus (On/Off in the legend). A sound with none yet asks for one when switched on
 - Your earlier Off choices are now switched off, with Recommended kept for when you switch them back on (a spell's own sound keeps its sound). WoW Helper reads them as off, as before

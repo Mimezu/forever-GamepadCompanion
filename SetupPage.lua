@@ -402,9 +402,9 @@ end
 -- Windows: the combined bag as a plain grid for the d-pad; the flight list
 ---------------------------------------------------------------------------
 local function BuildBags(frame)
-    local BG, FLT, FC = ns.BagGrid, ns.FlightList, ns.FlightCard
+    local BG, FLT, FC, FL, MC = ns.BagGrid, ns.FlightList, ns.FlightCard, ns.FishingLure, ns.MealCard
     if not (BG or FLT) then return end
-    local card = S.Card(frame, "Windows", 0, -450, COL, 110, "Interface\\Icons\\INV_Misc_Bag_08")
+    local card = S.Card(frame, "Windows", 0, -450, COL, 138, "Interface\\Icons\\INV_Misc_Bag_08")
     if BG then
         local check = S.NewCheck(card, "Bag grid", 12, -38, function(self)
             BG.SetEnabled(self:GetChecked() == true)
@@ -434,6 +434,23 @@ local function BuildBags(frame)
         S.Tooltip(check, "Flight card", "Time left in the air")
         pg.flightCard = check
         pg.refresh[#pg.refresh + 1] = function() check:SetChecked(FC.Enabled()) end
+    end
+    -- (the slips of paper: the catch card above the float, the meal card above the player frame)
+    if FL and FL.Setting then
+        local check = S.NewCheck(card, "Catch card", 12, -94, function(self)
+            FL.Setting().toast = self:GetChecked() == true
+        end, COL / 2 - 20)
+        S.Tooltip(check, "Catch card", "Above the float")
+        pg.catchCard = check
+        pg.refresh[#pg.refresh + 1] = function() check:SetChecked(FL.Setting().toast ~= false) end
+    end
+    if MC then
+        local check = S.NewCheck(card, "Meal card", COL / 2, -94, function(self)
+            MC.SetEnabled(self:GetChecked() == true)
+        end, COL / 2 - 20)
+        S.Tooltip(check, "Meal card", "Above the player frame")
+        pg.mealCard = check
+        pg.refresh[#pg.refresh + 1] = function() check:SetChecked(MC.Enabled()) end
     end
 end
 

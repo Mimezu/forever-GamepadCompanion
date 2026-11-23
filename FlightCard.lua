@@ -157,15 +157,6 @@ end
 
 -- The card ------------------------------------------------------------------------
 local card
-local function Text(parent, font, size, ink, justify)
-    local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont(font, size, "")
-    fs:SetTextColor(ink[1], ink[2], ink[3])
-    fs:SetShadowOffset(0, 0)
-    fs:SetJustifyH(justify or "LEFT")
-    if fs.SetWordWrap then fs:SetWordWrap(false) end
-    return fs
-end
 
 local function Disc(parent, size, color, layer, sub)
     local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sub or 1)
@@ -179,7 +170,8 @@ local LINE_X, LINE_Y, LINE_W = M + 6, -78, W - 2 * M - 12
 
 local function Build()
     local T = ns.FishingToast
-    if not (T and T.Paper and T.Kicker) then return nil end
+    if not (T and T.Paper and T.Kicker and T.Text) then return nil end
+    local Text = T.Text
     local f = CreateFrame("Frame", "GamepadCompanionFlightCard", UIParent)
     f:SetSize(W, H)
     f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 24, 230)

@@ -4,6 +4,8 @@
 -- milestone, a fine catch, a new water), this outing's count and, once these
 -- waters have given enough, how often they give it. No sound, no mouse.
 -- The catches themselves: FishingJournal.lua. Words pure: tests/FishingToast.lua
+-- The slip's pieces (paper, kicker, layout, motion) are shared: the meal card
+-- (MealCard.lua), the flight card and the flight list's quest note use them.
 local _, ns = ...
 local J = ns.FishingJournal
 local T = {}
@@ -108,26 +110,31 @@ function T.Words(c, now)
 end
 
 ---------------------------------------------------------------------------
--- The card (made the first time it shows)
+-- The slip's pieces, shared: the paper (T.Paper), a kicker (T.Kicker), the
+-- card's layout (T.Slip: a round icon in an ink ring, a title, two lines) and
+-- its motion (T.Motion). The catch card, the meal card (MealCard.lua), the
+-- flight card and the flight list's quest note are made of them
 ---------------------------------------------------------------------------
 local W, H, M = 280, 94, 14
 local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
 local BODY_FONT = "Fonts\\FRIZQT__.TTF"
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local TITLE_ROOM = W - 60 - M
-local card
+T.TITLE_FONT, T.BODY_FONT = TITLE_FONT, BODY_FONT
+local card, motion
 
 local function Color(tex, c, a) tex:SetColorTexture(c[1], c[2], c[3], a or c[4] or 1) end
 
-local function Text(parent, font, size, ink)
+-- A line of ink on parent, never wrapped
+function T.Text(parent, font, size, ink, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     fs:SetFont(font, size, "")
     fs:SetTextColor(ink[1], ink[2], ink[3])
     fs:SetShadowOffset(0, 0)
-    fs:SetJustifyH("LEFT")
+    fs:SetJustifyH(justify or "LEFT")
     if fs.SetWordWrap then fs:SetWordWrap(false) end
     return fs
 end
+local Text = T.Text
 
 -- The slip's paper, on any frame f (also the flight list's quest note): two soft shadows under
 -- it, the paper, a wash darker to the foot, the cut edge and its lit lip along the top and the left
@@ -207,18 +214,22 @@ function T.SetKicker(f, text, right)
     f.rule:SetShown(room >= 12)
 end
 
-local function Build()
-    local f = CreateFrame("Frame", "GamepadCompanionCatchCard", UIParent)
-    f:SetSize(W, H)
+-- A slip named name, w by h with margin m: the paper, a kicker, a round icon in a ring of
+-- ink (f.icon, f.ring), a title (f.title) and two lines (f.line1, f.line2). Hidden, alpha 0;
+-- the caller anchors it. T.FillSlip writes it
+function T.Slip(name, w, h, m)
+    local f = CreateFrame("Frame", name, UIParent)
+    f.w, f.m = w, m
+    f:SetSize(w, h)
     f:SetFrameStrata("LOW")
     f:SetClampedToScreen(true)
     if f.EnableMouse then f:EnableMouse(false) end
     f:SetAlpha(0)
     f:Hide()
     T.Paper(f)
-    T.Kicker(f, M, -17)
+    T.Kicker(f, m, -17)
 
-    -- the catch, round, in a ring of its quality's ink
+    -- the icon, round, in a ring of ink
     local function Round(t)
         if not f.CreateMaskTexture then return end
         local mask = f:CreateMaskTexture()
@@ -229,22 +240,103 @@ local function Build()
     f.ring = f:CreateTexture(nil, "ARTWORK", nil, 0)
     f.ring:SetTexture(MASK)
     f.ring:SetSize(40, 40)
-    f.ring:SetPoint("CENTER", f, "TOPLEFT", M + 18, -(31 + 18))
+    f.ring:SetPoint("CENTER", f, "TOPLEFT", m + 18, -(31 + 18))
     f.icon = f:CreateTexture(nil, "ARTWORK", nil, 1)
     f.icon:SetSize(36, 36)
-    f.icon:SetPoint("TOPLEFT", f, "TOPLEFT", M, -31)
+    f.icon:SetPoint("TOPLEFT", f, "TOPLEFT", m, -31)
     Round(f.icon)
 
     f.title = Text(f, TITLE_FONT, 20, T.INK_STRONG)
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 60, -29)
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", m + 46, -29)
     f.line1 = Text(f, BODY_FONT, 12, T.INK)
-    f.line1:SetPoint("TOPLEFT", f, "TOPLEFT", 60, -53)
+    f.line1:SetPoint("TOPLEFT", f, "TOPLEFT", m + 46, -53)
     f.line2 = Text(f, BODY_FONT, 11, T.INK_FADED)
-    f.line2:SetPoint("TOPLEFT", f, "TOPLEFT", 60, -70)
-    f:SetScript("OnUpdate", function(_, elapsed) T.Step(elapsed) end)
+    f.line2:SetPoint("TOPLEFT", f, "TOPLEFT", m + 46, -70)
     return f
 end
 
+-- The slip's words: w = { kicker, title, line1, line2, grey (a quiet one) }, the icon and
+-- its ring's ink { r, g, b, a }. A long title shrinks, then is cut
+function T.FillSlip(f, w, icon, ring)
+    T.SetKicker(f, w.kicker or "", f.w - f.m)
+    local room = f.w - (f.m + 46) - f.m
+    f.title:SetWidth(0)
+    f.title:SetFont(TITLE_FONT, 20, "")
+    f.title:SetText(w.title or "")
+    if Width(f.title) > room then f.title:SetFont(TITLE_FONT, 18, "") end
+    if Width(f.title) > room then f.title:SetWidth(room) end
+    local ink = w.grey and T.INK or T.INK_STRONG
+    f.title:SetTextColor(ink[1], ink[2], ink[3])
+    f.line1:SetText(w.line1 or "")
+    f.line2:SetText(w.line2 or "")
+    f.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    ring = ring or T.RINGS[1]
+    f.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
+end
+
+---------------------------------------------------------------------------
+-- Motion: a slip rises 10 px into place as it shows (0.35 s), holds, drifts
+-- up 6 more as it fades (0.6 s). Shown again while it shows: the words change
+-- in place with a small lift, and the hold starts again. No queue.
+-- T.Motion(slip, anchor): anchor(y) places the slip, y the rise. The slip's
+-- OnUpdate calls Step
+---------------------------------------------------------------------------
+local IN, OUT, LIFT = 0.35, 0.6, 0.25
+
+local function Out(x) return 1 - (1 - x) * (1 - x) end
+local function Ease(x) return x * x end
+
+function T.Motion(slip, anchor)
+    local phase, t, hold, lift = nil, 0, 4, nil   -- phase: "in", "hold", "out"
+    local held = false                             -- Edit Mode's sample: stays
+    local m = {}
+    function m.Step(elapsed)
+        if not phase then return end
+        t = t + (elapsed or 0)
+        local y, a = 0, 1
+        if phase == "in" then
+            local x = math.min(1, t / IN)
+            y, a = -10 * (1 - Out(x)), Out(x)
+            if x >= 1 then phase, t = "hold", 0 end
+        elseif phase == "hold" then
+            if not held and t >= hold then phase, t = "out", 0 end
+        elseif phase == "out" then
+            local x = math.min(1, t / OUT)
+            y, a = 6 * Ease(x), 1 - Ease(x)
+            if x >= 1 then phase = nil; slip:SetAlpha(0); slip:Hide(); return end
+        end
+        if lift then
+            lift = lift + (elapsed or 0)
+            if lift >= LIFT then lift = nil else y = y + 4 * math.sin(math.pi * lift / LIFT) end
+        end
+        anchor(y)
+        slip:SetAlpha(a)
+        return phase
+    end
+    -- Shows the slip (filled already) for seconds
+    function m.Show(seconds)
+        hold = seconds or 4
+        if phase then
+            -- (already up, or going: stays, a small lift, the hold again)
+            lift = 0
+            if phase ~= "in" then phase, t = "hold", 0 end
+        else
+            phase, t, lift = "in", 0, nil
+            slip:SetAlpha(0)
+        end
+        anchor(phase == "in" and -10 or 0)
+        slip:Show()
+    end
+    function m.Hide() if phase and phase ~= "out" then phase, t = "out", 0 end end
+    function m.Phase() return phase end
+    -- Held: stays up until let go (Edit Mode's sample)
+    function m.Hold(on) held = on == true end
+    return m
+end
+
+---------------------------------------------------------------------------
+-- The catch card (made the first time it shows)
+---------------------------------------------------------------------------
 -- Rests on the float, wherever Edit Mode put it (the float's spot even while
 -- it's hidden); y: the rise
 local function Anchor(y)
@@ -258,83 +350,27 @@ local function Anchor(y)
     if float and float.GetFrameLevel then card:SetFrameLevel((float:GetFrameLevel() or 0) + 10) end
 end
 
-local function Fill(w, icon, q)
-    T.SetKicker(card, w.kicker, W - M)
-
-    card.title:SetWidth(0)
-    card.title:SetFont(TITLE_FONT, 20, "")
-    card.title:SetText(w.title)
-    if Width(card.title) > TITLE_ROOM then card.title:SetFont(TITLE_FONT, 18, "") end
-    if Width(card.title) > TITLE_ROOM then card.title:SetWidth(TITLE_ROOM) end
-    local ink = w.grey and T.INK or T.INK_STRONG
-    card.title:SetTextColor(ink[1], ink[2], ink[3])
-    card.line1:SetText(w.line1 or "")
-    card.line2:SetText(w.line2 or "")
-
-    card.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_Fish_02")
-    local ring = T.RINGS[q or 1] or T.RINGS[1]
-    card.ring:SetVertexColor(ring[1], ring[2], ring[3], ring[4])
+local function Build()
+    local f = T.Slip("GamepadCompanionCatchCard", W, H, M)
+    motion = T.Motion(f, Anchor)
+    f:SetScript("OnUpdate", function(_, elapsed) motion.Step(elapsed) end)
+    return f
 end
 
----------------------------------------------------------------------------
--- Motion: rises 10 px into place as it shows (0.35 s), holds, drifts up 6
--- more as it fades (0.6 s). Another catch while it shows: the words change in
--- place with a small lift, and the hold starts again. No queue.
----------------------------------------------------------------------------
-local IN, OUT, LIFT = 0.35, 0.6, 0.25
-local phase, t, hold, lift = nil, 0, 4, nil   -- phase: "in", "hold", "out"
-local held = false                             -- Edit Mode's sample: stays
-
-local function Out(x) return 1 - (1 - x) * (1 - x) end
-local function Ease(x) return x * x end
-
-function T.Step(elapsed)
-    if not phase then return end
-    t = t + (elapsed or 0)
-    local y, a = 0, 1
-    if phase == "in" then
-        local x = math.min(1, t / IN)
-        y, a = -10 * (1 - Out(x)), Out(x)
-        if x >= 1 then phase, t = "hold", 0 end
-    elseif phase == "hold" then
-        if not held and t >= hold then phase, t = "out", 0 end
-    elseif phase == "out" then
-        local x = math.min(1, t / OUT)
-        y, a = 6 * Ease(x), 1 - Ease(x)
-        if x >= 1 then phase = nil; card:SetAlpha(0); card:Hide(); return end
-    end
-    if lift then
-        lift = lift + (elapsed or 0)
-        if lift >= LIFT then lift = nil else y = y + 4 * math.sin(math.pi * lift / LIFT) end
-    end
-    Anchor(y)
-    card:SetAlpha(a)
-    return phase
-end
-
-function T.Phase() return phase end
+function T.Step(elapsed) return motion and motion.Step(elapsed) end
+function T.Phase() return motion and motion.Phase() end
 
 -- Shows one catch's words
 function T.Show(w, icon, q)
     if not card then card = Build() end
-    Fill(w, icon, q)
-    hold = w.hold or 4
-    if phase then
-        -- (already up, or going: stays, a small lift, the hold again)
-        lift = 0
-        if phase ~= "in" then phase, t = "hold", 0 end
-    else
-        phase, t, lift = "in", 0, nil
-        card:SetAlpha(0)
-    end
-    Anchor(phase == "in" and -10 or 0)
-    card:Show()
+    T.FillSlip(card, w, icon or "Interface\\Icons\\INV_Misc_Fish_02", T.RINGS[q or 1] or T.RINGS[1])
+    motion.Show(w.hold or 4)
     T.shown = w
     return w
 end
 
 function T.Hide()
-    if card and phase and phase ~= "out" then phase, t = "out", 0 end
+    if motion then motion.Hide() end
 end
 
 local function On()
@@ -386,12 +422,14 @@ end)
 
 -- Edit Mode: a sample card rests on the float while it's moved
 function T.EditMode(on)
-    held = on == true
-    if held then
+    if on then
+        if not card then card = Build() end
+        motion.Hold(true)
         local icon = C_Item and Call(C_Item.GetItemIconByID, 6291)
         T.Show(T.Words({ name = "Raw Brilliant Smallfish", q = 1, ever = 12, outingTotal = 3, place = "Crystal Lake" }),
             icon, 1)
-    else
+    elseif motion then
+        motion.Hold(false)
         T.Hide()
     end
 end
