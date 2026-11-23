@@ -286,8 +286,8 @@ eq(family.path, "Shadowprey Village, Desolace", "a point near: that path")
 eq(clam.path, "Shadowprey Village, Desolace", "no point, a zone with a path: that path")
 eq(stv.path, nil, "no point, a zone on the other continent: no dot")
 local probe = FL.Probe({ crumb, family })
-eq(probe[1], "Hunting in Stranglethorn: Desolace | - 0/nil:100,100 -> no dot", "the probe: where a quest went, and why")
-eq(probe[2], "Family Tree: Desolace | - 1/nil:30,20 -> Shadowprey Village, Desolace", "the probe: a path")
+eq(probe[1], "Hunting in Stranglethorn: Desolace, turn-in | - 0/nil/nil:100,100 -> no dot: no path", "the probe: where a quest went, and why")
+eq(probe[2], "Family Tree: Desolace | - 1/nil/nil:30,20 -> Shadowprey Village, Desolace (36 yd)", "the probe: a path, and how far")
 -- the same world id for both continents (a client's quirk): the continent maps still tell them apart
 local M = function(cont, map, x, y) return { cont = cont, map = map, x = x, y = y } end
 local twins = { { name = "Shadowprey Village, Desolace", zone = "Desolace", at = M(1, 1414, 0, 0) } }
@@ -297,6 +297,114 @@ eq(FL.Tally({ { ready = true, at = M(1, 1414, 5, 5) } }, twins, {})["Shadowprey 
 eq(FL.Tally({ { ready = true, at = M(1, nil, 5, 5) } }, twins, {})["Shadowprey Village, Desolace"].ready, 1, "a map unknown: the world id decides")
 eq(FL.SameContinent(nil, M(1, 1414, 0, 0)), false, "no point: not the same")
 eq(next(FL.Tally({ { ready = true, at = W(1, 0, 0) } }, {}, {})), nil, "no paths")
+
+-- Undercity, 2026-11-23 (the in-game probe's quest points; the paths' places about right):
+-- the list held Hammerfall, Tarren Mill and The Sepulcher, and every quest of the Eastern
+-- Kingdoms landed on one of them: Stranglethorn's 8000 yards south on Hammerfall, the Scarlet
+-- Monastery next door on Tarren Mill
+local EK = function(x, y, on, extra)
+    local t = { cont = 0, map = 1415, on = on, x = x, y = y }
+    for k, v in pairs(extra or {}) do t[k] = v end
+    return t
+end
+local uc = {
+    { name = "Undercity, Tirisfal", zone = "Tirisfal Glades", on = 1420, at = EK(1566, 267), here = true },
+    { name = "The Sepulcher, Silverpine", zone = "Silverpine Forest", on = 1421, at = EK(475, 1530), can = true },
+    { name = "Tarren Mill, Hillsbrad", zone = "Hillsbrad Foothills", on = 1424, at = EK(10, -860), can = true },
+    { name = "Hammerfall, Arathi", zone = "Arathi Highlands", on = 1417, at = EK(-918, -3496), can = true },
+    { name = "Kargath, Badlands", zone = "Badlands", on = 1418, at = EK(-6632, -2179), can = false },        -- not discovered
+    { name = "Grom'gol, Stranglethorn", zone = "Stranglethorn Vale", on = 1434, at = EK(-12417, 145), can = false },
+    { name = "Revantusk Village, Hinterlands", zone = "The Hinterlands", on = 1425, at = EK(-630, -4720), can = false },
+}
+local Q = function(title, zone, on, x, y, ready) return { title = title, zone = zone, ready = ready or false, at = EK(x, y, on) } end
+local ucq = {
+    Q("Ward Restocking", "Arathi Highlands", 1417, -1019, -3508),
+    Q("Guile of the Raptor", "Arathi Highlands", 1417, -1738, -2750),
+    Q("Sigil of Strom", "Arathi Highlands", 1417, -1648, -1874),
+    Q("The Princess Trapped", "Arathi Highlands", 1425, -980, -3805),
+    Q("Finding Tan'jani", "Arathi Highlands", 2548, -7932, -4711),
+    Q("A Quick Grocery Run", "Arathi Highlands", 1424, -371, -1615),
+    Q("Call to Arms", "Arathi Highlands", 1417, -1743, -1573),
+    Q("Foul Magics", "Arathi Highlands", 1417, -1605, -1929),
+    Q("The Real Threat", "Arathi Highlands", 1417, -1731, -1573),
+    { title = "Conflict at Darkspear Islands", zone = "Darkspear Islands" },
+    { title = "Centaur Bounty", zone = "Desolace", at = M(1, 1414, -1260, 2724) },
+    Q("Hunting in Stranglethorn", "Desolace", 1434, -11629, -55, true),
+    Q("Rig Wars", "Gnomeregan", 1426, -5147, 615),
+    Q("The Crown of Will", "Hillsbrad Foothills", 1416, 719, -323),
+    Q("Armory of Sunnyglade", "Riverglades", 2548, -8120, -4110),
+    Q("Into The Scarlet Monastery", "Scarlet Monastery", 1420, 2827, -786),
+    Q("Hemet Nesingwary", "Thousand Needles", 1434, -11629, -55),
+    Q("Encrusted Tail Fins", "Thousand Needles", 1434, -12281, 595),
+    Q("Martek the Exiled", "Thousand Needles", 1418, -6763, -3129),
+    Q("Reclaimed Treasures", "Uldaman", 1432, -6199, -2930),
+    Q("Clamlette Surprise", "Cooking", 1422, 1138, -1736),
+}
+local went = FL.Tally(ucq, uc, {})
+local by = {}
+for _, q in ipairs(ucq) do by[q.title] = q end
+eq(by["Ward Restocking"].path, "Hammerfall, Arathi", "Arathi: Hammerfall")
+eq(by["Guile of the Raptor"].path, "Hammerfall, Arathi", "Arathi's middle: Hammerfall")
+eq(by["Sigil of Strom"].path, "Hammerfall, Arathi", "Stromgarde: Hammerfall")
+eq(by["Foul Magics"].path, "Hammerfall, Arathi", "Stromgarde again")
+eq(by["Call to Arms"].path, "Hammerfall, Arathi", "Stromgarde's west, Tarren Mill a little nearer: its own zone's path")
+eq(by["The Real Threat"].path, "Hammerfall, Arathi", "and its twin")
+eq(by["The Princess Trapped"].path, "Hammerfall, Arathi", "a point on the Hinterlands' map 300 yards from Hammerfall: Hammerfall (Revantusk 3 times as far)")
+eq(by["A Quick Grocery Run"].path, "Tarren Mill, Hillsbrad", "Hillsbrad: Tarren Mill")
+eq(by["The Crown of Will"].path, "Tarren Mill, Hillsbrad", "Alterac: Tarren Mill")
+eq(by["Clamlette Surprise"].path, "Tarren Mill, Hillsbrad", "the Plaguelands' west end: Tarren Mill, 1400 yards")
+eq(by["Hunting in Stranglethorn"].path, nil, "Stranglethorn: not Hammerfall")
+eq(by["Hunting in Stranglethorn"].why, "no way Grom'gol, Stranglethorn", "its path is one you can't fly to from here")
+eq(by["Hemet Nesingwary"].path, nil, "a breadcrumb to Stranglethorn: no dot")
+eq(by["Encrusted Tail Fins"].path, nil, "Stranglethorn's south: no dot")
+eq(by["Martek the Exiled"].path, nil, "the Badlands: not Hammerfall")
+eq(by["Martek the Exiled"].why, "no way Kargath, Badlands", "Kargath, not discovered")
+eq(by["Reclaimed Treasures"].path, nil, "Uldaman's door in Loch Modan: no dot")
+eq(by["Rig Wars"].path, nil, "Gnomeregan: no dot")
+eq(by["Rig Wars"].why, "far Kargath, Badlands", "no path within reach")
+eq(by["Finding Tan'jani"].path, nil, "the Riverglades, 2800 yards from Kargath: no dot")
+eq(by["Finding Tan'jani"].why, "far Kargath, Badlands", "too far from every path")
+eq(by["Armory of Sunnyglade"].path, nil, "the Riverglades' near end: no dot")
+eq(by["Into The Scarlet Monastery"].path, nil, "the Scarlet Monastery, next to Undercity: not Tarren Mill")
+eq(by["Into The Scarlet Monastery"].why, "here Undercity, Tirisfal", "you stand nearest it already")
+eq(by["Centaur Bounty"].path, nil, "Kalimdor: no dot")
+eq(by["Centaur Bounty"].why, "no path", "no path on its continent")
+eq(by["Conflict at Darkspear Islands"].path, nil, "no point, no path in its zone: no dot")
+eq(went["Hammerfall, Arathi"].open, 7, "Hammerfall: Arathi's seven")
+eq(went["Tarren Mill, Hillsbrad"].open, 3, "Tarren Mill: three")
+eq(went["The Sepulcher, Silverpine"], nil, "The Sepulcher: none")
+eq(math.floor(by["Ward Restocking"].dist), 101, "the distance kept, for the probe")
+eq(FL.Probe({ by["Hunting in Stranglethorn"] })[1],
+    "Hunting in Stranglethorn: Desolace, turn-in | - 0/1415/1434:-11629,-55 -> no dot: no way Grom'gol, Stranglethorn (812 yd)",
+    "the probe says why")
+eq(FL.Probe({ by["Call to Arms"] })[1], "Call to Arms: Arathi Highlands | - 0/1415/1417:-1743,-1573 -> Hammerfall, Arathi (2092 yd)",
+    "the probe: the path and how far")
+-- the same quests, standing at Tarren Mill: Stromgarde's are as near as flying gets you
+local tm = {}
+for i, p in ipairs(uc) do
+    tm[i] = {}
+    for k, v in pairs(p) do tm[i][k] = v end
+    tm[i].here, tm[i].can = p.name == "Tarren Mill, Hillsbrad", p.can and p.name ~= "Tarren Mill, Hillsbrad" or p.name == "Undercity, Tirisfal"
+end
+FL.Tally({ by["Call to Arms"], by["Sigil of Strom"], by["Into The Scarlet Monastery"] }, tm, {})
+eq(by["Call to Arms"].why, "here Tarren Mill, Hillsbrad", "at Tarren Mill: no dot for Stromgarde's west")
+eq(by["Sigil of Strom"].path, "Hammerfall, Arathi", "Stromgarde's east: still Hammerfall")
+eq(by["Into The Scarlet Monastery"].path, "Undercity, Tirisfal", "the Monastery: Undercity, now a place to fly to")
+-- the zone's own path only when near as well
+local own = { { name = "A, Near", zone = "Near", on = 1, at = W(0, 0, 0) }, { name = "B, Own", zone = "Own", on = 2, at = W(0, 1000, 0) } }
+local q1, q2 = { at = EK(100, 0, 2) }, { at = EK(500, 0, 2) }
+FL.Tally({ q1, q2 }, own, {})
+eq(q1.path, "A, Near", "its zone's path 9 times as far: the nearest")
+eq(q2.path, "B, Own", "its zone's path at the same distance: its own")
+-- no point: the log zone's path, unless you stand in that zone
+local nz = { { name = "Here, Z", zone = "Z", here = true }, { name = "There, Z", zone = "Z", can = true } }
+local q3 = { zone = "Z" }
+FL.Tally({ q3 }, nz, {})
+eq(q3.path, nil, "no point, your own zone: no dot")
+eq(q3.why, "here Here, Z", "and why")
+local q4 = { zone = "Z" }
+FL.Tally({ q4 }, { { name = "Far, Z", zone = "Z", can = false }, { name = "There, Z", zone = "Z", can = true } }, {})
+eq(q4.path, "There, Z", "no point: a path of the zone you can fly to, never one you can't")
 
 -- The quest note --------------------------------------------------------------------------------
 local qs = {

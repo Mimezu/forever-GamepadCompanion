@@ -14,14 +14,21 @@ fly to from here, chosen with the pad. The map stays the game's; it only reflect
   each at most), the cost. The chosen row: an amber band, a dark ink bar and a pointer.
 - Inside a zone: nearest first. The list starts on the nearest place in your zone, else in the
   best zone. A zone's score counts its places' dots.
-- Each quest is one dot, on the flight path nearest it, compared in the world's yards
-  (C_Map.GetWorldPosFromMapPos): the quest's mark on its map (GetQuestsOnMap: where to go, or
-  whom to turn it in to), else its next waypoint; the paths from C_TaxiMap on the continents'
-  maps. A point with no path on its continent: no dot (a log zone is where the quest was given,
-  not where it goes). No point known: its log zone's path nearest the zone's centre, else the
-  zone's first. A continent: the world id and the continent map (map parents), both. The last
-  opening's matches: /gpc flights (SavedVariables flightProbe, 40 lines).
-  Read when the map opens.
+- Each quest is one dot, on the flight path flying brings you near, compared in the world's
+  yards (C_Map.GetWorldPosFromMapPos): the quest's mark on its map (GetQuestsOnMap: where to go,
+  or whom to turn it in to), else its next waypoint; against every path of your side on the
+  continent (C_TaxiMap.GetTaxiNodesForMap on the continents' maps: discovered or not, the one
+  you stand at too), not only the places in the list. The quest's path is the nearest within
+  2,500 yards (a Classic zone's long side), or its own zone's path when that is near as well
+  (at most half again as far: Stromgarde's quests all under Hammerfall, not split with Tarren
+  Mill). No dot when the nearest is further than that, is where you stand (the Scarlet
+  Monastery at Undercity), or is one you can't fly to from here (Stranglethorn's Grom'gol
+  undiscovered: nothing under Hammerfall). A point on the other continent: no dot (a log zone
+  is where the quest was given, not where it goes). No point known: its log zone's path
+  nearest the zone's centre, else the zone's first; none while you stand in that zone. A
+  continent: the world id and the continent map (map parents), both. The last opening's
+  matches, each with its path or why none and the yards: /gpc flights (SavedVariables
+  flightProbe, 40 lines). Read when the map opens.
 
 ## Quest note
 

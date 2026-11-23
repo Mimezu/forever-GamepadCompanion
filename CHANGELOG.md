@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Flight list: the quest note and dots stop lying. A quest goes to the flight path flying brings you near, judged against every path of your side on the continent (undiscovered and the one you stand at too), within 2,500 yards, its own zone's path when that is near as well; nearer to where you stand, or to a path you can't fly to from here, or further than that: no dot (Undercity 2026-11-23: Stranglethorn and Badlands quests sat under Hammerfall, the Scarlet Monastery under Tarren Mill). /gpc flights says each quest's path or why none, and the yards.
 - Fixed: Create's map gone ("No interface frame to focus") when Focus UI is left in the game's gamepad set under it. Companion rebinds again every 5 s while it stays (it tried once, and it was put back), three times; then a note says to /reload ("Create stuck on Focus UI · /reload"). Each try is written in the trace.
 - Fixed: the meal card no longer shows a buff you already had after a hearthstone (the game sends the buffs again under new ids): only one that landed in the last 5 seconds is new. Its lines stay on the paper (a point smaller, then cut), and "Attack Power is increased by 20" reads "+20 Attack Power".
 - Fixed: PS takes screenshots again. With L2 + PS set to Focus UI, a rebind while L2 was held read PS as a free key (the game reads its Focus UI back as empty) and put Companion's click on it until the next login; the game's own binding under it is read now.

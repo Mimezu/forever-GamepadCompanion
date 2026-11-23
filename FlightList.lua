@@ -145,12 +145,23 @@ end
 
 FL.DOTS = 5   -- dots of each kind on a row, at most
 
--- Each quest to the one flight path nearest it. quests = { { ready, zone (its log header's), at } },
--- paths = { { name, zone, at } } (the places you can fly to), centres[zone] = at;
--- at = { cont, x, y } in the world's yards (C_Map.GetWorldPosFromMapPos), nil when unknown.
--- A quest with a point (where to go, or whom to turn it in to): the nearest path on its continent;
--- none there: no dot. Without a point: its zone's path nearest the zone's centre, else the zone's
--- first. Neither: no dot. (q.path: where it went, for the probe)
+-- Each quest to the one flight path flying brings you near. quests = { { ready, zone (its log
+-- header's), at } }; paths = EVERY flight path of the continents { { name, zone, at, on (its
+-- zone's map), can (you can fly there from here; nil: yes), here (the one you stand at) } };
+-- centres[zone] = at. at = { cont, map (its continent map), on (its zone's map), x, y } in the
+-- world's yards (C_Map.GetWorldPosFromMapPos), nil when unknown.
+-- A quest with a point (where to go, or whom to turn it in to): the path nearest it, of all of
+-- them, within FL.REACH yards; its own zone's path instead when that is near as well (not half
+-- again as far). The nearest is where you stand, or one you can't fly to from here: no dot.
+-- Without a point: its log zone's path nearest the zone's centre, else the zone's first; you
+-- stand in that zone: no dot. (q.path, q.dist, q.why: where it went and why, for the probe)
+-- (Undercity, 2026-11-23: the paths were only the three you could fly to, with no limit, so a
+-- Stranglethorn quest 8000 yards south landed on Hammerfall, the Scarlet Monastery next door on
+-- Tarren Mill, and Stromgarde's quests split between the two)
+FL.REACH = 2500   -- yards: a Classic zone's long side (Arathi 3600 x 2400); Stromgarde to
+                  -- Hammerfall is 2100, the first wrong pair (Riverglades to Kargath) 2850
+FL.OWN_ZONE = 1.5 -- the quest's zone's own path, when at most this times the nearest's distance
+
 -- Two points on one continent: the same world id (cont) and, when both are known, the same
 -- continent map (map: climbed from the point's own map by its parents), so a point is never
 -- matched by its yards alone
@@ -160,34 +171,59 @@ function FL.SameContinent(a, b)
     return true
 end
 
+local function Yards(a, b)
+    local dx, dy = a.x - b.x, a.y - b.y
+    return math.sqrt(dx * dx + dy * dy)
+end
+
 -- -> per path name { open, ready, quests (the quests themselves) }
 function FL.Tally(quests, paths, centres)
     local counts = {}
-    local function Nearest(at, zone)
-        if not at then return nil end
-        local best, bd
-        for _, p in ipairs(paths or {}) do
-            if FL.SameContinent(p.at, at) and (not zone or p.zone == zone) then
-                local dx, dy = p.at.x - at.x, p.at.y - at.y
-                local d = dx * dx + dy * dy
-                if not bd or d < bd then best, bd = p.name, d end
+    paths = paths or {}
+    local function Can(p) return p.can ~= false and not p.here end
+    -- A point's path: -> path or nil, the distance, why none ("far" / "here" / "no way" / "no path")
+    local function Place(at)
+        local near, nd, own, od = nil, nil, nil, nil
+        for _, p in ipairs(paths) do
+            if FL.SameContinent(p.at, at) then
+                local d = Yards(p.at, at)
+                if not nd or d < nd then near, nd = p, d end
+                if Can(p) and at.on and p.on == at.on and d <= FL.REACH and (not od or d < od) then own, od = p, d end
             end
         end
-        return best
+        if not near then return nil, nil, "no path" end
+        if nd > FL.REACH then return nil, nd, "far " .. near.name end
+        if near.here then return nil, nd, "here " .. near.name end
+        if own and own ~= near and od <= FL.OWN_ZONE * nd then return own, od end
+        if Can(near) then return near, nd end
+        return nil, nd, "no way " .. near.name
     end
-    local function First(zone)
-        for _, p in ipairs(paths or {}) do if p.zone == zone then return p.name end end
+    -- A zone's path (no point known): the one nearest its centre, else its first; -> path or nil, why
+    local function Zone(zone)
+        local best, bd, c = nil, nil, (centres or {})[zone]
+        for _, p in ipairs(paths) do
+            if p.zone == zone then
+                if p.here then return nil, nil, "here " .. p.name end
+                if Can(p) then
+                    local d = c and p.at and FL.SameContinent(p.at, c) and Yards(p.at, c) or math.huge
+                    if not bd or d < bd then best, bd = p, d end
+                end
+            end
+        end
+        if not best then return nil, nil, "no path" end
+        return best, bd < math.huge and bd or nil
     end
     for _, q in ipairs(quests or {}) do
         -- (a point elsewhere, the other continent say: no dot. Its log zone is where it was given:
         -- a breadcrumb to Stranglethorn sat under Desolace and landed on Shadowprey Village)
-        local name
-        if q.at then name = Nearest(q.at)
-        elseif q.zone then name = Nearest((centres or {})[q.zone], q.zone) or First(q.zone) end
-        q.path = name
-        if name then
-            local c = counts[name] or { open = 0, ready = 0, quests = {} }
-            counts[name] = c
+        local p, d, why
+        if q.at then p, d, why = Place(q.at)
+        elseif q.zone then p, d, why = Zone(q.zone)
+        else why = "no point" end
+        q.path, q.dist, q.why = p and p.name or nil, d, why
+        if p then
+            local c = counts[p.name] or { open = 0, ready = 0, quests = {} }
+            counts[p.name] = c
             if q.ready then c.ready = c.ready + 1 else c.open = c.open + 1 end
             c.quests[#c.quests + 1] = q
         end
@@ -205,14 +241,18 @@ function FL.Binds(on)
     return t
 end
 
--- The probe: each quest's log zone, point and path, in a line ("title: zone | how c:x,y -> path")
+-- The probe: each quest's log zone, point, path and why, in a line
+-- ("title: zone[, turn-in] | how cont/continent map/zone map:x,y -> path (yards)" or "-> no dot: why")
 FL.PROBE_MAX = 40
 function FL.Probe(quests)
     local out = {}
     for i, q in ipairs(quests or {}) do
         if i > FL.PROBE_MAX then break end
-        local at = q.at and ("%d/%s:%d,%d"):format(q.at.cont, tostring(q.at.map), q.at.x, q.at.y) or "-"
-        out[#out + 1] = ("%s: %s | %s %s -> %s"):format(tostring(q.title), tostring(q.zone), tostring(q.how or "-"), at, tostring(q.path or "no dot"))
+        local at = q.at and ("%d/%s/%s:%d,%d"):format(q.at.cont, tostring(q.at.map), tostring(q.at.on), q.at.x, q.at.y) or "-"
+        local yd = q.dist and (" (%d yd)"):format(q.dist) or ""
+        local went = q.path and (q.path .. yd) or ("no dot: " .. tostring(q.why or "?") .. yd)
+        out[#out + 1] = ("%s: %s%s | %s %s -> %s"):format(tostring(q.title), tostring(q.zone), q.ready and ", turn-in" or "",
+            tostring(q.how or "-"), at, went)
     end
     return out
 end
@@ -1271,61 +1311,87 @@ local function XY(pos)
     if pos.GetXY then return Call(pos.GetXY, pos) end
 end
 
--- A map point in the world's yards: { cont, x, y } (nil: unknown)
--- A map's continent map: its parents climbed to the first continent (nil: none known)
-local CONTINENT = _G.Enum and Enum.UIMapType and Enum.UIMapType.Continent or 2
-local continentOf = {}
-local function ContinentOf(mapID)
+-- A map's continent map, or its zone map: its parents climbed to the first of that kind (nil:
+-- none known; a zone is its own zone map)
+local KIND = _G.Enum and Enum.UIMapType or {}
+local CONTINENT, ZONE = KIND.Continent or 2, KIND.Zone or 3
+local climbed = {}   -- [kind][mapID] = map or false
+local function Climb(mapID, kind)
     if type(mapID) ~= "number" then return nil end
-    if continentOf[mapID] ~= nil then return continentOf[mapID] or nil end
+    climbed[kind] = climbed[kind] or {}
+    local cache = climbed[kind]
+    if cache[mapID] ~= nil then return cache[mapID] or nil end
     local id, found = mapID, false
     for _ = 1, 8 do
         local info = C_Map and Call(C_Map.GetMapInfo, id)
         if type(info) ~= "table" then break end
-        if info.mapType == CONTINENT then found = id; break end
+        if info.mapType == kind then found = id; break end
         if not info.parentMapID or info.parentMapID == 0 then break end
         id = info.parentMapID
     end
-    continentOf[mapID] = found
+    cache[mapID] = found
     return found or nil
 end
+local function ContinentOf(mapID) return Climb(mapID, CONTINENT) end
+local function ZoneOf(mapID) return Climb(mapID, ZONE) end
 
--- A map point in the world's yards: { cont, map (its continent map), x, y } (nil: unknown)
+-- A map point in the world's yards: { cont, map (its continent map), on (its zone's map), x, y }
+-- (nil: unknown)
 local function WorldOf(mapID, x, y)
     if not (mapID and x and y and C_Map and CreateVector2D) then return nil end
     local cont, pos = Call(C_Map.GetWorldPosFromMapPos, mapID, CreateVector2D(x, y))
     local wx, wy = XY(pos)
     if type(cont) ~= "number" or type(wx) ~= "number" or type(wy) ~= "number" then return nil end
-    return { cont = cont, map = ContinentOf(mapID), x = wx, y = wy }
+    return { cont = cont, map = ContinentOf(mapID), on = ZoneOf(mapID), x = wx, y = wy }
 end
 
--- The flight paths you can fly to, where they stand (C_TaxiMap on the continents' maps, as
--- OpenMap reads them); and each zone's centre
+-- Every flight path of your side (neutral too) on both continents, where it stands (C_TaxiMap
+-- on the continents' maps, as the world map draws them: the undiscovered ones too), marked
+-- can (in the list: you can fly there from here) or here (the node you stand at); and each
+-- zone's centre. (2026-11-23: only the list's paths, so every quest landed on one of them)
 local CONTINENTS = { 1414, 1415 }   -- Kalimdor, the Eastern Kingdoms
-local function Paths(nodes)
+local function Paths(nodes, here)
     local byName, out, seen = {}, {}, {}
     for _, node in ipairs(nodes) do
         byName[node.name] = node
         if not byName[node.place] then byName[node.place] = node end
     end
     local function Zone(node) return FL.ZoneName(node.zone) or node.place end
+    local side = Call(UnitFactionGroup, "player")
+    local F = _G.Enum and Enum.FlightPathFaction
+    -- (the other side's paths are no one's destination; the world map leaves them out the same way)
+    local function Ours(info)
+        if not (F and side) then return true end
+        if info.faction == F.Horde then return side == "Horde" end
+        if info.faction == F.Alliance then return side == "Alliance" end
+        return true
+    end
+    local maps = ZoneMaps()
     for _, cont in ipairs(CONTINENTS) do
         local list = _G.C_TaxiMap and Call(C_TaxiMap.GetTaxiNodesForMap, cont)
         for _, info in ipairs(type(list) == "table" and list or {}) do
-            local node = type(info.name) == "string" and (byName[info.name] or byName[(FL.SplitName(info.name))])
-            if node and not seen[node.name] then
-                local x, y = XY(info.position)
-                seen[node.name] = true
-                out[#out + 1] = { name = node.name, zone = Zone(node), at = WorldOf(cont, x, y) }
+            local name = type(info.name) == "string" and info.name or nil
+            local place, zone = FL.SplitName(name)
+            local node = name and (byName[name] or byName[place])
+            local atHere = here and (name == here.name or place == here.place) or false
+            if node or atHere or (name and Ours(info)) then
+                local key = node and node.name or name
+                if not seen[key] then
+                    local x, y = XY(info.position)
+                    local z = node and Zone(node) or here and atHere and Zone(here) or FL.ZoneName(zone)
+                    seen[key] = true
+                    out[#out + 1] = { name = key, zone = z, at = WorldOf(cont, x, y), on = z and maps[z] or nil,
+                        can = node ~= nil, here = atHere }
+                end
             end
         end
     end
     for _, node in ipairs(nodes) do
-        if not seen[node.name] then out[#out + 1] = { name = node.name, zone = Zone(node) } end
+        if not seen[node.name] then out[#out + 1] = { name = node.name, zone = Zone(node), can = true } end
     end
-    local centres, maps = {}, ZoneMaps()
+    local centres = {}
     for _, p in ipairs(out) do
-        if centres[p.zone] == nil then centres[p.zone] = WorldOf(maps[p.zone], 0.5, 0.5) or false end
+        if p.zone and centres[p.zone] == nil then centres[p.zone] = WorldOf(maps[p.zone], 0.5, 0.5) or false end
     end
     for z, c in pairs(centres) do if not c then centres[z] = nil end end
     return out, centres
@@ -1381,9 +1447,9 @@ local function QuestList()
     return list
 end
 
--- Each flight path's quests: { [name] = { open, ready } }
-local function Quests(nodes)
-    local paths, centres = Paths(nodes)
+-- Each flight path's quests: { [name] = { open, ready, quests } }
+local function Quests(nodes, here)
+    local paths, centres = Paths(nodes, here)
     local list = QuestList()
     local counts = FL.Tally(list, paths, centres)
     Sh.CharDB().flightProbe = FL.Probe(list)
@@ -1396,7 +1462,7 @@ function FL.Open()
     Layout(taxi)
     state.here, state.nodes = FL.Read(Api())
     state.view = FL.View()
-    state.places = Quests(state.nodes)
+    state.places = Quests(state.nodes, state.here)
     Arrange(nil)
     openedAt = GetTime and GetTime() or 0
     panel:Show()
