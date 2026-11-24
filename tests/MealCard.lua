@@ -21,6 +21,7 @@ local function Obj()
         if k == "SetAlpha" then return function(self, v) self.alpha = v end end
         if k == "Show" then return function(self) self.shown = true end end
         if k == "Hide" then return function(self) self.shown = false end end
+        if k == "SetShown" then return function(self, v) self.shown = v and true or false end end
         if k == "SetPoint" then return function(self, ...) self.point = { ... } end end
         if k == "ClearAllPoints" then return function(self) self.point = nil end end
         if k == "GetTop" then return function(self) return self.top end end
@@ -43,7 +44,8 @@ GetTime = function() return clock end
 local combat = false
 InCombatLockdown = function() return combat end
 local NAMES = { [433] = "Food", [430] = "Drink", [1312719] = "Refreshment" }
-C_Spell = { GetSpellName = function(id) return NAMES[id] end, GetSpellDescription = function() return "" end }
+local DESCS = {}
+C_Spell = { GetSpellName = function(id) return NAMES[id] end, GetSpellDescription = function(id) return DESCS[id] or "" end }
 -- the player's buffs, in order: { id, name, duration, source, mine, instance, desc }
 local buffs = {}
 C_UnitAuras = { GetBuffDataByIndex = function(unit, i)
@@ -259,6 +261,110 @@ M.Step(60)
 eq(M.Phase() ~= "out" and M.Phase() ~= nil, true, "the sample stays while editing")
 M.EditMode(false)
 eq(M.Phase(), "out", "edit mode over: it goes")
+
+-- The wait: a buff food's ten seconds, the fire's minute, the card up with a bar --------------
+local FED = "Restores 1392 health over 27 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min."
+local f = M.FoodBuff(FED)
+eq(f and (f.wait .. " / " .. f.title .. " / " .. f.gives), "10 / Well Fed / +12 Stamina and Spirit", "a buff food's text: the wait, the buff, its gain")
+eq(M.FoodBuff("Restores 61 health over 18 sec. Must remain seated while eating."), nil, "plain food: no wait")
+eq(M.FoodBuff("Restores 151 mana over 18 sec. Must remain seated while drinking."), nil, "water: no wait")
+f = M.FoodBuff("Restores 1933 health over 27 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will gain 10 Strength for 10 min.")
+eq(f and (f.wait .. " / " .. tostring(f.title) .. " / " .. f.gives), "10 / nil / +10 Strength", "a food naming its own buff")
+eq(M.FoodBuff(""), nil, "no text yet: nil")
+eq(M.Left(9.98) .. " / " .. M.Left(0.02) .. " / " .. M.Left(-1), "In 10 s / Now / Now", "the time to go")
+
+M.EditMode(false); M.Step(10)
+buffs = {}
+events.scripts.OnEvent(events, "PLAYER_ENTERING_WORLD")
+Aura()
+local n0 = shows
+-- plain food: nothing
+DESCS[433] = "Restores 61 health over 18 sec. Must remain seated while eating."
+buffs = { { id = 433, name = "Food", duration = 18, expires = clock + 18, source = "player", mine = true, instance = 300 } }
+Aura()
+eq(M.Waiting(), nil, "plain food: no wait")
+eq(shows, n0, "and no card")
+buffs = {}; Aura()
+-- a buff food: up at once, the bar filling, the seconds counting
+DESCS[24869] = FED
+NAMES[24869] = "Food"
+M.Reset(); Aura()
+buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 301 } }
+Aura()
+check(M.Waiting() ~= nil, "a buff food: the wait")
+eq(M.shown.kicker .. " / " .. M.shown.title .. " / " .. M.shown.line1 .. " / " .. M.shown.line2, "A GOOD MEAL / Well Fed / +12 Stamina and Spirit / In 10 s", "its words")
+eq(card.fill.shown, true, "the bar shown")
+M.Step(0.4)
+clock = clock + 4; M.Tick()
+eq(M.shown.line2, "In 6 s", "4 s on: 6 to go")
+eq(math.floor(card.fill.width + 0.5), math.floor((280 - 60 - 14) * 0.4 + 0.5), "the bar 40% full")
+M.Step(30)
+check(M.Phase() == "hold", "held up while waiting")
+clock = clock + 6
+buffs[#buffs + 1] = { id = 19705, name = "Well Fed", duration = 900, expires = clock + 900, source = "player", mine = true, instance = 302,
+    desc = "Increases Stamina and Spirit by 12 for 15 min." }
+Aura()
+eq(shows, n0 + 1, "Well Fed lands: its card")
+eq(M.Waiting(), nil, "the wait over")
+eq(card.fill.shown, false, "the bar gone")
+eq(M.shown.line2, "For 15 minutes", "the buff's own words")
+M.Step(0.4); M.Step(6)
+eq(M.Phase(), "out", "then it fades as before")
+M.Step(1)
+-- stood up early: the card goes
+buffs = {}; Aura()
+buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 303 } }
+Aura()
+check(M.Waiting() ~= nil, "eating again (Well Fed gone): the wait")
+clock = clock + 5
+buffs = {}; Aura()
+eq(M.Waiting(), nil, "stood up at 5 s: no wait")
+eq(M.Phase(), "out", "the card goes")
+M.Step(1)
+-- the buff never comes: the card goes a moment after the wait
+buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 304 } }
+Aura()
+clock = clock + 10 + M.LATE + 0.5; M.Tick()
+eq(M.Waiting(), nil, "no buff by the end: no wait")
+eq(M.Phase(), "out", "the card goes")
+M.Step(1)
+eq(shows, n0 + 1, "and no buff card")
+Aura()
+eq(M.Waiting(), nil, "the same eating read again: not waited on twice")
+-- Well Fed still on, eaten again: the wait, and its refresh lands it
+buffs = { { id = 19705, name = "Well Fed", duration = 900, expires = clock + 300, source = "player", mine = true, instance = 305 } }
+Aura()
+buffs[2] = { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 306 }
+Aura()
+check(M.Waiting() ~= nil, "eating with Well Fed on: the wait")
+clock = clock + 10
+buffs[1].expires = clock + 900
+Aura()
+eq(shows, n0 + 2, "Well Fed renewed: its card")
+M.Step(10)
+-- a fight: the wait goes
+buffs = {}; Aura()
+buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 307 } }
+Aura()
+events.scripts.OnEvent(events, "PLAYER_REGEN_DISABLED")
+eq(M.Waiting(), nil, "a fight: no wait")
+M.Step(1)
+-- the fire's minute: up with the fire's words; none while its benefits are on
+buffs = { { id = 1229739, name = "Welcoming Campfire", duration = 60, expires = clock + 60, instance = 308, icon = "fire" } }
+Aura()
+local fw = M.Waiting()
+eq(fw and fw.kind, "fire", "the fire's minute: the wait")
+eq(M.shown.kicker .. " / " .. M.shown.title .. " / " .. M.shown.line1, "BY THE FIRE / Camp Benefits / In 60 s", "its words")
+clock = clock + 60
+buffs = { { id = 1300001, name = "Camp Benefits", duration = 3600, expires = clock + 3600, instance = 309,
+    desc = "Gained the following camp benefits:\nFaction Banner: Spirit increased by 14." } }
+Aura()
+eq(shows, n0 + 3, "the benefits land: their card")
+eq(M.shown.line1, "+14 Spirit", "what they give")
+M.Step(10)
+buffs[2] = { id = 1229739, name = "Welcoming Campfire", duration = 60, expires = clock + 64, instance = 310 }
+Aura()
+eq(M.Waiting(), nil, "the next minute, the benefits on: no wait")
 
 io.write(("MealCard: %d checks, %d failures\n"):format(checks, failures))
 if failures > 0 then os.exit(1) end
