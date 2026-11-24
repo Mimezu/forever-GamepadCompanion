@@ -52,6 +52,7 @@ Quick.lua
 Fishing.lua
 BobberPrompt.lua
 FishingLure.lua
+Passage.lua
 FishingJournal.lua
 FishingToast.lua
 MealCard.lua

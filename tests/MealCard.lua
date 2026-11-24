@@ -67,7 +67,9 @@ local ns = { Shared = { CharDB = function() return char end }, FishingLure = { S
     Rumble = { REST_SPELLS = { eat = { 433 }, drink = { 430 }, both = { 1312719 } } } }
 assert(loadfile(root .. "/FishingJournal.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/FishingToast.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/Passage.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/MealCard.lua"))("GamepadCompanion", ns)
+local P = ns.Passage
 local M = ns.MealCard
 local events
 for _, f in ipairs(frames) do if f.scripts and f.scripts.OnEvent then events = f end end
@@ -262,7 +264,7 @@ eq(M.Phase() ~= "out" and M.Phase() ~= nil, true, "the sample stays while editin
 M.EditMode(false)
 eq(M.Phase(), "out", "edit mode over: it goes")
 
--- The wait: a buff food's ten seconds, the fire's minute, the card up with a bar --------------
+-- The wait: a buff food's ten seconds, the fire's minute, on the passage (no card) ------------
 local FED = "Restores 1392 health over 27 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min."
 local f = M.FoodBuff(FED)
 eq(f and (f.wait .. " / " .. f.title .. " / " .. f.gives), "10 / Well Fed / +12 Stamina and Spirit", "a buff food's text: the wait, the buff, its gain")
@@ -271,7 +273,12 @@ eq(M.FoodBuff("Restores 151 mana over 18 sec. Must remain seated while drinking.
 f = M.FoodBuff("Restores 1933 health over 27 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will gain 10 Strength for 10 min.")
 eq(f and (f.wait .. " / " .. tostring(f.title) .. " / " .. f.gives), "10 / nil / +10 Strength", "a food naming its own buff")
 eq(M.FoodBuff(""), nil, "no text yet: nil")
-eq(M.Left(9.98) .. " / " .. M.Left(0.02) .. " / " .. M.Left(-1), "In 10 s / Now / Now", "the time to go")
+eq(M.Clock(9.98) .. " / " .. M.Clock(0.02) .. " / " .. M.Clock(-1) .. " / " .. M.Clock(60), "0:10 / 0:00 / 0:00 / 1:00", "the time to go")
+local ws = M.WaitSpec("meal", "Well Fed", "+12 Stamina and Spirit", "icon", 100, 110, 104)
+eq(ws.title .. " / " .. ws.clock .. " / " .. ws.sub .. " / " .. ws.frac, "Well Fed / 0:06 / +12 Stamina and Spirit / 0.4", "a meal's wait: 4 s of 10")
+ws = M.WaitSpec("fire", nil, nil, nil, 0, 60, 18)
+eq(ws.title .. " / " .. ws.clock .. " / " .. ws.sub, "Camp Benefits / 0:42 / By the fire", "the fire's minute")
+eq(P.Clock(125) .. " / " .. P.Clock(125, true) .. " / " .. P.Clock(-3), "2:05 / ~2:05 / 0:00", "the passage's clock")
 
 M.EditMode(false); M.Step(10)
 buffs = {}
@@ -285,33 +292,39 @@ Aura()
 eq(M.Waiting(), nil, "plain food: no wait")
 eq(shows, n0, "and no card")
 buffs = {}; Aura()
--- a buff food: up at once, the bar filling, the seconds counting
+-- a buff food: the passage at once (no card), the way filling, the seconds counting
+local passage
+for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassage" then passage = fr end end
 DESCS[24869] = FED
 NAMES[24869] = "Food"
 M.Reset(); Aura()
+local phase0 = M.Phase()
 buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 301 } }
 Aura()
 check(M.Waiting() ~= nil, "a buff food: the wait")
-eq(M.shown.kicker .. " / " .. M.shown.title .. " / " .. M.shown.line1 .. " / " .. M.shown.line2, "A GOOD MEAL / Well Fed / +12 Stamina and Spirit / In 10 s", "its words")
-eq(card.fill.shown, true, "the bar shown")
-M.Step(0.4)
-clock = clock + 4; M.Tick()
-eq(M.shown.line2, "In 6 s", "4 s on: 6 to go")
-eq(math.floor(card.fill.width + 0.5), math.floor((280 - 60 - 14) * 0.4 + 0.5), "the bar 40% full")
-M.Step(30)
-check(M.Phase() == "hold", "held up while waiting")
+eq(P.Owner(), "meal", "on the passage")
+eq(M.Phase(), phase0, "no card while waiting")
+for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassage" then passage = fr end end
+assert(passage, "the passage is a named frame")
+P.Step(0.1)
+eq(passage.title.text .. " / " .. passage.clock.text .. " / " .. passage.sub.text, "Well Fed / 0:10 / +12 Stamina and Spirit", "its words")
+eq(passage.point[1] .. "/" .. passage.point[3] .. "/" .. passage.point[4] .. "/" .. passage.point[5], "BOTTOMLEFT/BOTTOMLEFT/36/210", "at the bottom left, the lure float's spot")
+clock = clock + 4; M.Tick(); P.Step(0.1)
+eq(passage.clock.text, "0:06", "4 s on: 6 to go")
+eq(math.floor(passage.flown.width + 0.5), math.floor(184 * 0.4 + 0.5), "the way 40% gone")
 clock = clock + 6
 buffs[#buffs + 1] = { id = 19705, name = "Well Fed", duration = 900, expires = clock + 900, source = "player", mine = true, instance = 302,
     desc = "Increases Stamina and Spirit by 12 for 15 min." }
 Aura()
-eq(shows, n0 + 1, "Well Fed lands: its card")
+eq(shows, n0 + 1, "Well Fed lands: its card, a short toast")
 eq(M.Waiting(), nil, "the wait over")
-eq(card.fill.shown, false, "the bar gone")
+eq(P.Owner(), nil, "the passage goes")
 eq(M.shown.line2, "For 15 minutes", "the buff's own words")
 M.Step(0.4); M.Step(6)
 eq(M.Phase(), "out", "then it fades as before")
-M.Step(1)
--- stood up early: the card goes
+M.Step(1); P.Step(10)
+eq(passage.shown, false, "the passage faded away")
+-- stood up early: the passage goes
 buffs = {}; Aura()
 buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 303 } }
 Aura()
@@ -319,15 +332,15 @@ check(M.Waiting() ~= nil, "eating again (Well Fed gone): the wait")
 clock = clock + 5
 buffs = {}; Aura()
 eq(M.Waiting(), nil, "stood up at 5 s: no wait")
-eq(M.Phase(), "out", "the card goes")
-M.Step(1)
--- the buff never comes: the card goes a moment after the wait
+eq(P.Owner(), nil, "the passage goes")
+P.Step(10)
+-- the buff never comes: the passage goes a moment after the wait
 buffs = { { id = 24869, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 304 } }
 Aura()
 clock = clock + 10 + M.LATE + 0.5; M.Tick()
 eq(M.Waiting(), nil, "no buff by the end: no wait")
-eq(M.Phase(), "out", "the card goes")
-M.Step(1)
+eq(P.Owner(), nil, "the passage goes")
+P.Step(10)
 eq(shows, n0 + 1, "and no buff card")
 Aura()
 eq(M.Waiting(), nil, "the same eating read again: not waited on twice")
@@ -354,7 +367,9 @@ buffs = { { id = 1229739, name = "Welcoming Campfire", duration = 60, expires = 
 Aura()
 local fw = M.Waiting()
 eq(fw and fw.kind, "fire", "the fire's minute: the wait")
-eq(M.shown.kicker .. " / " .. M.shown.title .. " / " .. M.shown.line1, "BY THE FIRE / Camp Benefits / In 60 s", "its words")
+P.Step(0.1)
+eq(passage.title.text .. " / " .. passage.clock.text .. " / " .. passage.sub.text, "Camp Benefits / 1:00 / By the fire", "its words")
+eq(passage.icon.texture, "icon1229739", "the timer's icon")
 clock = clock + 60
 buffs = { { id = 1300001, name = "Camp Benefits", duration = 3600, expires = clock + 3600, instance = 309,
     desc = "Gained the following camp benefits:\nFaction Banner: Spirit increased by 14." } }

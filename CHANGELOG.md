@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- Changed: no card in flight, and none while you eat or sit by a fire. A quiet line at the bottom left (the lure float's look: a small medallion, the name, the time, a thin line filling with a gold bead; stops as dots in flight) shows the time instead. Cards are only short toasts now: the meal card shows when the buff lands.
 - Fixed: Focus UI running on Mute with R2 held, and on Create after a rebind, long after L2 was let go. The game hands a key's old binding record, Focus UI still in it, to the next owner that binds the key. Companion's clicks are click bindings now (their records apart from functions'), its Base is written key by key, never cleared whole, and every click is read back: a function under it, and the next owner takes the key before the bad record is let go. A login self-test on a spare key writes down how the game hands records on (the trace's probe list).
 - New: the meal card shows while you wait for the buff. Sitting down with a buff food (its text says "well fed" or "10 seconds eating"), the card comes up at once with a bar and "In 7 s", then turns into the buff's card when it lands. The same for a campfire's minute when its benefits aren't on. Plain food and water: no card. Standing up early, or a fight, takes it away.
 - Fixed: Focus UI left on Create by another owner (it came two minutes after L2 and stayed through Companion's clears). The next try, 2 s on, rebuilds the keys' bindings once no key is held. Every write to Companion's keys is kept, and a leftover's trace names who last wrote the key.

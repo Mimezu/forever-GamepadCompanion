@@ -1,6 +1,6 @@
--- The flight card: on a taxi, a small slip of the catch card's paper (FishingToast.lua) in the
--- lower left: where you're going, the time left, and the way there as a line, a dot per stop
--- (passed ones filled), a marker gliding along it. The game gives no time left: each route's
+-- The flight's passage: on a taxi, no card, a quiet line at the bottom left (Passage.lua, in the
+-- lure float's manner): where you're going, the time left, and the way there as a line, a dot
+-- per stop (passed ones filled), a gold bead gliding along it. The game gives no time left: each route's
 -- time is learned from the flights you take (per character), else guessed from its length ("~").
 -- B lands at the next stop (TaxiRequestEarlyLanding, as Blizzard's leave button does): a first
 -- press names the stop, a second within 3 s lands. B is ours only while on a taxi with a stop
@@ -153,11 +153,6 @@ local function Now() return GetTime and GetTime() or 0 end
 local function Wall() return Call(time) or 0 end
 local function OnTaxi() return Call(UnitOnTaxi, "player") and true or false end
 
-local W, H, M = 268, 96, 14
-local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
-local BODY_FONT = "Fonts\\FRIZQT__.TTF"
-local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local GOLD = { 1.00, 0.78, 0.18 }
 local LAND_BUTTON = "GamepadCompanionFlightLand"
 local LAND_KEY = "PAD2"
 
@@ -231,153 +226,51 @@ local function Length(hops)
     return sum
 end
 
--- The card ------------------------------------------------------------------------
-local card
-
-local function Disc(parent, size, color, layer, sub)
-    local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sub or 1)
-    t:SetTexture(DISC)
-    t:SetSize(size, size)
-    t:SetVertexColor(color[1], color[2], color[3], color[4] or 1)
-    return t
-end
-
-local LINE_X, LINE_Y, LINE_W = M + 6, -78, W - 2 * M - 12
-
-local function Build()
-    local T = ns.FishingToast
-    if not (T and T.Paper and T.Kicker and T.Text) then return nil end
-    local Text = T.Text
-    local f = CreateFrame("Frame", "GamepadCompanionFlightCard", UIParent)
-    f:SetSize(W, H)
-    f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 24, 230)
-    f:SetFrameStrata("LOW")
-    f:SetClampedToScreen(true)
-    f:EnableMouse(false)
-    f:SetAlpha(0)
-    f:Hide()
-    T.Paper(f)
-    T.Kicker(f, M, -15)
-    f.title = Text(f, TITLE_FONT, 19, T.INK_STRONG)
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", M, -27)
-    f.clock = Text(f, TITLE_FONT, 19, T.INK_STRONG, "RIGHT")
-    f.clock:SetPoint("TOPRIGHT", f, "TOPRIGHT", -M, -27)
-    f.title:SetPoint("RIGHT", f.clock, "LEFT", -8, 0)
-    f.land = Text(f, BODY_FONT, 10, T.INK_FADED)
-    f.land:SetPoint("TOPLEFT", f, "TOPLEFT", M, -52)
-    -- the way: a faded ink line, the part flown in ink
-    f.way = f:CreateTexture(nil, "ARTWORK", nil, 0)
-    f.way:SetHeight(1)
-    f.way:SetColorTexture(T.INK[1], T.INK[2], T.INK[3], 0.30)
-    f.way:SetPoint("LEFT", f, "TOPLEFT", LINE_X, LINE_Y)
-    f.way:SetWidth(LINE_W)
-    f.flown = f:CreateTexture(nil, "ARTWORK", nil, 1)
-    f.flown:SetHeight(2)
-    f.flown:SetColorTexture(T.INK[1], T.INK[2], T.INK[3], 0.85)
-    f.flown:SetPoint("LEFT", f, "TOPLEFT", LINE_X, LINE_Y)
-    -- the stops: an ink ring, filled once passed (a ring of paper inside while to come)
-    f.stops = {}
-    -- the marker: a gold bead with a soft glow, breathing
-    f.glow = Disc(f, 16, { GOLD[1], GOLD[2], GOLD[3], 0.35 }, "ARTWORK", 5)
-    f.glow:SetBlendMode("ADD")
-    f.bead = Disc(f, 8, GOLD, "ARTWORK", 7)
-    f.beadRing = Disc(f, 10, { 0.16, 0.09, 0.02, 1 }, "ARTWORK", 6)
-    f.bead:SetPoint("CENTER", f.beadRing, "CENTER")
-    f.glow:SetPoint("CENTER", f.beadRing, "CENTER")
-    return f
-end
-
-local function Stop(i)
-    local s = card.stops[i]
-    if s then return s end
-    local T = ns.FishingToast
-    s = {}
-    s.ring = Disc(card, 9, { 0.16, 0.09, 0.02, 1 }, "ARTWORK", 2)
-    s.hole = Disc(card, 5, { T.PAPER[1], T.PAPER[2], T.PAPER[3], 1 }, "ARTWORK", 3)
-    s.hole:SetPoint("CENTER", s.ring, "CENTER")
-    s.pulse = Disc(card, 18, { GOLD[1], GOLD[2], GOLD[3], 0 }, "ARTWORK", 4)
-    s.pulse:SetBlendMode("ADD")
-    s.pulse:SetPoint("CENTER", s.ring, "CENTER")
-    card.stops[i] = s
-    return s
-end
-
-local fade = { alpha = 0, want = 0 }
+-- The passage (Passage.lua): no card, a quiet line at the bottom left -----------------
 local armedUntil = 0
-local shownPassed = 0
 
-local function Draw(elapsed)
-    if not (card and flight) then return end
-    local T = ns.FishingToast
+local function Icon()
+    local faction = Call(UnitFactionGroup, "player")
+    return faction == "Horde" and "Interface\\Icons\\Ability_Mount_Wyvern_01" or "Interface\\Icons\\Ability_Mount_Gryphon_01"
+end
+
+-- What the passage shows now: the place, the time left, the way and its stops, B's word
+function C.Spec()
+    if not flight then return nil end
     local plan = flight.plan
     -- (the time left as seen in flight: the plan, corrected by how fast the way shrinks)
     local elapsed = Now() - flight.start
     local live, span = C.LiveLeft(flight.samples)
     local left, guess = C.Left(plan, elapsed, live, span)
     local frac, _, passed = C.Progress(plan, elapsed, left)
-    -- (a stop passed: its dot fills, a soft gold breath on it)
-    if passed > shownPassed then
-        for i = shownPassed + 1, passed do local s = Stop(i); s.flash = 1 end
-        shownPassed = passed
-    end
-    local n = #plan.marks
-    for i = 1, math.max(n, #card.stops) do
-        local s = i <= n and Stop(i) or card.stops[i]
-        if i <= n then
-            local x = LINE_X + LINE_W * plan.marks[i]
-            s.ring:ClearAllPoints()
-            s.ring:SetPoint("CENTER", card, "TOPLEFT", x, LINE_Y)
-            s.ring:Show()
-            s.hole:SetShown(i > passed and i < n)
-            s.ring:SetSize(i == n and 11 or 9, i == n and 11 or 9)
-            s.flash = math.max(0, (s.flash or 0) - (elapsed or 0) * 1.2)
-            s.pulse:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.6 * s.flash)
-            s.pulse:Show()
-        elseif s then
-            s.ring:Hide(); s.hole:Hide(); s.pulse:Hide()
-        end
-    end
-    -- the bead: along the line, a slow breath and a faint drift up and down
-    local t = Now()
-    local x = LINE_X + LINE_W * frac
-    card.flown:SetWidth(math.max(1, LINE_W * frac))
-    card.beadRing:ClearAllPoints()
-    card.beadRing:SetPoint("CENTER", card, "TOPLEFT", x, LINE_Y + math.sin(t * 2.1) * 0.8)
-    local breath = 0.5 + 0.5 * math.sin(t * 2.6)
-    card.glow:SetSize(14 + 6 * breath, 14 + 6 * breath)
-    card.glow:SetAlpha(0.25 + 0.25 * breath)
-    card.clock:SetText(C.Clock(left, guess))
+    local FL = ns.FlightList
+    local s = { icon = Icon(), title = (FL.SplitName(flight.to)), clock = C.Clock(left, guess), frac = frac,
+        marks = #plan.marks > 1 and plan.marks or nil, passed = passed, bob = true }
     -- B: the next stop, or ask again
     local stop = not flight.landing and C.NextStop(plan, passed)
-    local glyph = ns.ControllerModel and ns.ControllerModel.Glyph and ns.ControllerModel.Glyph("Shp_Circle", 13) or "B"
+    local glyph = ns.ControllerModel and ns.ControllerModel.Glyph and ns.ControllerModel.Glyph("Shp_Circle", 12) or "B"
     if stop and type(TaxiRequestEarlyLanding) == "function" then
-        local place = ns.FlightList.SplitName(plan.hops[stop].to)
-        if Now() < armedUntil then
-            card.land:SetText(glyph .. "  again: land at " .. place)
-            card.land:SetTextColor(T.RUBRIC[1], T.RUBRIC[2], T.RUBRIC[3])
-        else
-            card.land:SetText(glyph .. "  Land at " .. place)
-            card.land:SetTextColor(T.INK_FADED[1], T.INK_FADED[2], T.INK_FADED[3])
-        end
+        local place = FL.SplitName(plan.hops[stop].to)
+        if Now() < armedUntil then s.sub, s.subLit = glyph .. "  again: land at " .. place, true
+        else s.sub = glyph .. "  Land at " .. place end
     elseif flight.landing then
-        card.land:SetText("Landing at " .. ns.FlightList.SplitName(flight.landing))
-        card.land:SetTextColor(T.INK_FADED[1], T.INK_FADED[2], T.INK_FADED[3])
+        s.sub = "Landing at " .. FL.SplitName(flight.landing)
     else
-        card.land:SetText(#plan.marks > 1 and (#plan.marks - 1 .. (#plan.marks == 2 and " stop" or " stops")) or "Direct")
-        card.land:SetTextColor(T.INK_FADED[1], T.INK_FADED[2], T.INK_FADED[3])
+        s.sub = #plan.marks > 1 and (#plan.marks - 1 .. (#plan.marks == 2 and " stop" or " stops")) or "Direct"
     end
+    return s
 end
 
-local function Fill()
-    if not card then card = Build() end
-    if not (card and flight) then return end
-    local FL = ns.FlightList
-    local place, zone = FL.SplitName(flight.to)
-    ns.FishingToast.SetKicker(card, (FL.ZoneName(zone) or "In flight"):upper(), W - M)
-    card.title:SetText(place)
-    shownPassed = select(3, C.Progress(flight.plan, Now() - flight.start))
-    Draw(0)
+local function Draw()
+    local P = ns.Passage
+    if not (P and flight) then return end
+    if C.Enabled() then
+        if P.Owner() == "flight" then P.Update("flight", C.Spec()) else P.Show("flight", C.Spec()) end
+    else
+        P.Hide("flight")
+    end
 end
+local function Fill() Draw() end
 
 -- B: lands at the next stop (two presses) ---------------------------------------------
 local landButton = CreateFrame("Button", LAND_BUTTON, UIParent)
@@ -394,7 +287,7 @@ landButton:SetScript("OnClick", function()
     else
         armedUntil = Now() + 3
     end
-    Draw(0)
+    Draw()
 end)
 
 local binds = CreateFrame("Frame", "GamepadCompanionFlightCardBinds", UIParent, "SecureHandlerStateTemplate")
@@ -456,10 +349,9 @@ local function TakeOff()
     flight = { from = p.from, to = p.to, start = Now(), wall = Wall(), plan = C.Plan(p.hops, C.Times(), Pace()),
         dest = p.dest, samples = {} }
     sampleIn = 0
-    armedUntil, shownPassed = 0, 0
+    armedUntil = 0
     Save()
     Fill()
-    fade.want = 1
 end
 
 local function Land()
@@ -475,7 +367,7 @@ local function Land()
     end
     flight = nil
     Save()
-    fade.want = 0
+    if ns.Passage then ns.Passage.Hide("flight") end
 end
 
 if type(hooksecurefunc) == "function" and type(TakeTaxiNode) == "function" then
@@ -496,12 +388,11 @@ local function Resume()
         plan = C.Plan(saved.hops, C.Times(), Pace()), resumed = true, dest = saved.dest, samples = {} }
     sampleIn = 0
     Fill()
-    fade.want = 1
 end
 
 local driver = CreateFrame("Frame")
 local tick = 0
--- (each frame: takeoff and landing every fifth of a second, the card's fade and motion)
+-- (each frame: takeoff and landing every fifth of a second, the passage's words and way)
 function C.Tick(elapsed)
     tick = tick + elapsed
     if tick >= 0.2 then
@@ -512,16 +403,7 @@ function C.Tick(elapsed)
         if flight and not on then Land() end
         C.Bind()
     end
-    if flight then Sample(elapsed) end
-    -- the fade, and the card's motion while shown
-    if card then
-        local target = (fade.want == 1 and C.Enabled()) and 1 or 0
-        fade.alpha = fade.alpha + (target - fade.alpha) * math.min(1, elapsed * 3)
-        if target == 0 and fade.alpha < 0.02 then fade.alpha = 0; card:Hide()
-        else card:Show() end
-        card:SetAlpha(fade.alpha)
-        if flight and card:IsShown() then Draw(elapsed) end
-    end
+    if flight then Sample(elapsed); Draw() end
 end
 driver:SetScript("OnUpdate", function(_, elapsed) C.Tick(elapsed) end)
 

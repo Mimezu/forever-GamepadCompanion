@@ -56,12 +56,14 @@ mid-press), out of combat; a fight drops them at once. The list gone, they go ba
 X, L2 and R2 are greyed in the legend when they have nothing to do. L2 shows a gold ringed dot,
 R2 a brown one, and "2/3" while you are on their round.
 
-## In the air: the flight card (FlightCard.lua)
+## In the air: the flight's passage (FlightCard.lua, Passage.lua)
 
-- On a taxi, a slip of the catch card's paper in the lower left, fading in after takeoff and out on
-  landing. The destination's zone (red capitals) and place, the time left, and the way as a line:
-  a ringed dot per stop (filled once passed, a soft gold breath as it passes), the destination's
-  larger, a gold bead gliding along it.
+- On a taxi, no card: a quiet line at the bottom left in the lure float's manner (no paper, no
+  box), where the lure float sits (above it while it shows), fading in after takeoff and out on
+  landing. A gryphon (a wyvern for the Horde) in a brass rim, the place in old-book letters, the
+  time left at the line's end, and the way as a thin line: a dot per stop (gold once passed, a
+  soft gold breath as it passes), the destination's larger, a gold bead gliding along it; B's
+  word under it. A meal's or the fire's wait uses the same passage (MealCard.lua).
 - Time: the game gives none. Each route's time is learned from flights taken (per character,
   flightTimes: from > to, the mean of the last two). Never flown: the straight length (C_TaxiMap
   world points) x 1.2 at 30 yd/s, plus 10 s, marked "~". The stops' places on the line: each

@@ -2,8 +2,8 @@
 -- player frame when a meal's buff lands: Well Fed after ten seconds of eating,
 -- or a campfire's buff after a minute by the fire. The buff's name, its icon,
 -- what it gives (its tooltip's line, short) and for how long. Shows a few
--- seconds, then fades. No sound, no mouse. While a buff food is eaten (its text says so),
--- or the fire's minute runs, the same card is up with a bar till the buff lands.
+-- seconds, then fades: a short toast, never a lasting thing. No sound, no mouse. The wait
+-- before it (a buff food eaten, the fire's minute) is on the passage at the bottom left.
 -- The buffs are read on UNIT_AURA (player), out of combat only (a meal is never
 -- in a fight; in one the auras may be secret): a buff not on the player at the
 -- last read, landed in the last M.FRESH s, is new. It counts as a meal when it is one we know (M.MEALS: Well
@@ -147,10 +147,11 @@ function M.Words(kind, name, gives, duration)
     return w
 end
 
--- The wait (pure): a buff food's ten seconds, the fire's minute, the card up with a bar till
--- the buff lands. Plain food and water: no wait, no card
+-- The wait (pure): a buff food's ten seconds, the fire's minute, on the passage at the bottom
+-- left (Passage.lua: no card, a quiet line and the time) till the buff lands; then the card,
+-- a short toast. Plain food and water: no wait
 M.WAIT = 10          -- s of eating before the buff, when the food doesn't say
-M.LATE = 3           -- s past the wait the buff may still land; then the card goes
+M.LATE = 3           -- s past the wait the buff may still land; then the passage goes
 
 -- A buff food, from its eating aura's spell text: { wait, title, gives }, or nil (no buff).
 -- "...If you spend at least 10 seconds eating you will become well fed and gain 6 Stamina
@@ -168,18 +169,18 @@ function M.FoodBuff(desc)
     return { wait = wait or M.WAIT, title = fed and "Well Fed" or nil, gives = n and ("+" .. n .. " " .. what) or nil }
 end
 
--- The time to go: "In 7 s", "Now"
-function M.Left(s)
-    s = math.ceil((tonumber(s) or 0) - 0.05)
-    return s > 0 and ("In " .. s .. " s") or "Now"
+-- The time to go, counted down to the second: "0:07"
+function M.Clock(left)
+    local s = math.max(0, math.ceil((tonumber(left) or 0) - 0.05))
+    return ("%d:%02d"):format(math.floor(s / 60), s % 60)
 end
 
--- The wait's words, left s to go
-function M.WaitWords(kind, title, gives, left)
-    local w = { kicker = kind == "fire" and "BY THE FIRE" or "A GOOD MEAL",
-        title = title or (kind == "fire" and "Camp Benefits" or "Well Fed") }
-    if gives then w.line1, w.line2 = gives, M.Left(left) else w.line1 = M.Left(left) end
-    return w
+-- The passage's words and way for a wait (kind "meal" or "fire") from start to ends, at now
+function M.WaitSpec(kind, title, gives, icon, start, ends, now)
+    local span = math.max(0.1, ends - start)
+    return { icon = icon or (kind == "fire" and "Interface\\Icons\\Spell_Fire_Fire" or "Interface\\Icons\\Spell_Misc_Food"),
+        title = title or (kind == "fire" and "Camp Benefits" or "Well Fed"), clock = M.Clock(ends - now),
+        frac = math.max(0, math.min(1, (now - start) / span)), sub = gives or (kind == "fire" and "By the fire" or nil) }
 end
 
 -- When an aura began: its end less its length, else now
@@ -302,85 +303,57 @@ local function Anchor(y)
     end
 end
 
-local Tick
 local function Build()
     local T = ns.FishingToast
     if not (T and T.Slip and T.Motion) then return nil end
     local f = T.Slip("GamepadCompanionMealCard", W, H, PAD)
     f:SetFrameStrata("MEDIUM")
     motion = T.Motion(f, Anchor)
-    f:SetScript("OnUpdate", function(_, elapsed) Tick(); motion.Step(elapsed) end)
-    -- (the wait's bar, under the lines: a faint track, the ink filling it)
-    local room = W - (PAD + 46) - PAD
-    f.track = f:CreateTexture(nil, "ARTWORK")
-    f.track:SetColorTexture(T.INK[1], T.INK[2], T.INK[3], 0.15)
-    f.track:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 46, -84)
-    f.track:SetSize(room, 3)
-    f.fill = f:CreateTexture(nil, "ARTWORK", nil, 1)
-    f.fill:SetColorTexture(T.RUBRIC[1], T.RUBRIC[2], T.RUBRIC[3], 0.75)
-    f.fill:SetPoint("TOPLEFT", f.track, "TOPLEFT", 0, 0)
-    f.fill:SetSize(1, 3)
-    f.barRoom = room
-    f.track:Hide(); f.fill:Hide()
+    f:SetScript("OnUpdate", function(_, elapsed) motion.Step(elapsed) end)
     return f
 end
 
 function M.Phase() return motion and motion.Phase() end
 function M.Step(elapsed) return motion and motion.Step(elapsed) end
 
--- The wait shown: { kind, id, start, ends, title, gives, icon, said }
+-- The wait shown on the passage: { kind, id, start, ends, title, gives, icon }
 local wait
 function M.Waiting() return wait end
 
--- The bar at p (0 to 1), hidden at nil
-local function Bar(p)
-    if not card then return end
-    card.track:SetShown(p ~= nil)
-    card.fill:SetShown(p ~= nil)
-    if p then card.fill:SetWidth(math.max(1, card.barRoom * math.min(1, math.max(0, p)))) end
-end
-
--- The wait over: shown (the buff's card follows) or gone (stood up, too late)
-local function EndWait(gone)
+-- The wait over: the buff landed (its card follows), or gone (stood up, too late, a fight)
+local function EndWait()
     if not wait then return end
     wait = nil
-    Bar(nil)
-    if motion then motion.Hold(false); if gone then motion.Hide() end end
+    if ns.Passage then ns.Passage.Hide("meal") end
 end
 M.EndWait = EndWait
 
--- Up with a bar till the buff lands: kind, id (the eating or the timer aura), start, ends
+local function Spec(now)
+    return M.WaitSpec(wait.kind, wait.title, wait.gives, wait.icon, wait.start, wait.ends, now)
+end
+
+-- On the passage till the buff lands: kind, id (the eating or the timer aura), start, ends
 function M.Wait(kind, id, start, ends, title, gives, icon)
-    if not M.Enabled() then return nil end
-    if not card then card = Build() end
-    if not card then return nil end
+    if not (M.Enabled() and ns.Passage) then return nil end
     wait = { kind = kind, id = id, start = start, ends = ends, title = title, gives = gives, icon = icon }
-    motion.Hold(true)
-    Tick()
-    motion.Show(1)
+    ns.Passage.Show("meal", Spec(Now()))
     return wait
 end
 
--- Each frame while waiting: the bar, and the words each second
-Tick = function()
+-- Each frame while waiting: the way and the time; gone a while after the wait with no buff
+local function Tick()
     if not wait then return end
     local now = Now()
-    local left = wait.ends - now
-    if left < -M.LATE then EndWait(true); return end
-    local span = math.max(0.1, wait.ends - wait.start)
-    Bar(1 - left / span)
-    local said = M.Left(left)
-    if said ~= wait.said then
-        wait.said = said
-        M.shown = M.WaitWords(wait.kind, wait.title, wait.gives, left)
-        ns.FishingToast.FillSlip(card, M.shown, wait.icon or "Interface\\Icons\\Spell_Misc_Food", ns.FishingToast.RINGS[1])
-    end
+    if wait.ends - now < -M.LATE then EndWait(); return end
+    if ns.Passage then ns.Passage.Update("meal", Spec(now)) end
 end
-M.Tick = function() Tick() end
+M.Tick = Tick
+local waiter = CreateFrame("Frame")
+waiter:SetScript("OnUpdate", function() Tick() end)
 
 -- Shows a meal's buff (a: a Buffs() entry) as kind's card; the words shown, or nil
 function M.Show(kind, a)
-    EndWait(false)
+    EndWait()
     if not M.Enabled() then return nil end
     if not card then card = Build() end
     if not card then return nil end
@@ -428,7 +401,7 @@ local function Waits(list, now, st)
     end
     if wait then
         local source = wait.kind == "meal" and rest or timer
-        if (not source or Id(source, now) ~= wait.id) and now < wait.ends - 0.5 then EndWait(true) end
+        if (not source or Id(source, now) ~= wait.id) and now < wait.ends - 0.5 then EndWait() end
     end
     if not rest then lastRest = nil end
     if not timer then lastTimer = nil end
@@ -480,7 +453,7 @@ end
 
 -- A fresh start (login, a loading screen): the buffs on are not new
 function M.Reset()
-    EndWait(true)
+    EndWait()
     lastRest, lastTimer = nil, nil
     seen, primed = {}, false
     eating.now, eating.before, eating.at = false, false, -math.huge
@@ -493,7 +466,7 @@ pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
 pcall(events.RegisterEvent, events, "PLAYER_REGEN_DISABLED")
 events:SetScript("OnEvent", function(_, event, unit)
     -- (a fight: no meal; the wait goes)
-    if event == "PLAYER_REGEN_DISABLED" then EndWait(true); return end
+    if event == "PLAYER_REGEN_DISABLED" then EndWait(); return end
     if event == "PLAYER_ENTERING_WORLD" then M.Reset() elseif unit ~= "player" then return end
     if InCombat() then return end
     M.Scan()
