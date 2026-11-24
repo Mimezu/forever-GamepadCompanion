@@ -8,8 +8,8 @@ names reads them for you and WoW Helper colours each arrow by what it is.
 - The Forever client has `Minimap:UpdateMouseoverAtPoint(x, y)` and
   `Minimap:SetUsingSoftCursor(on)` (made for the gamepad soft cursor) and
   `C_TooltipInfo.GetMinimapMouseover()`. Out of combat, while a node tracking is on, a hidden
-  sweep "hovers" a grid over the minimap (step 0.07 radius, about 450 points, 40 a frame, once a
-  second) and reads the names under each point. Hits of one name close together make a dot.
+  sweep "hovers" a grid over the minimap (step 0.07 radius, about 450 points, once a
+  second; 25 points a frame) and reads the names under each point. Hits of one name close together make a dot.
 - Only the live dots: no database.
 - The point's units aren't documented. Seven readings are tried (`S.READINGS`: screen, cursor,
   local, local from the top, from the centre, 0-1, 0-1 from the top). The one that finds dots is

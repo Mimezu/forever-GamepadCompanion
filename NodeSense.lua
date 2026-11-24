@@ -264,7 +264,7 @@ end
 -- The state: the reading in use (an index into S.READINGS, nil: not known yet), the sweep under
 -- way, the last dots, the readings' scores
 S.STEP = 0.07             -- grid step, radius units (about 450 points)
-S.PER_FRAME = 40          -- probes a frame
+S.PER_FRAME = 25          -- probes a frame (each builds the minimap tooltip's data)
 S.EVERY = 1.0             -- s between sweeps
 S.SEARCH_EVERY = 12       -- s between searches for the reading while none is known
 local store
@@ -389,7 +389,8 @@ local function Step()
             .. ", GetMinimapMouseover " .. tostring(C_TooltipInfo and C_TooltipInfo.GetMinimapMouseover ~= nil))
         return
     end
-    if Minimap:IsMouseOver() then SetSoft(false); return end
+    -- (the real cursor on the minimap: its own tooltip, no sweep; written down once)
+    if Minimap:IsMouseOver() then SetSoft(false); Trace("waiting: the cursor rests on the minimap"); return end
     local m = Measure()
     if not m then return end
     local now = Now()
