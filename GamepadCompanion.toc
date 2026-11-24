@@ -49,6 +49,7 @@ HapticsDebug.lua
 Battery.lua
 TouchModel.lua
 Quick.lua
+EditSpots.lua
 Fishing.lua
 BobberPrompt.lua
 FishingLure.lua

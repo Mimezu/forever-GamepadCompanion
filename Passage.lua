@@ -3,10 +3,12 @@
 -- box. A small medallion in a brass rim, the name as in an old book, the time in the same hand
 -- at the line's end, a thin line filling as the time goes with a soft gold bead at its head
 -- (stops on the way as small dots, passed ones filled and breathing gold once), a quiet line
--- under it. Fades in and out. It sits where the lure float sits (Edit Mode moves both), just
--- above the float when that shows. One owner at a time ("flight", "meal"); cards stay for
--- short toasts. Pure: P.Clock (tests/Passage.lua)
+-- under it. Fades in and out. One per owner ("flight", "meal": the meal's and the fire's),
+-- each on a spot of its own: Edit Mode shows a sample of each in its own box to drag
+-- (EditSpots.lua), apart from the lure float. Cards stay for short toasts.
+-- Pure: P.Clock, P.Spot (tests/MealCard.lua)
 local _, ns = ...
+local Sh = ns.Shared
 local P = {}
 ns.Passage = P
 
@@ -14,6 +16,25 @@ ns.Passage = P
 function P.Clock(seconds, guess)
     local s = math.max(0, math.floor((tonumber(seconds) or 0) + 0.5))
     return (guess and "~" or "") .. ("%d:%02d"):format(math.floor(s / 60), s % 60)
+end
+
+-- Each owner: its name in Edit Mode, its home (bottom-left, UIParent units; over the lure
+-- float's home at 36, 210, one above the other) and its Edit Mode sample
+P.OWNERS = {
+    meal = { label = "Meal & fire", home = { 36, 284 },
+        sample = { icon = "Interface\\Icons\\Spell_Misc_Food", title = "Well Fed", clock = "0:07", frac = 0.3,
+            sub = "+12 Stamina and Spirit" } },
+    flight = { label = "Flight", home = { 36, 358 },
+        sample = { icon = "Interface\\Icons\\Ability_Mount_Gryphon_01", title = "Booty Bay", clock = "1:42", frac = 0.4,
+            marks = { 0.55, 1 }, passed = 0, sub = "1 stop", bob = true } },
+}
+
+-- owner's spot from saved ({ owner = { x, y } }): x, y
+function P.Spot(owner, saved)
+    local s = type(saved) == "table" and saved[owner]
+    if type(s) == "table" and tonumber(s[1]) and tonumber(s[2]) then return s[1], s[2] end
+    local home = P.OWNERS[owner] and P.OWNERS[owner].home or { 36, 210 }
+    return home[1], home[2]
 end
 
 if not CreateFrame then return end
@@ -24,6 +45,12 @@ local function Call(fn, ...)
     if ok then return a, b, c, d end
 end
 local function Now() return Call(GetTime) or 0 end
+local function Saved()
+    local db = Sh and Sh.CharDB and Sh.CharDB()
+    if not db then return nil end
+    db.passage = type(db.passage) == "table" and db.passage or {}
+    return db.passage
+end
 
 local SIZE = 40                       -- the medallion
 local LINE_W = 184                    -- the way
@@ -34,11 +61,6 @@ local BODY_FONT = "Fonts\\FRIZQT__.TTF"
 local PARCHMENT = { 0.93, 0.86, 0.68 }
 local MIST = { 0.66, 0.74, 0.72 }
 local WISE = { 0.96, 0.80, 0.42 }
-P.ABOVE_LURE = 74                     -- px up when the lure float shows
-
-local frame, current, spec
-local alpha, want = 0, 0
-local shownPassed = 0
 
 local function Disc(parent, layer, sub, size, c, a)
     local t = parent:CreateTexture(nil, layer, nil, sub)
@@ -56,8 +78,8 @@ local function Ink(fs, font, size, c)
     if fs.SetWordWrap then fs:SetWordWrap(false) end
 end
 
-local function Build()
-    local f = CreateFrame("Frame", "GamepadCompanionPassage", UIParent)
+local function Build(name)
+    local f = CreateFrame("Frame", name, UIParent)
     f:SetSize(SIZE + GAP + LINE_W + 8, SIZE + 16)
     f:SetFrameStrata("LOW")
     f:SetClampedToScreen(true)
@@ -122,61 +144,54 @@ local function Build()
     return f
 end
 
-local function Stop(i)
-    local s = frame.stops[i]
+local function Stop(f, i)
+    local s = f.stops[i]
     if s then return s end
     s = {}
-    s.ring = Disc(frame, "ARTWORK", 2, 6, MIST, 0.9)
-    s.hole = Disc(frame, "ARTWORK", 3, 3, { 0.04, 0.08, 0.11 }, 1)
+    s.ring = Disc(f, "ARTWORK", 2, 6, MIST, 0.9)
+    s.hole = Disc(f, "ARTWORK", 3, 3, { 0.04, 0.08, 0.11 }, 1)
     s.hole:SetPoint("CENTER", s.ring, "CENTER")
-    s.pulse = Disc(frame, "ARTWORK", 4, 16, WISE, 0)
+    s.pulse = Disc(f, "ARTWORK", 4, 16, WISE, 0)
     s.pulse:SetBlendMode("ADD")
     s.pulse:SetPoint("CENTER", s.ring, "CENTER")
-    frame.stops[i] = s
+    f.stops[i] = s
     return s
 end
 
--- Where it sits: the lure float's spot, above the float while that shows
-local function Place()
-    local L = ns.FishingLure
-    local x, y = 36, 210
-    if L and L.Spot and L.Setting then x, y = L.Spot(L.Setting().pos) end
-    if L and L.frame and L.frame.IsShown and L.frame:IsShown() then y = y + P.ABOVE_LURE end
-    frame:ClearAllPoints()
-    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x, y)
-end
+local editing = false     -- (Edit Mode open: the samples up)
 
 -- spec: { icon, title, clock, frac (0-1), marks (stops, fractions; the last the end), passed,
 -- sub, subLit (gold: a second press asked), bob }
-local function Draw(elapsed)
-    if not (frame and spec) then return end
-    frame.icon:SetTexture(spec.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-    frame.title:SetText(spec.title or "")
-    frame.clock:SetText(spec.clock or "")
+local function Draw(w, elapsed)
+    local f, spec = w.frame, w.live or (editing and w.sample)
+    if not spec then return end
+    f.icon:SetTexture(spec.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    f.title:SetText(spec.title or "")
+    f.clock:SetText(spec.clock or "")
     local lit = spec.subLit and WISE or MIST
-    frame.sub:SetText(spec.sub or "")
-    frame.sub:SetTextColor(lit[1], lit[2], lit[3])
+    f.sub:SetText(spec.sub or "")
+    f.sub:SetTextColor(lit[1], lit[2], lit[3])
     local frac = math.max(0, math.min(1, tonumber(spec.frac) or 0))
-    local x = frame.x
-    frame.flown:SetWidth(math.max(1, LINE_W * frac))
+    local x = f.x
+    f.flown:SetWidth(math.max(1, LINE_W * frac))
     local t = Now()
-    frame.bead:ClearAllPoints()
-    frame.bead:SetPoint("CENTER", frame, "LEFT", x + LINE_W * frac, -1.5 + math.sin(t * 2.1) * 0.6)
+    f.bead:ClearAllPoints()
+    f.bead:SetPoint("CENTER", f, "LEFT", x + LINE_W * frac, -1.5 + math.sin(t * 2.1) * 0.6)
     local breath = 0.5 + 0.5 * math.sin(t * 2.6)
-    frame.glow:SetSize(12 + 5 * breath, 12 + 5 * breath)
-    frame.glow:SetAlpha(0.20 + 0.25 * breath)
+    f.glow:SetSize(12 + 5 * breath, 12 + 5 * breath)
+    f.glow:SetAlpha(0.20 + 0.25 * breath)
     -- the stops (none for a single wait)
     local marks, passed = spec.marks or {}, tonumber(spec.passed) or 0
-    if passed > shownPassed then
-        for i = shownPassed + 1, passed do Stop(i).flash = 1 end
+    if passed > w.shownPassed then
+        for i = w.shownPassed + 1, passed do Stop(f, i).flash = 1 end
     end
-    shownPassed = passed
+    w.shownPassed = passed
     local n = #marks
-    for i = 1, math.max(n, #frame.stops) do
-        local s = i <= n and Stop(i) or frame.stops[i]
+    for i = 1, math.max(n, #f.stops) do
+        local s = i <= n and Stop(f, i) or f.stops[i]
         if i <= n then
             s.ring:ClearAllPoints()
-            s.ring:SetPoint("CENTER", frame, "LEFT", x + LINE_W * marks[i], -1.5)
+            s.ring:SetPoint("CENTER", f, "LEFT", x + LINE_W * marks[i], -1.5)
             local last = i == n
             s.ring:SetSize(last and 8 or 6, last and 8 or 6)
             local done = i <= passed
@@ -191,49 +206,103 @@ local function Draw(elapsed)
             s.ring:Hide(); s.hole:Hide(); s.pulse:Hide()
         end
     end
-    if frame.bob then
-        if spec.bob and not frame.bob:IsPlaying() then frame.bob:Play()
-        elseif not spec.bob and frame.bob:IsPlaying() then frame.bob:Stop() end
+    if f.bob then
+        if spec.bob and not f.bob:IsPlaying() then f.bob:Play()
+        elseif not spec.bob and f.bob:IsPlaying() then f.bob:Stop() end
     end
 end
+
+-- The widgets, made the first time each is wanted
+local widgets = {}
+local function Place(w)
+    local x, y = P.Spot(w.owner, Saved())
+    w.frame:ClearAllPoints()
+    w.frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x, y)
+end
+local function Widget(owner)
+    local w = widgets[owner]
+    if w then return w end
+    local o = P.OWNERS[owner] or { label = owner }
+    local name = "GamepadCompanionPassage" .. owner:sub(1, 1):upper() .. owner:sub(2)
+    w = { owner = owner, frame = Build(name), alpha = 0, want = 0, shownPassed = 0, sample = o.sample }
+    widgets[owner] = w
+    Place(w)
+    local ES = ns.EditSpots
+    if ES and ES.Add then
+        ES.Add({ name = "passage-" .. owner, label = o.label, frame = w.frame,
+            get = function() return P.Spot(owner, Saved()) end,
+            set = function(x, y)
+                local saved = Saved()
+                if saved then saved[owner] = (x and y) and { x, y } or nil end
+            end })
+    end
+    return w
+end
+P.Widget = Widget
 
 -- Up for owner, with spec (as Draw's); again: the words and the way changed
 function P.Show(owner, s)
-    if not frame then frame = Build() end
-    if current ~= owner then shownPassed = tonumber(s and s.passed) or 0 end
-    current, spec, want = owner, s, 1
-    Place()
-    frame:Show()
-    Draw(0)
+    local w = Widget(owner)
+    if not w.live then w.shownPassed = tonumber(s and s.passed) or 0 end
+    w.live, w.want = s, 1
+    Place(w)
+    w.frame:Show()
+    Draw(w, 0)
 end
--- The same owner's spec, changed (nothing when another owns it)
+-- owner's spec, changed (nothing while it isn't up)
 function P.Update(owner, s)
-    if current ~= owner then return end
-    spec = s
+    local w = widgets[owner]
+    if w and w.live then w.live = s end
 end
--- Down, if owner still has it
+-- owner's down
 function P.Hide(owner)
-    if current == owner then want = 0 end
+    local w = widgets[owner]
+    if w and w.live then w.live = nil; w.want = (editing and 1 or 0) end
 end
-function P.Owner() return want == 1 and current or nil end
-function P.Shown() return P.Owner() end
-P.frame = function() return frame end
+-- Is owner's up (its real thing, not an Edit Mode sample)
+function P.Owner(owner)
+    if owner then return widgets[owner] ~= nil and widgets[owner].live ~= nil end
+    for o, w in pairs(widgets) do if w.live then return o end end
+    return nil
+end
 
 local function Step(elapsed)
-    if not (frame and current) then return end
-    alpha = alpha + (want - alpha) * math.min(1, (elapsed or 0) * 2.5)
-    if want == 0 and alpha < 0.02 then
-        alpha = 0
-        frame:SetAlpha(0)
-        frame:Hide()
-        if frame.bob and frame.bob:IsPlaying() then frame.bob:Stop() end
-        current, spec = nil, nil
-        return
+    for _, w in pairs(widgets) do
+        local f = w.frame
+        if w.want == 1 or w.alpha > 0 then
+            w.alpha = w.alpha + (w.want - w.alpha) * math.min(1, (elapsed or 0) * 2.5)
+            if w.want == 0 and w.alpha < 0.02 then
+                w.alpha = 0
+                f:SetAlpha(0)
+                f:Hide()
+                if f.bob and f.bob:IsPlaying() then f.bob:Stop() end
+            else
+                f:SetAlpha(w.alpha)
+                Draw(w, elapsed)
+            end
+        end
     end
-    frame:SetAlpha(alpha)
-    Place()
-    Draw(elapsed)
 end
 P.Step = Step
 local driver = CreateFrame("Frame")
 driver:SetScript("OnUpdate", function(_, elapsed) Step(elapsed) end)
+
+-- Edit Mode: each owner's sample up in its box (EditSpots), its real one if it's up
+function P.EditMode(on)
+    editing = on == true
+    for owner in pairs(P.OWNERS) do
+        local w = Widget(owner)
+        if editing then
+            w.want = 1
+            Place(w)
+            w.frame:Show()
+            Draw(w, 0)
+        elseif not w.live then
+            w.want = 0
+        end
+    end
+end
+if EventRegistry and EventRegistry.RegisterCallback then
+    EventRegistry:RegisterCallback("EditMode.Enter", function() P.EditMode(true) end, P)
+    EventRegistry:RegisterCallback("EditMode.Exit", function() P.EditMode(false) end, P)
+end

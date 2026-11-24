@@ -693,9 +693,10 @@ float:SetScript("OnUpdate", function(_, elapsed)
     L.Refresh()
 end)
 
--- Edit Mode: the float shows (pole or not) in a box of Edit Mode's blue, as
--- Companion's bar boxes (EditModeBars.lua): drag it anywhere, right-click puts
--- it home. Its spot is the character's. Edit Mode listened to, never hooked
+-- Edit Mode: the float shows (pole or not) in a box of its own (EditSpots.lua, as
+-- the passages' and Companion's bar boxes): drag it anywhere, right-click puts it
+-- home, a click where boxes overlap brings the one under to the front. Its spot is
+-- the character's. Edit Mode listened to, never hooked
 function L.Spot(pos)
     if type(pos) == "table" and tonumber(pos[1]) and tonumber(pos[2]) then return pos[1], pos[2] end
     return L.HOME[1], L.HOME[2]
@@ -707,39 +708,14 @@ local function Place()
 end
 L.Place = Place
 
-local box = CreateFrame("Frame", nil, UIParent)
-box:SetFrameStrata("HIGH")
-box:SetAllPoints(float)
-box:EnableMouse(true)
-if box.RegisterForDrag then box:RegisterForDrag("LeftButton") end
-box:Hide()
-box.fill = box:CreateTexture(nil, "BACKGROUND")
-box.fill:SetAllPoints()
-box.fill:SetColorTexture(0.25, 0.6, 1, 0.18)
-for i, pts in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" }, { "TOPLEFT", "BOTTOMLEFT" },
-    { "TOPRIGHT", "BOTTOMRIGHT" } }) do
-    local e = box:CreateTexture(nil, "BORDER")
-    e:SetPoint(pts[1]); e:SetPoint(pts[2])
-    if i <= 2 then e:SetHeight(2) else e:SetWidth(2) end
-    e:SetColorTexture(0.25, 0.6, 1, 0.95)
+if ns.EditSpots and ns.EditSpots.Add then
+    ns.EditSpots.Add({ name = "lure", label = "Fishing", frame = float,
+        get = function() return L.Spot(L.Setting().pos) end,
+        set = function(x, y) L.Setting().pos = (x and y) and { x, y } or nil end })
 end
-box.label = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-box.label:SetPoint("BOTTOM", box, "TOP", 0, 3)
-box.label:SetText("Fishing")
-box:SetScript("OnDragStart", function() float:StartMoving() end)
-box:SetScript("OnDragStop", function()
-    float:StopMovingOrSizing()
-    local x, y = float:GetLeft(), float:GetBottom()
-    if tonumber(x) and tonumber(y) then L.Setting().pos = { math.floor(x + 0.5), math.floor(y + 0.5) } end
-    Place()
-end)
-box:SetScript("OnMouseUp", function(_, button)
-    if button == "RightButton" then L.Setting().pos = nil; Place() end
-end)
 
 function L.EditMode(on)
     L.editing = on == true
-    box:SetShown(L.editing)
     L.Show(PoleOn() or L.editing)
 end
 if EventRegistry and EventRegistry.RegisterCallback then

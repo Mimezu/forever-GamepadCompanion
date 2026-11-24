@@ -59,7 +59,8 @@ R2 a brown one, and "2/3" while you are on their round.
 ## In the air: the flight's passage (FlightCard.lua, Passage.lua)
 
 - On a taxi, no card: a quiet line at the bottom left in the lure float's manner (no paper, no
-  box), where the lure float sits (above it while it shows), fading in after takeoff and out on
+  box), on a spot of its own (Edit Mode: its own box, apart from the lure float's and the meal's;
+  EditSpots.lua), fading in after takeoff and out on
   landing. A gryphon (a wyvern for the Horde) in a brass rim, the place in old-book letters, the
   time left at the line's end, and the way as a thin line: a dot per stop (gold once passed, a
   soft gold breath as it passes), the destination's larger, a gold bead gliding along it; B's

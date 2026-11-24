@@ -67,6 +67,7 @@ local ns = { Shared = { CharDB = function() return char end }, FishingLure = { S
     Rumble = { REST_SPELLS = { eat = { 433 }, drink = { 430 }, both = { 1312719 } } } }
 assert(loadfile(root .. "/FishingJournal.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/FishingToast.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/EditSpots.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Passage.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/MealCard.lua"))("GamepadCompanion", ns)
 local P = ns.Passage
@@ -294,7 +295,7 @@ eq(shows, n0, "and no card")
 buffs = {}; Aura()
 -- a buff food: the passage at once (no card), the way filling, the seconds counting
 local passage
-for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassage" then passage = fr end end
+for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassageMeal" then passage = fr end end
 DESCS[24869] = FED
 NAMES[24869] = "Food"
 M.Reset(); Aura()
@@ -304,11 +305,11 @@ Aura()
 check(M.Waiting() ~= nil, "a buff food: the wait")
 eq(P.Owner(), "meal", "on the passage")
 eq(M.Phase(), phase0, "no card while waiting")
-for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassage" then passage = fr end end
+for _, fr in ipairs(frames) do if fr.name == "GamepadCompanionPassageMeal" then passage = fr end end
 assert(passage, "the passage is a named frame")
 P.Step(0.1)
 eq(passage.title.text .. " / " .. passage.clock.text .. " / " .. passage.sub.text, "Well Fed / 0:10 / +12 Stamina and Spirit", "its words")
-eq(passage.point[1] .. "/" .. passage.point[3] .. "/" .. passage.point[4] .. "/" .. passage.point[5], "BOTTOMLEFT/BOTTOMLEFT/36/210", "at the bottom left, the lure float's spot")
+eq(passage.point[1] .. "/" .. passage.point[3] .. "/" .. passage.point[4] .. "/" .. passage.point[5], "BOTTOMLEFT/BOTTOMLEFT/36/284", "at the bottom left, its own spot over the lure float's")
 clock = clock + 4; M.Tick(); P.Step(0.1)
 eq(passage.clock.text, "0:06", "4 s on: 6 to go")
 eq(math.floor(passage.flown.width + 0.5), math.floor(184 * 0.4 + 0.5), "the way 40% gone")

@@ -265,7 +265,7 @@ local function Draw()
     local P = ns.Passage
     if not (P and flight) then return end
     if C.Enabled() then
-        if P.Owner() == "flight" then P.Update("flight", C.Spec()) else P.Show("flight", C.Spec()) end
+        if P.Owner("flight") then P.Update("flight", C.Spec()) else P.Show("flight", C.Spec()) end
     else
         P.Hide("flight")
     end
