@@ -131,9 +131,10 @@ function L.Bags()
     return items
 end
 
--- The Fishing skill and its cap (the rank's: 75, 150, 225, 300), each nil when
--- it can't be read. Forever's list is C_SkillInfo (a table a line, as Companion
--- Journal reads it); then the professions; then Classic's own list
+-- The Fishing skill, its cap (the rank's: 75, 150, 225, 300) and its modifier
+-- (the pole's lure, the pole, a hat, food: what the water's roll counts on top),
+-- each nil when it can't be read. Forever's list is C_SkillInfo (a table a line,
+-- as Companion Journal reads it); then the professions; then Classic's own list
 function L.SkillInfo()
     local fishing = (PROFESSIONS_FISHING or "Fishing"):lower()
     local function Is(name) return type(name) == "string" and name:lower() == fishing end
@@ -143,7 +144,8 @@ function L.SkillInfo()
             local line = Call(info.GetSkillLineInfo, i)
             if type(line) == "table" and not line.isHeader and Is(line.name) then
                 return tonumber(line.rank or line.skillRank),
-                    tonumber(line.maxRank or line.max or line.skillMaxRank or line.maxSkillRank)
+                    tonumber(line.maxRank or line.max or line.skillMaxRank or line.maxSkillRank),
+                    tonumber(line.modifier or line.skillModifier or line.rankModifier)
             end
         end
     end
@@ -152,15 +154,15 @@ function L.SkillInfo()
         for k = 1, 6 do
             local index = list[k]
             if index then
-                local name, _, rank, max = Call(GetProfessionInfo, index)
-                if Is(name) then return tonumber(rank), tonumber(max) end
+                local name, _, rank, max, _, _, _, modifier = Call(GetProfessionInfo, index)
+                if Is(name) then return tonumber(rank), tonumber(max), tonumber(modifier) end
             end
         end
     end
     if GetNumSkillLines and GetSkillLineInfo then
         for i = 1, tonumber((Call(GetNumSkillLines))) or 0 do
-            local name, header, _, rank, _, _, max = Call(GetSkillLineInfo, i)
-            if not header and Is(name) then return tonumber(rank), tonumber(max) end
+            local name, header, _, rank, _, modifier, max = Call(GetSkillLineInfo, i)
+            if not header and Is(name) then return tonumber(rank), tonumber(max), tonumber(modifier) end
         end
     end
 end
@@ -181,19 +183,58 @@ function L.Current()
 end
 
 ---------------------------------------------------------------------------
--- The skill's road (pure: tests/FishingLure.lua). The game tells the client
--- nothing of a water's level or the odds of a point: the server rolls them.
--- Vanilla's server (as rebuilt by MaNGOS) rolls from the skill alone, every
--- catch below 75, then 25 / (skill - 50); the water only decides whether a
--- fish gets away. So: the odds, coloured as a recipe's; the fish your points
--- really take; the rank's cap; a fish lost here
+-- The skill's road (pure: tests/FishingLure.lua). The server rolls two things,
+-- apart (public Vanilla knowledge; the open server rebuilds):
+-- - a point, on each fish landed, from the skill itself (the base rank: the
+--   water and the lure never count): every fish below 75, then fewer. Two
+--   formulas are about; the fish your own points took pick between them (L.Fit)
+-- - whether a bite lands, against the water's level B with the skill and its
+--   modifier (E): about E - B + 5 in 100 land, none under B, all from B + 95.
+--   The client is told B only when a cast is refused ("Requires Fishing 205"),
+--   else it's learned from the fish landed and lost there (L.EstimateB). There
+--   is no "too easy" water: a point's odds never depend on it
 ---------------------------------------------------------------------------
--- The odds of a point on a catch (0-1)
-function L.Odds(rank)
+-- The odds of a point on a catch at rank r >= 75, each formula (0-1)
+L.MODELS = {
+    mangos = function(r) return 25 / (r - 50) end,    -- MaNGOS: 2500 / (skill - 50) in 100
+    vanilla = function(r) return 25 / (r - 25) end,   -- other rebuilds: 2500 / (skill - 25)
+}
+L.MODEL = "mangos"   -- (until the fish your points took say otherwise)
+
+-- The odds of a point on a catch (0-1); model: L.MODELS' name (nil: L.MODEL)
+function L.Odds(rank, model)
     rank = tonumber(rank)
     if not rank then return nil end
     if rank < 75 then return 1 end
-    return math.min(1, 25 / (rank - 50))
+    local f = L.MODELS[model or L.MODEL] or L.MODELS[L.MODEL]
+    return math.min(1, f(rank))
+end
+
+-- Which formula the fish your points took fit better: points { { rank, fish } }
+-- (the rank fished at, the fish that point took). Each point's fish are a run
+-- of misses and a hit at the odds; the other formula wins only when it explains
+-- at least 10 points (rank >= 75) clearly better (e^2 likelier). Else L.MODEL
+L.FIT_MIN, L.FIT_MARGIN = 10, 2
+function L.Fit(points)
+    if type(points) ~= "table" then return L.MODEL end
+    local ll, n = {}, 0
+    for name in pairs(L.MODELS) do ll[name] = 0 end
+    for _, p in ipairs(points) do
+        local r, k = tonumber(p[1]), tonumber(p[2])
+        if r and k and r >= 75 and k >= 1 then
+            n = n + 1
+            for name in pairs(L.MODELS) do
+                local q = L.Odds(r, name)
+                ll[name] = ll[name] + (q < 1 and (k - 1) * math.log(1 - q) or (k > 1 and -math.huge or 0)) + math.log(q)
+            end
+        end
+    end
+    if n < L.FIT_MIN then return L.MODEL end
+    local best = L.MODEL
+    for name, v in pairs(ll) do
+        if name ~= L.MODEL and v >= ll[L.MODEL] + L.FIT_MARGIN and v >= ll[best] then best = name end
+    end
+    return best
 end
 
 -- Coloured as a recipe: orange, yellow, green, grey
@@ -205,13 +246,14 @@ function L.OddsColour(odds)
 end
 
 -- At the rank's cap: the cap known and reached; else (no cap to read) a cap's
--- number reached and more fish since than its odds explain (3 points' worth)
+-- number reached and more fish since than its odds explain (6 points' worth:
+-- wrong about one time in 400)
 L.CAPS = { [75] = true, [150] = true, [225] = true }
-function L.AtCap(rank, max, since)
+function L.AtCap(rank, max, since, model)
     rank, max, since = tonumber(rank), tonumber(max), tonumber(since) or 0
     if not rank then return false end
     if max then return rank >= max and max < 300 end
-    return L.CAPS[rank] == true and since >= math.ceil(3 / L.Odds(rank))
+    return L.CAPS[rank] == true and since >= math.ceil(6 / L.Odds(rank, model))
 end
 
 -- The fish a point took lately: the last few points' average, whole
@@ -234,9 +276,110 @@ function L.SkillUp(message, fmt, fishing)
     return tonumber(rank)
 end
 
--- This stretch of water: the zone and the place in it (a fish lost here)
+-- The skill the water's roll counts: the rank and its modifier
+function L.Effective(rank, modifier)
+    rank = tonumber(rank)
+    if not rank then return nil end
+    return rank + (tonumber(modifier) or 0)
+end
+
+-- The water's level B from what it did (nil when it can't be said yet). meanE:
+-- the skill (E) the outcomes came at, on average. A water says nothing before
+-- L.SURE outcomes; then B ~ E + 5 - (in 100 landed), put on a known level when
+-- within 20 of it (the noise). None lost only says B <= E - 95 (nil, that);
+-- none landed says B > E (beyond reach), also early: L.BEYOND lost, none landed
+L.TIERS = { 1, 25, 55, 130, 205, 330, 425 }
+L.SURE, L.BEYOND, L.BAND = 12, 6, 95
+function L.EstimateB(meanE, landed, escaped)
+    meanE, landed, escaped = tonumber(meanE), tonumber(landed) or 0, tonumber(escaped) or 0
+    local n = landed + escaped
+    if not meanE or n == 0 then return nil end
+    if landed == 0 and escaped >= L.BEYOND then
+        return math.floor(meanE + 5.5)
+    end
+    if n < L.SURE then return nil end
+    if escaped == 0 then return nil, meanE - L.BAND end
+    local raw = meanE + 5 - 100 * landed / n
+    local b, gap = math.floor(raw + 0.5), 21
+    for _, t in ipairs(L.TIERS) do
+        if math.abs(raw - t) < gap then b, gap = t, math.abs(raw - t) end
+    end
+    return b
+end
+
+-- A water's word (pure): "low" (E < B: every fish gets away, or the game won't
+-- cast), "some" (some get away), or nil (B unknown, or none get away)
+function L.Judge(E, B)
+    E, B = tonumber(E), tonumber(B)
+    if not (E and B) then return nil end
+    if E < B then return "low" end
+    if E < B + L.BAND then return "some" end
+    return nil
+end
+
+-- The keys of this water: the place in the zone first (its own level, when it
+-- has one), then the zone (each place's outcomes count for it too)
+function L.Keys(zone, sub)
+    zone = type(zone) == "string" and zone or ""
+    if zone == "" then return {} end
+    if type(sub) == "string" and sub ~= "" and sub ~= zone then return { zone .. "/" .. sub, zone } end
+    return { zone }
+end
 function L.Water()
-    return (Call(GetZoneText) or "") .. "/" .. (Call(GetSubZoneText) or "")
+    return L.Keys(Call(GetZoneText), Call(GetSubZoneText))
+end
+
+-- A water's level (pure): the game's word first, then the outcomes; the place
+-- before the zone. waters[key] = { landed, escaped, sumE, need, above }
+function L.Reach(waters, keys)
+    if type(waters) ~= "table" then return nil end
+    for _, key in ipairs(keys or {}) do
+        local w = waters[key]
+        if type(w) == "table" then
+            if tonumber(w.need) then return tonumber(w.need) end
+            local n = (tonumber(w.landed) or 0) + (tonumber(w.escaped) or 0)
+            local b = n > 0 and L.EstimateB((tonumber(w.sumE) or 0) / n, w.landed, w.escaped)
+            if tonumber(w.above) then b = math.max(b or 0, w.above + 1) end
+            if b then return b end
+        end
+    end
+end
+
+-- A fish landed (or lost) at skill E here: counted for each key
+function L.Outcome(waters, keys, E, landed)
+    E = tonumber(E)
+    if type(waters) ~= "table" or not E then return end
+    for _, key in ipairs(keys or {}) do
+        local w = waters[key]
+        if type(w) ~= "table" then w = {}; waters[key] = w end
+        if landed then w.landed = (tonumber(w.landed) or 0) + 1 else w.escaped = (tonumber(w.escaped) or 0) + 1 end
+        w.sumE = (tonumber(w.sumE) or 0) + E
+    end
+end
+
+-- The game refused the cast: its message's level (a number), true when it
+-- names none, else nil. fmt: SPELL_FAILED_FISHING_TOO_LOW ("Requires Fishing %d")
+function L.TooLow(message, fmt)
+    if type(message) ~= "string" then return nil end
+    fmt = type(fmt) == "string" and fmt or "Requires Fishing %d"
+    if not fmt:find("%%d") then return message == fmt or nil end
+    local pattern = "^" .. fmt:gsub("([%(%)%.%[%]%*%+%-%?%^%$])", "%%%1"):gsub("%%s", ".+"):gsub("%%d", "(%%d+)") .. "$"
+    local need = message:match(pattern)
+    return tonumber(need)
+end
+
+-- The game's word kept: need (the level), or (true) the skill E it refused
+function L.Told(waters, keys, need, E)
+    if type(waters) ~= "table" then return end
+    for _, key in ipairs(keys or {}) do
+        local w = waters[key]
+        if type(w) ~= "table" then w = {}; waters[key] = w end
+        if tonumber(need) then
+            w.need = tonumber(need)
+        elseif tonumber(E) then
+            w.above = math.max(tonumber(w.above) or 0, tonumber(E))
+        end
+    end
 end
 
 -- The pole's lure: seconds left, or nil
@@ -510,38 +653,52 @@ end
 
 -- The quiet line (pure): text and colour, or nil. wiserAt / rank: the last
 -- skill-up (GetTime) and its skill; skill, max: now; since: fish since the last
--- point; pace: fish a point took lately; wary: fish keep getting away in
--- this water (L.Wary: one escape says little, an early or late press loses a
--- fish too)
+-- point; pace: fish a point took lately; water: this water's word (L.Judge:
+-- "low", "some", nil); model: the odds' formula (L.Fit)
 local TRAIN = { 1, 0.82, 0.45 }
 local WARY = { 0.85, 0.55, 0.40 }
-function L.Whisper(now, wiserAt, rank, skill, max, since, pace, wary)
+function L.Whisper(now, wiserAt, rank, skill, max, since, pace, water, model)
     if wiserAt and rank and now - wiserAt < 10 then return "Wiser  \194\183  Fishing " .. rank, now - wiserAt < 2.5 and BRIGHT or WISE end
-    if L.AtCap(skill, max, since) then return "Train to learn more", TRAIN end
-    if wary then return "Skill too low here", WARY end
+    if L.AtCap(skill, max, since, model) then return "Train to learn more", TRAIN end
+    if water == "low" or water == true then return "Skill too low here", WARY end
     if skill then
         local text = "Fishing " .. skill
-        if pace then text = text .. "  \194\183  " .. pace .. " fish a point" end
-        return text, L.OddsColour(L.Odds(skill))
+        if water == "some" then
+            text = text .. "  \194\183  some get away"
+        elseif pace then
+            text = text .. "  \194\183  " .. pace .. " fish a point"
+        end
+        return text, L.OddsColour(L.Odds(skill, model))
     end
 end
 
 local wiserAt, wiserRank
-local wary = {}   -- water -> the times fish got away there (this session)
 
--- Fish keep getting away here: 3 within 10 minutes, the last within 10
-L.WARY_COUNT, L.WARY_WINDOW = 3, 600
-function L.Wary(times, now)
-    if type(times) ~= "table" then return false end
-    local recent = 0
-    for _, t in ipairs(times) do if now - t <= L.WARY_WINDOW then recent = recent + 1 end end
-    return recent >= L.WARY_COUNT
+-- The skill the water's roll counts now: the rank (the list's, else the last
+-- skill-up's) and its modifier (the list's, else the lure on the pole's bonus)
+function L.EffectiveNow()
+    local s = L.Setting()
+    local rank, max, modifier = L.SkillInfo()
+    rank = rank or tonumber(s.skill)
+    if not modifier and Left() then
+        local id = tonumber(s.lastLure)
+        local lure = id and (L.Read(id) or L.LURES[id])
+        modifier = lure and lure.bonus
+    end
+    return L.Effective(rank, modifier), rank, max
 end
+
+local function Waters()
+    local s = L.Setting()
+    if type(s.waters) ~= "table" then s.waters = {} end
+    return s.waters
+end
+
 function L.WhisperNow(now)
     local s = L.Setting()
-    local skill, max = L.SkillInfo()
-    skill = skill or tonumber(s.skill)
-    local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), L.Wary(wary[L.Water()], now))
+    local E, skill, max = L.EffectiveNow()
+    local water = L.Judge(E, L.Reach(s.waters, L.Water()))
+    local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), water, L.Fit(s.points))
     whisper:SetText(text or "")
     -- (the block as tall as its lines, so its middle is the float's)
     local function H(fs) local v = fs.GetStringHeight and fs:GetStringHeight(); return tonumber(v or 0) or 0 end
@@ -653,13 +810,17 @@ events:SetScript("OnEvent", function(_, event, unit, message, spellID)
         local rank = L.SkillUp(unit, SKILL_RANK_UP)
         if not rank then return end
         local s = L.Setting()
-        -- (the fish that point took, kept for the pace: the last five)
+        -- (the fish that point took, kept for the pace: the last five; and with
+        -- the rank they were caught at, for the odds' formula: the last 30)
         if type(s.pace) ~= "table" then s.pace = {} end
+        if type(s.points) ~= "table" then s.points = {} end
         if tonumber(s.since) and s.since > 0 then
             table.insert(s.pace, s.since)
             while #s.pace > 5 do table.remove(s.pace, 1) end
+            table.insert(s.points, { rank - 1, s.since })
+            while #s.points > 30 do table.remove(s.points, 1) end
         end
-        s.skill, s.since, s.waters = rank, 0, nil
+        s.skill, s.since = rank, 0
         wiserAt, wiserRank = GetTime and GetTime() or 0, rank
         if shown then L.Refresh(); L.Celebrate() end
     elseif event == "LOOT_OPENED" then
@@ -667,17 +828,22 @@ events:SetScript("OnEvent", function(_, event, unit, message, spellID)
         if not (PoleOn() and Call(IsFishingLoot)) then return end
         local s = L.Setting()
         s.since = (tonumber(s.since) or 0) + 1
+        -- (and one landed here: the water's level learned from it)
+        L.Outcome(Waters(), L.Water(), (L.EffectiveNow()), true)
     elseif event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE" then
-        -- (a fish got away: this water is stronger than the skill)
         local text = type(message) == "string" and message or unit
-        if not (PoleOn() and type(text) == "string") then return end
-        local lost = ERR_FISH_ESCAPED or "Your fish got away!"
-        if text ~= lost then return end
-        local key, at = L.Water(), GetTime and GetTime() or 0
-        local times = wary[key] or {}
-        times[#times + 1] = at
-        while #times > L.WARY_COUNT do table.remove(times, 1) end
-        wary[key] = times
+        if type(text) ~= "string" then return end
+        -- (the game refused the cast: the water's level, said outright)
+        local need = L.TooLow(text, SPELL_FAILED_FISHING_TOO_LOW)
+        if need then
+            L.Told(Waters(), L.Water(), need, (L.EffectiveNow()))
+        else
+            -- (a fish got away: one more lost here)
+            if not PoleOn() then return end
+            local lost = ERR_FISH_ESCAPED or "Your fish got away!"
+            if text ~= lost then return end
+            L.Outcome(Waters(), L.Water(), (L.EffectiveNow()), false)
+        end
     end
     L.Show(PoleOn() or L.editing == true)
     if shown then L.Refresh() end

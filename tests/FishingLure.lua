@@ -1,6 +1,7 @@
 -- The fishing lure: the pick (yours while it's in the bags, else the best the
 -- skill allows), the bags read (counts, the tooltip over the table), the time
--- words and a lure's whole time, and the float's text.
+-- words and a lure's whole time, the float's text, and the skill's road (a
+-- point's odds, the water's level learned, its word).
 -- lua5.1 tests/FishingLure.lua <addon folder>
 local root = arg[1] or "."
 local failures, checks = 0, 0
@@ -27,7 +28,7 @@ CreateFrame = function() local f = Obj(); frames[#frames + 1] = f; return f end
 UIParent = Obj()
 local now = 100
 GetTime = function() return now end
-local bags, tooltips, enchant, skill = {}, {}, nil, 75
+local bags, tooltips, enchant, skill, modifier = {}, {}, nil, 75, nil
 C_Container = {
     GetContainerNumSlots = function(bag) return bag == 0 and #bags or 0 end,
     GetContainerItemInfo = function(_, slot) local b = bags[slot]; return b and { itemID = b[1], stackCount = b[2], iconFileID = "icon" .. b[1] } end,
@@ -41,7 +42,7 @@ local skillRead = true
 GetNumSkillLines = function() return skillRead and 2 or 0 end
 GetSkillLineInfo = function(i)
     if i == 1 then return "Secondary Skills", true end
-    return "Fishing", false, nil, skill
+    return "Fishing", false, nil, skill, 0, modifier
 end
 GetWeaponEnchantInfo = function() if enchant then return true, enchant * 1000 end return false end
 local char = {}
@@ -144,10 +145,12 @@ eq(L.OddsColour(0.1)[1], 0.55, "one in ten: grey")
 eq(L.AtCap(75, 75, 0), true, "75 of 75: train")
 eq(L.AtCap(300, 300, 0), false, "300 of 300: nothing more to train")
 eq(L.AtCap(74, 75, 9), false, "74 of 75: not yet")
-eq(L.AtCap(75, nil, 2), false, "no cap to read, 75, 2 fish: too soon to say")
-eq(L.AtCap(75, nil, 3), true, "no cap to read, 75, 3 fish with no point (every catch counts at 75): train")
-eq(L.AtCap(150, nil, 11), false, "no cap to read, 150: a point is one in four, 11 isn't enough")
-eq(L.AtCap(150, nil, 12), true, "150, 12 fish: train")
+eq(L.AtCap(75, nil, 5), false, "no cap to read, 75, 5 fish: too soon to say")
+eq(L.AtCap(75, nil, 6), true, "no cap to read, 75, 6 fish with no point (every catch counts at 75): train")
+eq(L.AtCap(150, nil, 23), false, "no cap to read, 150: a point is one in four, 23 isn't enough")
+eq(L.AtCap(150, nil, 24), true, "150, 24 fish (6 points' worth): train")
+eq(L.AtCap(150, nil, 29, "vanilla"), false, "the other formula (one in five at 150): 29 isn't enough")
+eq(L.AtCap(150, nil, 30, "vanilla"), true, "and 30 is")
 eq(L.AtCap(nil, nil, 50), false, "no skill known: nothing said")
 eq(L.Pace({ 1, 2, 2 }), 2, "the fish a point took lately")
 eq(L.Pace({}), nil, "no points yet")
@@ -159,17 +162,61 @@ check(warm[1] == 1 and c[1] < 1, "the first moments in bright gold, then the usu
 check(type(L.Celebrate) == "function" and pcall(L.Celebrate), "a point: the celebration plays (quietly, no error)")
 w = L.Whisper(120, 95, 75, 75, 75, 0, nil, false)
 eq(w, "Train to learn more", "at the cap: train")
-w = L.Whisper(120, nil, nil, 120, 150, 1, nil, true)
-eq(w, "Skill too low here", "fish keep getting away here")
-eq(L.Wary({ 10 }, 20), false, "one escape: nothing said (an early press loses a fish too)")
-eq(L.Wary({ 10, 50 }, 60), false, "two: still nothing")
-eq(L.Wary({ 10, 50, 90 }, 100), true, "three within 10 minutes: skill too low")
-eq(L.Wary({ 10, 50, 90 }, 700), false, "ten minutes after the first: two left, nothing said")
-eq(L.Wary(nil, 100), false, "none")
+w = L.Whisper(120, nil, nil, 120, 150, 1, nil, "low")
+eq(w, "Skill too low here", "the water beyond the skill: too low")
+w, c = L.Whisper(120, nil, nil, 120, 150, 1, 2, "some")
+eq(w, "Fishing 120  " .. dot .. "  some get away", "some get away: said on the skill's line")
+eq(c[1] .. "," .. c[2], "1,1", "still coloured by the point's odds (the water never changes them)")
 w, c = L.Whisper(120, nil, nil, 120, 150, 1, 2, false)
 eq(w, "Fishing 120  " .. dot .. "  2 fish a point", "otherwise: the skill and the pace")
 eq(c[1] .. "," .. c[2], "1,1", "coloured by its odds (yellow at 120)")
 eq(L.Whisper(120, nil, nil, nil, nil, 3, nil, false), nil, "nothing known: nothing said")
+
+-- The water's level and its word (pure) -----------------------------------------------
+eq(L.Effective(120, 50), 170, "the skill the water counts: rank and modifier")
+eq(L.Effective(120, nil), 120, "no modifier read: the rank")
+eq(L.Effective(nil, 50), nil, "no rank: unknown")
+eq(L.EstimateB(170, 9, 11), 130, "9 of 20 land at 170: the water is 130")
+eq(L.EstimateB(170, 6, 5), nil, "11 outcomes: too few to say")
+local b, bound = L.EstimateB(170, 20, 0)
+eq(tostring(b) .. "/" .. tostring(bound), "nil/75", "none lost: only that the water is 75 or lower")
+eq(L.EstimateB(150, 0, 6), 155, "6 lost, none landed: beyond reach (above 150)")
+eq(L.EstimateB(150, 0, 5), nil, "5 lost: an unlucky run says little")
+eq(L.EstimateB(260, 5, 15), 240, "far from any known level: kept as it is")
+eq(L.Judge(170, 130), "some", "40 over the water: some get away")
+eq(L.Judge(230, 130), nil, "95 over it: none get away, nothing said")
+eq(L.Judge(100, 130), "low", "under it: too low")
+eq(L.Judge(170, nil), nil, "the water unknown: nothing said")
+eq(L.Judge(200, 205), "low", "the game's 205 at 200: too low")
+local stv = L.Keys("Stranglethorn Vale", "Grom'gol Base Camp")
+eq(table.concat(stv, "|"), "Stranglethorn Vale/Grom'gol Base Camp|Stranglethorn Vale", "the place first, then the zone")
+eq(#L.Keys("Durotar", ""), 1, "no place: the zone alone")
+eq(#L.Keys("", "x"), 0, "no zone: no key")
+eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 9, escaped = 11, sumE = 3400 } }, stv), 130, "the place unknown: the zone's level")
+eq(L.Reach({ ["Tanaris"] = { landed = 2, escaped = 18, sumE = 4000, need = 205 } }, L.Keys("Tanaris")), 205, "the game's word beats the outcomes (190)")
+eq(L.Reach({ ["Tanaris"] = { above = 180 } }, L.Keys("Tanaris")), 181, "refused at 180 with no number: above it")
+eq(L.Reach({}, stv), nil, "never fished: unknown")
+local ws = {}
+L.Outcome(ws, stv, 170, true); L.Outcome(ws, stv, 170, false)
+eq(ws["Stranglethorn Vale"].landed .. "/" .. ws["Stranglethorn Vale"].escaped .. "/" .. ws["Stranglethorn Vale"].sumE, "1/1/340", "counted for the zone")
+eq(ws[stv[1]].landed, 1, "and for the place")
+eq(L.TooLow("Requires Fishing 205", "Requires Fishing %d"), 205, "the game's refusal: its level")
+eq(L.TooLow("Requires Mining 205", "Requires Fishing %d"), nil, "another refusal: not ours")
+eq(L.TooLow("Fishing skill too low", "Fishing skill too low"), true, "a refusal naming no level")
+eq(L.TooLow("Your fish got away!", "Fishing skill too low"), nil, "a lost fish isn't a refusal")
+-- A point's odds, and the formula the fish your points took pick
+eq(L.Odds(74), 1, "74: every catch")
+eq(L.Odds(75, "vanilla"), 0.5, "the other formula at 75: one in two")
+eq(L.Odds(150, "vanilla"), 0.2, "and one in five at 150")
+check(math.abs(L.Odds(300, "vanilla") - 1 / 11) < 1e-9, "and one in eleven at 300")
+local fished = { mangos = {}, vanilla = {} }
+for r = 80, 109 do
+    for name in pairs(fished) do table.insert(fished[name], { r, math.floor(1 / L.Odds(r, name) + 0.5) }) end
+end
+eq(L.Fit(fished.vanilla), "vanilla", "points that took the other formula's fish (80-109, where the two differ most): that formula")
+eq(L.Fit(fished.mangos), "mangos", "points that took MaNGOS's: MaNGOS")
+eq(L.Fit({ { 150, 6 }, { 151, 6 } }), "mangos", "two points: too few, the default")
+eq(L.Fit(nil), "mangos", "none: the default")
 
 -- Driven: the skill read from C_SkillInfo (Forever's list), skill-ups, catches, a lost fish
 C_SkillInfo = {
@@ -202,9 +249,53 @@ now = now + 30
 eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "one fish lost: nothing about it")
 ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
 ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
-eq(L.WhisperNow(now), "Skill too low here", "three lost here: skill too low")
-GetSubZoneText = function() return "The Sepulcher" end
-eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "another water: the skill and the pace")
+eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "three lost here: still nothing (it used to say too low)")
+eq(char.fishing.waters["Silverpine Forest"].escaped, 3, "the lost fish kept for the water")
+-- Stranglethorn at 120 with Nightcrawlers (+50): about 45 in 100 land. Fishing 120 + 50
+-- is 40 over the water, never "too low"
+skillRead, skill, modifier = true, 120, 50
+GetZoneText = function() return "Stranglethorn Vale" end
+GetSubZoneText = function() return "Grom'gol Base Camp" end
+local outcomes = { true, false, false, true, false, false, false, true, false, true, false, true, false, true, false, true, false, true, false, true }
+for i = 1, 3 do ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!") end
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  2 fish a point", "Stranglethorn, 3 lost in a row at 170: not too low")
+char.fishing.waters = {}
+for _, landed in ipairs(outcomes) do
+    if landed then ev(nil, "LOOT_OPENED") else ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!") end
+end
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "9 of 20 landed at 170: some get away")
+modifier = 0
+eq(L.WhisperNow(now), "Skill too low here", "the lure off (120 under the water's 130): too low")
+modifier = 75
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "Bright Baubles on (195): some still get away")
+skill, modifier = 225, 50
+eq(L.WhisperNow(now), "Fishing 225  " .. dot .. "  2 fish a point", "275, 145 over the water: nothing about it")
+skill, modifier = 120, 50
+GetSubZoneText = function() return "Nek'mani Wellspring" end
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "another place in the zone: the zone's level")
+-- the lure's bonus when the modifier can't be read: the one on the pole
+skillRead = false
+char.fishing.skill = 120
+enchant, char.fishing.lastLure = 500, 6530
+eq(select(1, L.EffectiveNow()), 170, "no modifier read: Nightcrawlers on the pole count")
+enchant = nil
+eq(select(1, L.EffectiveNow()), 120, "and nothing when the pole has no lure")
+skillRead = true
+-- The game refuses the cast and says the level: too low at once, a lure counted against it
+SPELL_FAILED_FISHING_TOO_LOW = "Requires Fishing %d"
+GetZoneText = function() return "Tanaris" end
+GetSubZoneText = function() return "" end
+ev(nil, "UI_ERROR_MESSAGE", 1, "Requires Fishing 205")
+eq(char.fishing.waters["Tanaris"].need, 205, "the game's level kept")
+eq(L.WhisperNow(now), "Skill too low here", "170 under Tanaris' 205: too low, at once")
+modifier = 100
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "with +100 (220): some get away")
+ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 122.")
+eq(char.fishing.waters["Tanaris"] and char.fishing.waters["Tanaris"].need, 205, "a point keeps what the waters taught")
+eq(char.fishing.points[#char.fishing.points][1], 121, "the point's fish kept with the rank they were caught at")
+modifier = nil
+GetZoneText = function() return "Silverpine Forest" end
+GetSubZoneText = function() return "North Tide's Run" end
 
 -- The cast ring ------------------------------------------------------------------------
 eq(L.CastLeft(100000, 130000, 100), 1, "the cast begins: all of it left")
