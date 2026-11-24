@@ -509,11 +509,45 @@ end
 -- to the game is only checked for a leftover of ours; the game's own stays.
 -- True when something was put right.
 -- A function of ours left in the game's gamepad set under a key's Base (Create ran Focus UI,
--- no map), its layer off GHOST_AFTER s (a read right after a change can lag): the key's layer
--- owners emptied, again every GHOST_EVERY s while it stays, GHOST_TRIES times, each written
--- down with what it left; then a note to /reload. Never Base rebound for it: three rebinds over
--- Focus UI kept it on Mute and Create till /reload, every L2 release a "ghost" (2026-11-23)
-Keys.GHOST_AFTER, Keys.GHOST_EVERY, Keys.GHOST_TRIES = 1, 5, 3
+-- no map), its layer off GHOST_AFTER s (a read right after a change can lag). First try: the
+-- key's layer owners emptied, Base untouched (rebinds after every L2 release, 2026-11-23). Still
+-- there GHOST_EVERY s on: Base rebuilt too, once no key is held (Create's Focus UI, two minutes
+-- after L2, stayed through our clears; a rebuild took it out six times of seven, 2026-11-23).
+-- GHOST_TRIES tries, each written down with what it left and who last wrote the key; then a
+-- note to /reload.
+Keys.GHOST_AFTER, Keys.GHOST_EVERY, Keys.GHOST_TRIES = 1, 2, 3
+
+-- Who writes our keys (SetOverrideBinding / Click on one, and those owners' ClearOverrideBindings):
+-- the last WRITES_KEEP, written down with a leftover so its owner can be named
+Keys.WRITES_KEEP = 30
+local writes, writers = {}, {}
+local OUR_KEY = {}
+for _, k in ipairs(Keys.KEYS) do OUR_KEY[k] = true end
+local function OwnerName(o)
+    local ok, name = pcall(function() return o and o.GetName and o:GetName() end)
+    return ok and name or tostring(o)
+end
+local function Wrote(o, line)
+    writes[#writes + 1] = ("%.2f %s %s"):format(GetTime and GetTime() or 0, OwnerName(o), line)
+    if #writes > Keys.WRITES_KEEP then table.remove(writes, 1) end
+end
+if hooksecurefunc then
+    hooksecurefunc("SetOverrideBinding", function(o, _, key, action)
+        if OUR_KEY[key] then writers[o or "nil"] = true; Wrote(o, key .. "=" .. tostring(action)) end
+    end)
+    hooksecurefunc("SetOverrideBindingClick", function(o, _, key, b, mouse)
+        if OUR_KEY[key] then writers[o or "nil"] = true; Wrote(o, key .. "=CLICK " .. tostring(b) .. ":" .. tostring(mouse)) end
+    end)
+    hooksecurefunc("ClearOverrideBindings", function(o) if writers[o or "nil"] then Wrote(o, "cleared") end end)
+end
+-- (the writes that touched key, or cleared an owner, oldest first)
+function Keys.Writes(key)
+    local list = {}
+    for _, w in ipairs(writes) do
+        if w:find(" " .. key .. "=", 1, true) or w:find(" cleared$") then list[#list + 1] = w end
+    end
+    return table.concat(list, " | ")
+end
 local KEY_NAMES = { PADSOCIAL = "Create", PADFORWARD = "Options", PADSYSTEM = "PS", PAD5 = "Mute", PADLSTICK = "L3", PADRSTICK = "R3" }
 local FN_NAMES = { TOGGLEUIFOCUS = "Focus UI", OPENRADIAL = "Radial" }
 local ghosts = {}           -- key -> { tries, at, said }
@@ -540,19 +574,20 @@ function Keys.Heal()
                 local g = ghosts[key]
                 if not g then g = { tries = 0, at = -math.huge }; ghosts[key] = g end
                 if g.tries < Keys.GHOST_TRIES and now - g.at >= Keys.GHOST_EVERY then
+                    if g.tries == 0 then Trace(("GHOST %s writes: %s"):format(key, Keys.Writes(key)), "errors") end
                     g.tries, g.at = g.tries + 1, now
                     stale = true
                     tried[key] = pad
                 elseif g.tries >= Keys.GHOST_TRIES and not g.said then
                     g.said = true
-                    Trace(("GHOST %s: %s stays in the gamepad set after %d clears"):format(key, pad, g.tries), "errors")
+                    Trace(("GHOST %s: %s stays in the gamepad set after %d tries"):format(key, pad, g.tries), "errors")
                     if UIErrorsFrame and UIErrorsFrame.AddMessage then
                         UIErrorsFrame:AddMessage(("%s stuck on %s · /reload"):format(KEY_NAMES[key] or key,
                             FN_NAMES[pad] or pad), 1, 0.82, 0, 1, 6)
                     end
                 end
             elseif not left and ghosts[key] then
-                Trace(("GHOST %s: gone after %d clears"):format(key, ghosts[key].tries), "errors")
+                Trace(("GHOST %s: gone after %d tries"):format(key, ghosts[key].tries), "errors")
                 ghosts[key] = nil
             end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
@@ -561,15 +596,21 @@ function Keys.Heal()
     end
     if not stale then return false end
     Keys.Snapshot("heal")
-    -- (every key not held: its layer owners emptied, Base uncovered, never rewritten; a held
-    -- key keeps its binding till it is up: the game keeps the one a press ran for its release)
+    -- (every key not held: its layer owners emptied, Base uncovered; a held key keeps its
+    -- binding till it is up: the game keeps the one a press ran for its release)
     local buttons = Sh.PadButtons()
     for _, key in ipairs(Keys.KEYS) do
         if not Busy(buttons, key) then Layer(key, nil); extras[key] = nil end
     end
+    -- (a leftover through that, a try after the first: Base rebuilt, every key up)
+    local rebuild = false
     for key, was in pairs(tried) do
-        Trace(("GHOST %s: %s in the gamepad set; clear %d, now %s"):format(key, was, ghosts[key].tries,
-            tostring(PadSet(key))), "errors")
+        if ghosts[key].tries >= 2 and PadSet(key) == was then rebuild = true end
+    end
+    if rebuild and not AnyHeld() then Keys.Apply(true) else rebuild = false end
+    for key, was in pairs(tried) do
+        Trace(("GHOST %s: %s in the gamepad set; %s %d, now %s"):format(key, was,
+            rebuild and "rebuild" or "clear", ghosts[key].tries, tostring(PadSet(key))), "errors")
     end
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""

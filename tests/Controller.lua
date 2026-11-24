@@ -887,7 +887,7 @@ do
     eq(#said, n, "said once")
     padSet.PADSOCIAL = nil
     check(not Keys.Heal(), "gone: nothing to heal")
-    check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 clears", 1, true) ~= nil, "its end written down")
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 tries", 1, true) ~= nil, "its end written down")
     -- put back on the layer owner: cleared again on the next try, Base never rebound
     changes = 0
     padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
@@ -901,6 +901,25 @@ do
     check(Keys.Heal(), "put back once more, 5 s on: tried again")
     eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "the map again")
     eq(changes, 0, "no Base rebound for any of it")
+    -- (one on another owner, through our layer clear: Create's, two minutes after L2, 2026-11-23.
+    -- The first try written down with who last wrote the key; the next one rebuilds Base)
+    padSet.PADSOCIAL = nil
+    NOW = NOW + 10; Keys.Heal()
+    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    NOW = NOW + 10
+    local n0 = #errors()
+    changes = 0
+    check(Keys.Heal(), "on Base's owner: a try")
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), "TOGGLEUIFOCUS", "a layer clear leaves it")
+    eq(changes, 0, "first try: Base untouched")
+    local named = false
+    for i = n0 + 1, #errors() do if errors()[i]:find("GHOST PADSOCIAL writes:", 1, true) then named = true end end
+    check(named, "the key's last writers written down")
+    NOW = NOW + Keys.GHOST_EVERY
+    check(Keys.Heal(), "2 s on: a second try")
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "Base rebuilt: the map")
+    check(errors()[#errors()]:find("rebuild 2, now " .. CLICK_CREATE, 1, true) ~= nil, "the rebuild written down")
+    check(changes > 0, "Base rebound")
     UIErrorsFrame.AddMessage = add
 end
 -- L2 + Create opens a window: Blizzard binds its keys on UIParent while Create is still down.
