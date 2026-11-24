@@ -86,64 +86,96 @@ function hooksecurefunc() end
 C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
 local wraps = {}   -- frame name -> the wrapped OnClick body
 function SecureHandlerWrapScript(frame, _, _, body) if frame.name then wraps[frame.name] = body end end
--- As the game: each owner has one priority override per key, the newest set
--- runs (overrides[key]); an owner cleared uncovers the one set before it
-local stacks = {}   -- key -> the owners' entries, oldest first
-local function Push(key, entry)
+-- As the game (Forever 1.60): a key's overrides are records, one per owner holding the key,
+-- each with a slot per binding context: a click or plain command in 0, a gamepad function
+-- (Focus UI, Radial: PAD_SET) in 9. The newest live record's command runs, and a live
+-- record's context-9 slot beats every click (login probe "click again", 2026-11-22). A nil,
+-- "" or ClearOverrideBindings lets the record go but keeps its slots, and the next owner
+-- binding the key, whoever it is, is handed the record idle the longest, slots and all: a
+-- function once put there runs again under that owner's click (the probe's "focus" after
+-- "nil" brought the old click back; Mute ran Focus UI under R2's click, Create under a
+-- rebuilt Base, trace 2026-11-24). A click binding (SetOverrideBindingClick) has records of
+-- its own kind, never handed to or from a command's (Halo's ring and Blizzard's footer, click
+-- bindings both, never ran Focus UI); SHARED_KINDS true hands them across, as a check of the
+-- read-back. A key held down keeps the function its press ran, for good, whatever is done to
+-- its owner's record meanwhile (Create, L2 let go first, 2026-11-22)
+local PAD_SET = { TOGGLEUIFOCUS = true, OPENRADIAL = true }
+local stacks = {}      -- key -> its records, in the order made: { owner, kind, live, slots, action, at, idle }
+local freed, writes = 0, 0
+SHARED_KINDS = false
+local function Record(key, owner, kind)
     local list = stacks[key] or {}
     stacks[key] = list
-    for i = #list, 1, -1 do if list[i].owner == entry.owner then table.remove(list, i) end end
-    list[#list + 1] = entry
-    overrides[key] = entry
+    for _, r in ipairs(list) do if r.live and r.owner == owner and r.kind == kind then return r end end
+    local pick
+    for _, r in ipairs(list) do
+        if not r.live and (SHARED_KINDS or r.kind == kind) and (not pick or r.idle < pick.idle) then pick = r end
+    end
+    if not pick then pick = { slots = {} }; list[#list + 1] = pick end
+    pick.owner, pick.kind, pick.live = owner, kind, true
+    return pick
 end
--- (the game's gamepad functions live in a set of their own, binding context 9: another
--- command put over one leaves it there; only clearing the key removes it. Login probe, 2026-11-22)
-local PAD_SET = { TOGGLEUIFOCUS = true, OPENRADIAL = true }
-local padSet = {}   -- key -> { owner, action }
--- (and a key held down keeps the gamepad function its press ran, for good, whatever is
--- done to its owner's binding meanwhile: Create, L2 let go first, 2026-11-22)
-local function Latched(key) return padSet[key] and HELD_KEYS and HELD_KEYS[key] end
--- (an owner that once had a gamepad function on a key keeps it in its slot for the key, through
--- a clear or ClearOverrideBindings: a command it puts there later sits over it, the function
--- still in the gamepad set, till /reload. Login probe "click again", "focus" after "nil";
--- Mute ran Focus UI under L2 + R2's click, 2026-11-22)
-local slotFn = {}   -- owner -> key -> the gamepad function its slot keeps
-C_KeyBindings = { GetBindingByKey = function(key, context)
-    if context == 9 and padSet[key] then return padSet[key].action end
+local function Newest(key)
+    local newest
+    for _, r in ipairs(stacks[key] or {}) do if r.live and (not newest or r.at > newest.at) then newest = r end end
+    overrides[key] = newest
+end
+-- (let go; a held key's function stays live, on no owner: "latched")
+local function Let(r, key)
+    if r.slots[9] and HELD_KEYS and HELD_KEYS[key] then r.owner = "latched"; return end
+    freed = freed + 1
+    r.live, r.idle = false, freed
+end
+-- Live records of key, newest first
+local function Live(key)
+    local out = {}
+    for _, r in ipairs(stacks[key] or {}) do if r.live then out[#out + 1] = r end end
+    table.sort(out, function(a, b) return a.at > b.at end)
+    return out
+end
+-- A function of ours left in owner's record for key (live, as a held key or a stuck one leaves it)
+local function Ghost(key, owner, action)
+    local r = Record(key, owner, "command")
+    r.at, r.slots[9] = 0, action or "TOGGLEUIFOCUS"   -- (oldest: only the gamepad set shows it)
+    Newest(key)
+end
+-- (the ghost gone, as a /reload leaves it: the record forgotten)
+local function Unghost(key, owner)
+    local list = stacks[key] or {}
+    for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
+    Newest(key)
+end
+C_KeyBindings = { GetBindingByKey = function(key)
+    for _, r in ipairs(Live(key)) do if r.slots[9] then return r.slots[9] end end
     return overrides[key] and overrides[key].action or nil
 end }
 function ClearOverrideBindings(owner)
-    for key, b in pairs(padSet) do
-        if b.owner == owner then if Latched(key) then b.owner = "latched" else padSet[key] = nil end end
-    end
     for key, list in pairs(stacks) do
-        for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
-        if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
+        local any = false
+        for _, r in ipairs(list) do if r.live and r.owner == owner then Let(r, key); any = true end end
+        if any then Newest(key) end
     end
-    for k, b in pairs(overrides) do if b.owner == owner then overrides[k] = nil end end
-end
-function SetOverrideBindingClick(owner, _, key) Push(key, { owner = owner, action = "CLICK" }) end
--- (nil: that owner's override on key gone, the one set before it uncovered)
-local function Drop(owner, key)
-    local list = stacks[key] or {}
-    for i = #list, 1, -1 do if list[i].owner == owner then table.remove(list, i) end end
-    if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
 end
 function SetOverrideBinding(owner, _, key, action)
-    -- (nil: the owner's command gone, its gamepad function left in the gamepad set: "off PAD5:
-    -- gamepad set TOGGLEUIFOCUS" after every L2 release; ClearOverrideBindings took it out, 2026-11-23)
-    if action == nil then
-        return Drop(owner, key)
+    if action == nil or action == "" then
+        for _, r in ipairs(stacks[key] or {}) do if r.live and r.owner == owner then Let(r, key) end end
+        return Newest(key)
     end
-    local kept = slotFn[owner] and slotFn[owner][key]
-    if PAD_SET[action] then
-        padSet[key] = { owner = owner, action = action }
-        slotFn[owner] = slotFn[owner] or {}
-        slotFn[owner][key] = action
-    elseif kept then padSet[key] = { owner = owner, action = kept }
-    elseif Latched(key) then padSet[key].owner = "latched" end
-    Push(key, { owner = owner, action = action })
+    local r = Record(key, owner, "command")
+    writes = writes + 1
+    r.at, r.action = writes, action
+    r.slots[PAD_SET[action] and 9 or 0] = action
+    Newest(key)
 end
+function SetOverrideBindingClick(owner, _, key, name, button)
+    local r = Record(key, owner, "click")
+    writes = writes + 1
+    r.at, r.action = writes, "CLICK " .. tostring(name) .. ":" .. (button or "LeftButton")
+    r.slots[0] = r.action
+    Newest(key)
+end
+-- (another owner's binding on key, as a test puts it)
+local function Push(key, entry) SetOverrideBinding(entry.owner, true, key, entry.action) end
 function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
@@ -225,10 +257,6 @@ function hooksecurefunc(a, b, c)
     local name, fn = a, b
     if c then name, fn = b, c end
     hooks[name] = hooks[name] or {}; table.insert(hooks[name], fn)
-end
--- Bindings keep the clicked button's name
-function SetOverrideBindingClick(owner, _, key, name, button)
-    Push(key, { owner = owner, action = "CLICK " .. name .. ":" .. (button or "LeftButton") })
 end
 local timers = {}
 C_Timer.After = function(_, fn) timers[#timers + 1] = fn end
@@ -744,7 +772,7 @@ eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
 -- never rewritten: the map's click put back over Focus UI left Focus UI in the game's gamepad
 -- set, 2026-11-22. Halo's ring under it never broke)
 for key, list in pairs(stacks) do
-    for _, entry in ipairs(list) do check(entry.owner ~= layerOf(key), "L2 up: no layer binding left: " .. key) end
+    for _, entry in ipairs(list) do check(not (entry.live and entry.owner == layerOf(key)), "L2 up: no layer binding left: " .. key) end
 end
 local baseWrites = 0
 local setNow = SetOverrideBinding
@@ -754,15 +782,16 @@ SetOverrideBinding = function(o, p, key, ...)
 end
 pressed.PADLTRIGGER = true; Keys.Watch()
 eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI above Base")
-eq(stacks.PADSOCIAL[#stacks.PADSOCIAL].owner, layerOf("PADSOCIAL"), "L2 held: on the layer owner")
+eq(overrides.PADSOCIAL and overrides.PADSOCIAL.owner, layerOf("PADSOCIAL"), "L2 held: on the layer owner")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up: Base uncovered")
-eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: Base alone")
+eq(#Live("PADSOCIAL"), 1, "L2 up: Base alone")
 eq(baseWrites, 0, "Base never rewritten by L2")
 SetOverrideBinding = setNow
--- (the game keeps SetOverrideBindingClick's entries apart from commands: a Focus UI command
--- swapped for Create's click stayed and ran under it, 2026-11-21. Every key of ours is bound as a
--- command string, the click too, so a layer's command replaces it and gives it back)
+-- (the game keeps SetOverrideBindingClick's records apart from commands': a Focus UI command
+-- swapped for Create's click stayed and ran under it, 2026-11-21; Halo's and Blizzard's click
+-- bindings never ran Focus UI, 2026-11-24. Our clicks go on as click bindings, so no record
+-- that held a function is ever handed to one; the layer's function on its own owner above)
 local clicks = 0
 local setClickNow = SetOverrideBindingClick
 SetOverrideBindingClick = function(owner, ...)
@@ -775,14 +804,38 @@ pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up: the map")
 Keys.Apply(true)
 eq(Create(), CLICK_CREATE, "bound again: the map")
-eq(clicks, 0, "never a click entry on the keys' owner")
+Keys.Set("PADSOCIAL", "base", nil); Keys.Set("PADSOCIAL", "base", "window:questlog")
+eq(Create(), CLICK_CREATE, "Create's map set again")
+check(clicks > 0, "Create's click a click binding (got " .. clicks .. ")")
+eq(overrides.PADSOCIAL and overrides.PADSOCIAL.kind, "click", "in a click record")
 pressed.PADLTRIGGER = true; Keys.Watch()
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "L2 up: no Focus UI left in the gamepad set under the map")
+-- L2 let go, then Base written again (a claim or the heal rebinds; Create's command unchanged):
+-- the game would hand Base the record Focus UI sat in. Create stays the map, its record kept
+-- (trace 2026-11-24: every Create ghost came 0.1 s after "GamepadCompanionKeyBinds cleared")
+pressed.PADLTRIGGER = true; Keys.Watch()
+pressed.PADLTRIGGER = nil; Keys.Watch()
+changes = 0
+Keys.Apply(true)
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "Base written after L2: no Focus UI under the map")
+eq(Create(), CLICK_CREATE, "Create is the map")
+eq(changes, 0, "nothing changed: Base not written at all")
+Fire("PLAYER_ENTERING_WORLD")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "and after the game's own rebind")
+-- (Options covered by Blizzard's footer while a window is focused: that key alone is set afresh,
+-- newest on the key; Create's record stays)
+SetOverrideBindingClick(UIParent, true, "PADFORWARD", "InputFunctionBindingButton_PADFORWARD", "LeftButton")
+changes = 0
+Keys.Apply(true)
+eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "Options: Radial back on top")
+check(changes > 0 and changes <= 2, "Options alone written (got " .. changes .. ")")
+eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "Create untouched")
+SetOverrideBinding(UIParent, true, "PADFORWARD", nil)
 -- (one left there anyway, on the layer owner: cleared once the layer has been off GHOST_AFTER,
 -- a read right after a change can lag. Base never rebound for it: three rebinds over Focus UI
 -- kept it on Mute and Create till /reload, 2026-11-23)
-padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
+Ghost("PADSOCIAL", layerOf("PADSOCIAL"))
 check(not Keys.Heal(), "just changed: not yet")
 NOW = NOW + Keys.GHOST_AFTER
 changes = 0
@@ -871,9 +924,9 @@ do
     local add = UIErrorsFrame and UIErrorsFrame.AddMessage
     UIErrorsFrame = UIErrorsFrame or {}
     UIErrorsFrame.AddMessage = function(_, text) said[#said + 1] = text end
-    padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
+    Ghost("PADSOCIAL", "latched")
     check(Keys.Heal(), "a stuck Focus UI: a try")
-    check(errors()[#errors()]:find("GHOST PADSOCIAL: TOGGLEUIFOCUS in the gamepad set; clear 1, now TOGGLEUIFOCUS", 1, true) ~= nil, "the try written down, with what it left")
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: TOGGLEUIFOCUS in the gamepad set; put again 1, now TOGGLEUIFOCUS", 1, true) ~= nil, "the try written down, with what it left")
     check(not Keys.Heal(), "then left (no rebind 4 times a second)")
     NOW = NOW + Keys.GHOST_EVERY
     check(Keys.Heal(), "5 s on, still there: another try")
@@ -885,41 +938,41 @@ do
     local n = #said
     NOW = NOW + Keys.GHOST_EVERY; Keys.Heal()
     eq(#said, n, "said once")
-    padSet.PADSOCIAL = nil
+    Unghost("PADSOCIAL", "latched")
     check(not Keys.Heal(), "gone: nothing to heal")
     check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 tries", 1, true) ~= nil, "its end written down")
-    -- put back on the layer owner: cleared again on the next try, Base never rebound
+    -- put back on the layer owner: cleared again on the next try, Base untouched
     changes = 0
-    padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
+    Ghost("PADSOCIAL", layerOf("PADSOCIAL"))
     NOW = NOW + 1
     check(Keys.Heal(), "back again: a try")
     eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "cleared: the map")
-    padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
+    Ghost("PADSOCIAL", layerOf("PADSOCIAL"))
     NOW = NOW + Keys.GHOST_AFTER
     Keys.Heal()
     NOW = NOW + Keys.GHOST_EVERY
     check(Keys.Heal(), "put back once more, 5 s on: tried again")
     eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "the map again")
-    eq(changes, 0, "no Base rebound for any of it")
-    -- (one on another owner, through our layer clear: Create's, two minutes after L2, 2026-11-23.
-    -- The first try written down with who last wrote the key; the next one rebuilds Base)
-    padSet.PADSOCIAL = nil
+    eq(changes, 0, "no Base write for any of it")
+    -- (one in Base's own record: the game handed Base a record Focus UI had been in. The try is
+    -- written down with who last wrote the key, and Create's click put again on another record)
+    Unghost("PADSOCIAL", layerOf("PADSOCIAL"))
     NOW = NOW + 10; Keys.Heal()
-    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    Ghost("PADSOCIAL", keyOwner)
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), "TOGGLEUIFOCUS", "(Focus UI in Base's record)")
     NOW = NOW + 10
     local n0 = #errors()
     changes = 0
-    check(Keys.Heal(), "on Base's owner: a try")
-    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), "TOGGLEUIFOCUS", "a layer clear leaves it")
-    eq(changes, 0, "first try: Base untouched")
+    check(Keys.Heal(), "in Base's record: a try")
+    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "put again: the map")
+    check(changes > 0, "Base's record let go")
+    eq(GetBindingAction("PADFORWARD", true), "OPENRADIAL", "Options untouched by it")
     local named = false
     for i = n0 + 1, #errors() do if errors()[i]:find("GHOST PADSOCIAL writes:", 1, true) then named = true end end
     check(named, "the key's last writers written down")
+    check(errors()[#errors()]:find("put again 1, now " .. CLICK_CREATE, 1, true) ~= nil, "the try written down")
     NOW = NOW + Keys.GHOST_EVERY
-    check(Keys.Heal(), "2 s on: a second try")
-    eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "Base rebuilt: the map")
-    check(errors()[#errors()]:find("rebuild 2, now " .. CLICK_CREATE, 1, true) ~= nil, "the rebuild written down")
-    check(changes > 0, "Base rebound")
+    check(not Keys.Heal(), "2 s on: nothing left to heal")
     UIErrorsFrame.AddMessage = add
 end
 -- L2 + Create opens a window: Blizzard binds its keys on UIParent while Create is still down.
@@ -1014,6 +1067,36 @@ for round = 1, 2 do
     eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's own ring " .. round)
 end
 check(not Keys.Heal(), "Mute: nothing to heal")
+-- (L2 + R2 held a while: the heal reads Mute's gamepad set and finds the click, no Focus UI)
+pressed.PADLTRIGGER = true; Keys.Watch(); pressed.PADLTRIGGER = nil; Keys.Watch()
+pressed.PADLTRIGGER = true; pressed.PADRTRIGGER = true; Keys.Watch()
+NOW = NOW + 2
+check(not Keys.Heal(), "L2 + R2 held 2 s: nothing to heal on Mute")
+eq(MuteRuns(), "CLICK GamepadCompanionKeys:p8", "L2 + R2 held: the click, nothing under it")
+pressed.PADLTRIGGER = nil; pressed.PADRTRIGGER = nil; Keys.Watch()
+eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's ring")
+-- (were a click handed a record Focus UI sat in after all: read back, and the click put on the
+-- pool's next owner while the bad one still holds that record, then the bad one let go)
+do
+    SHARED_KINDS = true
+    stacks.PAD5, overrides.PAD5 = nil, nil   -- (as at login: no record on Mute yet)
+    local errors = function() return GamepadCompanionTraceDB.errors end
+    local n0 = #errors()
+    pressed.PADLTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "TOGGLEUIFOCUS", "L2: Focus UI on Mute")
+    pressed.PADLTRIGGER = nil; Keys.Watch()
+    pressed.PADLTRIGGER = true; pressed.PADRTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "CLICK GamepadCompanionKeys:p8", "L2 + R2: the click, the handed-on record read and passed over")
+    eq(PressKey("PAD5", true, true), "/click HaloButton t1 true", "L2 + R2 + Mute opens the ring")
+    local reused = false
+    for i = n0 + 1, #errors() do if errors()[i]:find("REUSED PAD5: TOGGLEUIFOCUS under CLICK GamepadCompanionKeys:p8 on GamepadCompanionKeyLayerClicks; the next owner", 1, true) then reused = true end end
+    check(reused, "the record passed over written down")
+    eq(#Live("PAD5"), 1, "one record of ours live, the bad one let go")
+    pressed.PADLTRIGGER = nil; pressed.PADRTRIGGER = nil; Keys.Watch()
+    eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's ring")
+    eq(#Live("PAD5"), 0, "nothing of ours live")
+    SHARED_KINDS = false
+end
 Keys.Set("PAD5", "lt", nil); Keys.Set("PAD5", "both", nil)
 bindings.PAD5 = nil
 -- PS is the game's screenshot, L2 + PS Focus UI. Held L2's Focus UI reads back empty in
@@ -1047,6 +1130,22 @@ for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADFORWARD", l, 
 Keys.Set("PAD5", "lt", nil)
 eq(overrides.PADFORWARD, nil, "Options: Blizzard's again")
 eq(overrides.PAD5, nil, "Mute: unbound")
+-- The login self-test: on a spare key with owners of its own, nothing left on it after, no key
+-- of ours written
+do
+    local before = changes
+    local touched = {}
+    local set = SetOverrideBinding
+    SetOverrideBinding = function(o, p, key, ...) if key ~= "PADPADDLE4" then touched[#touched + 1] = key end return set(o, p, key, ...) end
+    Keys.Probe()
+    SetOverrideBinding = set
+    check(type(GamepadCompanionTraceDB.probe) == "table" and #GamepadCompanionTraceDB.probe > 12, "probe written down")
+    eq(#touched, 0, "only the spare key written (" .. table.concat(touched, ",") .. ")")
+    eq(changes, before, "the keys' owner untouched")
+    eq(GetBindingAction("PADPADDLE4", true), "", "the spare key clean after it")
+    eq(C_KeyBindings.GetBindingByKey("PADPADDLE4", 9), nil, "nothing in its gamepad set")
+    check(GamepadCompanionTraceDB.probe[#GamepadCompanionTraceDB.probe]:find("^end: act= ") ~= nil, "its last line reads the key clean")
+end
 -- No layer action anywhere: the watcher reads no pad
 local reads, mapped = 0, C_GamePad.GetDeviceMappedState
 C_GamePad.GetDeviceMappedState = function(...) reads = reads + 1; return mapped(...) end
