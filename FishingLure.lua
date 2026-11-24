@@ -288,7 +288,7 @@ end
 -- L.SURE outcomes; then B ~ E + 5 - (in 100 landed), put on a known level when
 -- within 20 of it (the noise). None lost only says B <= E - 95 (nil, that);
 -- none landed says B > E (beyond reach), also early: L.BEYOND lost, none landed
-L.TIERS = { 1, 25, 55, 130, 205, 330, 425 }
+L.TIERS = { -70, -20, 55, 130, 205, 330, 425 }
 L.SURE, L.BEYOND, L.BAND = 12, 6, 95
 function L.EstimateB(meanE, landed, escaped)
     meanE, landed, escaped = tonumber(meanE), tonumber(landed) or 0, tonumber(escaped) or 0
@@ -329,20 +329,79 @@ function L.Water()
     return L.Keys(Call(GetZoneText), Call(GetSubZoneText))
 end
 
+-- The zones' levels as the game is known to have them (Classic-era values,
+-- public knowledge: the fishing guides' "skill to fish / skill to lose none"
+-- table, B being the second less 95). Ours, by uiMapID (C_Map), each with its
+-- English name for when the map can't be read. sure = false: guides disagree;
+-- such a guess never says "too low" by itself. What the game says (a refused
+-- cast) and what the water did (L.Reach) always win: Forever may have moved one
+L.ZONES = {
+    -- the starting lands and the cities: fish from the start, none lost from 25
+    [1426] = { -70, "Dun Morogh" }, [1411] = { -70, "Durotar" }, [1429] = { -70, "Elwynn Forest" },
+    [1412] = { -70, "Mulgore" }, [1438] = { -70, "Teldrassil" }, [1420] = { -70, "Tirisfal Glades" },
+    [1453] = { -70, "Stormwind City" }, [1454] = { -70, "Orgrimmar" }, [1455] = { -70, "Ironforge" },
+    [1456] = { -70, "Thunder Bluff" }, [1457] = { -70, "Darnassus" }, [1458] = { -70, "Undercity" },
+    -- none lost from 75
+    [1413] = { -20, "The Barrens" }, [1439] = { -20, "Darkshore" }, [1432] = { -20, "Loch Modan" },
+    [1421] = { -20, "Silverpine Forest" }, [1436] = { -20, "Westfall" },
+    -- from 150
+    [1440] = { 55, "Ashenvale" }, [1431] = { 55, "Duskwood" }, [1424] = { 55, "Hillsbrad Foothills" },
+    [1433] = { 55, "Redridge Mountains" }, [1442] = { 55, "Stonetalon Mountains" }, [1437] = { 55, "Wetlands" },
+    -- from 225
+    [1416] = { 130, "Alterac Mountains" }, [1417] = { 130, "Arathi Highlands" }, [1443] = { 130, "Desolace" },
+    [1445] = { 130, "Dustwallow Marsh" }, [1434] = { 130, "Stranglethorn Vale" }, [1435] = { 130, "Swamp of Sorrows" },
+    [1441] = { 130, "Thousand Needles" },
+    -- from 300
+    [1447] = { 205, "Azshara" }, [1444] = { 205, "Feralas" }, [1425] = { 205, "The Hinterlands" },
+    [1446] = { 205, "Tanaris" }, [1449] = { 205, "Un'Goro Crater" }, [1448] = { 205, "Felwood" },
+    [1422] = { 205, "Western Plaguelands" },
+    -- the guides disagree (205 or 330): a guess
+    [1423] = { 205, "Eastern Plaguelands", sure = false }, [1452] = { 205, "Winterspring", sure = false },
+    [1451] = { 205, "Silithus", sure = false }, [1450] = { 205, "Moonglade", sure = false },
+    [1428] = { 205, "Burning Steppes", sure = false }, [1419] = { 205, "Blasted Lands", sure = false },
+    [1430] = { 330, "Deadwind Pass", sure = false },
+}
+
+-- The zone's known level (pure): by its map, else by its name (the map's own
+-- name in the client's language: names(id), else the English one). Level and
+-- whether it's sure, or nil
+function L.Known(mapID, zone, names)
+    local z = L.ZONES[tonumber(mapID) or -1]
+    if not z and type(zone) == "string" and zone ~= "" then
+        for id, k in pairs(L.ZONES) do
+            if k[2] == zone or (names and names(id) == zone) then z = k; break end
+        end
+    end
+    if z then return z[1], z.sure ~= false end
+end
+
 -- A water's level (pure): the game's word first, then the outcomes; the place
--- before the zone. waters[key] = { landed, escaped, sumE, need, above }
-function L.Reach(waters, keys)
-    if type(waters) ~= "table" then return nil end
+-- before the zone; then the zone's known level (prior, sure: L.Known), kept
+-- under what a landed fish proves (one landed at E: B < E + 5) and over a
+-- refused cast. waters[key] = { landed, escaped, sumE, need, above, caughtAt }.
+-- Level and how it's known: "learned", "known", "guess"
+function L.Reach(waters, keys, prior, sure)
+    waters = type(waters) == "table" and waters or {}
     for _, key in ipairs(keys or {}) do
         local w = waters[key]
         if type(w) == "table" then
-            if tonumber(w.need) then return tonumber(w.need) end
+            if tonumber(w.need) then return tonumber(w.need), "learned" end
             local n = (tonumber(w.landed) or 0) + (tonumber(w.escaped) or 0)
             local b = n > 0 and L.EstimateB((tonumber(w.sumE) or 0) / n, w.landed, w.escaped)
-            if tonumber(w.above) then b = math.max(b or 0, w.above + 1) end
-            if b then return b end
+            if tonumber(w.above) then b = math.max(b or -100, w.above + 1) end
+            if b then return b, "learned" end
         end
     end
+    prior = tonumber(prior)
+    if not prior then return nil end
+    for _, key in ipairs(keys or {}) do
+        local w = waters[key]
+        if type(w) == "table" then
+            if tonumber(w.caughtAt) then prior = math.min(prior, w.caughtAt + 4) end
+            if tonumber(w.above) then prior = math.max(prior, w.above + 1) end
+        end
+    end
+    return prior, sure == false and "guess" or "known"
 end
 
 -- A fish landed (or lost) at skill E here: counted for each key
@@ -352,7 +411,12 @@ function L.Outcome(waters, keys, E, landed)
     for _, key in ipairs(keys or {}) do
         local w = waters[key]
         if type(w) ~= "table" then w = {}; waters[key] = w end
-        if landed then w.landed = (tonumber(w.landed) or 0) + 1 else w.escaped = (tonumber(w.escaped) or 0) + 1 end
+        if landed then
+            w.landed = (tonumber(w.landed) or 0) + 1
+            w.caughtAt = math.min(tonumber(w.caughtAt) or E, E)
+        else
+            w.escaped = (tonumber(w.escaped) or 0) + 1
+        end
         w.sumE = (tonumber(w.sumE) or 0) + E
     end
 end
@@ -694,10 +758,28 @@ local function Waters()
     return s.waters
 end
 
+-- This zone's known level (L.Known), from the game's map and zone name
+local function MapName(id)
+    local info = C_Map and Call(C_Map.GetMapInfo, id)
+    return type(info) == "table" and info.name or nil
+end
+function L.KnownHere()
+    local map = C_Map and Call(C_Map.GetBestMapForUnit, "player")
+    return L.Known(map, Call(GetRealZoneText) or Call(GetZoneText), MapName)
+end
+
+-- This water's word now (L.Judge; a guess never says "too low")
+function L.WaterNow(E)
+    local B, how = L.Reach(L.Setting().waters, L.Water(), L.KnownHere())
+    local word = L.Judge(E, B)
+    if word == "low" and how == "guess" then return nil end
+    return word
+end
+
 function L.WhisperNow(now)
     local s = L.Setting()
     local E, skill, max = L.EffectiveNow()
-    local water = L.Judge(E, L.Reach(s.waters, L.Water()))
+    local water = L.WaterNow(E)
     local text, color = L.Whisper(now, wiserAt, wiserRank, skill, max, s.since, L.Pace(s.pace), water, L.Fit(s.points))
     whisper:SetText(text or "")
     -- (the block as tall as its lines, so its middle is the float's)
@@ -832,7 +914,7 @@ events:SetScript("OnEvent", function(_, event, unit, message, spellID)
         L.Outcome(Waters(), L.Water(), (L.EffectiveNow()), true)
     elseif event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE" then
         local text = type(message) == "string" and message or unit
-        if type(text) ~= "string" then return end
+        if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then return end
         -- (the game refused the cast: the water's level, said outright)
         local need = L.TooLow(text, SPELL_FAILED_FISHING_TOO_LOW)
         if need then
@@ -840,8 +922,7 @@ events:SetScript("OnEvent", function(_, event, unit, message, spellID)
         else
             -- (a fish got away: one more lost here)
             if not PoleOn() then return end
-            local lost = ERR_FISH_ESCAPED or "Your fish got away!"
-            if text ~= lost then return end
+            if text ~= (ERR_FISH_ESCAPED or "Your fish got away!") and text ~= FISH_ESCAPED then return end
             L.Outcome(Waters(), L.Water(), (L.EffectiveNow()), false)
         end
     end

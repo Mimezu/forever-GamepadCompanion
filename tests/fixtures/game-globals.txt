@@ -212,6 +212,7 @@ GetSubZoneText
 SKILL_RANK_UP
 C_SkillInfo
 ERR_FISH_ESCAPED
+FISH_ESCAPED
 SPELL_FAILED_FISHING_TOO_LOW
 GetProfessionInfo
 GetProfessions

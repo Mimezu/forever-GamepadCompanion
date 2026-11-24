@@ -204,6 +204,27 @@ eq(L.TooLow("Requires Fishing 205", "Requires Fishing %d"), 205, "the game's ref
 eq(L.TooLow("Requires Mining 205", "Requires Fishing %d"), nil, "another refusal: not ours")
 eq(L.TooLow("Fishing skill too low", "Fishing skill too low"), true, "a refusal naming no level")
 eq(L.TooLow("Your fish got away!", "Fishing skill too low"), nil, "a lost fish isn't a refusal")
+-- The zones' known levels: by map, else by name (the client's own, else English)
+local b1, sure1 = L.Known(1434)
+eq(tostring(b1) .. "/" .. tostring(sure1), "130/true", "Stranglethorn by its map: 130")
+eq(L.Known(nil, "Tanaris"), 205, "no map: by its English name")
+eq(L.Known(nil, "Tuercespina", function(id) return id == 1434 and "Tuercespina" or nil end), 130, "by the map's name in the client's language")
+eq(L.Known(9999, "Nowhere"), nil, "unknown: nothing")
+eq(select(2, L.Known(1423)), false, "Eastern Plaguelands: a guess")
+for id, z in pairs(L.ZONES) do
+    check(type(z[1]) == "number" and type(z[2]) == "string" and id >= 1411 and id <= 1458, "zone " .. id .. " well formed")
+end
+local r1, how1 = L.Reach({}, stv, 130)
+eq(tostring(r1) .. "/" .. tostring(how1), "130/known", "never fished: the zone's known level")
+eq(select(2, L.Reach({}, stv, 205, false)), "guess", "a guess said so")
+eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 1, escaped = 0, sumE = 100, caughtAt = 100 } }, stv, 130), 104,
+    "a fish landed at 100 proves the water under 105: the known level gives way")
+eq(L.Reach({ ["Tanaris"] = { above = 260 } }, L.Keys("Tanaris"), 205), 261, "a refused cast at 260: above it")
+eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 9, escaped = 11, sumE = 4000 } }, stv, 130), 160, "what the water did beats the known level")
+ws = {}
+L.Outcome(ws, { "X" }, 150, true); L.Outcome(ws, { "X" }, 120, true); L.Outcome(ws, { "X" }, 180, false)
+eq(ws.X.caughtAt, 120, "the lowest skill a fish landed at, kept")
+
 -- A point's odds, and the formula the fish your points took pick
 eq(L.Odds(74), 1, "74: every catch")
 eq(L.Odds(75, "vanilla"), 0.5, "the other formula at 75: one in two")
@@ -251,6 +272,19 @@ ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
 ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!")
 eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "three lost here: still nothing (it used to say too low)")
 eq(char.fishing.waters["Silverpine Forest"].escaped, 3, "the lost fish kept for the water")
+-- Before a cast, from the known levels: Durotar at 121 says nothing; Stranglethorn at 120 with no
+-- lure (under its 130) too low at once; Eastern Plaguelands (a guess) at 121 never too low
+GetZoneText = function() return "Durotar" end
+GetSubZoneText = function() return "" end
+eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "Durotar at 121: nothing about the water")
+GetZoneText = function() return "Stranglethorn Vale" end
+eq(L.WhisperNow(now), "Skill too low here", "Stranglethorn at 121, no lure: too low before a cast")
+C_Map = { GetBestMapForUnit = function() return 1423 end }
+eq(L.WhisperNow(now), "Fishing 121  " .. dot .. "  2 fish a point", "Eastern Plaguelands (its map read) at 121: a guess, never too low")
+skillRead, skill, modifier = true, 250, 0
+eq(L.WhisperNow(now), "Fishing 250  " .. dot .. "  some get away", "and at 250: some get away")
+C_Map = nil
+skillRead, skill, modifier = false, 75, nil
 -- Stranglethorn at 120 with Nightcrawlers (+50): about 45 in 100 land. Fishing 120 + 50
 -- is 40 over the water, never "too low"
 skillRead, skill, modifier = true, 120, 50
@@ -258,7 +292,7 @@ GetZoneText = function() return "Stranglethorn Vale" end
 GetSubZoneText = function() return "Grom'gol Base Camp" end
 local outcomes = { true, false, false, true, false, false, false, true, false, true, false, true, false, true, false, true, false, true, false, true }
 for i = 1, 3 do ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!") end
-eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  2 fish a point", "Stranglethorn, 3 lost in a row at 170: not too low")
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "Stranglethorn, 3 lost in a row at 170: not too low (its known 130: some get away)")
 char.fishing.waters = {}
 for _, landed in ipairs(outcomes) do
     if landed then ev(nil, "LOOT_OPENED") else ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!") end
