@@ -284,20 +284,28 @@ function L.Effective(rank, modifier)
 end
 
 -- The water's level B from what it did (nil when it can't be said yet). meanE:
--- the skill (E) the outcomes came at, on average. A water says nothing before
--- L.SURE outcomes; then B ~ E + 5 - (in 100 landed), put on a known level when
--- within 20 of it (the noise). None lost only says B <= E - 95 (nil, that);
--- none landed says B > E (beyond reach), also early: L.BEYOND lost, none landed
+-- the skill (E) the outcomes came at, on average. Counted by bites, never by
+-- minutes: fishing non-stop or now and then, the same bites say the same.
+-- - early (under L.SURE bites), only when it's plainly hard: L.FAST lost and at
+--   most one landed in four ("too low" at once, whatever the pace)
+-- - then B ~ E + 5 - (in 100 landed), put on a known level within 20 of it (the
+--   noise), after allowing L.MISS of the bites as lost to a press too late (a
+--   few lost on easy water say nothing). None lost (after that) only says
+--   B <= E - 95 (nil, that); none landed says B > E (beyond reach)
 L.TIERS = { -70, -20, 55, 130, 205, 330, 425 }
-L.SURE, L.BEYOND, L.BAND = 12, 6, 95
+L.SURE, L.FAST, L.MISS, L.BAND, L.HARD = 12, 3, 0.1, 95, 20
 function L.EstimateB(meanE, landed, escaped)
     meanE, landed, escaped = tonumber(meanE), tonumber(landed) or 0, tonumber(escaped) or 0
     local n = landed + escaped
     if not meanE or n == 0 then return nil end
-    if landed == 0 and escaped >= L.BEYOND then
-        return math.floor(meanE + 5.5)
+    if landed == 0 and escaped >= L.FAST then return math.floor(meanE + 5.5) end
+    if n < L.SURE then
+        -- (plainly hard: under one in four landed, said as just that)
+        if escaped >= L.FAST and landed * 3 <= escaped then return math.floor(meanE - L.HARD + 1.5) end
+        return nil
     end
-    if n < L.SURE then return nil end
+    escaped = math.max(0, escaped - L.MISS * n)
+    landed = n - escaped
     if escaped == 0 then return nil, meanE - L.BAND end
     local raw = meanE + 5 - 100 * landed / n
     local b, gap = math.floor(raw + 0.5), 21
@@ -307,12 +315,13 @@ function L.EstimateB(meanE, landed, escaped)
     return b
 end
 
--- A water's word (pure): "low" (E < B: every fish gets away, or the game won't
--- cast), "some" (some get away), or nil (B unknown, or none get away)
+-- A water's word (pure): "low" (E < B + 20: under one in four land, none under
+-- B, or the game won't cast), "some" (some get away), or nil (B unknown, or
+-- none get away). There is no "too easy": a point's odds never depend on it
 function L.Judge(E, B)
     E, B = tonumber(E), tonumber(B)
     if not (E and B) then return nil end
-    if E < B then return "low" end
+    if E < B + L.HARD then return "low" end
     if E < B + L.BAND then return "some" end
     return nil
 end
@@ -329,43 +338,21 @@ function L.Water()
     return L.Keys(Call(GetZoneText), Call(GetSubZoneText))
 end
 
--- The zones' levels as the game is known to have them (Classic-era values,
--- public knowledge: the fishing guides' "skill to fish / skill to lose none"
--- table, B being the second less 95). Ours, by uiMapID (C_Map), each with its
--- English name for when the map can't be read. sure = false: guides disagree;
--- such a guess never says "too low" by itself. What the game says (a refused
--- cast) and what the water did (L.Reach) always win: Forever may have moved one
-L.ZONES = {
-    -- the starting lands and the cities: fish from the start, none lost from 25
-    [1426] = { -70, "Dun Morogh" }, [1411] = { -70, "Durotar" }, [1429] = { -70, "Elwynn Forest" },
-    [1412] = { -70, "Mulgore" }, [1438] = { -70, "Teldrassil" }, [1420] = { -70, "Tirisfal Glades" },
-    [1453] = { -70, "Stormwind City" }, [1454] = { -70, "Orgrimmar" }, [1455] = { -70, "Ironforge" },
-    [1456] = { -70, "Thunder Bluff" }, [1457] = { -70, "Darnassus" }, [1458] = { -70, "Undercity" },
-    -- none lost from 75
-    [1413] = { -20, "The Barrens" }, [1439] = { -20, "Darkshore" }, [1432] = { -20, "Loch Modan" },
-    [1421] = { -20, "Silverpine Forest" }, [1436] = { -20, "Westfall" },
-    -- from 150
-    [1440] = { 55, "Ashenvale" }, [1431] = { 55, "Duskwood" }, [1424] = { 55, "Hillsbrad Foothills" },
-    [1433] = { 55, "Redridge Mountains" }, [1442] = { 55, "Stonetalon Mountains" }, [1437] = { 55, "Wetlands" },
-    -- from 225
-    [1416] = { 130, "Alterac Mountains" }, [1417] = { 130, "Arathi Highlands" }, [1443] = { 130, "Desolace" },
-    [1445] = { 130, "Dustwallow Marsh" }, [1434] = { 130, "Stranglethorn Vale" }, [1435] = { 130, "Swamp of Sorrows" },
-    [1441] = { 130, "Thousand Needles" },
-    -- from 300
-    [1447] = { 205, "Azshara" }, [1444] = { 205, "Feralas" }, [1425] = { 205, "The Hinterlands" },
-    [1446] = { 205, "Tanaris" }, [1449] = { 205, "Un'Goro Crater" }, [1448] = { 205, "Felwood" },
-    [1422] = { 205, "Western Plaguelands" },
-    -- the guides disagree (205 or 330): a guess
-    [1423] = { 205, "Eastern Plaguelands", sure = false }, [1452] = { 205, "Winterspring", sure = false },
-    [1451] = { 205, "Silithus", sure = false }, [1450] = { 205, "Moonglade", sure = false },
-    [1428] = { 205, "Burning Steppes", sure = false }, [1419] = { 205, "Blasted Lands", sure = false },
-    [1430] = { 330, "Deadwind Pass", sure = false },
-}
+-- The waters' known levels: FishingWaters.lua (zones by uiMapID, dungeons and
+-- places by name)
+local known = ns.FishingWaters or {}
+L.ZONES = known.zones or {}
+L.WATERS = known.waters or {}
 
--- The zone's known level (pure): by its map, else by its name (the map's own
--- name in the client's language: names(id), else the English one). Level and
--- whether it's sure, or nil
-function L.Known(mapID, zone, names)
+-- The water's known level (pure): the place in the zone ("Zone/Place") when it
+-- has its own, a dungeon by its name, then the zone by its map, else by its name
+-- (the map's own name in the client's language: names(id), else the English
+-- one). Level and whether it's sure, or nil
+function L.Known(mapID, zone, names, sub)
+    if type(zone) == "string" and zone ~= "" then
+        local w = (type(sub) == "string" and sub ~= "" and L.WATERS[zone .. "/" .. sub]) or L.WATERS[zone]
+        if w then return w[1], w.sure ~= false end
+    end
     local z = L.ZONES[tonumber(mapID) or -1]
     if not z and type(zone) == "string" and zone ~= "" then
         for id, k in pairs(L.ZONES) do
@@ -376,18 +363,22 @@ function L.Known(mapID, zone, names)
 end
 
 -- A water's level (pure): the game's word first, then the outcomes; the place
--- before the zone; then the zone's known level (prior, sure: L.Known), kept
--- under what a landed fish proves (one landed at E: B < E + 5) and over a
--- refused cast. waters[key] = { landed, escaped, sumE, need, above, caughtAt }.
+-- before the zone; then the known level (prior, sure: L.Known), kept under what
+-- a landed fish proves (one landed at E: B < E + 5) and over a refused cast.
+-- The outcomes beat a sure known level only after L.OVERRIDE bites (a few lost
+-- to a press too late, or an unlucky run, never move it).
+-- waters[key] = { landed, escaped, sumE, need, above, caughtAt }.
 -- Level and how it's known: "learned", "known", "guess"
+L.OVERRIDE = 20
 function L.Reach(waters, keys, prior, sure)
     waters = type(waters) == "table" and waters or {}
+    local firm = tonumber(prior) ~= nil and sure ~= false
     for _, key in ipairs(keys or {}) do
         local w = waters[key]
         if type(w) == "table" then
             if tonumber(w.need) then return tonumber(w.need), "learned" end
             local n = (tonumber(w.landed) or 0) + (tonumber(w.escaped) or 0)
-            local b = n > 0 and L.EstimateB((tonumber(w.sumE) or 0) / n, w.landed, w.escaped)
+            local b = n > 0 and (not firm or n >= L.OVERRIDE) and L.EstimateB((tonumber(w.sumE) or 0) / n, w.landed, w.escaped)
             if tonumber(w.above) then b = math.max(b or -100, w.above + 1) end
             if b then return b, "learned" end
         end
@@ -765,7 +756,7 @@ local function MapName(id)
 end
 function L.KnownHere()
     local map = C_Map and Call(C_Map.GetBestMapForUnit, "player")
-    return L.Known(map, Call(GetRealZoneText) or Call(GetZoneText), MapName)
+    return L.Known(map, Call(GetRealZoneText) or Call(GetZoneText), MapName, Call(GetSubZoneText))
 end
 
 -- This water's word now (L.Judge; a guess never says "too low")

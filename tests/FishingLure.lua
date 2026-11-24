@@ -48,6 +48,7 @@ GetWeaponEnchantInfo = function() if enchant then return true, enchant * 1000 en
 local char = {}
 local ns = { Shared = { CharDB = function() return char end } }
 MimezuFishing = { PoleEquipped = function() return true end }
+assert(loadfile(root .. "/FishingWaters.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/FishingLure.lua"))("GamepadCompanion", ns)
 local L = ns.FishingLure
 
@@ -181,11 +182,13 @@ eq(L.EstimateB(170, 6, 5), nil, "11 outcomes: too few to say")
 local b, bound = L.EstimateB(170, 20, 0)
 eq(tostring(b) .. "/" .. tostring(bound), "nil/75", "none lost: only that the water is 75 or lower")
 eq(L.EstimateB(150, 0, 6), 155, "6 lost, none landed: beyond reach (above 150)")
-eq(L.EstimateB(150, 0, 5), nil, "5 lost: an unlucky run says little")
-eq(L.EstimateB(260, 5, 15), 240, "far from any known level: kept as it is")
+eq(L.EstimateB(150, 0, 2), nil, "2 lost: too few to say anything")
+eq(L.EstimateB(260, 5, 15), 230, "far from any known level: kept as it is (a tenth of the bites allowed as late presses)")
 eq(L.Judge(170, 130), "some", "40 over the water: some get away")
 eq(L.Judge(230, 130), nil, "95 over it: none get away, nothing said")
 eq(L.Judge(100, 130), "low", "under it: too low")
+eq(L.Judge(145, 130), "low", "20 in 100 land: too low still")
+eq(L.Judge(150, 130), "some", "one in four: some get away")
 eq(L.Judge(170, nil), nil, "the water unknown: nothing said")
 eq(L.Judge(200, 205), "low", "the game's 205 at 200: too low")
 local stv = L.Keys("Stranglethorn Vale", "Grom'gol Base Camp")
@@ -204,6 +207,52 @@ eq(L.TooLow("Requires Fishing 205", "Requires Fishing %d"), 205, "the game's ref
 eq(L.TooLow("Requires Mining 205", "Requires Fishing %d"), nil, "another refusal: not ours")
 eq(L.TooLow("Fishing skill too low", "Fishing skill too low"), true, "a refusal naming no level")
 eq(L.TooLow("Your fish got away!", "Fishing skill too low"), nil, "a lost fish isn't a refusal")
+-- False positives: none from a few lost fish -------------------------------------------
+-- (bites fed as the game sends them: a fish landed, or got away)
+local function Fed(waters, keys, E, list) for _, landed in ipairs(list) do L.Outcome(waters, keys, E, landed) end end
+local function Says(waters, keys, E, prior, sure) return L.Judge(E, (L.Reach(waters, keys, prior, sure))) end
+local durotar = L.Keys("Durotar", "")
+-- timing misses on easy water: Durotar (-70) at 150, 3 lost to late presses among 30
+ws = {}
+Fed(ws, durotar, 150, { false, false, false })
+eq(Says(ws, durotar, 150, -70, true), nil, "Durotar at 150, the first 3 lost (late presses): nothing said (the known level)")
+Fed(ws, durotar, 150, { true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true })
+eq(Says(ws, durotar, 150, -70, true), nil, "and 3 lost of 30: still nothing")
+eq(L.EstimateB(150, 27, 3), nil, "3 lost in 30 on its own: within the late presses allowed")
+-- a new water with 2 casts: nothing, whatever they did
+local nowhere = L.Keys("Nowhere", "")
+ws = {}
+Fed(ws, nowhere, 150, { false, false })
+eq(Says(ws, nowhere, 150), nil, "an unknown water, 2 lost: nothing said")
+ws = {}
+Fed(ws, nowhere, 150, { true, true })
+eq(Says(ws, nowhere, 150), nil, "2 landed: nothing said")
+ws = {}
+Fed(ws, stv, 120, { false, false })
+eq(Says(ws, stv, 170, 130, true), "some", "Stranglethorn, 2 lost at 170: its known level only (some get away), never too low")
+-- plainly hard, said fast: 3 lost in the first 4 bites, at any pace
+ws = {}
+Fed(ws, nowhere, 150, { false, false, true })
+eq(Says(ws, nowhere, 150), nil, "an unknown water, 2 lost and one landed: not yet")
+Fed(ws, nowhere, 150, { false })
+eq(Says(ws, nowhere, 150), "low", "3 lost in the first 4 bites: too low")
+ws = {}
+Fed(ws, nowhere, 150, { false, false, false })
+eq(Says(ws, nowhere, 150), "low", "3 lost, none landed: too low")
+-- a pool harder than its zone: Stranglethorn (130) at 230 says nothing, until the water
+-- shows it over 20 bites (and then "some get away", never too low)
+local pool = L.Keys("Stranglethorn Vale", "The Savage Coast")
+ws = {}
+Fed(ws, pool, 230, { false, false, false, true, false, true })
+eq(Says(ws, pool, 230, 130, true), nil, "a harder pool, 4 lost of 6 at 230: the known level holds (nothing)")
+Fed(ws, pool, 230, { true, true, false, true, true, false, true, true, false, true, true, true, false, true })
+eq(Says(ws, pool, 230, 130, true), "some", "10 lost of 20: the water's own level, some get away")
+eq(L.Reach(ws, pool, 130, true) > 130, true, "learned above the zone's")
+-- a known level a fish proves wrong: one landed at 120 in a water known as 205 (sure)
+ws = {}
+Fed(ws, stv, 120, { true })
+check(L.Reach(ws, stv, 205, true) <= 124, "a fish landed at 120: the water can't be over 124")
+
 -- The zones' known levels: by map, else by name (the client's own, else English)
 local b1, sure1 = L.Known(1434)
 eq(tostring(b1) .. "/" .. tostring(sure1), "130/true", "Stranglethorn by its map: 130")
@@ -211,16 +260,32 @@ eq(L.Known(nil, "Tanaris"), 205, "no map: by its English name")
 eq(L.Known(nil, "Tuercespina", function(id) return id == 1434 and "Tuercespina" or nil end), 130, "by the map's name in the client's language")
 eq(L.Known(9999, "Nowhere"), nil, "unknown: nothing")
 eq(select(2, L.Known(1423)), false, "Eastern Plaguelands: a guess")
+local tiers = {}
+for _, t in ipairs(L.TIERS) do tiers[t] = true end
+local count, names = 0, {}
 for id, z in pairs(L.ZONES) do
-    check(type(z[1]) == "number" and type(z[2]) == "string" and id >= 1411 and id <= 1458, "zone " .. id .. " well formed")
+    count = count + 1
+    check(tiers[z[1]] and type(z[2]) == "string" and id >= 1411 and id <= 1458 and (z.sure == nil or z.sure == false),
+        "zone " .. id .. " well formed")
+    check(not names[z[2]], "zone name " .. tostring(z[2]) .. " once")
+    names[z[2]] = true
 end
+eq(count, 44, "44 fishable zones and cities")
+for name, w in pairs(L.WATERS) do
+    check(tiers[w[1]] and type(name) == "string" and name ~= "" and (w.sure == nil or w.sure == false), "water " .. name .. " well formed")
+end
+eq(L.Known(nil, "Stratholme"), 330, "a dungeon by its name")
+L.WATERS["Stranglethorn Vale/Test Pool"] = { 205 }
+eq(L.Known(1434, "Stranglethorn Vale", nil, "Test Pool"), 205, "a place with its own level: over its zone's")
+eq(L.Known(1434, "Stranglethorn Vale", nil, "Grom'gol Base Camp"), 130, "another place: the zone's")
+L.WATERS["Stranglethorn Vale/Test Pool"] = nil
 local r1, how1 = L.Reach({}, stv, 130)
 eq(tostring(r1) .. "/" .. tostring(how1), "130/known", "never fished: the zone's known level")
 eq(select(2, L.Reach({}, stv, 205, false)), "guess", "a guess said so")
 eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 1, escaped = 0, sumE = 100, caughtAt = 100 } }, stv, 130), 104,
     "a fish landed at 100 proves the water under 105: the known level gives way")
 eq(L.Reach({ ["Tanaris"] = { above = 260 } }, L.Keys("Tanaris"), 205), 261, "a refused cast at 260: above it")
-eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 9, escaped = 11, sumE = 4000 } }, stv, 130), 160, "what the water did beats the known level")
+eq(L.Reach({ ["Stranglethorn Vale"] = { landed = 4, escaped = 16, sumE = 4000 } }, stv, 130), 175, "what the water did beats the known level")
 ws = {}
 L.Outcome(ws, { "X" }, 150, true); L.Outcome(ws, { "X" }, 120, true); L.Outcome(ws, { "X" }, 180, false)
 eq(ws.X.caughtAt, 120, "the lowest skill a fish landed at, kept")
@@ -323,13 +388,35 @@ ev(nil, "UI_ERROR_MESSAGE", 1, "Requires Fishing 205")
 eq(char.fishing.waters["Tanaris"].need, 205, "the game's level kept")
 eq(L.WhisperNow(now), "Skill too low here", "170 under Tanaris' 205: too low, at once")
 modifier = 100
-eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "with +100 (220): some get away")
+eq(L.WhisperNow(now), "Skill too low here", "with +100 (220): under one in four land, still too low")
+modifier = 110
+eq(L.WhisperNow(now), "Fishing 120  " .. dot .. "  some get away", "with +110 (230): some get away")
 ev(nil, "CHAT_MSG_SKILL", "Your skill in Fishing has increased to 122.")
 eq(char.fishing.waters["Tanaris"] and char.fishing.waters["Tanaris"].need, 205, "a point keeps what the waters taught")
 eq(char.fishing.points[#char.fishing.points][1], 121, "the point's fish kept with the rank they were caught at")
 modifier = nil
 GetZoneText = function() return "Silverpine Forest" end
 GetSubZoneText = function() return "North Tide's Run" end
+
+-- The same bites, fishing non-stop (5 s apart) or now and then (10 min apart): the same word
+local verdicts = {}
+now = now + 60   -- (the last point's "Wiser" long gone)
+for _, gap in ipairs({ 5, 600 }) do
+    char.fishing.waters = {}
+    skillRead, skill, modifier = true, 150, 0
+    GetZoneText = function() return "Nowhere" end
+    GetSubZoneText = function() return "" end
+    local said = {}
+    for _, landed in ipairs({ false, true, false, false, true, false, false, false }) do
+        now = now + gap
+        if landed then ev(nil, "LOOT_OPENED") else ev(nil, "UI_ERROR_MESSAGE", 1, "Your fish got away!") end
+        said[#said + 1] = L.WhisperNow(now)
+    end
+    verdicts[gap] = table.concat(said, "|")
+end
+eq(verdicts[5], verdicts[600], "non-stop or relaxed: the same words, bite by bite")
+check(verdicts[5]:find("Skill too low here", 1, true) ~= nil, "and too low once 3 of 4 got away")
+skillRead, skill, modifier = false, 75, nil
 
 -- The cast ring ------------------------------------------------------------------------
 eq(L.CastLeft(100000, 130000, 100), 1, "the cast begins: all of it left")
