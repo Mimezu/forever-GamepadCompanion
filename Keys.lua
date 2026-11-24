@@ -100,13 +100,22 @@ button:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
 local owner = CreateFrame("Frame", "GamepadCompanionKeyBinds")
 -- A held layer's bindings, above Base: a Blizzard function (Focus UI, Radial)
--- on layerOwner, our secure click on clickOwner. Never both on one owner's
+-- on the key's layer owner, our secure click on clickOwner. Never both on one owner's
 -- key: the game keeps a function's binding-context-9 entry in that owner's
 -- slot for the key, and a click put there later (even after clearing it)
 -- runs the function instead, till /reload (login probe). Mute: L2 Focus UI,
 -- then R2 for L2 + R2's Halo ring, ran Focus UI and never the ring, 2026-11-22
-local layerOwner = CreateFrame("Frame", "GamepadCompanionKeyLayers")
+-- One function owner per key, taken off with ClearOverrideBindings: a nil binding left Focus
+-- UI in the gamepad set ("off PAD5: gamepad set TOGGLEUIFOCUS" after every L2 release), the
+-- whole owner cleared took it out (2026-11-23)
+local layerOwners = {}       -- key -> its owner (made on first use)
+local function LayerOwner(key)
+    local o = layerOwners[key]
+    if not o then o = CreateFrame("Frame", "GamepadCompanionKeyLayer" .. key); layerOwners[key] = o end
+    return o
+end
 local clickOwner = CreateFrame("Frame", "GamepadCompanionKeyLayerClicks")
+local changed = {}           -- key -> when its layer binding last changed
 
 -- A button's index in GetGamePadState().buttons (1-based)
 local function PadIndex(binding)
@@ -423,18 +432,19 @@ if UIErrorsFrame then
 end
 
 -- A held layer's command on key, above Base (nil: taken off): a function on
--- layerOwner, a click on clickOwner, the other owner's cleared.
+-- the key's layer owner, a click on clickOwner, the other owner's cleared.
 -- Base itself is never touched: Focus UI taken off Create and the map's click put back
 -- in its place left Focus UI in the game's gamepad set (binding context 9) for good,
 -- held key or not (2026-11-22). Halo's ring on Create, under our Focus UI on another
 -- owner, only ever uncovered, never broke: the same way here
 local function Layer(key, command)
-    SetOverrideBinding(layerOwner, true, key, nil)
+    if layerOwners[key] then ClearOverrideBindings(layerOwners[key]) end
     SetOverrideBinding(clickOwner, true, key, nil)
     if command then
-        local o = command:find("^CLICK ") and clickOwner or layerOwner
+        local o = command:find("^CLICK ") and clickOwner or LayerOwner(key)
         SetOverrideBinding(o, true, key, command)
     end
+    changed[key] = GetTime and GetTime() or 0
 end
 
 -- What key runs in the game's gamepad set (nil: no way to read it)
@@ -499,17 +509,18 @@ end
 -- to the game is only checked for a leftover of ours; the game's own stays.
 -- True when something was put right.
 -- A function of ours left in the game's gamepad set under a key's Base (Create ran Focus UI,
--- no map): a rebind, again every GHOST_EVERY s while it stays, GHOST_TRIES times, each written
--- down with what it left; then a note to /reload. Once only, it stayed for good: something
--- puts it back after a rebind clears it (2026-11-23 01:15, Create's map gone till /reload)
-Keys.GHOST_EVERY, Keys.GHOST_TRIES = 5, 3
+-- no map), its layer off GHOST_AFTER s (a read right after a change can lag): the key's layer
+-- owners emptied, again every GHOST_EVERY s while it stays, GHOST_TRIES times, each written
+-- down with what it left; then a note to /reload. Never Base rebound for it: three rebinds over
+-- Focus UI kept it on Mute and Create till /reload, every L2 release a "ghost" (2026-11-23)
+Keys.GHOST_AFTER, Keys.GHOST_EVERY, Keys.GHOST_TRIES = 1, 5, 3
 local KEY_NAMES = { PADSOCIAL = "Create", PADFORWARD = "Options", PADSYSTEM = "PS", PAD5 = "Mute", PADLSTICK = "L3", PADRSTICK = "R3" }
 local FN_NAMES = { TOGGLEUIFOCUS = "Focus UI", OPENRADIAL = "Radial" }
 local ghosts = {}           -- key -> { tries, at, said }
 function Keys.Heal()
     if not loaded or not GetBindingAction or (InCombatLockdown and InCombatLockdown()) then return false end
     local now = GetTime and GetTime() or 0
-    local stale, ghost = false, false
+    local stale = false
     local tried = {}
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
@@ -524,23 +535,24 @@ function Keys.Heal()
             if actual ~= should and not unread and (ourClick or actual ~= "") then stale = true end
             -- (a layer's function of ours left in the gamepad set, under Base)
             local pad = PadSet(key)
-            if pad and pad ~= should and Keys.Ours(key, pad) then
+            local left = pad ~= nil and pad ~= should and Keys.Ours(key, pad)
+            if left and now - (changed[key] or -math.huge) >= Keys.GHOST_AFTER then
                 local g = ghosts[key]
                 if not g then g = { tries = 0, at = -math.huge }; ghosts[key] = g end
                 if g.tries < Keys.GHOST_TRIES and now - g.at >= Keys.GHOST_EVERY then
                     g.tries, g.at = g.tries + 1, now
-                    stale, ghost = true, true
+                    stale = true
                     tried[key] = pad
                 elseif g.tries >= Keys.GHOST_TRIES and not g.said then
                     g.said = true
-                    Trace(("GHOST %s: %s stays in the gamepad set after %d rebinds"):format(key, pad, g.tries), "errors")
+                    Trace(("GHOST %s: %s stays in the gamepad set after %d clears"):format(key, pad, g.tries), "errors")
                     if UIErrorsFrame and UIErrorsFrame.AddMessage then
                         UIErrorsFrame:AddMessage(("%s stuck on %s · /reload"):format(KEY_NAMES[key] or key,
                             FN_NAMES[pad] or pad), 1, 0.82, 0, 1, 6)
                     end
                 end
-            elseif ghosts[key] then
-                Trace(("GHOST %s: gone after %d rebinds"):format(key, ghosts[key].tries), "errors")
+            elseif not left and ghosts[key] then
+                Trace(("GHOST %s: gone after %d clears"):format(key, ghosts[key].tries), "errors")
                 ghosts[key] = nil
             end
         elseif actual ~= "" and actual ~= (seen[key] or "") and Keys.Ours(key, actual) then
@@ -549,16 +561,15 @@ function Keys.Heal()
     end
     if not stale then return false end
     Keys.Snapshot("heal")
-    -- (the held layer's off, Base back; the old owner emptied of a leftover)
-    ClearOverrideBindings(layerOwner)
-    ClearOverrideBindings(clickOwner)
-    SetExtras({})
-    if ghost then
-        Keys.Apply(true)
-        for key, was in pairs(tried) do
-            Trace(("GHOST %s: %s in the gamepad set; rebind %d, now %s"):format(key, was, ghosts[key].tries,
-                tostring(PadSet(key))), "errors")
-        end
+    -- (every key not held: its layer owners emptied, Base uncovered, never rewritten; a held
+    -- key keeps its binding till it is up: the game keeps the one a press ran for its release)
+    local buttons = Sh.PadButtons()
+    for _, key in ipairs(Keys.KEYS) do
+        if not Busy(buttons, key) then Layer(key, nil); extras[key] = nil end
+    end
+    for key, was in pairs(tried) do
+        Trace(("GHOST %s: %s in the gamepad set; clear %d, now %s"):format(key, was, ghosts[key].tries,
+            tostring(PadSet(key))), "errors")
     end
     for _, key in ipairs(Keys.KEYS) do
         local actual = GetBindingAction(key, true) or ""
@@ -689,8 +700,9 @@ function Keys.CheckStuck(now)
             if s.said and not s.tried and not (InCombatLockdown and InCombatLockdown()) then
                 -- (the key's own binding put on top, then off: the game takes it as a new one)
                 s.tried = now
+                -- (cleared whole: a nil left a function in the gamepad set, 2026-11-23)
                 if binding ~= "" then SetOverrideBinding(unstickOwner, true, key, binding) end
-                SetOverrideBinding(unstickOwner, true, key, nil)
+                ClearOverrideBindings(unstickOwner)
             elseif s.tried and s.tried ~= true and now - s.tried >= 0.3 then
                 Trace(("STUCK %s: still held after a rebind"):format(name), "errors")
                 s.tried = true

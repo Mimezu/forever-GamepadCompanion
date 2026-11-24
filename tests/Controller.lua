@@ -130,10 +130,9 @@ local function Drop(owner, key)
     if overrides[key] and overrides[key].owner == owner then overrides[key] = list[#list] end
 end
 function SetOverrideBinding(owner, _, key, action)
+    -- (nil: the owner's command gone, its gamepad function left in the gamepad set: "off PAD5:
+    -- gamepad set TOGGLEUIFOCUS" after every L2 release; ClearOverrideBindings took it out, 2026-11-23)
     if action == nil then
-        if padSet[key] and padSet[key].owner == owner then
-            if Latched(key) then padSet[key].owner = "latched" else padSet[key] = nil end
-        end
         return Drop(owner, key)
     end
     local kept = slotFn[owner] and slotFn[owner][key]
@@ -638,7 +637,7 @@ GetBindingKey = function(command, ...)
     if command == "GAMEPADRIGHTMOD" then return "PADRTRIGGER" end
     return bindingKey(command, ...)
 end
-local layerOwner = _G.GamepadCompanionKeyLayers
+local function layerOf(key) return _G["GamepadCompanionKeyLayer" .. key] end
 -- Options is Blizzard's Radial (a Blizzard function runs only from its binding): kept;
 -- L2 + Options runs out of combat, by the watcher putting the secure click on it while L2 is held
 bindings.PADFORWARD = "OPENRADIAL"
@@ -686,7 +685,7 @@ eq(PressKey("PADFORWARD", false, true), nil, "R2 + Options from the click: nothi
 pressed.PADRTRIGGER = true; Keys.Watch()
 eq(overrides.PADFORWARD and overrides.PADFORWARD.action, "TOGGLEUIFOCUS", "R2 held: Focus UI on Options")
 pressed.PADRTRIGGER = nil; Keys.Watch()
-check(not (overrides.PADFORWARD and overrides.PADFORWARD.owner == layerOwner), "R2 released: the watcher's binding off")
+check(not (overrides.PADFORWARD and overrides.PADFORWARD.owner == layerOf("PADFORWARD")), "R2 released: the watcher's binding off")
 -- Create: the game's World Map; L2 + Create = Focus UI (the player's setup, 2026-11-21).
 -- The game's key state says L2 is down (IsKeyDown above) while the pad says it is up:
 -- Create stays the map. Only the pad's L2 puts Focus UI on it, and a release takes it off
@@ -745,7 +744,7 @@ eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
 -- never rewritten: the map's click put back over Focus UI left Focus UI in the game's gamepad
 -- set, 2026-11-22. Halo's ring under it never broke)
 for key, list in pairs(stacks) do
-    for _, entry in ipairs(list) do check(entry.owner ~= layerOwner, "L2 up: no layer binding left: " .. key) end
+    for _, entry in ipairs(list) do check(entry.owner ~= layerOf(key), "L2 up: no layer binding left: " .. key) end
 end
 local baseWrites = 0
 local setNow = SetOverrideBinding
@@ -755,7 +754,7 @@ SetOverrideBinding = function(o, p, key, ...)
 end
 pressed.PADLTRIGGER = true; Keys.Watch()
 eq(Create(), "TOGGLEUIFOCUS", "L2 held: Focus UI above Base")
-eq(stacks.PADSOCIAL[#stacks.PADSOCIAL].owner, layerOwner, "L2 held: on the layer owner")
+eq(stacks.PADSOCIAL[#stacks.PADSOCIAL].owner, layerOf("PADSOCIAL"), "L2 held: on the layer owner")
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(Create(), CLICK_CREATE, "L2 up: Base uncovered")
 eq(#(stacks.PADSOCIAL or {}), 1, "L2 up: Base alone")
@@ -780,10 +779,16 @@ eq(clicks, 0, "never a click entry on the keys' owner")
 pressed.PADLTRIGGER = true; Keys.Watch()
 pressed.PADLTRIGGER = nil; Keys.Watch()
 eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "L2 up: no Focus UI left in the gamepad set under the map")
--- (one left there anyway: the heal clears it)
-padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+-- (one left there anyway, on the layer owner: cleared once the layer has been off GHOST_AFTER,
+-- a read right after a change can lag. Base never rebound for it: three rebinds over Focus UI
+-- kept it on Mute and Create till /reload, 2026-11-23)
+padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
+check(not Keys.Heal(), "just changed: not yet")
+NOW = NOW + Keys.GHOST_AFTER
+changes = 0
 check(Keys.Heal(), "Focus UI under the map: healed")
 eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "healed: the map alone")
+eq(changes, 0, "healed with Base untouched")
 check(not Keys.Heal(), "then nothing to heal")
 -- L2 + Create, L2 let go a moment before Create: Create is left alone while held, Base back once up
 pressed.PADLTRIGGER = true; Keys.Watch()
@@ -868,7 +873,7 @@ do
     UIErrorsFrame.AddMessage = function(_, text) said[#said + 1] = text end
     padSet.PADSOCIAL = { owner = "latched", action = "TOGGLEUIFOCUS" }
     check(Keys.Heal(), "a stuck Focus UI: a try")
-    check(errors()[#errors()]:find("GHOST PADSOCIAL: TOGGLEUIFOCUS in the gamepad set; rebind 1, now TOGGLEUIFOCUS", 1, true) ~= nil, "the try written down, with what it left")
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: TOGGLEUIFOCUS in the gamepad set; clear 1, now TOGGLEUIFOCUS", 1, true) ~= nil, "the try written down, with what it left")
     check(not Keys.Heal(), "then left (no rebind 4 times a second)")
     NOW = NOW + Keys.GHOST_EVERY
     check(Keys.Heal(), "5 s on, still there: another try")
@@ -882,17 +887,20 @@ do
     eq(#said, n, "said once")
     padSet.PADSOCIAL = nil
     check(not Keys.Heal(), "gone: nothing to heal")
-    check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 rebinds", 1, true) ~= nil, "its end written down")
-    -- put back after a rebind (a window closing): cleared again on the next try
-    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    check(errors()[#errors()]:find("GHOST PADSOCIAL: gone after 3 clears", 1, true) ~= nil, "its end written down")
+    -- put back on the layer owner: cleared again on the next try, Base never rebound
+    changes = 0
+    padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
     NOW = NOW + 1
     check(Keys.Heal(), "back again: a try")
     eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "cleared: the map")
-    padSet.PADSOCIAL = { owner = keyOwner, action = "TOGGLEUIFOCUS" }
+    padSet.PADSOCIAL = { owner = layerOf("PADSOCIAL"), action = "TOGGLEUIFOCUS" }
+    NOW = NOW + Keys.GHOST_AFTER
     Keys.Heal()
     NOW = NOW + Keys.GHOST_EVERY
     check(Keys.Heal(), "put back once more, 5 s on: tried again")
     eq(C_KeyBindings.GetBindingByKey("PADSOCIAL", 9), CLICK_CREATE, "the map again")
+    eq(changes, 0, "no Base rebound for any of it")
     UIErrorsFrame.AddMessage = add
 end
 -- L2 + Create opens a window: Blizzard binds its keys on UIParent while Create is still down.
@@ -933,7 +941,8 @@ check(not Keys.Heal(), "nothing to heal")
 -- addon's binding there is not ours to touch
 bindings.PAD5 = "FRAMEGAMBIT_TOGGLE_CINEMATIC_CAMERA"
 check(Keys.Set("PAD5", "lt", "bind:focus"), "L2 + Mute: Focus UI")
-Push("PAD5", { owner = layerOwner, action = "TOGGLEUIFOCUS" })
+pressed.PADLTRIGGER = true; Keys.Watch(); pressed.PADLTRIGGER = nil; Keys.Watch()
+Push("PAD5", { owner = layerOf("PAD5"), action = "TOGGLEUIFOCUS" })
 check(Keys.Heal(), "Mute: a leftover of ours")
 eq(GetBindingAction("PAD5", true), "FRAMEGAMBIT_TOGGLE_CINEMATIC_CAMERA", "Mute: the game's own again")
 Push("PAD5", { owner = other, action = "SOMETHING_ELSE" })
