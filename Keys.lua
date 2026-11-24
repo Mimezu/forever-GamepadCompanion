@@ -134,7 +134,7 @@ local changed = {}           -- key -> when its layer binding last changed
 Keys.PUT_OWNERS = 4
 local Trace, OwnerName       -- (below)
 local function Pool(name, keep)
-    local p = { owners = {}, holder = {}, keep = keep }      -- holder: key -> the owner whose record is live
+    local p = { owners = {}, holder = {}, kind = {}, keep = keep }   -- holder: key -> the owner whose record is live
     for i = 1, Keys.PUT_OWNERS do p.owners[i] = CreateFrame("Frame", name .. (i > 1 and tostring(i) or "")) end
     return p
 end
@@ -148,17 +148,19 @@ local function PadSet(key)
     local K = C_KeyBindings
     if K and K.GetBindingByKey then return K.GetBindingByKey(key, 9) end
 end
--- Does the gamepad set run a function where command, a click, should (not the held layer's
--- own function above the key: Base written under L2's Focus UI reads that, rightly)
-local function Haunted(key, command)
+-- Does the gamepad set run a function where command, a click, should (not above: the held
+-- layer's own function over the key, Base written under L2's Focus UI reads that, rightly. A
+-- layer's click has none: Layer cleared it just before, L2 + R2 on Mute after L2's Focus UI)
+local function Haunted(key, command, above)
     local pad = PadSet(key)
-    return pad ~= nil and pad ~= command and pad ~= extras[key] and FUNCTION[pad] == true
+    return pad ~= nil and pad ~= command and pad ~= above and FUNCTION[pad] == true
 end
 local function Drop(pool, key)
     local o = pool.holder[key]
     if not o then return end
     SetOverrideBinding(o, true, key, nil)
     pool.holder[key] = nil
+    pool.kind[key] = nil
 end
 -- command on key for o: our click as a click binding, a function as its command
 local function Bind(o, key, command)
@@ -170,16 +172,22 @@ end
 local function Put(pool, key, command, fresh)
     local prev = pool.holder[key]
     local fn = FUNCTION[command] == true
+    local above = pool.keep and extras[key] and FUNCTION[extras[key]] and extras[key] or nil
+    -- (a click where a command was, or the other way: another owner, the old record let go; the
+    -- game keeps the two kinds apart, so one written over the other leaves both live)
+    local kind = command:find("^CLICK " .. Keys.BUTTON .. ":") and "click" or "command"
+    if pool.kind[key] and pool.kind[key] ~= kind then fresh = true end
+    pool.kind[key] = kind
     if prev and not fresh then
         Bind(prev, key, command)
-        if fn or not Haunted(key, command) then return true end
+        if fn or not Haunted(key, command, above) then return true end
     end
     for _, o in ipairs(pool.owners) do
         if o ~= prev then
             Bind(o, key, command)
             if prev then SetOverrideBinding(prev, true, key, nil) end
             prev = o
-            if fn or not Haunted(key, command) then pool.holder[key] = o; return true end
+            if fn or not Haunted(key, command, above) then pool.holder[key] = o; return true end
             Trace(("REUSED %s: %s under %s on %s; the next owner"):format(key, tostring(PadSet(key)), command, OwnerName(o)), "errors")
         end
     end
@@ -187,7 +195,7 @@ local function Put(pool, key, command, fresh)
         pool.holder[key] = prev
     else
         SetOverrideBinding(prev, true, key, nil)
-        pool.holder[key] = nil
+        pool.holder[key], pool.kind[key] = nil, nil
     end
     Trace(("REUSED %s: %s under %s on every owner; %s"):format(key, tostring(PadSet(key)), command,
         pool.keep and "kept on the last" or "left off"), "errors")

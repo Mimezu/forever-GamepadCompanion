@@ -1095,6 +1095,16 @@ do
     pressed.PADLTRIGGER = nil; pressed.PADRTRIGGER = nil; Keys.Watch()
     eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's ring")
     eq(#Live("PAD5"), 0, "nothing of ours live")
+    -- (L2 held first, then R2: the click goes on right after L2's Focus UI is let go, read back
+    -- all the same, never taken for L2's own function above it. "down PAD5+L2+R2", 2026-11-24)
+    stacks.PAD5, overrides.PAD5 = nil, nil   -- (no record but L2's: the one R2's click is handed)
+    pressed.PADLTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "TOGGLEUIFOCUS", "L2 held: Focus UI on Mute")
+    pressed.PADRTRIGGER = true; Keys.Watch()
+    eq(MuteRuns(), "CLICK GamepadCompanionKeys:p8", "then R2: the click, no Focus UI under it")
+    eq(PressKey("PAD5", true, true), "/click HaloButton t1 true", "L2 then R2 + Mute opens the ring")
+    pressed.PADLTRIGGER = nil; pressed.PADRTRIGGER = nil; Keys.Watch()
+    eq(#Live("PAD5"), 0, "and nothing of ours live after")
     SHARED_KINDS = false
 end
 Keys.Set("PAD5", "lt", nil); Keys.Set("PAD5", "both", nil)
@@ -1328,6 +1338,23 @@ do
     actions[storage] = nil
     C_SpellBook, C_Spell.GetSpellName, C_Spell.GetSpellSubtext, IsSpellKnown = book, name, subtext, known
     ns.SpellRanks.Forget()
+end
+
+-- A key's Base changed from a Blizzard function to a macro and back (Options: Radial, then a
+-- macro): no record of the old kind left live under the new one (a function's would beat the click)
+do
+    for _, l in ipairs({ "base", "lt", "rt", "both" }) do Keys.Set("PADLSTICK", l, nil) end
+    check(Keys.Set("PADLSTICK", "base", "bind:radial"), "L3: Radial")
+    eq(C_KeyBindings.GetBindingByKey("PADLSTICK", 9), "OPENRADIAL", "L3 runs Radial")
+    check(Keys.Set("PADLSTICK", "base", "text:/wave"), "L3: a macro")
+    local click = GetBindingAction("PADLSTICK", true)
+    check(click:find("^CLICK GamepadCompanionKeys:") ~= nil, "L3 on our click")
+    eq(C_KeyBindings.GetBindingByKey("PADLSTICK", 9), click, "L3 runs the macro, no Radial under it")
+    check(Keys.Set("PADLSTICK", "base", "bind:radial"), "L3: Radial again")
+    eq(C_KeyBindings.GetBindingByKey("PADLSTICK", 9), "OPENRADIAL", "L3 runs Radial again")
+    eq(#Live("PADLSTICK"), 1, "one record of ours live on L3")
+    Keys.Set("PADLSTICK", "base", nil)
+    eq(#Live("PADLSTICK"), 0, "L3 given back: nothing of ours live")
 end
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))
