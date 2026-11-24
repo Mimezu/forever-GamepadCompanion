@@ -520,8 +520,51 @@ local function BuildFishing(frame)
     end
 end
 
+---------------------------------------------------------------------------
+-- Nodes: the node compass's arrows named and coloured (NodeSense.lua, experimental): on or
+-- off, and what you look for (the others dimmed)
+---------------------------------------------------------------------------
+local function BuildNodes(frame)
+    local NS = ns.NodeSense
+    if not NS then return end
+    local cw = W - X3
+    local card = S.Card(frame, "Nodes", X3, -490, cw, PH - 490, "Interface\\Icons\\Spell_Nature_Earthquake")
+    local names = S.NewCheck(card, "Name the arrows", 12, -38, function(self)
+        ns.Shared.CharDB().nodeSense = self:GetChecked() == true and nil or false
+    end, cw - 40)
+    S.Tooltip(names, "Name the arrows", "Experimental · WoW Helper colours them")
+    -- the choices: any, any ore, each ore, any herb
+    local choices = { { nil, "Any" }, { "ore", "Any ore" } }
+    for _, o in ipairs(NS.ORES) do
+        local label = o[1]:gsub(" vein$", ""):gsub(" deposit$", ""):gsub(" mineral$", ""):gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end)
+        choices[#choices + 1] = { o[4], label }
+    end
+    choices[#choices + 1] = { "herb", "Any herb" }
+    S.Text(card, "Looking for", 14, -76, 90, 12, GOLD)
+    local name = S.Text(card, "", 136, -76, cw - 190, 12, YELLOW)
+    if name.SetJustifyH then name:SetJustifyH("CENTER") end
+    local function Step(dir)
+        local cur, i = NS.Want(), 1
+        for k, c in ipairs(choices) do if c[1] == cur then i = k end end
+        i = (i - 1 + dir) % #choices + 1
+        NS.SetWant(choices[i][1])
+        Refresh()
+    end
+    local prev = S.NewButton(card, "<", 106, -70, 24, function() Step(-1) end, nil, 13, 24)
+    local nextB = S.NewButton(card, ">", cw - 40, -70, 24, function() Step(1) end, nil, 13, 24)
+    S.Tooltip(prev, "Looking for", "The other arrows dimmed")
+    S.Tooltip(nextB, "Looking for", "The other arrows dimmed")
+    pg.refresh[#pg.refresh + 1] = function()
+        names:SetChecked(NS.Enabled())
+        local cur, label = NS.Want(), "Any"
+        for _, c in ipairs(choices) do if c[1] == cur then label = c[2] end end
+        name:SetText(label)
+    end
+end
+
 local function Build(frame)
     BuildHelper(frame)
+    BuildNodes(frame)
     BuildTriggers(frame)
     BuildCamera(frame)
     BuildBags(frame)

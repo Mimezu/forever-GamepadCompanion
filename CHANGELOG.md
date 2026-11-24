@@ -2,6 +2,7 @@
 
 ## Unreleased (0.75.0)
 
+- New (experimental): node names. While Find Minerals or Find Herbs is on, Companion reads what each minimap dot is (Mithril, Iron, an herb) through the minimap's soft-cursor hover, and WoW Helper colours each node arrow by it: the kind you look for bright, the rest faint, above your skill greyed. Setup > Nodes: Name the arrows, Looking for. /gpc ore mithril, /gpc nodes. docs/NODE-NAMES.md.
 - New: in Edit Mode the flight's line, the meal and fire line, and the lure float each have their own box: drag one anywhere, right-click puts it home, arrows or the d-pad nudge it. Where boxes overlap, a click brings the one under to the front ("Click: the one under").
 - Changed: no card in flight, and none while you eat or sit by a fire. A quiet line at the bottom left (the lure float's look: a small medallion, the name, the time, a thin line filling with a gold bead; stops as dots in flight) shows the time instead. Cards are only short toasts now: the meal card shows when the buff lands.
 - Fixed: Focus UI running on Mute with R2 held, and on Create after a rebind, long after L2 was let go. The game hands a key's old binding record, Focus UI still in it, to the next owner that binds the key. Companion's clicks are click bindings now (their records apart from functions'), its Base is written key by key, never cleared whole, and every click is read back: a function under it, and the next owner takes the key before the bad record is let go. A login self-test on a spare key writes down how the game hands records on (the trace's probe list).

@@ -791,6 +791,68 @@ do
     print("PASS: map row: 28 cells, " .. mapcount .. " vectors, flips rejected, stacked and one line (117), gated on mapRow 2")
 end
 
+-- The node row (NodeSense.lua): 54 cells, cyan first, six named dots at most; every bit flip
+-- rejected; drawn six rows up (one line: from cell 117, 171 cells) only with the map row and
+-- WowHelperData.nodeRow = 1
+do
+    local nodes = { { dx = -127, dy = 127, kind = 6, wanted = true, gatherable = true },
+        { dx = 0, dy = 0, kind = 32, wanted = false, gatherable = true },
+        { dx = 40, dy = -3, kind = 13, wanted = true, gatherable = false } }
+    local cells = K.EncodeNodeRow(nodes)
+    assert(#cells == 54 and cells[1][1] == 0 and cells[1][2] == 1 and cells[1][3] == 1, "54 cells, cyan first")
+    local d = assert(K.DecodeNodeRow(cells))
+    assert(#d == 3, "three dots")
+    for i, n in ipairs(nodes) do
+        for _, k in ipairs({ "dx", "dy", "kind", "wanted", "gatherable" }) do assert(d[i][k] == n[k], "node round trip " .. i .. " " .. k) end
+    end
+    for c = 2, 54 do
+        for k = 1, 3 do
+            local bit = (c - 2) * 3 + k - 1
+            if bit >= 157 then break end
+            cells[c][k] = 1 - cells[c][k]
+            assert(not K.DecodeNodeRow(cells), "node flip " .. c .. "," .. k)
+            cells[c][k] = 1 - cells[c][k]
+        end
+    end
+    local seven = {}
+    for i = 1, 7 do seven[i] = { dx = i, dy = -i, kind = i } end
+    assert(#assert(K.DecodeNodeRow(K.EncodeNodeRow(seven))) == 6, "six at most")
+    assert(#assert(K.DecodeNodeRow(K.EncodeNodeRow({}))) == 0, "none: an empty row")
+    assert(select(2, K.DecodeNodeRow(K.EncodeMapRow({}))) ~= nil, "a map row is not a node row")
+
+    K.SetEnabled(true)
+    K.Layout()
+    local unit = K.frame.height
+    local nt = K.nodeTextures
+    K.SetMap({ facing = 0, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 })
+    K.SetNodes(nodes)
+    WowHelperData = { mapRow = 2 }
+    K.MarkDirty(); K.Step(0)
+    assert(#nt == 54 and not nt[1]:IsShown(), "WoW Helper hasn't said it reads it: no node row")
+    WowHelperData = { mapRow = 2, nodeRow = 1 }
+    K.MarkDirty(); K.Step(0)
+    assert(nt[1]:IsShown() and nt[1].color[1] == 0 and nt[1].color[2] == 1, "nodeRow 1: drawn, cyan first")
+    assert(nt[1].points[1][5] == 6 * unit and nt[1].points[1][4] == 0, "stacked: six rows up")
+    local function drawn() local c = {} for i = 1, 54 do c[i] = nt[i].color end return K.DecodeNodeRow(c) end
+    assert(drawn()[1].kind == 6 and drawn()[3].gatherable == false, "drawn as set")
+    K.SetNodes({ { dx = 5, dy = 5, kind = 4 } })
+    K.Step(0)
+    assert(#drawn() == 1 and drawn()[1].kind == 4, "changed: redrawn")
+    K.SetStrip("oneline")
+    WowHelperData.stripOneLine = true
+    K.MarkDirty(); K.Step(0)
+    assert(math.abs(nt[1].points[1][4] - 117 * unit) < 1e-6 and nt[1].points[1][5] == 0, "one line: from cell 117")
+    assert(math.abs(K.frame.width - 171 * unit) < 1e-6, "171 cells")
+    K.SetMap(nil)
+    K.Step(0)
+    assert(not nt[1]:IsShown(), "no map row: no node row")
+    K.SetNodes(nil)
+    K.SetStrip("stacked")
+    WowHelperData = nil
+    K.SetEnabled(false)
+    print("PASS: node row: 54 cells, flips rejected, six rows up and from cell 117, gated on nodeRow 1 and the map row")
+end
+
 -- Ultrawide: the strip in physical pixels at any width, height, UI scale and cell size. The
 -- frame's units turned back into pixels (units * effective scale * height / 768) must be whole
 -- cells from the bottom-left corner; the width never enters. The map row's centre past 4095

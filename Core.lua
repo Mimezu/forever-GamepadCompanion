@@ -749,6 +749,8 @@ local commandHelp = {
     "/gpc perf  Moments timing",
     "/gpc nav  bag cursor log",
     "/gpc flights  quests to flight paths",
+    "/gpc ore mithril | any  node arrows: looking for",
+    "/gpc nodes  node names: the trace · forget",
     "/gpc on | off  my bar layout",
     "/gpc reset  both bar layouts",
     "/gpc gamepad  Blizzard options",
@@ -779,6 +781,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "water" and API.WaterProbe then
         API.WaterProbe(rest)
+        return
+    end
+    if (command == "nodes" or command == "ore" or command == "herb") and ns.NodeSense then
+        ns.NodeSense.Command(command == "nodes" and rest or (rest ~= "" and rest or "any"))
         return
     end
     if command == "flights" and ns.FlightList then

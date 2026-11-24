@@ -485,6 +485,62 @@ function K.DecodeMapRow(cells)
         camera = Get(bits, 59, 1) == 1 and Get(bits, 60, 10) or nil }
 end
 
+-- The node row (NodeSense.lua -> WoW Helper's node compass: what each minimap dot is): 54 cells,
+-- cyan first, 159 bits LE: version 0-1 (1), count 2-4 (0-6), then 6 nodes of 24 bits from bit 5
+-- (unused all zero): dx + 128 (8 bits: the dot from the minimap's centre, rightward, radius/127
+-- units), dy + 128 (8: downward), kind (6: S.ORES' numbers, 32 an herb, 48 treasure, 0 unknown),
+-- wanted (1), gatherable (1); CRC-8 over bits 0-148 at 149-156, spare 157-158. Six rows up
+-- (stacked) or from cell 117 (one line: 171 cells); drawn only while the map row is and
+-- WowHelperData.nodeRow is 1.
+K.NODE_CELLS = 54
+K.NODE_MARKER = { 0, 1, 1 }   -- cyan
+K.NODE_MAX = 6
+
+-- nodes = { { dx, dy, kind, wanted, gatherable } } -> 54 cells
+function K.EncodeNodeRow(nodes)
+    nodes = nodes or {}
+    local bits = {}
+    for i = 0, 158 do bits[i] = 0 end
+    Put(bits, 0, 1, 2)
+    local count = math.min(#nodes, K.NODE_MAX)
+    Put(bits, 2, count, 3)
+    for i = 1, count do
+        local n, at = nodes[i], 5 + (i - 1) * 24
+        Put(bits, at, Int((n.dx or 0) + 128, 255), 8)
+        Put(bits, at + 8, Int((n.dy or 0) + 128, 255), 8)
+        Put(bits, at + 16, Int(n.kind, 63), 6)
+        Put(bits, at + 22, n.wanted == false and 0 or 1, 1)
+        Put(bits, at + 23, n.gatherable == false and 0 or 1, 1)
+    end
+    Put(bits, 149, CrcBits(bits, 149), 8)
+    local cells = { { K.NODE_MARKER[1], K.NODE_MARKER[2], K.NODE_MARKER[3] } }
+    for c = 0, K.NODE_CELLS - 2 do cells[#cells + 1] = { bits[c * 3], bits[c * 3 + 1], bits[c * 3 + 2] } end
+    return cells
+end
+
+function K.DecodeNodeRow(cells)
+    if type(cells) ~= "table" or #cells < K.NODE_CELLS then return nil, "length" end
+    local m = cells[1]
+    if m[1] ~= 0 or m[2] ~= 1 or m[3] ~= 1 then return nil, "marker" end
+    local bits = {}
+    for c = 0, K.NODE_CELLS - 2 do
+        for k = 1, 3 do
+            local v = cells[c + 2][k]
+            if v ~= 0 and v ~= 1 then return nil, "value" end
+            bits[c * 3 + k - 1] = v
+        end
+    end
+    if Get(bits, 0, 2) ~= 1 then return nil, "value" end
+    if CrcBits(bits, 149) ~= Get(bits, 149, 8) then return nil, "crc" end
+    local out = {}
+    for i = 1, Get(bits, 2, 3) do
+        local at = 5 + (i - 1) * 24
+        out[i] = { dx = Get(bits, at, 8) - 128, dy = Get(bits, at + 8, 8) - 128, kind = Get(bits, at + 16, 6),
+            wanted = Get(bits, at + 22, 1) == 1, gatherable = Get(bits, at + 23, 1) == 1 }
+    end
+    return out
+end
+
 ---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
@@ -523,6 +579,7 @@ K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" } }
 K.LINE_LIGHT, K.LINE_TRIG, K.LINE_CELLS = 34, 57, 76
 K.LINE_SPELL, K.LINE_CELLS_SPELL = 76, 89   -- (the spell row after the trigger row: 89 cells)
 K.LINE_MAP, K.LINE_CELLS_MAP = 89, 117      -- (the map row after the spell row's place: 117 cells)
+K.LINE_NODE, K.LINE_CELLS_NODE = 117, 171   -- (the node row after the map row: 171 cells)
 function K.Strip() return DB().strip == "oneline" and "oneline" or "stacked" end
 function K.SetStrip(v)
     DB().strip = v == "oneline" and "oneline" or nil
@@ -560,6 +617,29 @@ function K.SetMap(m)
     if K.map and K.map.key == key then return end
     K.map = { key = key, facing = m.facing, x = m.x, y = m.y, radius = m.radius, yards = m.yards, rotates = m.rotates,
         tracking = m.tracking, camera = m.camera }
+    dirty = true
+end
+
+-- The node row: only while the map row is drawn and WoW Helper says it reads it
+-- (WowHelperData.nodeRow = 1), with dots named (NodeSense.lua)
+function K.NodeRowOn()
+    local d = WowHelperData
+    return K.MapRowOn() and type(d) == "table" and d.nodeRow == 1 and K.nodes ~= nil
+end
+
+-- The named dots (NodeSense.Row), or nil: none. Redrawn when they change
+K.nodes = nil
+function K.SetNodes(list)
+    local key
+    if type(list) == "table" then
+        local parts = {}
+        for i, n in ipairs(list) do
+            parts[i] = (n.dx or 0) .. "," .. (n.dy or 0) .. "," .. (n.kind or 0) .. (n.wanted == false and "-" or "") .. (n.gatherable == false and "x" or "")
+        end
+        key = table.concat(parts, ";")
+    end
+    if (K.nodes and K.nodes.key) == key then return end
+    K.nodes = key and { key = key, list = list } or nil
     dirty = true
 end
 
@@ -916,7 +996,7 @@ function K.Step(elapsed)
         dirty = false
         -- (WoW Helper's word on one line arrives with its data: the layout follows)
         if (K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine()) or (K.spellDrawn ~= nil and K.spellDrawn ~= K.SpellRowOn())
-            or (K.mapDrawn ~= nil and K.mapDrawn ~= K.MapRowOn()) then
+            or (K.mapDrawn ~= nil and K.mapDrawn ~= K.MapRowOn()) or (K.nodeDrawn ~= nil and K.nodeDrawn ~= K.NodeRowOn()) then
             K.Layout()
         end
         if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
@@ -924,6 +1004,7 @@ function K.Step(elapsed)
         if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
         if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
         if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
+        if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes.list) or nil) end
         return true
     end
     return false
@@ -961,9 +1042,10 @@ function K.Layout()
     frame:ClearAllPoints()
     frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
     local n = K.V2() and K.CELLS_V2 or K.CELLS
-    local line, spell, map = K.OneLine(), K.SpellRowOn(), K.MapRowOn()
-    K.lineDrawn, K.spellDrawn, K.mapDrawn = line, spell, map
-    frame:SetSize(unit * (line and (map and K.LINE_CELLS_MAP or spell and K.LINE_CELLS_SPELL or K.LINE_CELLS) or n), unit)
+    local line, spell, map, node = K.OneLine(), K.SpellRowOn(), K.MapRowOn(), K.NodeRowOn()
+    K.lineDrawn, K.spellDrawn, K.mapDrawn, K.nodeDrawn = line, spell, map, node
+    frame:SetSize(unit * (line and (node and K.LINE_CELLS_NODE or map and K.LINE_CELLS_MAP or spell and K.LINE_CELLS_SPELL
+        or K.LINE_CELLS) or n), unit)
     for i, tex in ipairs(textures) do
         tex:ClearAllPoints()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
@@ -1009,6 +1091,29 @@ function K.Layout()
             tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 4 * unit)
         end
         tex:SetSize(unit, unit)
+    end
+    if K.LayoutNodes then K.LayoutNodes(unit, line) end
+end
+
+-- the node row: six rows up (the goblin row is five up); one line: from cell 117
+function K.LayoutNodes(unit, line)
+    for i, tex in ipairs(K.nodeTextures or {}) do
+        tex:ClearAllPoints()
+        if line then
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_NODE + i - 1) * unit, 0)
+        else
+            tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 6 * unit)
+        end
+        tex:SetSize(unit, unit)
+    end
+end
+
+-- The node row's cells, or nil: hidden
+function K.DrawNode(cells)
+    for i, tex in ipairs(K.nodeTextures or {}) do
+        local c = cells and cells[i]
+        if c then tex:SetColorTexture(c[1], c[2], c[3], 1) end
+        tex:SetShown(c ~= nil)
     end
 end
 
@@ -1107,6 +1212,14 @@ local function Build()
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         tex:Hide()
         K.mapTextures[i] = tex
+    end
+    K.nodeTextures = {}
+    for i = 1, K.NODE_CELLS do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.nodeTextures[i] = tex
     end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
