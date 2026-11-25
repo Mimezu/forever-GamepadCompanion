@@ -554,6 +554,14 @@ function Keys.Probe()
     -- a write in place, to the top
     Set(C, click2); Set(A, click1); Step("A again under C")
     Set(C, nil); Step("C nil, A alone")
+    -- parking (Layer's way since 2026-11-24): a function set to "" stays on its owner; the
+    -- next owner's click must read clean (c9 = the click), the function back when set again
+    Off(A, B, C, D)
+    Set(A, click1); Set(B, FOCUS); Set(B, ""); Step("park: B focus then empty")
+    Set(C, click2); Step("park: C click over B parked")
+    Set(C, nil); Set(B, FOCUS); Step("park: B focus again")
+    Set(B, ""); Set(D, click3); Step("park: B parked again, D click")
+    Set(D, nil); Set(C, click2); Step("park: C click again")
     Off(A, B, C, D)
     Step("end")
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
@@ -706,12 +714,23 @@ end
 -- context 9) for good, held key or not (2026-11-22). Halo's ring on Create, under our Focus
 -- UI on another owner, only ever uncovered, never broke: the same way here. False: a click
 -- no owner holds clean, left off
+-- A layer's function is never let go: set to "" (an empty binding, transparent: the key runs
+-- what's under it), its record stays parked on our owner. Let go (nil, ClearOverrideBindings)
+-- the game hands that record, Focus UI still in it, to the next owner binding the key: Halo's
+-- ring on Mute ran Focus UI (login probe 2026-11-24: "C click over B cleared" -> Focus UI,
+-- click bindings too; "B focus then empty" -> the key as before, the record kept)
+local parked = {}            -- key -> true: its layer owner holds an empty binding
 Layer = function(key, command, fresh)
-    if layerOwners[key] then ClearOverrideBindings(layerOwners[key]) end
+    -- (fresh: parked again whatever we think, the heal's way)
+    if layerOwners[key] and (not parked[key] or fresh) then
+        SetOverrideBinding(layerOwners[key], true, key, "")
+        parked[key] = true
+    end
     local ok = true
     if command and FUNCTION[command] then
         Drop(click, key)
         SetOverrideBinding(LayerOwner(key), true, key, command)
+        parked[key] = nil
     elseif command then
         ok = Put(click, key, command, fresh)
     else
@@ -898,7 +917,7 @@ function Keys.Heal()
     -- binding till it is up: the game keeps the one a press ran for its release)
     local buttons = Sh.PadButtons()
     for _, key in ipairs(Keys.KEYS) do
-        if not Busy(buttons, key) then Layer(key, nil); extras[key] = nil end
+        if not Busy(buttons, key) then Layer(key, nil, true); extras[key] = nil end
     end
     -- (a leftover still read with them off, under Base: in the record Base holds. Its command
     -- put again, on another record; that key alone)

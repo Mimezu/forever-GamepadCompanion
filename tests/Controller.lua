@@ -117,7 +117,8 @@ local function Record(key, owner, kind)
 end
 local function Newest(key)
     local newest
-    for _, r in ipairs(stacks[key] or {}) do if r.live and (not newest or r.at > newest.at) then newest = r end end
+    -- (an empty binding is transparent: the key runs what's under it)
+    for _, r in ipairs(stacks[key] or {}) do if r.live and not r.empty and (not newest or r.at > newest.at) then newest = r end end
     overrides[key] = newest
 end
 -- (let go; a held key's function stays live, on no owner: "latched")
@@ -129,14 +130,15 @@ end
 -- Live records of key, newest first
 local function Live(key)
     local out = {}
-    for _, r in ipairs(stacks[key] or {}) do if r.live then out[#out + 1] = r end end
+    -- (an empty binding, parked: held, but nothing on the key)
+    for _, r in ipairs(stacks[key] or {}) do if r.live and not r.empty then out[#out + 1] = r end end
     table.sort(out, function(a, b) return a.at > b.at end)
     return out
 end
 -- A function of ours left in owner's record for key (live, as a held key or a stuck one leaves it)
 local function Ghost(key, owner, action)
     local r = Record(key, owner, "command")
-    r.at, r.slots[9] = 0, action or "TOGGLEUIFOCUS"   -- (oldest: only the gamepad set shows it)
+    r.at, r.slots[9], r.empty = 0, action or "TOGGLEUIFOCUS", nil   -- (oldest: only the gamepad set shows it)
     Newest(key)
 end
 -- (the ghost gone, as a /reload leaves it: the record forgotten)
@@ -146,7 +148,7 @@ local function Unghost(key, owner)
     Newest(key)
 end
 C_KeyBindings = { GetBindingByKey = function(key)
-    for _, r in ipairs(Live(key)) do if r.slots[9] then return r.slots[9] end end
+    for _, r in ipairs(Live(key)) do if r.slots[9] and not r.empty then return r.slots[9] end end
     return overrides[key] and overrides[key].action or nil
 end }
 function ClearOverrideBindings(owner)
@@ -157,13 +159,19 @@ function ClearOverrideBindings(owner)
     end
 end
 function SetOverrideBinding(owner, _, key, action)
-    if action == nil or action == "" then
+    -- ("": the owner keeps its record, empty and transparent, its slots kept but idle: login
+    -- probe 2026-11-24 "B focus then empty" -> the key as before; never handed on)
+    if action == "" then
+        for _, r in ipairs(stacks[key] or {}) do if r.live and r.owner == owner then r.empty = true end end
+        return Newest(key)
+    end
+    if action == nil then
         for _, r in ipairs(stacks[key] or {}) do if r.live and r.owner == owner then Let(r, key) end end
         return Newest(key)
     end
     local r = Record(key, owner, "command")
     writes = writes + 1
-    r.at, r.action = writes, action
+    r.at, r.action, r.empty = writes, action, nil
     r.slots[PAD_SET[action] and 9 or 0] = action
     Newest(key)
 end
@@ -772,7 +780,7 @@ eq(Create(), CLICK_CREATE, "L2 up with the map focused: Create is the map")
 -- never rewritten: the map's click put back over Focus UI left Focus UI in the game's gamepad
 -- set, 2026-11-22. Halo's ring under it never broke)
 for key, list in pairs(stacks) do
-    for _, entry in ipairs(list) do check(not (entry.live and entry.owner == layerOf(key)), "L2 up: no layer binding left: " .. key) end
+    for _, entry in ipairs(list) do check(not (entry.live and not entry.empty and entry.owner == layerOf(key)), "L2 up: no layer binding left: " .. key) end
 end
 local baseWrites = 0
 local setNow = SetOverrideBinding
@@ -1090,7 +1098,8 @@ do
     eq(PressKey("PAD5", true, true), "/click HaloButton t1 true", "L2 + R2 + Mute opens the ring")
     local reused = false
     for i = n0 + 1, #errors() do if errors()[i]:find("REUSED PAD5: TOGGLEUIFOCUS under CLICK GamepadCompanionKeys:p8 on GamepadCompanionKeyLayerClicks; the next owner", 1, true) then reused = true end end
-    check(reused, "the record passed over written down")
+    -- (L2's record parked on its owner, empty: never handed to the click, nothing to pass over)
+    check(not reused, "L2's record never handed to the click")
     eq(#Live("PAD5"), 1, "one record of ours live, the bad one let go")
     pressed.PADLTRIGGER = nil; pressed.PADRTRIGGER = nil; Keys.Watch()
     eq(MuteRuns(), "CLICK HaloButton:p3", "both up: Halo's ring")
