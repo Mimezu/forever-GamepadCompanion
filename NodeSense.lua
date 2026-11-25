@@ -50,7 +50,9 @@ local function Word(name) return (name:gsub("[%s'%-]", "")) end
 -- tracking: 1 minerals, 2 herbs, 3 treasure (NodeCompass.Tracking)
 function S.Kind(line, tracking)
     if type(line) ~= "string" or line == "" then return nil end
-    local low = line:lower():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    -- (colour codes and icons dropped: "|T...|t", "|A...|a" in front of a minimap name)
+    local low = line:lower():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|t[^|]*|t", ""):gsub("|a[^|]*|a", "")
+        :gsub("^%s+", ""):gsub("%s+$", "")
     low = low:gsub("^ooze covered ", "")
     if tracking == 1 then
         for _, o in ipairs(S.ORES) do
@@ -466,7 +468,7 @@ end
 -- is aimed at that spot and at a spot well away from it; the one that names the dot there and not
 -- away is the minimap's unit, kept. Only the tooltip data counts here (the hidden tooltip would
 -- read the real hover everywhere). Once per hover, written to the trace
-local calibrated = false
+local calibrated, calibratedTold = false, false
 local function DataNames()
     local data = Call(C_TooltipInfo.GetMinimapMouseover)
     local out = {}
@@ -496,7 +498,22 @@ local function Calibrate(m, tracking)
             end
         end
     end
-    if not real then return end
+    if not real then
+        -- (what the tooltip held instead, once a hover: its owner and lines, codes shown)
+        if gt and gt:IsShown() and not calibratedTold then
+            calibratedTold = true
+            local owner = gt:GetOwner()
+            local texts = {}
+            for i = 1, math.min(gt:NumLines() or 0, 4) do
+                local fs = _G["GameTooltipTextLeft" .. i]
+                local t = fs and fs:GetText()
+                texts[#texts + 1] = type(t) == "string" and not Secret(t) and t:gsub("|", "||"):sub(1, 60) or tostring(t)
+            end
+            Trace(("calibrate: no node in the tooltip (owner %s, tracking %s): %s"):format(
+                tostring(owner and owner.GetName and owner:GetName() or owner), tostring(tracking), table.concat(texts, " / ")))
+        end
+        return
+    end
     calibrated = true
     local x, y = Call(GetCursorPosition)
     if not (x and y) or Secret(x) then return end
@@ -551,7 +568,7 @@ local function Step()
         if m then Calibrate(m, tracking) end
         return
     end
-    calibrated = false
+    calibrated, calibratedTold = false, false
     local m = Measure()
     if not m then return end
     local now = Now()

@@ -80,6 +80,8 @@ local function Run(frames) for _ = 1, frames do clock = clock + 1 / 60; if lag a
 eq(S.Kind("Mithril Deposit", 1).kind, 6, "Mithril")
 eq(S.Kind("Ooze Covered Mithril Deposit", 1).word, "mithril", "Ooze Covered: the ore under it")
 eq(S.Kind("Small Thorium Vein", 1).skill, 245, "its skill")
+eq(S.Kind("|TInterface\\Minimap\\Tracking\\Mining:0|t Copper Vein", 1).kind, 1, "an icon in front of the name")
+eq(S.Kind("|A:Mining:16:16|a|cffffffffTin Vein|r", 1).kind, 2, "an atlas icon and a colour")
 eq(S.Kind("Strange Vein", 1).kind, 0, "an ore the list doesn't know: named, kind 0")
 eq(S.Kind("Alberich", 1), nil, "a player's name: no node")
 eq(S.Kind("Mithril Deposit", 2), nil, "an ore while finding herbs: no")
