@@ -142,6 +142,8 @@ SpellbookMicroButton
 UIErrorsFrame
 UIParent
 UISpecialFrames
+UseAction
+UseItemByName
 UnitAffectingCombat
 UnitAttackSpeed
 UnitBuff

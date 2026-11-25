@@ -52,7 +52,7 @@ C_UnitAuras = { GetBuffDataByIndex = function(unit, i)
     local b = buffs[i]
     if not b then return nil end
     return { name = b.name, spellId = b.id, icon = "icon" .. b.id, duration = b.duration, sourceUnit = b.source,
-        isFromPlayerOrPlayerPet = b.mine, auraInstanceID = b.instance, expirationTime = b.expires }
+        isFromPlayerOrPlayerPet = b.mine, auraInstanceID = b.instance, expirationTime = b.expires, applications = b.count }
 end }
 C_TooltipInfo = { GetUnitBuffByAuraInstanceID = function(unit, instance)
     for _, b in ipairs(buffs) do
@@ -69,6 +69,7 @@ assert(loadfile(root .. "/FishingJournal.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/FishingToast.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/EditSpots.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/Passage.lua"))("GamepadCompanion", ns)
+assert(loadfile(root .. "/MealFoods.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/MealCard.lua"))("GamepadCompanion", ns)
 local P = ns.Passage
 local M = ns.MealCard
@@ -363,7 +364,7 @@ Aura()
 events.scripts.OnEvent(events, "PLAYER_REGEN_DISABLED")
 eq(M.Waiting(), nil, "a fight: no wait")
 M.Step(1)
--- the fire's minute: up with the fire's words; none while its benefits are on
+-- the fire's minute: up with the fire's words, its benefits on or not
 buffs = { { id = 1229739, name = "Welcoming Campfire", duration = 60, expires = clock + 60, instance = 308, icon = "fire" } }
 Aura()
 local fw = M.Waiting()
@@ -380,32 +381,152 @@ eq(M.shown.line1, "+14 Spirit", "what they give")
 M.Step(10)
 buffs[2] = { id = 1229739, name = "Welcoming Campfire", duration = 60, expires = clock + 64, instance = 310 }
 Aura()
-eq(M.Waiting(), nil, "the next minute, the benefits on: no wait")
+-- the next minute, the benefits on: the wait again (2026-11-25: Camp Benefits stays on an hour
+-- and is renewed each minute sat, so a wait only without it never showed)
+local fw2 = M.Waiting()
+eq(fw2 and fw2.kind, "fire", "the next minute, the benefits on: the wait")
+P.Step(0.1)
+eq(passage.clock.text, "1:04", "its time")
+clock = clock + 64
+buffs[1].expires = clock + 3600
+table.remove(buffs, 2)
+Aura()
+eq(shows, n0 + 3, "the benefits renewed: no card each minute")
+eq(M.Waiting(), nil, "the minute's done")
+local function traced(s)
+    local t = GamepadCompanionTraceDB and GamepadCompanionTraceDB.meal or {}
+    for i = #t, 1, -1 do if t[i]:find(s, 1, true) then return true end end
+    return false
+end
+check(traced("fire: 1229739 Welcoming Campfire, 1:04 left -> wait"), "written down: the fire's minute")
+check(traced("fire: Camp Benefits renewed"), "written down: the benefits renewed")
+P.Step(10)
 
--- Forever's eating aura without the food's text: the eaten item's tooltip says it (its use
--- spell is the aura's). Known from a look in the bags before it's eaten (2026-11-24)
+-- the fire's timer the buff list leaves out: asked for by its id
+do
+    M.Reset(); buffs = {}; Aura()
+    local hidden = { name = "Welcoming Campfire", spellId = 1229739, icon = "fire", duration = 60, expirationTime = clock + 60, auraInstanceID = 320 }
+    C_UnitAuras.GetPlayerAuraBySpellID = function(id) if id == 1229739 then return hidden end end
+    Aura()
+    eq(M.Waiting() and M.Waiting().kind, "fire", "the timer by its id: the wait")
+    hidden = nil
+    Aura()
+    eq(M.Waiting(), nil, "stood up: no wait")
+    C_UnitAuras.GetPlayerAuraBySpellID = nil
+    P.Step(10)
+end
+
+-- Forever's buff foods: the eating aura is bread's (Food 1127: "Restores 841 health over 27
+-- sec."); the item used or its "Nutritious Food" cast says it (MealFoods.lua, 2026-11-25)
+local FOREVER = "Restores 2065 health over 30 sec. Must remain seated while eating. If you spend at least 10 sec eating, you will become well fed and gain 20 Strength for 15 min. Additionally, experience gained from kills is increased by 5%."
+f = M.FoodBuff(FOREVER)
+eq(f and (f.wait .. " / " .. f.title .. " / " .. f.gives), "10 / Well Fed / +20 Strength", "Forever's text: '10 sec eating,'")
+eq(M.ItemFood(250071) and M.ItemFood(250071).gives, "+20 Strength", "Steaming Stag Steak: on the list")
+eq(select(2, M.ItemFood(250071)), "list", "known by the list")
+eq(M.ItemFood(4599, "Cured Ham Steak\nUse: Restores 1392 health over 27 sec. Must remain seated while eating."), nil, "a plain food item: no buff")
+eq(M.ItemFood(9999, "Odd Pie\nUse: " .. FOREVER).gives, "+20 Strength", "an unlisted buff food: its tooltip")
+eq(M.SpellFood(1248401) and M.SpellFood(1248401).gives, "+20 Strength", "Nutritious Food's spell: on the list")
+eq(M.SpellFood(1127, "Restores 841 health over 27 sec.  Must remain seated while eating."), nil, "bread's Food spell: no buff")
+local n = 0
+for _ in pairs(M.BUFF_FOODS) do n = n + 1 end
+check(n >= 100, "the list holds Forever's buff foods (" .. n .. ")")
+for item, e in pairs(M.BUFF_FOODS) do
+    check(type(e[1]) == "number" and e[1] > 0 and type(e[2]) == "string" and e[2]:sub(1, 1) == "+", "list entry " .. item)
+end
 do
     M.Reset(); buffs = {}; Aura(); P.Step(10)
-    DESCS[1400001] = "Restores 1200 health over 30 sec."
-    NAMES[1400001] = "Food"
-    local bag = { [1] = { itemID = 9001 } }
-    C_Container = { GetContainerNumSlots = function(b) return b == 0 and 1 or 0 end,
-        GetContainerItemInfo = function(b, slot) return b == 0 and bag[slot] or nil end }
-    C_Item = { GetItemSpell = function(id) if id == 9001 then return "Food", 1400001 end end }
-    C_TooltipInfo.GetItemByID = function(id)
-        if id == 9001 then return { lines = { { leftText = "Smoked Bear Meat" },
-            { leftText = "Use: Restores 1200 health over 30 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 20 Attack Power for 15 min." } } } end
-    end
-    M.LookInBags()
-    bag[1] = nil   -- (the last one eaten: gone from the bags)
-    buffs = { { id = 1400001, name = "Food", duration = 30, expires = clock + 30, source = "player", mine = true, instance = 400 } }
+    DESCS[1127] = "Restores 841 health over 27 sec.  Must remain seated while eating."
+    NAMES[1127] = "Food"
+    -- plain food: bread's aura, nothing used that says a buff
+    buffs = { { id = 1127, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 500 } }
     Aura()
-    check(M.Waiting() ~= nil, "no text on the aura: the item's tooltip says buff food, the wait")
+    eq(M.Waiting(), nil, "bread: no wait")
+    clock = clock + 30; buffs = {}; Aura()
+    -- a buff food from an action button: the item first, then the aura
+    M.ItemUsed(250071)
+    eq(M.Waiting(), nil, "used, not eating yet: no wait")
+    buffs = { { id = 1131, name = "Food", duration = 30, expires = clock + 30, source = "player", mine = true, instance = 501 } }
+    DESCS[1131] = "Restores 2065 health over 30 sec.  Must remain seated while eating."
+    Aura()
+    eq(M.Waiting() and M.Waiting().kind, "meal", "a buff food on bread's aura: the wait")
     P.Step(0.1)
-    eq(passage.sub.text, "+20 Attack Power", "its gain from the item")
-    local t = GamepadCompanionTraceDB.meal
-    check(t and t[#t]:find("item found") ~= nil, "written down: the item found")
+    eq(passage.title.text .. " / " .. passage.clock.text .. " / " .. passage.sub.text, "Well Fed / 0:10 / +20 Strength", "its words")
+    check(traced("eat: item 250071 (list) -> buff, wait 10"), "written down: the item")
+    check(traced("eat: 1131 Food -> wait 0:10"), "written down: the wait")
+    clock = clock + 10
+    buffs[2] = { id = 1243969, name = "Well Fed", duration = 900, expires = clock + 900, source = "player", mine = true, instance = 502 }
+    local before = shows
+    Aura()
+    eq(shows, before + 1, "Well Fed lands: the toast")
+    eq(M.Waiting(), nil, "the wait over")
+    M.Step(10); P.Step(10)
+    -- the aura first, then the cast (the spell's own text)
+    buffs = {}; Aura()
+    buffs = { { id = 1131, name = "Food", duration = 30, expires = clock + 30, source = "player", mine = true, instance = 503 } }
+    Aura()
+    eq(M.Waiting(), nil, "bread's aura alone: no wait")
+    events.scripts.OnEvent(events, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 1248401)
+    eq(M.Waiting() and M.Waiting().kind, "meal", "then Nutritious Food's cast: the wait")
+    -- a cast long after the eating began: not this eating's
     buffs = {}; Aura(); P.Step(10)
+    buffs = { { id = 1131, name = "Food", duration = 30, expires = clock + 30, source = "player", mine = true, instance = 504 } }
+    Aura()
+    clock = clock + 8
+    events.scripts.OnEvent(events, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 1248401)
+    eq(M.Waiting(), nil, "a cast 8 s into bread: not this eating's")
+    buffs = {}; Aura(); P.Step(10)
+    -- a plain spell cast: nothing
+    events.scripts.OnEvent(events, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 1127)
+    buffs = { { id = 1127, name = "Food", duration = 27, expires = clock + 27, source = "player", mine = true, instance = 505 } }
+    Aura()
+    eq(M.Waiting(), nil, "bread eaten, bread cast: no wait")
+    buffs = {}; Aura(); P.Step(10)
+end
+
+-- The sleeping bag: laid out, a minute to each Well-Rested stack, three at most
+do
+    M.Reset(); buffs = {}; Aura(); P.Step(10)
+    local resting = false
+    IsResting = function() return resting end
+    local before = shows
+    events.scripts.OnEvent(events, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 429961)
+    local bw = M.Waiting()
+    eq(bw and bw.kind, "bag", "the bag laid out: the wait")
+    P.Step(0.1)
+    eq(passage.title.text .. " / " .. passage.clock.text .. " / " .. passage.sub.text, "Well-Rested / 1:00 / +1% XP", "its words")
+    check(traced("bag: Unroll Bag -> wait 1:00"), "written down: the bag")
+    resting = true
+    events.scripts.OnEvent(events, "PLAYER_UPDATE_RESTING")
+    clock = clock + 60
+    buffs = { { id = 429959, name = "Well-Rested", duration = 7200, expires = clock + 7200, source = "player", mine = true, instance = 600, count = 1 } }
+    Aura()
+    eq(shows, before, "Well-Rested: no card")
+    check(traced("bag: Well-Rested 1/3"), "written down: the stack")
+    bw = M.Waiting()
+    eq(bw and bw.kind, "bag", "resting on: the next minute")
+    P.Step(0.1)
+    eq(passage.sub.text, "+2% XP", "the next stack's words")
+    clock = clock + 60
+    buffs[1].count = 2; buffs[1].expires = clock + 7200
+    Aura()
+    clock = clock + 60
+    buffs[1].count = 3; buffs[1].expires = clock + 7200
+    Aura()
+    eq(M.Waiting(), nil, "three stacks: no more wait")
+    -- up from the bag mid-minute: the wait goes
+    buffs = {}; Aura()
+    events.scripts.OnEvent(events, "PLAYER_UPDATE_RESTING")
+    check(M.Waiting() ~= nil, "back in the bag (resting): the wait")
+    resting = false
+    events.scripts.OnEvent(events, "PLAYER_UPDATE_RESTING")
+    eq(M.Waiting(), nil, "up from the bag: no wait")
+    -- long after the bag: resting at an inn is not the bag's
+    clock = clock + 30 * 60
+    resting = true
+    events.scripts.OnEvent(events, "PLAYER_UPDATE_RESTING")
+    eq(M.Waiting(), nil, "an inn later: no wait")
+    IsResting = nil
+    P.Step(10)
 end
 
 io.write(("MealCard: %d checks, %d failures\n"):format(checks, failures))

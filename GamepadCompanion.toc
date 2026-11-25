@@ -58,6 +58,7 @@ FishingLure.lua
 Passage.lua
 FishingJournal.lua
 FishingToast.lua
+MealFoods.lua
 MealCard.lua
 SlotMacros.lua
 BankMove.lua
