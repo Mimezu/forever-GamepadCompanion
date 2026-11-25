@@ -244,19 +244,58 @@ local function Measure()
 end
 
 -- The names under a point (one reading), or nil: the call refused
-local function Probe(px, py)
+-- (a hidden tooltip of our own, read when the tooltip data gives nothing: the minimap fills a
+-- GameTooltip with SetMinimapMouseover)
+local tip
+local function TipLines()
+    if not tip then
+        tip = CreateFrame("GameTooltip", "GamepadCompanionNodeTip", nil, "GameTooltipTemplate")
+        tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+    end
+    tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+    if not pcall(tip.SetMinimapMouseover, tip) then return nil end
+    local out = {}
+    for i = 1, tip:NumLines() or 0 do
+        local fs = _G["GamepadCompanionNodeTipTextLeft" .. i]
+        local t = fs and fs:GetText()
+        if type(t) == "string" and not Secret(t) and t ~= "" then out[#out + 1] = t end
+    end
+    tip:Hide()
+    return out
+end
+
+-- The names under a point (one reading), or nil: the call refused. raw (optional): counts of
+-- what came back, and a few texts as they came, whatever they were
+local function Probe(px, py, raw)
     local ok = pcall(Minimap.UpdateMouseoverAtPoint, Minimap, px, py)
     if not ok then return nil end
     local data = Call(C_TooltipInfo.GetMinimapMouseover)
-    local out = {}
+    local texts = {}
     if type(data) == "table" and type(data.lines) == "table" then
         for _, l in ipairs(data.lines) do
             local t = type(l) == "table" and l.leftText
-            if type(t) == "string" and not Secret(t) and t ~= "" then
-                -- (one line may hold several names, one per line break)
-                for name in (t .. "\n"):gmatch("(.-)\n") do if name ~= "" then out[#out + 1] = name end end
-            end
+            if type(t) == "string" and not Secret(t) and t ~= "" then texts[#texts + 1] = t end
         end
+    end
+    local via = "fromData"
+    if #texts == 0 then
+        local tl = TipLines()
+        if tl and #tl > 0 then texts, via = tl, "tip" end
+    end
+    if raw then
+        raw.calls = (raw.calls or 0) + 1
+        if data ~= nil then raw.data = (raw.data or 0) + 1 end
+        if type(data) == "table" and type(data.lines) == "table" and #data.lines > 0 then raw.lines = (raw.lines or 0) + 1 end
+        if #texts > 0 then
+            raw[via] = (raw[via] or 0) + 1
+            raw.samples = raw.samples or {}
+            if #raw.samples < 4 then raw.samples[#raw.samples + 1] = (table.concat(texts, "/"):gsub("\n", "/")):sub(1, 40) end
+        end
+    end
+    local out = {}
+    for _, t in ipairs(texts) do
+        -- (one line may hold several names, one per line break)
+        for name in (t .. "\n"):gmatch("(.-)\n") do if name ~= "" then out[#out + 1] = name end end
     end
     return out
 end
@@ -282,6 +321,7 @@ local sweep          -- { readings = { i, ... }, pts, at (next point), hits = { 
 local nextAt, searchAt = 0, 0
 local grid
 local soft = false
+local searches = 0
 local blocked = false
 local last = {}      -- reading -> { dots, x, y (world), facing } of its last sweep
 local score = {}     -- reading -> agreement sum
@@ -310,7 +350,16 @@ local function Finish(s, m)
         for _, r in ipairs(s.readings) do if #results[r] > 0 then found[#found + 1] = r end end
         local words = {}
         for _, r in ipairs(s.readings) do words[#words + 1] = S.READINGS[r][1] .. " " .. #results[r] end
-        Trace("search: " .. table.concat(words, ", "))
+        Trace("search (soft cursor " .. (s.soft and "on" or "off") .. "): " .. table.concat(words, ", "))
+        -- (what came back at all, whatever it was: calls, data, data with lines, texts via the
+        -- tooltip data or the hidden tooltip, a few texts)
+        local raws = {}
+        for _, r in ipairs(s.readings) do
+            local w = s.raw and s.raw[r] or {}
+            raws[#raws + 1] = ("%s %d/%d/%d/%d/%d%s"):format(S.READINGS[r][1], w.calls or 0, w.data or 0, w.lines or 0,
+                w.fromData or 0, w.tip or 0, w.samples and (" [" .. table.concat(w.samples, "; ") .. "]") or "")
+        end
+        Trace("raw (calls/data/lines/texts/tip): " .. table.concat(raws, ", "))
         local e, n = World()
         local facing = Call(GetPlayerFacing)
         for _, r in ipairs(found) do
@@ -341,6 +390,7 @@ local function Finish(s, m)
         end
         if pick then
             Store().reading = pick
+            Store().soft = s.soft ~= false
             Trace("reading: " .. S.READINGS[pick][1])
         else
             return
@@ -402,11 +452,17 @@ local function Step()
         local readings = {}
         if known then readings[1] = known else for i = 1, #S.READINGS do readings[i] = i end end
         local NCm = NC.Row and NC.Row()
-        sweep = { readings = readings, at = 1, hits = {}, tracking = tracking, t0 = now,
+        -- (the soft cursor on or off for the hover: unknown which the minimap wants; searches
+        -- take turns, the reading found keeps its way)
+        searches = searches + 1
+        local useSoft = known and Store().soft ~= false or (not known and searches % 2 == 1)
+        sweep = { readings = readings, at = 1, hits = {}, tracking = tracking, t0 = now, soft = useSoft,
             yards = NCm and NCm.yards or (NC.Yards and NC.Yards(Minimap)) or 400, rotates = GetCVar("rotateMinimap") == "1" }
+        sweep.raw = {}
         for _, r in ipairs(readings) do sweep.hits[r] = {} end
     end
-    SetSoft(true)
+    local s0 = sweep
+    SetSoft(s0 and s0.soft ~= false)
     local s = sweep
     local total = #grid * #s.readings
     local budget = S.PER_FRAME
@@ -414,7 +470,8 @@ local function Step()
         local r = s.readings[floor((s.at - 1) / #grid) + 1]
         local p = grid[(s.at - 1) % #grid + 1]
         local px, py = S.READINGS[r][2](p[1], p[2], m)
-        local names = Probe(px, py)
+        s.raw[r] = s.raw[r] or {}
+        local names = Probe(px, py, s.raw[r])
         if names == nil then
             blocked = true
             SetSoft(false)

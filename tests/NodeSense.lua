@@ -159,7 +159,7 @@ for _ = 1, 40 do
 end
 eq(GamepadCompanionHapticsDB.nodeSense.reading, 3, "the local reading chosen, not its mirror")
 local trace = table.concat(GamepadCompanionTraceDB.nodes, "\n")
-check(trace:find("search:") ~= nil and trace:find("reading: local") ~= nil, "the search written down")
+check(trace:find("search (soft cursor", 1, true) ~= nil and trace:find("raw (calls", 1, true) ~= nil and trace:find("reading: local") ~= nil, "the search written down")
 
 -- The API refused: the sweep stops, written down ------------------------------------------------------
 refused = true

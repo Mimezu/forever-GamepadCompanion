@@ -236,3 +236,4 @@ C_TaxiMap
 CreateVector2D
 TaxiRequestEarlyLanding
 PaperDollFrame
+WorldFrame
