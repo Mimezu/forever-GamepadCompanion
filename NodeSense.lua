@@ -507,7 +507,10 @@ local function Calibrate(m, tracking)
             for i = 1, math.min(gt:NumLines() or 0, 4) do
                 local fs = _G["GameTooltipTextLeft" .. i]
                 local t = fs and fs:GetText()
-                texts[#texts + 1] = type(t) == "string" and not Secret(t) and t:gsub("|", "||"):sub(1, 60) or tostring(t)
+                -- (a secret can't be shown or joined: tostring keeps it secret, 2026-11-25)
+                if Secret(t) then texts[#texts + 1] = "(secret)"
+                elseif type(t) == "string" then texts[#texts + 1] = (t:gsub("|", "||"):sub(1, 60))
+                else texts[#texts + 1] = type(t) end
             end
             Trace(("calibrate: no node in the tooltip (owner %s, tracking %s): %s"):format(
                 tostring(owner and owner.GetName and owner:GetName() or owner), tostring(tracking), table.concat(texts, " / ")))
