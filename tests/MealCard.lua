@@ -149,8 +149,9 @@ eq(M.Phase(), "in", "rising")
 local card
 for _, f in ipairs(frames) do if f.name == "GamepadCompanionMealCard" then card = f end end
 assert(card, "the card is a named frame")
-eq(card.point[1] .. "/" .. tostring(card.point[2] == PlayerFrame) .. "/" .. card.point[3], "BOTTOM/true/TOP", "above the player frame")
-eq(card.point[5], 8 - 20 - 10, "its foot 8 px over the portrait (the frame's 20 px of air), 10 px low as it rises")
+eq(card.point[1] .. "/" .. tostring(card.point[2] == ns.Passage.Frame("meal")) .. "/" .. card.point[3], "BOTTOMLEFT/true/TOPLEFT",
+    "above the meal's line, where Edit Mode put it")
+eq(card.point[5], 8 - 10, "its foot 8 px over the line, 10 px low as it rises")
 eq(card.icon.texture, "icon19705", "the buff's icon")
 -- the same auras again (a refresh): no card
 Aura()
@@ -162,7 +163,7 @@ eq(shows, 1, "Well Fed refreshed: no new card")
 -- the motion
 M.Step(0.4)
 eq(M.Phase(), "hold", "in place")
-eq(card.point[5], 8 - 20, "resting 8 px over the portrait")
+eq(card.point[5], 8, "resting 8 px over the line")
 M.Step(5.1)
 eq(M.Phase(), "out", "then fades")
 M.Step(0.7)

@@ -259,6 +259,8 @@ function P.Hide(owner)
     local w = widgets[owner]
     if w and w.live then w.live = nil; w.want = (editing and 1 or 0) end
 end
+-- owner's widget frame (made when first wanted): where Edit Mode put it, shown or not
+function P.Frame(owner) return Widget(owner).frame end
 -- Is owner's up (its real thing, not an Edit Mode sample)
 function P.Owner(owner)
     if owner then return widgets[owner] ~= nil and widgets[owner].live ~= nil end

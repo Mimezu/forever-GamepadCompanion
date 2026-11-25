@@ -352,12 +352,15 @@ local function Gap(frame)
     return gap
 end
 
--- Composed above the player frame, centred, its foot 8 px over the portrait's top, wherever
--- Edit Mode put the frame; y: the rise
+-- Above the meal's passage line, wherever Edit Mode put it (the card follows the wait it ends);
+-- no passage: above the player frame, centred, its foot 8 px over the portrait's top; y: the rise
 local function Anchor(y)
     local frame = _G.PlayerFrame
     card:ClearAllPoints()
-    if frame and type(frame.GetTop) == "function" then
+    local line = ns.Passage and ns.Passage.Frame and ns.Passage.Frame("meal")
+    if line then
+        card:SetPoint("BOTTOMLEFT", line, "TOPLEFT", 0, 8 + (y or 0))
+    elseif frame and type(frame.GetTop) == "function" then
         card:SetPoint("BOTTOM", frame, "TOP", 0, 8 - Gap(frame) + (y or 0))
     else
         card:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300 + (y or 0))
