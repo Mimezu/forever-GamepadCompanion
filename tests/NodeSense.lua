@@ -34,6 +34,7 @@ local dots = {}             -- { e, n (world yards), name }
 local truth = "screen"      -- how the engine reads the point
 local refused = false
 local point
+lag, nextPoint = false, nil   -- (lag: the minimap takes the point at its next update)
 local function YardsAcross() return 466 + 2 / 3 end
 -- the engine's point -> radius units (x right, y up) under the true reading
 local function Unread(x, y)
@@ -48,12 +49,14 @@ Minimap = {
     SetUsingSoftCursor = function() end,
     UpdateMouseoverAtPoint = function(_, x, y)
         if refused then error("blocked") end
-        point = { x, y }
+        if lag then nextPoint = { x, y } else point = { x, y } end
     end,
 }
 C_TooltipInfo = { GetMinimapMouseover = function()
     if not point then return nil end
     local ux, uy = Unread(point[1], point[2])
+    -- (the minimap names only what it draws: nothing past its rim)
+    if ux * ux + uy * uy > 1 then return { lines = {} } end
     local lines = {}
     local k = 2 / YardsAcross()
     for _, d in ipairs(dots) do
@@ -71,7 +74,7 @@ local ns = { Shared = { CharDB = function() return char end },
     HelperLink = { SetNodes = function(list) sent = list end } }
 assert(loadfile(root .. "/NodeSense.lua"))("GamepadCompanion", ns)
 local S = ns.NodeSense
-local function Run(frames) for _ = 1, frames do clock = clock + 1 / 60; driver.onUpdate(driver, 1 / 60) end end
+local function Run(frames) for _ = 1, frames do clock = clock + 1 / 60; if lag and nextPoint then point = nextPoint end; driver.onUpdate(driver, 1 / 60) end end
 
 -- Names ------------------------------------------------------------------------------------------
 eq(S.Kind("Mithril Deposit", 1).kind, 6, "Mithril")
@@ -151,15 +154,31 @@ combat = false
 -- Two mirrored readings both find dots: the slide as you walk tells them apart -----------------------
 S.Forget()
 truth = "local"
-dots = { { e = 50, n = 60, name = "Iron Deposit" }, { e = -40, n = -70, name = "Gold Vein" } }
-for _ = 1, 40 do
-    py = py + 7              -- walking north (about 6 yd/s)
+dots = { { e = 50, n = 60, name = "Iron Deposit" }, { e = -40, n = -70, name = "Gold Vein" },
+    { e = 30, n = 220, name = "Silver Vein" }, { e = -70, n = 380, name = "Tin Vein" } }
+for _ = 1, 300 do
+    py = py + 2.5            -- walking north (about 2 yd/s)
     Run(70)
     if GamepadCompanionHapticsDB.nodeSense.reading then break end
 end
 eq(GamepadCompanionHapticsDB.nodeSense.reading, 3, "the local reading chosen, not its mirror")
 local trace = table.concat(GamepadCompanionTraceDB.nodes, "\n")
 check(trace:find("search (soft cursor", 1, true) ~= nil and trace:find("raw (calls", 1, true) ~= nil and trace:find("reading: local") ~= nil, "the search written down")
+
+-- The minimap takes the point at its next update: only reads a frame later find the dots
+S.Forget()
+truth, lag = "screen", true
+px, py = 0, 0
+dots = { { e = 60, n = 40, name = "Mithril Deposit" }, { e = -90, n = -30, name = "Iron Deposit" } }
+for _ = 1, 120 do
+    Run(60)
+    if GamepadCompanionHapticsDB.nodeSense.reading then break end
+end
+eq(GamepadCompanionHapticsDB.nodeSense.reading, 1, "lagging minimap: the screen reading found")
+eq(GamepadCompanionHapticsDB.nodeSense.deferred, true, "read a frame later")
+Run(900)
+eq(#S.dots, 2, "and the dots read that way after")
+lag, nextPoint = false, nil
 
 -- The API refused: the sweep stops, written down ------------------------------------------------------
 refused = true

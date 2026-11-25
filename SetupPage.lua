@@ -530,7 +530,8 @@ local function BuildNodes(frame)
     local cw = W - X3
     local card = S.Card(frame, "Nodes", X3, -490, cw, PH - 490, "Interface\\Icons\\Spell_Nature_Earthquake")
     local names = S.NewCheck(card, "Name the arrows", 12, -38, function(self)
-        ns.Shared.CharDB().nodeSense = self:GetChecked() == true and nil or false
+        -- (on: nil, the default; off: false. "x and nil or false" is always false)
+        if self:GetChecked() then ns.Shared.CharDB().nodeSense = nil else ns.Shared.CharDB().nodeSense = false end
     end, cw - 40)
     S.Tooltip(names, "Name the arrows", "Experimental · WoW Helper colours them")
     -- the choices: any, any ore, each ore, any herb

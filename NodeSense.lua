@@ -164,7 +164,13 @@ end
 
 function S.Want() return Sh and Sh.CharDB and Sh.CharDB().nodeWant or nil end
 function S.SetWant(w) Sh.CharDB().nodeWant = (w ~= nil and w ~= "" and w ~= "any") and w or nil end
-function S.Enabled() return not (Sh and Sh.CharDB and Sh.CharDB().nodeSense == false) end
+function S.Enabled()
+    local db = Sh and Sh.CharDB and Sh.CharDB()
+    if not db then return true end
+    -- (Setup's box set it off when ticked on till 2026-11-24: that off forgotten once)
+    if db.nodeSenseFixed ~= true then db.nodeSense, db.nodeSenseFixed = nil, true end
+    return db.nodeSense ~= false
+end
 
 ---------------------------------------------------------------------------
 -- The game
@@ -264,11 +270,20 @@ local function TipLines()
     return out
 end
 
--- The names under a point (one reading), or nil: the call refused. raw (optional): counts of
--- what came back, and a few texts as they came, whatever they were
+-- The hover moved to a point; false: the call refused
+local function Point(px, py)
+    return (pcall(Minimap.UpdateMouseoverAtPoint, Minimap, px, py))
+end
+
+-- The names under the hover now. raw (optional): counts of what came back, and a few texts as
+-- they came, whatever they were
+local Read
+-- The names under a point (one reading), or nil: the call refused
 local function Probe(px, py, raw)
-    local ok = pcall(Minimap.UpdateMouseoverAtPoint, Minimap, px, py)
-    if not ok then return nil end
+    if not Point(px, py) then return nil end
+    return Read(raw)
+end
+Read = function(raw)
     local data = Call(C_TooltipInfo.GetMinimapMouseover)
     local texts = {}
     if type(data) == "table" and type(data.lines) == "table" then
@@ -303,6 +318,7 @@ end
 -- The state: the reading in use (an index into S.READINGS, nil: not known yet), the sweep under
 -- way, the last dots, the readings' scores
 S.STEP = 0.07             -- grid step, radius units (about 450 points)
+S.STEP_DEFERRED = 0.12    -- read a frame later: one point a frame, a coarser grid (about 240)
 S.PER_FRAME = 25          -- probes a frame (each builds the minimap tooltip's data)
 S.EVERY = 1.0             -- s between sweeps
 S.SEARCH_EVERY = 12       -- s between searches for the reading while none is known
@@ -319,7 +335,7 @@ end
 S.dots = {}
 local sweep          -- { readings = { i, ... }, pts, at (next point), hits = { [i] = {} }, t0 }
 local nextAt, searchAt = 0, 0
-local grid
+local grid, gridCoarse
 local soft = false
 local searches = 0
 local blocked = false
@@ -350,7 +366,7 @@ local function Finish(s, m)
         for _, r in ipairs(s.readings) do if #results[r] > 0 then found[#found + 1] = r end end
         local words = {}
         for _, r in ipairs(s.readings) do words[#words + 1] = S.READINGS[r][1] .. " " .. #results[r] end
-        Trace("search (soft cursor " .. (s.soft and "on" or "off") .. "): " .. table.concat(words, ", "))
+        Trace("search (soft cursor " .. (s.soft and "on" or "off") .. (s.deferred and ", read a frame later" or "") .. "): " .. table.concat(words, ", "))
         -- (what came back at all, whatever it was: calls, data, data with lines, texts via the
         -- tooltip data or the hidden tooltip, a few texts)
         local raws = {}
@@ -391,6 +407,7 @@ local function Finish(s, m)
         if pick then
             Store().reading = pick
             Store().soft = s.soft ~= false
+            Store().deferred = s.deferred == true
             Trace("reading: " .. S.READINGS[pick][1])
         else
             return
@@ -448,27 +465,61 @@ local function Step()
         local known = Store().reading
         if known and now < nextAt then return end
         if not known and now < searchAt then return end
-        grid = grid or S.Grid(S.STEP)
-        local readings = {}
-        if known then readings[1] = known else for i = 1, #S.READINGS do readings[i] = i end end
         local NCm = NC.Row and NC.Row()
-        -- (the soft cursor on or off for the hover: unknown which the minimap wants; searches
-        -- take turns, the reading found keeps its way)
+        -- (the way of hovering is unknown: the soft cursor on or off, and the names read at
+        -- once or a frame after the point moved, the minimap working them out in its own
+        -- update. Searches take the four ways in turn; the reading found keeps its way. Read a
+        -- frame later, one point a frame: a coarser grid and the two screen readings only)
         searches = searches + 1
-        local useSoft = known and Store().soft ~= false or (not known and searches % 2 == 1)
-        sweep = { readings = readings, at = 1, hits = {}, tracking = tracking, t0 = now, soft = useSoft,
+        local way = searches % 4
+        local useSoft, deferred
+        if known then useSoft, deferred = Store().soft ~= false, Store().deferred == true
+        else useSoft, deferred = way == 1 or way == 3, way >= 2 end
+        local readings = {}
+        if known then readings[1] = known
+        elseif deferred then readings = { 1, 2 }
+        else for i = 1, #S.READINGS do readings[i] = i end end
+        sweep = { readings = readings, at = 1, hits = {}, tracking = tracking, t0 = now, soft = useSoft, deferred = deferred,
+            grid = deferred and (gridCoarse or S.Grid(S.STEP_DEFERRED)) or (grid or S.Grid(S.STEP)),
             yards = NCm and NCm.yards or (NC.Yards and NC.Yards(Minimap)) or 400, rotates = GetCVar("rotateMinimap") == "1" }
+        if deferred then gridCoarse = sweep.grid else grid = sweep.grid end
         sweep.raw = {}
         for _, r in ipairs(readings) do sweep.hits[r] = {} end
     end
-    local s0 = sweep
-    SetSoft(s0 and s0.soft ~= false)
     local s = sweep
-    local total = #grid * #s.readings
-    local budget = S.PER_FRAME
+    SetSoft(s.soft ~= false)
+    local g = s.grid
+    local total = #g * #s.readings
+    -- (a frame later: the point set last frame read now, the next one set)
+    if s.deferred then
+        if s.pending then
+            local pr, pp = s.pending[1], s.pending[2]
+            local names = Read(s.raw[pr])
+            for _, name in ipairs(names) do
+                local node = S.Kind(name, tracking)
+                if node then s.hits[pr][#s.hits[pr] + 1] = { x = pp[1], y = pp[2], node = node } end
+            end
+            s.pending = nil
+        end
+        if s.at <= total then
+            local r = s.readings[floor((s.at - 1) / #g) + 1]
+            local p = g[(s.at - 1) % #g + 1]
+            local px, py = S.READINGS[r][2](p[1], p[2], m)
+            s.raw[r] = s.raw[r] or {}
+            if not Point(px, py) then
+                blocked = true; SetSoft(false); sweep = nil
+                Trace("blocked: UpdateMouseoverAtPoint refused")
+                return
+            end
+            s.pending = { r, p }
+            s.at = s.at + 1
+            return   -- (the soft cursor stays as set till the read)
+        end
+    end
+    local budget = s.deferred and 0 or S.PER_FRAME
     while budget > 0 and s.at <= total do
-        local r = s.readings[floor((s.at - 1) / #grid) + 1]
-        local p = grid[(s.at - 1) % #grid + 1]
+        local r = s.readings[floor((s.at - 1) / #g) + 1]
+        local p = g[(s.at - 1) % #g + 1]
         local px, py = S.READINGS[r][2](p[1], p[2], m)
         s.raw[r] = s.raw[r] or {}
         local names = Probe(px, py, s.raw[r])
