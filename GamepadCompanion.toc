@@ -53,6 +53,7 @@ Quick.lua
 EditSpots.lua
 Fishing.lua
 BobberPrompt.lua
+FishingWaters.lua
 FishingLure.lua
 Passage.lua
 FishingJournal.lua
