@@ -1155,7 +1155,7 @@ do
     local before = changes
     local touched = {}
     local set = SetOverrideBinding
-    SetOverrideBinding = function(o, p, key, ...) if key ~= "PADPADDLE4" then touched[#touched + 1] = key end return set(o, p, key, ...) end
+    SetOverrideBinding = function(o, p, key, ...) if key ~= "PADPADDLE4" and not tostring(key):find("^CTRL%-SHIFT%-ALT%-NUMPAD%d$") then touched[#touched + 1] = key end return set(o, p, key, ...) end
     Keys.Probe()
     SetOverrideBinding = set
     check(type(GamepadCompanionTraceDB.probe) == "table" and #GamepadCompanionTraceDB.probe > 12, "probe written down")

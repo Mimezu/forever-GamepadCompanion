@@ -554,54 +554,32 @@ function Keys.Probe()
     -- a write in place, to the top
     Set(C, click2); Set(A, click1); Step("A again under C")
     Set(C, nil); Step("C nil, A alone")
-    -- parking (Layer's way since 2026-11-24): a function set to "" stays on its owner; the
-    -- next owner's click must read clean (c9 = the click), the function back when set again
+    -- Each case below on a spare key of its own, never bound before (2026-11-25: the steps above
+    -- all share PROBE_KEY, and once one leaves Focus UI there every later read shows it, so the
+    -- old "park:"/"hold:" reads proved nothing). "fresh" = the key read empty before the case
     Off(A, B, C, D)
-    Set(A, click1); Set(B, FOCUS); Set(B, ""); Step("park: B focus then empty")
-    Set(C, click2); Step("park: C click over B parked")
-    Set(C, nil); Set(B, FOCUS); Step("park: B focus again")
-    Set(B, ""); Set(D, click3); Step("park: B parked again, D click")
-    Set(D, nil); Set(C, click2); Step("park: C click again")
-    -- (2026-11-25: "" lets go like nil, C's click got Focus UI.) Ways to keep the record held:
-    -- the function overwritten in place by a click, as a command and as a click binding; and
-    -- the click put on first, the function let go after (the recipe that read clean)
-    Off(A, B, C, D)
-    Set(A, click1); Set(B, FOCUS); Set(B, click2); Step("hold: B focus, click in place")
-    Set(C, click3); Step("hold: C click over B held")
-    Off(A, B, C, D)
-    Set(A, click1); Set(B, FOCUS); SetOverrideBindingClick(B, true, key, Keys.BUTTON, "p2"); Step("hold: B focus, click binding in place")
-    Set(C, click3); Step("hold: C click over B held binding")
-    Off(A, B, C, D)
-    Set(A, click1); Set(B, FOCUS); SetOverrideBindingClick(C, true, key, Keys.BUTTON, "p2"); Set(B, nil); Step("hold: C click on, then B let go")
-    Set(D, click3); Step("hold: D click after")
-    Off(A, B, C, D)
-    -- (2026-11-25: every "hold:" step read Focus UI: a record that once held it keeps it under any
-    -- click written over it.) Blizzard runs its pad functions as clicks on its own buttons
-    -- (UIParent binds "CLICK InputFunctionBindingButton_<KEY>:LeftButton"). Those buttons, what
-    -- they hold, and a click binding on one: if it leaves no function in c9, Focus UI can go on a
-    -- key as a click and never haunt it
-    local found = {}
-    for name, f in pairs(_G) do
-        if type(name) == "string" and name:find("^InputFunctionBindingButton") and type(f) == "table" then found[#found + 1] = name end
-    end
-    table.sort(found)
-    for i, name in ipairs(found) do
-        if i > 12 then break end
-        local f, attrs = _G[name], {}
-        for _, a in ipairs({ "type", "binding", "action", "clickbutton", "func", "function", "macrotext" }) do
-            local ok, v = pcall(f.GetAttribute, f, a)
-            if ok and v ~= nil then attrs[#attrs + 1] = a .. "=" .. tostring(v) end
-        end
-        local ok, click = pcall(f.GetScript, f, "OnClick")
-        lines[#lines + 1] = ("button %s: %s%s"):format(name, table.concat(attrs, " "), ok and click and " OnClick" or "")
-    end
-    lines[#lines + 1] = "buttons: " .. #found
-    local back = _G["InputFunctionBindingButton_PADBACK"] and "InputFunctionBindingButton_PADBACK" or found[1]
-    if back then
-        Set(A, click1); SetOverrideBindingClick(B, true, key, back, "LeftButton"); Step("blizz: click on " .. back)
-        Set(C, click2); Step("blizz: C click after")
+    local spare = 0
+    local function Case(name, run)
+        spare = spare + 1
+        local k = "CTRL-SHIFT-ALT-NUMPAD" .. spare
+        local before = Reads(k)
+        local out = {}
+        local function Read(label) out[#out + 1] = label .. " {" .. Reads(k) .. "}" end
+        local function S(o, command) SetOverrideBinding(o, true, k, command) end
+        local function SC(o, name2) SetOverrideBindingClick(o, true, k, Keys.BUTTON, name2) end
+        pcall(run, S, SC, Read)
         Off(A, B, C, D)
+        lines[#lines + 1] = ("case %s (%s, %s): %s"):format(name, k, before == "act= any=nil" and "fresh" or ("dirty " .. before),
+            table.concat(out, " "))
     end
+    Case("nil", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, nil); S(C, click2); Read("C") end)
+    Case("empty", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, ""); S(C, click2); Read("C") end)
+    Case("in place", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, click2); Read("B"); S(C, click3); Read("C") end)
+    Case("in place click", function(S, SC, Read) S(A, click1); S(B, FOCUS); SC(B, "p2"); Read("B"); S(C, click3); Read("C") end)
+    Case("first then go", function(S, SC, Read) S(A, click1); S(B, FOCUS); SC(C, "p2"); S(B, nil); Read("C"); S(D, click3); Read("D") end)
+    Case("alone first then go", function(S, SC, Read) S(B, FOCUS); SC(C, "p2"); S(B, nil); Read("C"); S(D, click3); Read("D") end)
+    Case("radial over", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, RADIAL); S(B, nil); S(C, click2); Read("C") end)
+    Case("same owner back", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, nil); S(B, FOCUS); S(B, nil); Read("A"); S(B, click2); Read("B") end)
     Step("end")
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
     GamepadCompanionTraceDB.probe = lines
