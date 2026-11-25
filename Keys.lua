@@ -561,7 +561,7 @@ function Keys.Probe()
     local spare = 0
     local function Case(name, run)
         spare = spare + 1
-        local k = "CTRL-SHIFT-ALT-NUMPAD" .. spare
+        local k = "CTRL-SHIFT-ALT-NUMPAD" .. (spare % 10)   -- (the tenth: Numpad 0)
         local before = Reads(k)
         local out = {}
         local function Read(label) out[#out + 1] = label .. " {" .. Reads(k) .. "}" end
@@ -580,6 +580,17 @@ function Keys.Probe()
     Case("alone first then go", function(S, SC, Read) S(B, FOCUS); SC(C, "p2"); S(B, nil); Read("C"); S(D, click3); Read("D") end)
     Case("radial over", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, RADIAL); S(B, nil); S(C, click2); Read("C") end)
     Case("same owner back", function(S, SC, Read) S(A, click1); S(B, FOCUS); S(B, nil); S(B, FOCUS); S(B, nil); Read("A"); S(B, click2); Read("B") end)
+    -- (2026-11-25, the cases above, clean: a record let go hands its function to the next fresh
+    -- binding; a held one keeps it, a click in place or not, but a newer record over it reads
+    -- clean.) The plan: the layer's record never let go, a cover on top when released. Does a
+    -- rewrite in place bring an older record back on top? And the whole cycle: L2 down (focus on
+    -- top), up (cover), down, up
+    Case("in place to top", function(S, SC, Read) S(A, click1); S(B, click2); S(A, click1); Read("A") end)
+    Case("cycle", function(S, SC, Read)
+        S(A, click1); S(B, FOCUS); Read("down"); S(B, click1); SC(C, "p1"); Read("up")
+        S(B, FOCUS); Read("down2"); S(B, click1); SC(C, "p1"); Read("up2")
+        S(D, click3); Read("other")
+    end)
     Step("end")
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
     GamepadCompanionTraceDB.probe = lines
