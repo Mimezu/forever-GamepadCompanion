@@ -461,6 +461,73 @@ function S.Row()
     return out
 end
 
+-- Calibration (2026-11-25, the sweeps found nothing in any reading): when the real mouse rests on
+-- a dot the minimap's own tooltip names it, and the cursor says exactly where it is. Each reading
+-- is aimed at that spot and at a spot well away from it; the one that names the dot there and not
+-- away is the minimap's unit, kept. Only the tooltip data counts here (the hidden tooltip would
+-- read the real hover everywhere). Once per hover, written to the trace
+local calibrated = false
+local function DataNames()
+    local data = Call(C_TooltipInfo.GetMinimapMouseover)
+    local out = {}
+    if type(data) == "table" and type(data.lines) == "table" then
+        for _, l in ipairs(data.lines) do
+            local t = type(l) == "table" and l.leftText
+            if type(t) == "string" and not Secret(t) then
+                for name in (t .. "\n"):gmatch("(.-)\n") do if name ~= "" then out[#out + 1] = name end end
+            end
+        end
+    end
+    return out, data
+end
+local function Calibrate(m, tracking)
+    if calibrated then return end
+    -- the real tooltip's node, if any
+    local real
+    local gt = GameTooltip
+    if gt and gt:IsShown() and gt:GetOwner() == Minimap then
+        for i = 1, gt:NumLines() or 0 do
+            local fs = _G["GameTooltipTextLeft" .. i]
+            local t = fs and fs:GetText()
+            if type(t) == "string" and not Secret(t) then
+                for name in (t .. "\n"):gmatch("(.-)\n") do
+                    if not real and S.Kind(name, tracking) then real = name end
+                end
+            end
+        end
+    end
+    if not real then return end
+    calibrated = true
+    local x, y = Call(GetCursorPosition)
+    if not (x and y) or Secret(x) then return end
+    local ux, uy = (x / m.es - m.cx) / (m.w / 2), (y / m.es - m.cy) / (m.h / 2)
+    local before, data = DataNames()
+    local f = {}
+    if type(data) == "table" then for k, v in pairs(data) do f[#f + 1] = tostring(k) .. "=" .. (type(v) == "table" and ("{" .. #v .. "}") or tostring(v)):sub(1, 24) end end
+    Trace(("calibrate: the mouse on %s at %.2f,%.2f (cursor %.0f,%.0f); its own data: %s [%s]"):format(real, ux, uy, x, y,
+        #before > 0 and table.concat(before, "/") or "no names", table.concat(f, " ")))
+    local function Has(list) for _, n in ipairs(list) do if n == real then return true end end return false end
+    local words, hit = {}, {}
+    for _, soft in ipairs({ true, false }) do
+        SetSoft(soft)
+        for r, def in ipairs(S.READINGS) do
+            local ok1 = Point(def[2](ux, uy, m))
+            local at = ok1 and Has((DataNames())) or false
+            local ox, oy = ux > 0 and ux - 0.6 or ux + 0.6, uy
+            local ok2 = Point(def[2](ox, oy, m))
+            local away = ok2 and Has((DataNames())) or false
+            words[#words + 1] = ("%s%s %s%s"):format(def[1], soft and "" or " (off)", at and "Y" or "n", away and "Y" or "n")
+            if at and not away and not hit[1] then hit = { r, soft } end
+        end
+    end
+    SetSoft(false)
+    Trace("calibrate (at the dot / away): " .. table.concat(words, ", "))
+    if hit[1] then
+        Store().reading, Store().soft, Store().deferred = hit[1], hit[2], false
+        Trace("reading: " .. S.READINGS[hit[1]][1] .. " (calibrated)")
+    end
+end
+
 -- Each frame: a slice of the sweep (out of combat, the minimap not under the real mouse)
 local function Step()
     local NC = ns.NodeCompass
@@ -478,7 +545,13 @@ local function Step()
         return
     end
     -- (the real cursor on the minimap: its own tooltip, no sweep; written down once)
-    if Minimap:IsMouseOver() then SetSoft(false); Trace("waiting: the cursor rests on the minimap"); return end
+    if Minimap:IsMouseOver() then
+        SetSoft(false); Trace("waiting: the cursor rests on the minimap")
+        local m = Measure()
+        if m then Calibrate(m, tracking) end
+        return
+    end
+    calibrated = false
     local m = Measure()
     if not m then return end
     local now = Now()
