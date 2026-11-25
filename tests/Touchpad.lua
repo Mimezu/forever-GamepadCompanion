@@ -208,6 +208,7 @@ do
     eq(T.MacroText("window:character", lookup), "/click CharacterMicroButton", "window macro")
     eq(T.MacroText("window:bags", lookup), "/run ToggleAllBags()", "window without a button: its toggle")
     eq(T.MacroText("window:spellbook", lookup), nil, "window without a button or toggle")
+    eq(T.MacroText("window:checkminimap", lookup), "/run GamepadCompanionCheckMinimap()", "Check minimap: asks WoW Helper")
     eq(T.MacroText("window:reputation", lookup), '/run ToggleCharacter("ReputationFrame")', "a tab's toggle")
     eq(T.MacroText("window:map", lookup), "/run ToggleQuestLog()", "old World Map: Quests & Map")
     check(T.WINDOW_BY_KEY.worldmap == nil, "no World Map entry")

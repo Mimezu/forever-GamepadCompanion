@@ -947,4 +947,13 @@ do
     WowHelperData = data
 end
 
+-- The check pixel: the same pair, its own swap; only while WoW Helper reads it (and the link is on)
+do
+    local data, db = WowHelperData, GamepadCompanionHapticsDB
+    WowHelperData = {}
+    local before = K.checkBlue
+    assert(K.AskCheck() == false and K.checkBlue == before, "check: no WoW Helper reading it: nothing")
+    assert(GamepadCompanionCheckMinimap() == false, "check: the action's macro call, nothing")
+    WowHelperData = data
+end
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors)")

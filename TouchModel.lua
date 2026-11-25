@@ -650,6 +650,10 @@ T.WINDOWS = {
     { key = "support", label = "Support", icon = I .. "INV_Misc_QuestionMark", run = "ToggleHelpFrame()" },
     { key = "gamemenu", label = "Game Menu", atlas = R .. "gamemenu", icon = I .. "INV_Misc_Gear_01",
         buttons = { "MainMenuMicroButton" }, run = "ToggleGameMenu()" },
+    -- (WoW Helper puts the cursor on the minimap's next node dot, its tooltip shown: HelperLink's
+    -- check pixel; nothing without WoW Helper)
+    { key = "checkminimap", label = "Check minimap", icon = I .. "INV_Misc_Map_01",
+        run = "GamepadCompanionCheckMinimap()" },
 }
 T.WINDOW_BY_KEY = {}
 for _, w in ipairs(T.WINDOWS) do T.WINDOW_BY_KEY[w.key] = w end

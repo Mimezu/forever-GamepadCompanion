@@ -1006,6 +1006,7 @@ function K.Step(elapsed)
         if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
         if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes.list) or nil) end
         if K.DrawFocus then K.DrawFocus() end
+        if K.DrawCheck then K.DrawCheck() end
         return true
     end
     return false
@@ -1095,6 +1096,7 @@ function K.Layout()
     end
     if K.LayoutNodes then K.LayoutNodes(unit, line) end
     if K.LayoutFocus then K.LayoutFocus(unit, line) end
+    if K.LayoutCheck then K.LayoutCheck(unit, line) end
 end
 
 -- the node row: six rows up (the goblin row is five up); one line: from cell 117
@@ -1153,6 +1155,44 @@ function K.AskFocus()
     K.DrawFocus()
     return true
 end
+
+---------------------------------------------------------------------------
+-- The check pixel (WoW Helper's docs/PROTOCOL-V2.md, "The check pixel"): the same red|blue pair
+-- as the focus pixel, cells 2-3 of its row (one line: 173-174), swapped for each "Check
+-- minimap": WoW Helper puts the cursor on the minimap's next node dot, the game's tooltip shown.
+-- Drawn only while WoW Helper says it reads it (WowHelperData.minimapCheck = 1)
+---------------------------------------------------------------------------
+K.LINE_CHECK = 173
+K.checkBlue = false
+function K.CheckPixelOn()
+    local d = WowHelperData
+    return K.Enabled() and K.V2() and type(d) == "table" and d.minimapCheck == 1
+end
+function K.DrawCheck()
+    local on = K.CheckPixelOn()
+    local cells = on and K.FocusCells(K.checkBlue)
+    for i, tex in ipairs(K.checkTextures or {}) do
+        if cells then local c = cells[i]; tex:SetColorTexture(c[1], c[2], c[3], 1) end
+        tex:SetShown(on and true or false)
+    end
+end
+function K.LayoutCheck(unit, line)
+    for i, tex in ipairs(K.checkTextures or {}) do
+        tex:ClearAllPoints()
+        if line then tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_CHECK + i - 1) * unit, 0)
+        else tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i + 1) * unit, 7 * unit) end
+        tex:SetSize(unit, unit)
+    end
+end
+-- The next node dot through WoW Helper; false: it doesn't read the pixel (nothing done)
+function K.AskCheck()
+    if not K.CheckPixelOn() then return false end
+    K.checkBlue = not K.checkBlue
+    K.DrawCheck()
+    return true
+end
+-- (the "Check minimap" action's macro: /run GamepadCompanionCheckMinimap())
+function GamepadCompanionCheckMinimap() return K.AskCheck() end
 
 -- The node row's cells, or nil: hidden
 function K.DrawNode(cells)
@@ -1274,6 +1314,14 @@ local function Build()
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         tex:Hide()
         K.focusTextures[i] = tex
+    end
+    K.checkTextures = {}
+    for i = 1, 2 do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.checkTextures[i] = tex
     end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
