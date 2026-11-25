@@ -147,6 +147,10 @@ S.READINGS = {
     { "centre", function(ux, uy, m) return ux * m.w / 2, uy * m.h / 2 end },
     { "unit", function(ux, uy) return 0.5 + ux / 2, 0.5 + uy / 2 end },
     { "unit-top", function(ux, uy) return 0.5 + ux / 2, 0.5 - uy / 2 end },
+    -- (2026-11-25: none of the above found a dot; the data came back, with no lines.) Physical
+    -- screen pixels, from the bottom and from the top
+    { "pixels", function(ux, uy, m) return (m.cx + ux * m.w / 2) * m.es * m.px, (m.cy + uy * m.h / 2) * m.es * m.px end },
+    { "pixels-top", function(ux, uy, m) return (m.cx + ux * m.w / 2) * m.es * m.px, m.ph - (m.cy + uy * m.h / 2) * m.es * m.px end },
 }
 
 -- The grid of a sweep: points in the disc, step apart (radius units), a little past the rim
@@ -246,7 +250,11 @@ local function Measure()
     local cx, cy = Call(mm.GetCenter, mm)
     local w, h = Call(mm.GetWidth, mm), Call(mm.GetHeight, mm)
     if not (cx and cy and w and h) or Secret(cx) or w <= 0 then return nil end
-    return { cx = cx, cy = cy, w = w, h = h, es = Call(mm.GetEffectiveScale, mm) or 1, ui = Call(UIParent.GetEffectiveScale, UIParent) or 1 }
+    -- (px: physical pixels per 768-high screen unit; ph: the screen's height in pixels)
+    local _, ph = Call(GetPhysicalScreenSize)
+    ph = tonumber(ph) or 768
+    return { cx = cx, cy = cy, w = w, h = h, es = Call(mm.GetEffectiveScale, mm) or 1, ui = Call(UIParent.GetEffectiveScale, UIParent) or 1,
+        px = ph / 768, ph = ph }
 end
 
 -- The names under a point (one reading), or nil: the call refused
@@ -300,6 +308,15 @@ Read = function(raw)
     if raw then
         raw.calls = (raw.calls or 0) + 1
         if data ~= nil then raw.data = (raw.data or 0) + 1 end
+        -- (what the data holds, once: its fields and their values)
+        if type(data) == "table" and not raw.shape then
+            local f = {}
+            for k, v in pairs(data) do
+                f[#f + 1] = tostring(k) .. "=" .. (type(v) == "table" and ("{" .. #v .. "}") or tostring(v)):sub(1, 24)
+            end
+            table.sort(f)
+            raw.shape = table.concat(f, " ")
+        end
         if type(data) == "table" and type(data.lines) == "table" and #data.lines > 0 then raw.lines = (raw.lines or 0) + 1 end
         if #texts > 0 then
             raw[via] = (raw[via] or 0) + 1
@@ -376,6 +393,10 @@ local function Finish(s, m)
                 w.fromData or 0, w.tip or 0, w.samples and (" [" .. table.concat(w.samples, "; ") .. "]") or "")
         end
         Trace("raw (calls/data/lines/texts/tip): " .. table.concat(raws, ", "))
+        for _, r in ipairs(s.readings) do
+            local w = s.raw and s.raw[r]
+            if w and w.shape then Trace("data holds: " .. w.shape); break end
+        end
         local e, n = World()
         local facing = Call(GetPlayerFacing)
         for _, r in ipairs(found) do
@@ -477,7 +498,7 @@ local function Step()
         else useSoft, deferred = way == 1 or way == 3, way >= 2 end
         local readings = {}
         if known then readings[1] = known
-        elseif deferred then readings = { 1, 2 }
+        elseif deferred then readings = { 1, 2, 8, 9 }
         else for i = 1, #S.READINGS do readings[i] = i end end
         sweep = { readings = readings, at = 1, hits = {}, tracking = tracking, t0 = now, soft = useSoft, deferred = deferred,
             grid = deferred and (gridCoarse or S.Grid(S.STEP_DEFERRED)) or (grid or S.Grid(S.STEP)),

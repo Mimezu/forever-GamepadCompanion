@@ -562,6 +562,18 @@ function Keys.Probe()
     Set(C, nil); Set(B, FOCUS); Step("park: B focus again")
     Set(B, ""); Set(D, click3); Step("park: B parked again, D click")
     Set(D, nil); Set(C, click2); Step("park: C click again")
+    -- (2026-11-25: "" lets go like nil, C's click got Focus UI.) Ways to keep the record held:
+    -- the function overwritten in place by a click, as a command and as a click binding; and
+    -- the click put on first, the function let go after (the recipe that read clean)
+    Off(A, B, C, D)
+    Set(A, click1); Set(B, FOCUS); Set(B, click2); Step("hold: B focus, click in place")
+    Set(C, click3); Step("hold: C click over B held")
+    Off(A, B, C, D)
+    Set(A, click1); Set(B, FOCUS); SetOverrideBindingClick(B, true, key, Keys.BUTTON, "p2"); Step("hold: B focus, click binding in place")
+    Set(C, click3); Step("hold: C click over B held binding")
+    Off(A, B, C, D)
+    Set(A, click1); Set(B, FOCUS); SetOverrideBindingClick(C, true, key, Keys.BUTTON, "p2"); Set(B, nil); Step("hold: C click on, then B let go")
+    Set(D, click3); Step("hold: D click after")
     Off(A, B, C, D)
     Step("end")
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
@@ -714,11 +726,11 @@ end
 -- context 9) for good, held key or not (2026-11-22). Halo's ring on Create, under our Focus
 -- UI on another owner, only ever uncovered, never broke: the same way here. False: a click
 -- no owner holds clean, left off
--- A layer's function is never let go: set to "" (an empty binding, transparent: the key runs
--- what's under it), its record stays parked on our owner. Let go (nil, ClearOverrideBindings)
--- the game hands that record, Focus UI still in it, to the next owner binding the key: Halo's
--- ring on Mute ran Focus UI (login probe 2026-11-24: "C click over B cleared" -> Focus UI,
--- click bindings too; "B focus then empty" -> the key as before, the record kept)
+-- A layer's function is set to "" when let go. That does NOT keep its record: the login probe
+-- of 2026-11-25 ("park: C click over B parked" -> Focus UI) shows "" lets go like nil, and the
+-- game hands that record, Focus UI still in it, to the next owner that binds the key afresh.
+-- Halo's whole-set rebind took it on Mute (fixed in Halo 0.9.42: written in place); a key kept
+-- bound is never handed anything. The probe's "hold:" steps test ways to keep it held
 local parked = {}            -- key -> true: its layer owner holds an empty binding
 Layer = function(key, command, fresh)
     -- (fresh: parked again whatever we think, the heal's way)
