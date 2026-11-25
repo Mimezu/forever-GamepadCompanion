@@ -575,6 +575,33 @@ function Keys.Probe()
     Set(A, click1); Set(B, FOCUS); SetOverrideBindingClick(C, true, key, Keys.BUTTON, "p2"); Set(B, nil); Step("hold: C click on, then B let go")
     Set(D, click3); Step("hold: D click after")
     Off(A, B, C, D)
+    -- (2026-11-25: every "hold:" step read Focus UI: a record that once held it keeps it under any
+    -- click written over it.) Blizzard runs its pad functions as clicks on its own buttons
+    -- (UIParent binds "CLICK InputFunctionBindingButton_<KEY>:LeftButton"). Those buttons, what
+    -- they hold, and a click binding on one: if it leaves no function in c9, Focus UI can go on a
+    -- key as a click and never haunt it
+    local found = {}
+    for name, f in pairs(_G) do
+        if type(name) == "string" and name:find("^InputFunctionBindingButton") and type(f) == "table" then found[#found + 1] = name end
+    end
+    table.sort(found)
+    for i, name in ipairs(found) do
+        if i > 12 then break end
+        local f, attrs = _G[name], {}
+        for _, a in ipairs({ "type", "binding", "action", "clickbutton", "func", "function", "macrotext" }) do
+            local ok, v = pcall(f.GetAttribute, f, a)
+            if ok and v ~= nil then attrs[#attrs + 1] = a .. "=" .. tostring(v) end
+        end
+        local ok, click = pcall(f.GetScript, f, "OnClick")
+        lines[#lines + 1] = ("button %s: %s%s"):format(name, table.concat(attrs, " "), ok and click and " OnClick" or "")
+    end
+    lines[#lines + 1] = "buttons: " .. #found
+    local back = _G["InputFunctionBindingButton_PADBACK"] and "InputFunctionBindingButton_PADBACK" or found[1]
+    if back then
+        Set(A, click1); SetOverrideBindingClick(B, true, key, back, "LeftButton"); Step("blizz: click on " .. back)
+        Set(C, click2); Step("blizz: C click after")
+        Off(A, B, C, D)
+    end
     Step("end")
     if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
     GamepadCompanionTraceDB.probe = lines
