@@ -1,0 +1,60 @@
+# The pad stuck after a window: jump and Interact dead until /reload
+
+Forever 1.60.1, gamepad mode. After the Auction House (Auctionator), the mailbox or another
+window, Cross (Interact) and the jump button do nothing. Spells still work. Only `/reload` helps.
+Companion says `Pad stuck by <addon> · /reload` and keeps the evidence in its trace (`errors`).
+
+## The chain (Blizzard's, from !BugGrabber's stacks, 2026-11-24)
+
+```
+HideUIPanel                                   UIParentPanelManager.lua:933 -> :133 -> :530 -> :563 -> :513 -> :486
+EventRegistry "UIParentPanelManager.ForcePanelHide"
+FrameControlsManager:FrameHidden              FrameControlsManager.lua:473 -> :549
+CheckForInputBinding                          FrameControlsManager.lua:114 -> :122
+GamepadMode.DeactivateBindingGroup            BindingSetFactory.lua:254
+InputBindingManager:RemoveSet                 InputBindingManager.lua:173 -> :190
+CheckCoreBindingActive                        InputBindingManager.lua:38 -> :42   (only-core flipped: listeners)
+UpdateActionBarFocusedState                   MainActionBarFrame.lua:41 -> :57
+UpdateInteractIcons                           MainActionBarFrame.lua:355 -> :373
+SetPreferredGamepadInteractTarget             protected: refused when the execution is tainted
+```
+
+Twelve addons have been blamed for the same chain (Auctionator, Details, CompanionJournal,
+DungeonMap, Spoken, GamepadCompanion, BugSack, GraphicsLab, ...): whichever addon's taint is on
+the closing. The closing picks it up when the window's `OnHide` (or a child's) reads a field that
+addon wrote. For the Auction House that is Auctionator driving Blizzard's frames from its own
+code: `AuctionHouseFrame.displayMode = nil` (LibAHTab.lua:90, Buying/Item/Main.lua:39,
+Buying/Commodity/Main.lua:78), `AuctionHouseFrame:SetDisplayMode({})` (LibAHTab.lua:89),
+`ItemSellFrame:SetItem(nil)` / `CommoditiesSellFrame:SetItem(nil)` (Selling/Hooks.lua:7-8),
+`CachePendingPost` (SaleItem.lua:725, :732), `SetCustomError` (DirectSearchProviderMixin.lua:101).
+`AuctionHouseFrame:OnHide -> ClearPostItem -> SetItem(nil)` reads that state before writing it.
+Which field exactly: the trace's `SLOTS` line says next time (`issecurevariable` on each).
+
+## Why it stays stuck
+
+The refused call is a no-op; the rest of the listener runs tainted. It rewrites every HUD button's
+`ApplyExtraButtonStylesForState` closure (ActionBarStyles.lua:214, :227) and the manager's
+`currentCoreBindingActive` and `activeBindings`. Cross, jump and back are plain `OnClick`
+handlers (MainActionBarFrame.lua: SetupNonBindableJump, SetupNonBindableInteractFunction) that
+call `ApplyPressedStyle` first, which reads that closure: from then on `RunBinding("JUMP")`,
+`InteractUnit`, `AttackTarget` are refused. Spell buttons use secure attributes and keep working.
+Every later hand-back reads the tainted manager fields before writing them, so no secure
+rewrite ever happens: `/reload` is the only way out. Companion cannot clean a Blizzard field.
+
+## What Companion does
+
+- `Keys.Blocked`: on the game's ADDON_ACTION_BLOCKED / FORBIDDEN for that function, the trace
+  gets `BLOCKED`, `STACK` (the Lua stack of the refused call: Blizzard's frames and the addon's),
+  `SLOTS` (which slots are tainted, by whom) and `SLOTS+1` a frame later. First three a session.
+- `Keys.PadHealth` every 5 s out of combat: Cross's closure tainted means the pad is stuck, even
+  with no event seen; `STUCK by <addon>` and `SLOTS` in the trace, said once per addon.
+- Reads only (`issecurevariable`); nothing of ours is written into Blizzard's tables.
+
+## To test in game
+
+1. Open the Auction House, switch to an Auctionator tab (Shopping or Selling), close the window
+   with its X. Try jump. If dead: `/gpc trace` or read `GamepadCompanionTraceDB.errors`.
+2. Same, but switch back to Blizzard's Buy tab before closing. If jump survives, the tainted
+   field is one Blizzard's own `SetDisplayMode` rewrites.
+3. While stuck, toggle the gamepad off and on in Settings (secure re-init). If jump returns,
+   the re-init rewrites the closures securely; the next window may stick it again.
