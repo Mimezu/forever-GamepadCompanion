@@ -98,6 +98,25 @@ button:SetSize(1, 1)
 button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
+-- A combo's Focus UI (the secure click picked "focus", which runs nothing): WoW Helper asked
+-- through its pixel (HelperLink K.AskFocus) presses FOCUS_KEY, bound to Focus UI once at login
+-- and never changed. So Focus UI is never bound on, or taken off, a combo's button
+Keys.FOCUS_KEY = "ALT-CTRL-SHIFT-PAGEUP"   -- (WoW names chords Alt, Ctrl, Shift in that order)
+local focusOwner = CreateFrame("Frame", "GamepadCompanionFocusKey")
+local focusBound = false
+function Keys.BindFocusKey()
+    if focusBound or (InCombatLockdown and InCombatLockdown()) then return focusBound end
+    SetOverrideBinding(focusOwner, true, Keys.FOCUS_KEY, "TOGGLEUIFOCUS")
+    focusBound = true
+    return true
+end
+button:HookScript("PostClick", function(self, name, down)
+    if not down then return end
+    if name == "focus" or self:GetAttribute("gpc-pick-" .. tostring(name)) == "focus" then
+        local K = ns.HelperLink
+        if K and K.AskFocus then K.AskFocus() end
+    end
+end)
 -- A held layer's bindings, above Base: a Blizzard function (Focus UI, Radial)
 -- on the key's layer owner, our secure click on the click pool. Never both on one owner's
 -- key: the game keeps a function's binding-context-9 slot in that owner's
@@ -267,7 +286,15 @@ end
 function Keys.Runs(key, layer)
     local action = Keys.Get(key, layer)
     if not action then return false end
-    if layer == "base" or (modes[key] == "click" and not T.BindingOf(action)) then return true end
+    if layer == "base" then return true end
+    -- (a Blizzard function on a combo: Focus UI through WoW Helper's pixel, Radial not at all)
+    local binding = T.BindingOf(action)
+    if binding and binding ~= "TOGGLEUIFOCUS" then return false, "base only" end
+    if binding then
+        local K = ns.HelperLink
+        if not (K and K.FocusPixelOn and K.FocusPixelOn()) then return false, "needs WoW Helper" end
+    end
+    if modes[key] == "click" then return true end
     return true, "out of combat"
 end
 
@@ -317,8 +344,12 @@ function Keys.Apply(force)
         for _, layer in ipairs(Sh.LAYERS) do
             local id
             local action = Keys.Get(key, layer)
-            if T.BindingOf(action) then
-                id = "none"      -- (a Blizzard function: not from a secure button)
+            if T.BindingOf(action) == "TOGGLEUIFOCUS" and layer ~= "base" then
+                id = "focus"     -- (a combo's Focus UI: runs nothing here; the click asks WoW Helper)
+            elseif T.BindingOf(action) then
+                -- (a Blizzard function: not from a secure button. Radial on a combo: the key's
+                -- Base runs instead, the layer as if empty)
+                id = layer == "base" and "none" or nil
             elseif action then
                 local macro = T.MacroText(action, Sh.lookup)
                 if macro then
@@ -411,9 +442,10 @@ function Keys.Extras(layer)
     for _, key in ipairs(Keys.KEYS) do
         local action = Keys.Get(key, layer)
         local binding = T.BindingOf(action)
-        if binding then
-            out[key] = binding
-        elseif action and modes[key] ~= "click" then
+        -- (a Blizzard function never goes on a combo's button: taken off again it is handed to
+        -- the next binding made there, Mute stuck on Focus UI, 2026-11-25. Our click instead:
+        -- Focus UI through WoW Helper, Radial nothing)
+        if action and modes[key] ~= "click" then
             out[key] = "CLICK " .. Keys.BUTTON .. ":" .. CLICK_NAME[key]
         end
     end
@@ -1050,6 +1082,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
         return
     end
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then HookBlizzard() end
+    if event == "PLAYER_LOGIN" or event == "PLAYER_REGEN_ENABLED" then Keys.BindFocusKey() end
     if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then C_Timer.After(3, function() pcall(Keys.Probe) end) end
     -- (the stuck pad found by its mark every few seconds, out of combat: said once per addon)
     if event == "PLAYER_LOGIN" and C_Timer and C_Timer.NewTicker then
@@ -1093,7 +1126,9 @@ function Keys.CheckStuck(now)
                 -- (the key's own binding put on top, then off: the game takes it as a new one)
                 s.tried = now
                 -- (cleared whole: a nil left a function in the gamepad set, 2026-11-23)
-                if binding ~= "" then SetOverrideBinding(unstickOwner, true, key, binding) end
+                -- (never a Blizzard function: bound and cleared, the game hands it to the next
+                -- binding made on the key, 2026-11-25)
+                if binding ~= "" and not FUNCTION[binding] then SetOverrideBinding(unstickOwner, true, key, binding) end
                 ClearOverrideBindings(unstickOwner)
             elseif s.tried and s.tried ~= true and now - s.tried >= 0.3 then
                 Trace(("STUCK %s: still held after a rebind"):format(name), "errors")

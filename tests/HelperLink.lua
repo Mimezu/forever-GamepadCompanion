@@ -935,4 +935,16 @@ do
     GamepadCompanionHapticsDB, WowHelperData = saved, data
 end
 
+-- The focus pixel: a red|blue pair, swapped for each Focus UI asked; nothing without WoW Helper
+do
+    local a, b = K.FocusCells(false), K.FocusCells(true)
+    assert(a[1][1] == 1 and a[1][3] == 0 and a[2][1] == 0 and a[2][3] == 1, "red then blue")
+    assert(b[1][1] == 0 and b[1][3] == 1 and b[2][1] == 1 and b[2][3] == 0, "blue then red")
+    local data = WowHelperData
+    WowHelperData = {}
+    local before = K.focusBlue
+    assert(K.AskFocus() == false and K.focusBlue == before, "no WoW Helper reading it: nothing")
+    WowHelperData = data
+end
+
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors)")
