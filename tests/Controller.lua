@@ -911,7 +911,7 @@ do
     -- the game's pad hand-back blocked by another addon's taint (2026-11-22 21:25): written down
     local n3 = #errors()
     Keys.Blocked("Auctionator", "SetPreferredGamepadInteractTarget()")
-    check(#errors() > n3 and errors()[#errors()]:find("BLOCKED SetPreferredGamepadInteractTarget%(%) by Auctionator") ~= nil, "hand-back blocked: written down")
+    check(#errors() > n3 and errors()[n3 + 1]:find("BLOCKED SetPreferredGamepadInteractTarget%(%) by Auctionator") ~= nil, "hand-back blocked: written down")
     local n4 = #errors()
     Keys.Blocked("Someone", "CastSpellByName()")
     eq(#errors(), n4, "another blocked call: not ours to say")
@@ -1355,6 +1355,70 @@ do
     eq(#Live("PADLSTICK"), 1, "one record of ours live on L3")
     Keys.Set("PADLSTICK", "base", nil)
     eq(#Live("PADLSTICK"), 0, "L3 given back: nothing of ours live")
+end
+
+-- The pad stuck by another addon's taint on a window's closing (2026-11-24). The game's blocked
+-- event brings the stack and the tainted slots into the trace (the first three a session), a
+-- frame later too; Cross's style closure tainted is the mark the health check finds with no
+-- event at all, said once per addon. All reads: issecurevariable, never a write of ours.
+do
+    local errors = function() return GamepadCompanionTraceDB.errors end
+    local said = {}
+    local add = UIErrorsFrame and UIErrorsFrame.AddMessage
+    UIErrorsFrame = UIErrorsFrame or {}
+    UIErrorsFrame.AddMessage = function(_, text) said[#said + 1] = text end
+    local tainted = {}   -- [table][key] = the addon whose taint the slot carries
+    issecurevariable = function(t, k) local who = tainted[t] and tainted[t][k]; if who then return false, who end; return true, nil end
+    debugstack = function() return "Blizzard_X/A.lua:1\nInterface/AddOns/Auctionator/B.lua:2" end
+    local manager = GamepadSharedUtility.InputBindingManager
+    local interact, back, jump = {}, {}, {}
+    GamepadMainActionBarFrame.PageUnit.actionBars = { topBar = { Right = { ActionButton1 = interact, ActionButton3 = back, ActionButton4 = jump } } }
+    manager.bindingSetStack = { { name = "SmartNavigationBindings" } }
+    manager.activeBindings = { PAD1 = {} }
+    eq(Keys.PadStuckBy(), nil, "a clean pad: not stuck")
+    eq(Keys.PadHealth(), nil, "health: nothing to say")
+    check(Keys.PadSlots():find("^none tainted; %d+ clean$") ~= nil, "slots: none tainted, the clean ones counted")
+    -- (Auctionator's block was said above already: a second addon here)
+    local n0 = #errors()
+    Keys.Blocked("Spoken", "SetPreferredGamepadInteractTarget()")
+    eq(said[#said], "Pad stuck by Spoken · /reload", "blocked: said with the addon the game blames")
+    eq(#errors(), n0 + 3, "blocked: BLOCKED, STACK, SLOTS written down")
+    check(errors()[n0 + 1]:find("BLOCKED SetPreferredGamepadInteractTarget() by Spoken", 1, true) ~= nil, "the block")
+    check(errors()[n0 + 2]:find("STACK Blizzard_X/A.lua:1 | Auctionator/B.lua:2", 1, true) ~= nil, "the stack, one line, short paths")
+    check(errors()[n0 + 3]:find("SLOTS none tainted", 1, true) ~= nil, "the slots at the call")
+    -- the listener's tainted rewrite lands after the refused call: seen a frame later
+    tainted[interact] = { ApplyExtraButtonStylesForState = "Spoken" }
+    tainted[manager] = { currentCoreBindingActive = "Spoken" }
+    tainted[manager.activeBindings] = { PAD1 = "Spoken" }
+    RunTimers()
+    local plus = errors()[#errors()]
+    check(plus:find("SLOTS+1 tainted ", 1, true) ~= nil, "a frame later: the tainted slots")
+    check(plus:find("core-active=Spoken", 1, true) and plus:find("interact.closure=Spoken", 1, true)
+        and plus:find("active-bindings:1(PAD1=Spoken)", 1, true), "each named with its addon")
+    eq(Keys.PadStuckBy(), "Spoken", "stuck: Cross's closure carries Spoken's taint")
+    local n = #said
+    eq(Keys.PadHealth(), "Spoken", "health finds it")
+    eq(#said, n, "not said twice for the same addon")
+    tainted[interact].ApplyExtraButtonStylesForState = "Details"
+    eq(Keys.PadHealth(), "Details", "another addon's mark")
+    eq(said[#said], "Pad stuck by Details · /reload", "said for it")
+    check(errors()[#errors() - 1]:find("STUCK by Details: Cross's style closure tainted", 1, true) ~= nil, "written down, with the slots after")
+    Keys.PadHealth()
+    eq(#said, n + 1, "once per addon")
+    -- the stacks: three a session (Auctionator's above, Spoken's, this one), then the one BLOCKED line
+    Keys.Blocked("Details", "SetPreferredGamepadInteractTarget()")
+    RunTimers()
+    local n1 = #errors()
+    Keys.Blocked("Details", "SetPreferredGamepadInteractTarget()")
+    RunTimers()
+    eq(#errors(), n1 + 1, "the fourth block: one line")
+    check(errors()[#errors()]:find("BLOCKED", 1, true) ~= nil, "the block itself")
+    n1 = #errors()
+    Keys.Blocked("Details", "SomethingElse()")
+    eq(#errors(), n1, "another protected function: not the hand-back, nothing")
+    UIErrorsFrame.AddMessage = add
+    issecurevariable, debugstack = nil, nil
+    GamepadMainActionBarFrame.PageUnit.actionBars, manager.bindingSetStack, manager.activeBindings = nil, nil, nil
 end
 
 io.write(("%d checks, %d failures\n"):format(checks, failures))

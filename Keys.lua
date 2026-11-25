@@ -570,20 +570,127 @@ local function Said(text)
         Trace("STACK " .. (stack:gsub("\n", " | ")), "errors")
     end
 end
--- The game's own pad hand-back blocked: a window closing runs Blizzard's code that takes the
--- window's bindings off the pad (FrameControlsManager -> RemoveSet -> UpdateInteractIcons ->
--- SetPreferredGamepadInteractTarget). Another addon's taint on that path makes the game stop
--- it halfway: the window's bindings stay on Cross and Circle, so jump and Interact do nothing
--- until /reload (2026-11-22 21:25 and 21:29: "AddOn 'Auctionator' tried to call the protected
--- function 'SetPreferredGamepadInteractTarget()'", the mailbox closing). Nothing here can undo
--- it; it is said at once, with the addon the game blames, and kept in the trace.
+-- The game's own pad hand-back blocked. A window closing runs Blizzard's chain (!BugGrabber's
+-- stacks, 2026-11-24, 12 addons blamed): HideUIPanel -> FrameControlsManager:FrameHidden ->
+-- CheckForInputBinding -> DeactivateBindingGroup -> InputBindingManager:RemoveSet ->
+-- CheckCoreBindingActive -> MainActionBarFrame:UpdateActionBarFocusedState ->
+-- UpdateInteractIcons -> SetPreferredGamepadInteractTarget (protected). With another addon's
+-- taint on the closing (the window's OnHide reading a field that addon wrote: Auctionator's
+-- on the Auction House's own frames, the AH closing on an Auctionator tab), the game refuses
+-- that one call and the rest of the listener runs tainted: it rewrites the HUD buttons'
+-- ApplyExtraButtonStylesForState closures (ActionBarStyles.lua) and the manager's
+-- currentCoreBindingActive / activeBindings. Cross and the jump button are plain OnClick
+-- handlers that read that closure first (ApplyPressedStyle), so RunBinding("JUMP") and
+-- InteractUnit are refused from then on; spells keep working (secure attributes). Every later
+-- hand-back reads the tainted manager fields before writing, so it stays so until /reload.
+-- Nothing here can undo it; it is said at once, with the addon the game blames, and the trace
+-- keeps the stack and which slots are tainted (issecurevariable: reads, no writes of ours).
 Keys.PAD_HANDBACK = { SetPreferredGamepadInteractTarget = true, ["SetPreferredGamepadInteractTarget()"] = true }
-function Keys.Blocked(addon, fn)
-    if not (fn and Keys.PAD_HANDBACK[fn]) then return end
-    Trace(("BLOCKED %s by %s: the pad's hand-back stopped (jump, Interact)"):format(tostring(fn), tostring(addon)), "errors")
+-- "name=addon" for each tainted slot among the hand-back's, then how many are clean
+function Keys.PadSlots()
+    if type(issecurevariable) ~= "function" then return "no issecurevariable" end
+    local tainted, clean = {}, 0
+    local function Add(label, t, key)
+        if type(t) ~= "table" then return end
+        local ok, who = issecurevariable(t, key)
+        if ok then clean = clean + 1 else tainted[#tainted + 1] = ("%s=%s"):format(label, tostring(who or "?")) end
+    end
+    local manager = GamepadSharedUtility and GamepadSharedUtility.InputBindingManager
+    if type(manager) == "table" then
+        Add("core-active", manager, "currentCoreBindingActive")
+        Add("assume-core", manager, "assumeCoreBindingsUsable")
+        local stack = manager.bindingSetStack
+        if type(stack) == "table" then
+            for i = 1, #stack do
+                local set = stack[i]
+                Add(("stack%d(%s)"):format(i, type(set) == "table" and tostring(set.name) or "?"), stack, i)
+            end
+        end
+        local active = manager.activeBindings
+        if type(active) == "table" then
+            local n, first = 0, nil
+            for key in pairs(active) do
+                local ok, who = issecurevariable(active, key)
+                if not ok then n = n + 1; first = first or ("%s=%s"):format(tostring(key), tostring(who or "?")) else clean = clean + 1 end
+            end
+            if n > 0 then tainted[#tainted + 1] = ("active-bindings:%d(%s)"):format(n, first) end
+        end
+    end
+    local focus = GamepadMode and GamepadMode.FrameControlsManager
+    if type(focus) == "table" then
+        Add("ui-focused", focus, "isUIFocused")
+        Add("catcher", focus, "fallThroughCatcherActive")
+        Add("focused-frame", focus, "focusedFrame")
+        local shown = focus.shownFrames
+        if type(shown) == "table" then for i = 1, #shown do Add("shown" .. i, shown, i) end end
+    end
+    local root = _G.GamepadMainActionBarFrame
+    local top = root and type(root.PageUnit) == "table" and type(root.PageUnit.actionBars) == "table" and root.PageUnit.actionBars.topBar
+    if type(top) == "table" then
+        Add("top.style", top, "appliedStyle")
+        Add("top.scaled", top, "actionBarScaledUp")
+        for name, index in pairs({ interact = 1, back = 3, jump = 4 }) do
+            local button = type(top.Right) == "table" and top.Right["ActionButton" .. index]
+            Add(name .. ".closure", button, "ApplyExtraButtonStylesForState")
+            Add(name .. ".mouse", button, "clickedUsingMouse")
+        end
+    end
+    local ah = _G.AuctionHouseFrame
+    if type(ah) == "table" then
+        Add("ah.displayMode", ah, "displayMode")
+        for _, key in ipairs({ "ItemSellFrame", "CommoditiesSellFrame" }) do
+            local f = ah[key]
+            Add(key .. ".itemLocation", f, "itemLocation")
+            Add(key .. ".pendingPost", f, "pendingPost")
+            Add(key .. ".listKey", f, "listDisplayedItemKey")
+            Add(key .. ".prevKey", f, "previousItemKey")
+        end
+    end
+    return (#tainted > 0 and ("tainted " .. table.concat(tainted, " ")) or "none tainted") .. ("; %d clean"):format(clean)
+end
+-- The stuck pad found by its own mark, no event needed: Cross's style closure tainted. The
+-- addon whose taint it carries, or nil while the pad is fine.
+function Keys.PadStuckBy()
+    if type(issecurevariable) ~= "function" then return nil end
+    local root = _G.GamepadMainActionBarFrame
+    local bars = root and type(root.PageUnit) == "table" and root.PageUnit.actionBars
+    local button = type(bars) == "table" and type(bars.topBar) == "table" and type(bars.topBar.Right) == "table"
+        and bars.topBar.Right.ActionButton1
+    if type(button) ~= "table" then return nil end
+    local ok, who = issecurevariable(button, "ApplyExtraButtonStylesForState")
+    if ok then return nil end
+    return tostring(who or "?")
+end
+local stuckSaid, blockedTraced = {}, 0
+local function SayStuck(addon)
+    if stuckSaid[addon] then return end
+    stuckSaid[addon] = true
     if UIErrorsFrame and UIErrorsFrame.AddMessage then
         UIErrorsFrame:AddMessage(("Pad stuck by %s · /reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
     end
+end
+function Keys.PadHealth()
+    local who = Keys.PadStuckBy()
+    if not who or stuckSaid[who] then return who end
+    Trace(("STUCK by %s: Cross's style closure tainted (jump, Interact refused until /reload)"):format(who), "errors")
+    Trace("SLOTS " .. Keys.PadSlots(), "errors")
+    SayStuck(who)
+    return who
+end
+function Keys.Blocked(addon, fn)
+    if not (fn and Keys.PAD_HANDBACK[fn]) then return end
+    Trace(("BLOCKED %s by %s: the pad's hand-back stopped (jump, Interact)"):format(tostring(fn), tostring(addon)), "errors")
+    -- (the event comes inside the refused call: the stack is the closing's, Blizzard's frames
+    -- and the addon's; the first three of a session, the rest would say the same)
+    if blockedTraced < 3 then
+        blockedTraced = blockedTraced + 1
+        local stack = type(debugstack) == "function" and debugstack(2, 30, 30) or "?"
+        Trace("STACK " .. (stack:gsub("Interface/AddOns/", ""):gsub("\n", " | ")), "errors")
+        Trace("SLOTS " .. Keys.PadSlots(), "errors")
+        -- (the listener writes its tainted closures after the refused call: read them next frame)
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() Trace("SLOTS+1 " .. Keys.PadSlots(), "errors") end) end
+    end
+    SayStuck(tostring(addon))
 end
 
 if UIErrorsFrame then
@@ -897,6 +1004,10 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     end
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then HookBlizzard() end
     if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then C_Timer.After(3, function() pcall(Keys.Probe) end) end
+    -- (the stuck pad found by its mark every few seconds, out of combat: said once per addon)
+    if event == "PLAYER_LOGIN" and C_Timer and C_Timer.NewTicker then
+        C_Timer.NewTicker(5, function() if not (InCombatLockdown and InCombatLockdown()) then pcall(Keys.PadHealth) end end)
+    end
     if event == "PLAYER_REGEN_ENABLED" and not pending then return end
     Keys.Apply(event == "PLAYER_REGEN_ENABLED")
 end)

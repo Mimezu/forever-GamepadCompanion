@@ -42,7 +42,7 @@ for name in ([[_G _VERSION assert collectgarbage coroutine debug error gcinfo ge
     tonumber tostring type unpack xpcall bit date time strsplit strjoin strtrim strmatch strfind strsub strlen
     strlower strupper strrep strbyte strchar strrev gsub gmatch format tinsert tremove wipe sort tContains
     abs ceil floor max min mod sqrt random sin cos exp log securecall issecure hooksecurefunc geterrorhandler
-    seterrorhandler debugstack forceinsecure scrub issecretvalue CopyTable]]):gmatch("%S+") do LUA[name] = true end
+    seterrorhandler debugstack forceinsecure scrub issecretvalue issecurevariable CopyTable]]):gmatch("%S+") do LUA[name] = true end
 local GAME = {}
 for line in lines(root .. "/tests/fixtures/game-globals.txt"):gmatch("[^\r\n]+") do
     local name = line:match("^%s*([%w_]+)")
