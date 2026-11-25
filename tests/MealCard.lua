@@ -382,5 +382,31 @@ buffs[2] = { id = 1229739, name = "Welcoming Campfire", duration = 60, expires =
 Aura()
 eq(M.Waiting(), nil, "the next minute, the benefits on: no wait")
 
+-- Forever's eating aura without the food's text: the eaten item's tooltip says it (its use
+-- spell is the aura's). Known from a look in the bags before it's eaten (2026-11-24)
+do
+    M.Reset(); buffs = {}; Aura(); P.Step(10)
+    DESCS[1400001] = "Restores 1200 health over 30 sec."
+    NAMES[1400001] = "Food"
+    local bag = { [1] = { itemID = 9001 } }
+    C_Container = { GetContainerNumSlots = function(b) return b == 0 and 1 or 0 end,
+        GetContainerItemInfo = function(b, slot) return b == 0 and bag[slot] or nil end }
+    C_Item = { GetItemSpell = function(id) if id == 9001 then return "Food", 1400001 end end }
+    C_TooltipInfo.GetItemByID = function(id)
+        if id == 9001 then return { lines = { { leftText = "Smoked Bear Meat" },
+            { leftText = "Use: Restores 1200 health over 30 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 20 Attack Power for 15 min." } } } end
+    end
+    M.LookInBags()
+    bag[1] = nil   -- (the last one eaten: gone from the bags)
+    buffs = { { id = 1400001, name = "Food", duration = 30, expires = clock + 30, source = "player", mine = true, instance = 400 } }
+    Aura()
+    check(M.Waiting() ~= nil, "no text on the aura: the item's tooltip says buff food, the wait")
+    P.Step(0.1)
+    eq(passage.sub.text, "+20 Attack Power", "its gain from the item")
+    local t = GamepadCompanionTraceDB.meal
+    check(t and t[#t]:find("item found") ~= nil, "written down: the item found")
+    buffs = {}; Aura(); P.Step(10)
+end
+
 io.write(("MealCard: %d checks, %d failures\n"):format(checks, failures))
 if failures > 0 then os.exit(1) end

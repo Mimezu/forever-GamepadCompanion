@@ -371,20 +371,68 @@ local seen, primed = {}, false     -- the buffs on the player at the last read (
 local eating = { now = false, before = false, at = -math.huge }
 local fire = { now = false, before = false, at = -math.huge }
 
--- A food's buff, from its eating spell's text (kept once read; an empty text, not loaded yet,
--- is read again)
+-- The trace: GamepadCompanionTraceDB.meal, the last 40 lines (what an eating aura said)
+local function Trace(line)
+    if type(GamepadCompanionTraceDB) ~= "table" then GamepadCompanionTraceDB = {} end
+    local t = GamepadCompanionTraceDB
+    t.meal = type(t.meal) == "table" and t.meal or {}
+    if t.meal[#t.meal] and t.meal[#t.meal]:sub(t.meal[#t.meal]:find(" ") + 1) == line then return end
+    t.meal[#t.meal + 1] = ("%.2f %s"):format(Now(), line)
+    while #t.meal > 40 do table.remove(t.meal, 1) end
+end
+
+-- The foods in the bags by the spell they cast (eaten: the aura's id): their tooltip's text,
+-- kept from the last look (the last one eaten is gone from the bags by the time it's read).
+-- Forever's eating aura may not say "well fed" itself (2026-11-24: Well Fed came, no wait shown)
+local bagFoods = {}       -- spellId -> the item's tooltip text
+local function LookInBags()
+    if not (C_Container and C_Container.GetContainerNumSlots and C_Item) then return end
+    local getSpell = C_Item.GetItemSpell or GetItemSpell
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
+        for slot = 1, tonumber((Call(C_Container.GetContainerNumSlots, bag))) or 0 do
+            local info = Call(C_Container.GetContainerItemInfo, bag, slot)
+            local item = info and tonumber(info.itemID)
+            if item then
+                local _, spell = Call(getSpell, item)
+                spell = tonumber(spell)
+                if spell and bagFoods[spell] == nil then
+                    local tip = C_TooltipInfo and Call(C_TooltipInfo.GetItemByID, item)
+                    local text = {}
+                    for _, line in ipairs(type(tip) == "table" and tip.lines or {}) do
+                        local s = type(line) == "table" and line.leftText
+                        if type(s) == "string" and not secret(s) then text[#text + 1] = s end
+                    end
+                    if #text > 0 then bagFoods[spell] = table.concat(text, "\n") end
+                end
+            end
+        end
+    end
+end
+M.LookInBags = LookInBags
+
+-- A food's buff: its eating spell's text, else the eaten item's tooltip (kept once read; an
+-- empty text, not loaded yet, is read again)
 local foods = {}
 local function FoodOf(a)
     local id = a.spellId
     if id == nil then return nil end
     if foods[id] ~= nil then return foods[id] or nil end
     local desc = C_Spell and C_Spell.GetSpellDescription and Call(C_Spell.GetSpellDescription, id)
-    if type(desc) ~= "string" or secret(desc) or desc == "" then
+    if type(desc) == "string" and secret(desc) then desc = nil end
+    local food = type(desc) == "string" and desc ~= "" and M.FoodBuff(desc) or nil
+    if not food then
+        if bagFoods[id] == nil then LookInBags() end
+        food = bagFoods[id] and M.FoodBuff(bagFoods[id]) or nil
+    end
+    Trace(("eat: %s %s; spell text %q; item %s -> %s"):format(tostring(id), tostring(a.name),
+        type(desc) == "string" and desc:sub(1, 140) or "none", bagFoods[id] and "found" or "none",
+        food and ("buff, wait " .. food.wait) or "no buff"))
+    if not food and (type(desc) ~= "string" or desc == "") then
         if C_Spell and C_Spell.RequestLoadSpellData then Call(C_Spell.RequestLoadSpellData, id) end
         return nil
     end
-    foods[id] = M.FoodBuff(desc) or false
-    return foods[id] or nil
+    foods[id] = food or false
+    return food
 end
 
 local lastRest, lastTimer   -- the eating and the fire's minute already waited on (their ids)
@@ -464,7 +512,10 @@ local events = CreateFrame("Frame")
 pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
 pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
 pcall(events.RegisterEvent, events, "PLAYER_REGEN_DISABLED")
+pcall(events.RegisterEvent, events, "BAG_UPDATE_DELAYED")
 events:SetScript("OnEvent", function(_, event, unit)
+    -- (the bags' foods known before one is eaten: the last one is gone once it is)
+    if event == "BAG_UPDATE_DELAYED" then if not InCombat() then LookInBags() end; return end
     -- (a fight: no meal; the wait goes)
     if event == "PLAYER_REGEN_DISABLED" then EndWait(); return end
     if event == "PLAYER_ENTERING_WORLD" then M.Reset() elseif unit ~= "player" then return end
