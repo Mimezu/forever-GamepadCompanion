@@ -668,7 +668,8 @@ T.MARKS = {
     { key = "mark2", label = "Circle", icon = RT .. "2", macro = "/tm 2" },
     { key = "mark1", label = "Star", icon = RT .. "1", macro = "/tm 1" },
     { key = "mark0", label = "Clear mark", icon = I .. "Spell_ChargeNegative", macro = "/tm 0" },
-    -- (on the target, else where the game aims)
+    -- (on the target, else where the game aims; Ping: the game picks the kind, as its own button)
+    { key = "ping", label = "Ping", icon = I .. "Ability_Hunter_MarkedForDeath", macro = "/ping" },
     { key = "pingattack", label = "Ping: Attack", icon = I .. "Ability_DualWield", macro = "/ping attack" },
     { key = "pingwarning", label = "Ping: Warning", icon = I .. "Spell_Shadow_DeathScream", macro = "/ping warning" },
     { key = "pingonmyway", label = "Ping: On my way", icon = I .. "Ability_Tracking", macro = "/ping onmyway" },
