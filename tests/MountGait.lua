@@ -28,7 +28,10 @@ near(L.RideCycle({ 734, 0, { 67 }, "L" }, 14), 0.734, "move speed 0: not scaled"
 check(L.RideHeavy(horse.run) == 1, "the horse's heavy hoof: the first")
 check(L.RideHeavy({ 1000, 7, { 200, 300, 900 }, "LRL" }) == 3, "the hoof after the 600 ms gap")
 
--- The clock: from the move's start, hoof by hoof
+-- The clock: from the move's start, hoof by hoof (as heard at once: offset 0, the model's pace)
+local sigH = "800@9.03:134,234,334,500"
+check(L.RideSig(horse.run) == sigH, "the gait's name, as WoW Helper's: " .. L.RideSig(horse.run))
+WowHelperData = { rideTiming = { [sigH] = { pace = 1, offset = 0, strides = 50 } } }
 do
     local g, v, speed = horse.run, {}, 14
     local cycle = L.RideCycle(g, speed)
@@ -47,11 +50,55 @@ do
     local before = v.phase
     i = L.RideHoof(g, v, v.at, 7, 10)
     near(v.phase, before, "a new speed keeps the place")
-    -- (walk: its cycle starts now)
+    -- (walk: its cycle starts now, heard its offset later: the model's sound path, unlearned)
     i = L.RideHoof(horse.walk, v, v.at, 2.5, 10)
-    check(v.phase == 0 and v.gait == horse.walk, "to a walk: its cycle starts")
+    near(v.phase, -L.RIDE_HEARD / L.RideCycle(horse.walk, 2.5), "to a walk: its cycle starts")
+    check(v.gait == horse.walk and i == nil, "its first hoof still to come")
     -- (before the start: nothing)
     check(L.RideHoof(g, {}, 9.9, 14, 10) == nil, "before the move: no hoof")
+end
+
+-- What WoW Helper heard: the hooves 10 % slower and 200 ms after the model's
+do
+    WowHelperData.rideTiming[sigH] = { pace = 1.1, offset = 0.2, strides = 80 }
+    local g, v = horse.run, {}
+    local cycle = L.RideCycle(g, 14) * 1.1
+    local i, d = L.RideHoof(g, v, 10 + 0.2 + 140 / 800 * cycle, 14, 10)
+    check(i == 1 and math.abs(d - 6 / 800 * cycle) < 1e-9, "learned: the first hoof where it is heard")
+    local p, o, learned = L.RideTiming(horse.walk)
+    check(p == 1 and o == L.RIDE_HEARD and not learned, "an unlearned gait: the model's, after the sound path")
+    WowHelperData.rideTiming[sigH] = { pace = 7, offset = 0 }
+    check(L.RideTiming(g) == 1, "a pace out of reason is not taken")
+    WowHelperData = nil
+end
+
+-- The ride markers: the gait's place, when the ride began, its speed; a stop
+do
+    local sent = {}
+    local K = ns.HelperLink
+    local saved = { K.Marker, K.Enabled, K.V2 }
+    K.Marker = function(m) sent[#sent + 1] = m; return true end
+    K.Enabled, K.V2 = function() return true end, function() return true end
+    check(L.RidePlace(458) == 1 and L.RidePlace(459) == 2 and L.RidePlace(nil) == nil, "a mount's place")
+    local auras = { { spellId = 459 } }
+    C_UnitAuras = { GetAuraDataByIndex = function(_, i) return auras[i] end }
+    T.Event("PLAYER_STARTED_MOVING")
+    local t0 = T.Now()
+    L.RideMarkers(t0 + 0.3, true, 14)
+    local m = sent[1]
+    check(m and m.moment == 96 and m.touch == 514 and m.sound == 1400 and m.seed == 30, "a run on the wolf, 300 ms in")
+    L.RideMarkers(t0 + 0.4, true, 14)
+    check(#sent == 1, "the same ride: nothing new")
+    L.RideMarkers(t0 + 0.5, true, 11.2)
+    check(#sent == 2 and sent[2].seed >= 128 and sent[2].sound == 1120, "a new speed: the same ride")
+    L.RideMarkers(t0 + 0.5 + L.RIDE_KEEP, true, 11.2)
+    check(#sent == 3 and sent[3].seed >= 128, "a keepalive")
+    L.RideMarkers(t0 + 12, true, 2.5)
+    check(#sent == 4 and sent[4].moment == 97 and sent[4].seed == 0, "to a walk: a new gait from now")
+    L.RideMarkers(t0 + 13, false, 0)
+    check(#sent == 5 and sent[5].moment == 98 and sent[5].touch == 512, "a stop")
+    C_UnitAuras = nil
+    K.Marker, K.Enabled, K.V2 = saved[1], saved[2], saved[3]
 end
 
 -- The mount: read from the player's auras
