@@ -132,8 +132,16 @@ eq(C.Clock(59.6), "1:00", "rounded")
 eq(C.Enabled(), true, "on by default")
 db.flightCard = false
 eq(C.Enabled(), false, "off")
-eq(type(C.Times()), "table", "times kept per character")
-eq(db.flightTimes, C.Times(), "in flightTimes")
+-- times shared by every character; a character's own folded in once
+db.flightTimes = { ["A > B"] = 100, ["C > D"] = 50 }
+db.flightPace = 0.06
+GamepadCompanionHapticsDB = { flights = { times = { ["A > B"] = 80 }, flightPace = 0.04 } }
+eq(C.Times()["A > B"], 80, "the shared time kept")
+eq(C.Times()["C > D"], 50, "the character's own added")
+eq(db.flightTimes, nil, "folded in: gone from the character")
+near(GamepadCompanionHapticsDB.flights.flightPace, 0.05, "paces met halfway")
+eq(db.flightPace, nil, "the character's pace folded in too")
+eq(C.Times(), GamepadCompanionHapticsDB.flights.times, "one table for all")
 
 -- The game wiring: a flight picked, the taxi rising, a stop passed, B twice lands there ------------
 do
@@ -169,7 +177,8 @@ do
     TaxiNodeGetType = function(i) return i == 1 and "CURRENT" or "REACHABLE" end
     GetNumRoutes = function() return 2 end
     TaxiGetNodeSlot = function(_, r, src) if src then return r end return r + 1 end
-    local wdb = { flightTimes = { [C.Key(A, B)] = 60, [C.Key(B, X)] = 40 } }
+    GamepadCompanionHapticsDB = { flights = { times = { [C.Key(A, B)] = 60, [C.Key(B, X)] = 40 } } }
+    local wdb = {}
     local padB = false
     local ns2 = { Shared = { CharDB = function() return wdb end, PadButtons = function() return {} end,
         PadDown = function() return padB end, Settler = realSettler, Claim = function() end },
@@ -197,7 +206,7 @@ do
     onTaxi = false
     W.Tick(0.25)
     eq(wdb.flightNow, nil, "landed: no flight kept")
-    eq(wdb.flightTimes[C.Key(A, B)], 58, "the time to the stop it set down at, learned (60 and 56)")
+    eq(GamepadCompanionHapticsDB.flights.times[C.Key(A, B)], 58, "the time to the stop it set down at, learned (60 and 56)")
 end
 
 io.write(("FlightCard: %d checks, %d failures\n"):format(checks, failures))

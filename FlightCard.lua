@@ -1,7 +1,7 @@
 -- The flight's passage: on a taxi, no card, a quiet line at the bottom left (Passage.lua, in the
 -- lure float's manner): where you're going, the time left, and the way there as a line, a dot
 -- per stop (passed ones filled), a gold bead gliding along it. The game gives no time left: each route's
--- time is learned from the flights you take (per character), else guessed from its length ("~").
+-- time is learned from the flights you take (every character's), else guessed from its length ("~").
 -- B lands at the next stop (TaxiRequestEarlyLanding, as Blizzard's leave button does): a first
 -- press names the stop, a second within 3 s lands. B is ours only while on a taxi with a stop
 -- ahead, rebound only once it has been up a moment (Sh.Settler, the triggers' rule).
@@ -130,12 +130,27 @@ function C.Clock(seconds, guess)
     return ("%s%d:%02d"):format(guess and "~" or "", math.floor(seconds / 60), seconds % 60)
 end
 
--- The flight times learned (per character)
-function C.Times()
-    local db = Sh.CharDB()
-    if type(db.flightTimes) ~= "table" then db.flightTimes = {} end
-    return db.flightTimes
+-- The flight times and pace learned, shared by every character (a route takes the same time
+-- for all): GamepadCompanionHapticsDB.flights. A character's own, from before, folded in once.
+function C.Shared()
+    if type(GamepadCompanionHapticsDB) ~= "table" then GamepadCompanionHapticsDB = {} end
+    local f = GamepadCompanionHapticsDB.flights
+    if type(f) ~= "table" then f = {}; GamepadCompanionHapticsDB.flights = f end
+    if type(f.times) ~= "table" then f.times = {} end
+    local char = Sh.CharDB()
+    if type(char.flightTimes) == "table" then
+        for key, t in pairs(char.flightTimes) do
+            if type(t) == "number" and f.times[key] == nil then f.times[key] = t end
+        end
+        char.flightTimes = nil
+    end
+    if type(char.flightPace) == "number" then
+        f.flightPace = f.flightPace and (f.flightPace + char.flightPace) / 2 or char.flightPace
+        char.flightPace = nil
+    end
+    return f
 end
+function C.Times() return C.Shared().times end
 function C.Enabled() return Sh.CharDB().flightCard ~= false end
 
 ---------------------------------------------------------------------------
@@ -326,7 +341,7 @@ local function Save()
     Sh.CharDB().flightNow = flight and { from = flight.from, to = flight.to, hops = flight.plan.hops, wall = flight.wall, dest = flight.dest } or nil
 end
 
-local function Pace() return tonumber(Sh.CharDB().flightPace) end
+local function Pace() return tonumber(C.Shared().flightPace) end
 
 -- (once a second in flight: the straight distance left)
 local sampleIn = 0
@@ -363,7 +378,7 @@ local function Land()
     elseif not flight.resumed then
         C.Learn(times, C.Key(flight.from, flight.to), took)
         -- (and the pace, for the routes not flown yet)
-        C.LearnPace(Sh.CharDB(), took, Length(flight.plan.hops))
+        C.LearnPace(C.Shared(), took, Length(flight.plan.hops))
     end
     flight = nil
     Save()
