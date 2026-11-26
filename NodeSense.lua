@@ -168,6 +168,38 @@ function S.Grid(step)
     return pts
 end
 
+-- Each kind's choice (Setup > Nodes): "track" (a halo on its arrow), "mute" (no arrow once
+-- known), nil: shown. Per character: CharDB.nodeKinds[kind]
+S.MODES = { "show", "track", "mute" }
+function S.Mode(kind)
+    local db = Sh and Sh.CharDB and Sh.CharDB()
+    local m = db and type(db.nodeKinds) == "table" and db.nodeKinds[kind]
+    return (m == "track" or m == "mute") and m or "show"
+end
+function S.SetMode(kind, mode)
+    local db = Sh.CharDB()
+    if type(db.nodeKinds) ~= "table" then db.nodeKinds = {} end
+    db.nodeKinds[kind] = (mode == "track" or mode == "mute") and mode or nil
+end
+
+-- What the node row says per kind: { mode = { [slot] = 0 show, 1 track, 2 mute },
+-- gatherable = { [slot] = false: above your skill } } (slots as HelperLink.NodeSlot); `skill`:
+-- Mining's, nil not known (all gatherable). S.Prefs (below): with the game's skill.
+function S.PrefsFor(skill)
+    local p = { mode = {}, gatherable = {} }
+    local function Put(kind, need)
+        local slot = ns.HelperLink and ns.HelperLink.NodeSlot and ns.HelperLink.NodeSlot(kind)
+        if not slot then return end
+        local m = S.Mode(kind)
+        p.mode[slot] = m == "track" and 1 or m == "mute" and 2 or 0
+        p.gatherable[slot] = not (skill and need and skill < need)
+    end
+    for _, o in ipairs(S.ORES) do Put(o[2], o[3]) end
+    Put(S.HERB)
+    Put(S.TREASURE)
+    return p
+end
+
 function S.Want() return Sh and Sh.CharDB and Sh.CharDB().nodeWant or nil end
 function S.SetWant(w) Sh.CharDB().nodeWant = (w ~= nil and w ~= "" and w ~= "any") and w or nil end
 function S.Enabled()
@@ -244,6 +276,9 @@ local function SkillFor(tracking)
     end
     return skills[tracking]
 end
+
+-- (the game's: with your Mining skill)
+function S.Prefs() return S.PrefsFor(SkillFor(1)) end
 
 -- The minimap's measure (its own units) for the readings, or nil
 local function Measure()

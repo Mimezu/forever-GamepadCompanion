@@ -848,6 +848,34 @@ do
     assert(not nt[1]:IsShown(), "no map row: no node row")
     K.SetNodes(nil)
     K.SetStrip("stacked")
+
+    -- version 2 (WowHelperData.nodeRow = 2): each kind's choice, drawn with no dots too
+    local p = { mode = { [0] = 2, [5] = 1 }, gatherable = { [9] = false } }
+    local v2 = assert(K.DecodeNodeRow(K.EncodeNodeRow({}, p)))
+    assert(#v2 == 0 and v2.prefs.mode[0] == 2 and v2.prefs.mode[5] == 1 and v2.prefs.mode[3] == 0, "v2: the modes")
+    assert(v2.prefs.gatherable[9] == false and v2.prefs.gatherable[0] == true, "v2: gatherable")
+    assert(#assert(K.DecodeNodeRow(K.EncodeNodeRow(seven, p))) == 4, "v2: four dots at most")
+    local c = K.EncodeNodeRow({}, p)
+    local function bit(i) return c[2 + math.floor(i / 3)][i % 3 + 1] end
+    assert(bit(0) == 0 and bit(1) == 1, "version 2")
+    assert(bit(101) == 0 and bit(102) == 1 and bit(103) == 1, "Copper: mute, gatherable (as WoW Helper reads it)")
+    assert(bit(116) == 1 and bit(117) == 0, "Mithril: track")
+    assert(bit(101 + 27 + 2) == 0, "Rich Thorium: not gatherable")
+    assert(K.NodeSlot(6) == 5 and K.NodeSlot(32) == 13 and K.NodeSlot(48) == 14 and K.NodeSlot(0) == nil, "slots")
+    local chosen = p
+    ns.NodeSense = { Prefs = function() return chosen end }
+    WowHelperData = { mapRow = 2, nodeRow = 2 }
+    K.SetMap({ facing = 3, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 })
+    K.Step(0)
+    local d2 = drawn()
+    assert(nt[1]:IsShown() and d2 and #d2 == 0 and d2.prefs.mode[5] == 1 and d2.prefs.mode[0] == 2, "nodeRow 2: drawn with no dots, the choices")
+    chosen = { mode = {}, gatherable = {} }
+    K.SetMap({ facing = 3, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 })
+    K.Step(0)
+    assert(drawn().prefs.mode[5] == 0, "a new choice: redrawn (the map unchanged)")
+    K.SetMap(nil)
+    K.Step(0)
+    ns.NodeSense = nil
     WowHelperData = nil
     K.SetEnabled(false)
     print("PASS: node row: 54 cells, flips rejected, six rows up and from cell 117, gated on nodeRow 1 and the map row")

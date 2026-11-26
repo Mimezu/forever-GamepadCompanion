@@ -189,5 +189,22 @@ Run(200)
 check(table.concat(GamepadCompanionTraceDB.nodes, "\n"):find("blocked") ~= nil, "refused: written down")
 eq(#S.dots, 0, "no dots")
 
+-- Each kind's choice (Setup > Nodes) and gatherable by the Mining skill, as the node row's slots
+do
+    local slots = { [6] = 5, [1] = 0, [10] = 9, [32] = 13, [48] = 14 }
+    ns.HelperLink.NodeSlot = function(kind) return slots[kind] end
+    eq(S.Mode(6), "show", "shown unless chosen")
+    S.SetMode(6, "track")
+    S.SetMode(1, "mute")
+    eq(S.Mode(6), "track", "tracked")
+    local p = S.PrefsFor(180)
+    check(p.mode[5] == 1 and p.mode[0] == 2 and p.mode[13] == 0, "track 1, mute 2, show 0")
+    check(p.gatherable[5] == true and p.gatherable[9] == false, "Mithril (175) gathered at 180, Rich Thorium (275) not")
+    check(S.PrefsFor(nil).gatherable[9] == true, "no skill read: all gatherable")
+    S.SetMode(6, "show")
+    check(char.nodeKinds[6] == nil, "show: not stored")
+    S.SetMode(1, nil)
+end
+
 io.write(("NodeSense: %d checks, %d failures\n"):format(checks, failures))
 if failures > 0 then os.exit(1) end

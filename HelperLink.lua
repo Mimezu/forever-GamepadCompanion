@@ -492,17 +492,29 @@ end
 -- wanted (1), gatherable (1); CRC-8 over bits 0-148 at 149-156, spare 157-158. Six rows up
 -- (stacked) or from cell 117 (one line: 171 cells); drawn only while the map row is and
 -- WowHelperData.nodeRow is 1.
+-- Version 2 (WowHelperData.nodeRow = 2): 4 nodes at most, then from bit 101 each kind's choice
+-- (Setup > Nodes), 3 bits a slot (the veins 1-13 at 0-12, herbs 13, treasure 14): mode (2 bits:
+-- 0 show, 1 track, 2 mute), gatherable by your skill (1).
 K.NODE_CELLS = 54
 K.NODE_MARKER = { 0, 1, 1 }   -- cyan
-K.NODE_MAX = 6
+K.NODE_MAX, K.NODE_MAX_V2, K.PREFS_AT, K.NODE_SLOTS = 6, 4, 101, 15
 
--- nodes = { { dx, dy, kind, wanted, gatherable } } -> 54 cells
-function K.EncodeNodeRow(nodes)
+-- A kind's slot in the choices (nil: none)
+function K.NodeSlot(kind)
+    if type(kind) ~= "number" then return nil end
+    if kind >= 1 and kind <= 13 then return kind - 1 end
+    if kind == 32 then return 13 end
+    if kind == 48 then return 14 end
+end
+
+-- nodes = { { dx, dy, kind, wanted, gatherable } }, prefs = { mode = { [slot] = 0-2 },
+-- gatherable = { [slot] = false } } (nil: version 1) -> 54 cells
+function K.EncodeNodeRow(nodes, prefs)
     nodes = nodes or {}
     local bits = {}
     for i = 0, 158 do bits[i] = 0 end
-    Put(bits, 0, 1, 2)
-    local count = math.min(#nodes, K.NODE_MAX)
+    Put(bits, 0, prefs and 2 or 1, 2)
+    local count = math.min(#nodes, prefs and K.NODE_MAX_V2 or K.NODE_MAX)
     Put(bits, 2, count, 3)
     for i = 1, count do
         local n, at = nodes[i], 5 + (i - 1) * 24
@@ -511,6 +523,12 @@ function K.EncodeNodeRow(nodes)
         Put(bits, at + 16, Int(n.kind, 63), 6)
         Put(bits, at + 22, n.wanted == false and 0 or 1, 1)
         Put(bits, at + 23, n.gatherable == false and 0 or 1, 1)
+    end
+    if prefs then
+        for k = 0, K.NODE_SLOTS - 1 do
+            Put(bits, K.PREFS_AT + 3 * k, Int(prefs.mode and prefs.mode[k] or 0, 2), 2)
+            Put(bits, K.PREFS_AT + 3 * k + 2, (prefs.gatherable and prefs.gatherable[k] == false) and 0 or 1, 1)
+        end
     end
     Put(bits, 149, CrcBits(bits, 149), 8)
     local cells = { { K.NODE_MARKER[1], K.NODE_MARKER[2], K.NODE_MARKER[3] } }
@@ -530,9 +548,17 @@ function K.DecodeNodeRow(cells)
             bits[c * 3 + k - 1] = v
         end
     end
-    if Get(bits, 0, 2) ~= 1 then return nil, "value" end
+    local version = Get(bits, 0, 2)
+    if version ~= 1 and version ~= 2 then return nil, "value" end
     if CrcBits(bits, 149) ~= Get(bits, 149, 8) then return nil, "crc" end
     local out = {}
+    if version == 2 then
+        out.prefs = { mode = {}, gatherable = {} }
+        for k = 0, K.NODE_SLOTS - 1 do
+            out.prefs.mode[k] = Get(bits, K.PREFS_AT + 3 * k, 2)
+            out.prefs.gatherable[k] = Get(bits, K.PREFS_AT + 3 * k + 2, 1) == 1
+        end
+    end
     for i = 1, Get(bits, 2, 3) do
         local at = 5 + (i - 1) * 24
         out[i] = { dx = Get(bits, at, 8) - 128, dy = Get(bits, at + 8, 8) - 128, kind = Get(bits, at + 16, 6),
@@ -607,6 +633,8 @@ end
 -- The map row's state (NodeCompass.lua), or nil: none. Redrawn when a field changes.
 K.map = nil
 function K.SetMap(m)
+    -- (the kinds' choices with it: a pick in Setup, a skill up)
+    if m ~= nil and ns.NodeSense and ns.NodeSense.Prefs then K.SetNodePrefs(ns.NodeSense.Prefs()) end
     if m == nil then
         if K.map then K.map = nil; dirty = true end
         return
@@ -620,11 +648,29 @@ function K.SetMap(m)
     dirty = true
 end
 
--- The node row: only while the map row is drawn and WoW Helper says it reads it
--- (WowHelperData.nodeRow = 1), with dots named (NodeSense.lua)
+-- The node row: only while the map row is drawn and WoW Helper says it reads it: version 1
+-- (WowHelperData.nodeRow = 1) with dots named (NodeSense.lua); version 2 (nodeRow = 2) always,
+-- for each kind's choice
+function K.NodeRowV2()
+    local d = WowHelperData
+    return type(d) == "table" and type(d.nodeRow) == "number" and d.nodeRow >= 2
+end
 function K.NodeRowOn()
     local d = WowHelperData
-    return K.MapRowOn() and type(d) == "table" and d.nodeRow == 1 and K.nodes ~= nil
+    return K.MapRowOn() and type(d) == "table" and (K.NodeRowV2() or (d.nodeRow == 1 and K.nodes ~= nil))
+end
+
+-- Each kind's choice and gatherable (NodeSense.Prefs), redrawn when it changes: { mode, gatherable }
+K.prefs = nil
+function K.SetNodePrefs(p)
+    local parts = {}
+    for k = 0, K.NODE_SLOTS - 1 do
+        parts[#parts + 1] = (p and p.mode and p.mode[k] or 0) .. ((p and p.gatherable and p.gatherable[k] == false) and "x" or "")
+    end
+    local key = table.concat(parts, ",")
+    if K.prefs and K.prefs.key == key then return end
+    K.prefs = { key = key, mode = p and p.mode or {}, gatherable = p and p.gatherable or {} }
+    dirty = true
 end
 
 -- The named dots (NodeSense.Row), or nil: none. Redrawn when they change
@@ -1004,7 +1050,7 @@ function K.Step(elapsed)
         if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
         if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
         if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
-        if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes.list) or nil) end
+        if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes and K.nodes.list, K.NodeRowV2() and (K.prefs or {}) or nil) or nil) end
         if K.DrawHold then K.DrawHold() end
         if K.DrawCheck then K.DrawCheck() end
         return true

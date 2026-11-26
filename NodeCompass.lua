@@ -172,7 +172,10 @@ end
 function N.Row()
     if (N.tracking or 0) == 0 then return nil end
     local mm = Minimap
+    -- (hidden, or faded out (an addon hiding it while you stand): no row; WoW Helper keeps
+    -- the nodes it knows until it shows again)
     if not mm or not mm:IsVisible() then return nil end
+    if mm.GetEffectiveAlpha and (mm:GetEffectiveAlpha() or 1) < 0.3 then return nil end
     local facing = GetPlayerFacing and GetPlayerFacing()
     if type(facing) ~= "number" or (issecretvalue and issecretvalue(facing)) then return nil end
     local cx, cy = mm:GetCenter()

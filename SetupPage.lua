@@ -522,7 +522,7 @@ end
 
 ---------------------------------------------------------------------------
 -- Nodes: the node compass's arrows named and coloured (NodeSense.lua, experimental): on or
--- off, and what you look for (the others dimmed)
+-- off, and each kind shown, tracked (a halo on its arrow) or muted (no arrow once known)
 ---------------------------------------------------------------------------
 local function BuildNodes(frame)
     local NS = ns.NodeSense
@@ -534,32 +534,49 @@ local function BuildNodes(frame)
         if self:GetChecked() then ns.Shared.CharDB().nodeSense = nil else ns.Shared.CharDB().nodeSense = false end
     end, cw - 40)
     S.Tooltip(names, "Name the arrows", "Experimental · WoW Helper colours them")
-    -- the choices: any, any ore, each ore, any herb
-    local choices = { { nil, "Any" }, { "ore", "Any ore" } }
+    -- each kind: < its name >, then Show / Track / Mute
+    local kinds = {}
     for _, o in ipairs(NS.ORES) do
         local label = o[1]:gsub(" vein$", ""):gsub(" deposit$", ""):gsub(" mineral$", ""):gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end)
-        choices[#choices + 1] = { o[4], label }
+        kinds[#kinds + 1] = { o[2], label }
     end
-    choices[#choices + 1] = { "herb", "Any herb" }
-    S.Text(card, "Looking for", 14, -76, 90, 12, GOLD)
-    local name = S.Text(card, "", 136, -76, cw - 190, 12, YELLOW)
+    kinds[#kinds + 1] = { NS.HERB, "Herbs" }
+    kinds[#kinds + 1] = { NS.TREASURE, "Treasure" }
+    local at = 1
+    local name = S.Text(card, "", 36, -76, 104, 12, YELLOW)
     if name.SetJustifyH then name:SetJustifyH("CENTER") end
     local function Step(dir)
-        local cur, i = NS.Want(), 1
-        for k, c in ipairs(choices) do if c[1] == cur then i = k end end
-        i = (i - 1 + dir) % #choices + 1
-        NS.SetWant(choices[i][1])
+        at = (at - 1 + dir) % #kinds + 1
         Refresh()
     end
-    local prev = S.NewButton(card, "<", 106, -70, 24, function() Step(-1) end, nil, 13, 24)
-    local nextB = S.NewButton(card, ">", cw - 40, -70, 24, function() Step(1) end, nil, 13, 24)
-    S.Tooltip(prev, "Looking for", "The other arrows dimmed")
-    S.Tooltip(nextB, "Looking for", "The other arrows dimmed")
+    local prev = S.NewButton(card, "<", 10, -70, 24, function() Step(-1) end, nil, 13, 24)
+    local nextB = S.NewButton(card, ">", 142, -70, 24, function() Step(1) end, nil, 13, 24)
+    local modes, labels = {}, { show = "Show", track = "Track", mute = "Mute" }
+    local bw = floor((cw - 180) / 3)
+    for i, m in ipairs(NS.MODES) do
+        modes[m] = S.NewButton(card, labels[m], 172 + (i - 1) * bw, -70, bw, function()
+            NS.SetMode(kinds[at][1], m)
+            Refresh()
+        end, nil, 12, 24)
+    end
+    S.Tooltip(modes.track, "Track", "A halo on its arrow")
+    S.Tooltip(modes.mute, "Mute", "No arrow once known")
+    -- (what is tracked and muted, at a glance)
+    local sum = S.Text(card, "", 14, -100, cw - 28, 11, GREY)
     pg.refresh[#pg.refresh + 1] = function()
         names:SetChecked(NS.Enabled())
-        local cur, label = NS.Want(), "Any"
-        for _, c in ipairs(choices) do if c[1] == cur then label = c[2] end end
-        name:SetText(label)
+        name:SetText(kinds[at][2])
+        local mode = NS.Mode(kinds[at][1])
+        for m, b in pairs(modes) do S.SetSelected(b, m == mode) end
+        local tracked, muted = {}, {}
+        for _, k in ipairs(kinds) do
+            local m = NS.Mode(k[1])
+            if m == "track" then tracked[#tracked + 1] = k[2] elseif m == "mute" then muted[#muted + 1] = k[2] end
+        end
+        local parts = {}
+        if #tracked > 0 then parts[#parts + 1] = "|cffffd100Track|r " .. table.concat(tracked, ", ") end
+        if #muted > 0 then parts[#parts + 1] = "Mute " .. table.concat(muted, ", ") end
+        sum:SetText(table.concat(parts, "  ·  "))
     end
 end
 
