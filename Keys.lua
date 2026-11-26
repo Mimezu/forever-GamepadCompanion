@@ -28,6 +28,8 @@ local ALLOWED, CLICK_NAME = {}, {}
 local ORDER = { "PADLSHOULDER", "PADRSHOULDER", "PADLSTICK", "PADRSTICK", "PADSOCIAL", "PADFORWARD", "PADSYSTEM", "PAD5" }
 for _, key in ipairs(Keys.KEYS) do ALLOWED[key] = true end
 for i, key in ipairs(ORDER) do CLICK_NAME[key] = "p" .. i end
+local KEY_OF = {}         -- click name -> pad key
+for key, name in pairs(CLICK_NAME) do KEY_OF[name] = key end
 Keys.BUTTON = "GamepadCompanionKeys"
 
 -- WoW Helper's chords: Keys.CHORD .. n. 1-3 the gamepad functions, bound once;
@@ -39,8 +41,7 @@ Keys.GAME_CHORDS = { 4, 5, 6, 7, 8, 9 }
 local settings = {}
 local bound = {}          -- key -> "click" | a function | nil: what is on it now
 local onOwner = { click = {}, native = {} }   -- key -> held there (native: its function)
-local soak = {}           -- key -> a function let go there (the next fresh binding gets it)
-local seen = {}           -- key -> the game's own command there
+local basePick = {}       -- key -> its click's Base pick, last Apply
 local gameChord = {}      -- 4..9 -> the command bound on that chord
 local claimed = {}        -- key -> what it runs, for keys of ours (Sh.Claim)
 local used = 0            -- macro attributes set last time
@@ -89,20 +90,38 @@ button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
 button:RegisterForClicks("AnyDown", "AnyUp")
 SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
 -- A chord pick held: the hold cells say n from the press to that key's release
--- (two keys: the last press wins, its release lets go)
-button:HookScript("PostClick", function(self, _, down)
+-- (two keys: the last press wins, its release lets go). While held, the pad
+-- itself is read every HOLD_POLL s: a release a window ate lets go too
+Keys.HOLD_POLL = 0.05
+local watch = CreateFrame("Frame", "GamepadCompanionKeyHold")
+local function Release()
+    if not holding then return end
+    holding = nil
+    watch:SetScript("OnUpdate", nil)
     local K = ns.HelperLink
+    if K and K.Hold then K.Hold(0) end
+end
+Keys.Release = Release
+local since = 0
+local function Watch(_, elapsed)
+    since = since + (elapsed or 0)
+    if since < Keys.HOLD_POLL then return end
+    since = 0
+    if holding and Sh.PadDown(Sh.PadButtons(), KEY_OF[holding]) == false then Release() end
+end
+button:HookScript("PostClick", function(self, _, down)
     if down then
         local name = self:GetAttribute("gpc-down")
         local pick = name and self:GetAttribute("gpc-pick-" .. name)
         local n = type(pick) == "string" and tonumber(pick:match("^h(%d)$"))
         if n then
-            holding = name
+            holding, since = name, 0
+            watch:SetScript("OnUpdate", Watch)
+            local K = ns.HelperLink
             if K and K.Hold then K.Hold(n) end
         end
     elseif holding and self:GetAttribute("gpc-up") == holding then
-        holding = nil
-        if K and K.Hold then K.Hold(0) end
+        Release()
     end
 end)
 
@@ -110,7 +129,6 @@ local clickOwner = CreateFrame("Frame", "GamepadCompanionKeyBinds")
 local nativeOwner = CreateFrame("Frame", "GamepadCompanionKeyNative")
 local helperOwner = CreateFrame("Frame", "GamepadCompanionHelperChords")
 local gameOwner = CreateFrame("Frame", "GamepadCompanionGameChords")
-local OWNERS = { click = clickOwner, native = nativeOwner }
 
 -- The helper's chords 1-3, once (out of combat)
 function Keys.BindHelperChords()
@@ -169,37 +187,40 @@ function Keys.Mode(key)
 end
 
 -- Does the key's action on a layer run; and a note, a few words, when not
+-- (no action: a note only when Base's game command needs WoW Helper)
+local function HelperOn()
+    local K = ns.HelperLink
+    return K and K.HoldCellsOn and K.HoldCellsOn() or false
+end
 function Keys.Runs(key, layer)
     local action = Keys.Get(key, layer)
-    if not action then return false end
-    if T.BindingOf(action) and Keys.Mode(key) == "click" then
-        local K = ns.HelperLink
-        if not (K and K.HoldCellsOn and K.HoldCellsOn()) then return false, "needs WoW Helper" end
+    if not action then
+        if layer == "base" and bound[key] == "click" and (basePick[key] or ""):find("^h") and not HelperOn() then
+            return false, "needs WoW Helper"
+        end
+        return false
     end
+    if T.BindingOf(action) and bound[key] == "click" and not HelperOn() then return false, "needs WoW Helper" end
     return true
 end
 
 local function ClickCommand(key) return "CLICK " .. Keys.BUTTON .. ":" .. CLICK_NAME[key] end
 
--- What the game runs on key without us ("" none). Under ours: what was read
--- before, unless a newer binding of someone else's is on top
+-- What the game runs on key without us ("" none): its own keybinding, never an
+-- override (a window's or ours); a gamepad function reads back empty, found by
+-- its keys; else Blizzard's core set's default
 local FUNCTIONS = { "TOGGLEUIFOCUS", "OPENRADIAL", "TOGGLEPINGSYSTEM", "TOGGLEGAMEMENU" }
+local CORE = { PADFORWARD = "TOGGLEGAMEMENU", PADLSTICK = "TOGGLEAUTORUN", PADRSTICK = "TOGGLEPINGSYSTEM" }
 local function GameCommand(key)
-    local now = GetBindingAction and GetBindingAction(key, true) or ""
-    if bound[key] then
-        if now ~= "" and now ~= ClickCommand(key) and now ~= bound[key] then seen[key] = now end
-        return seen[key] or ""
-    end
-    if now == "" and GetBindingAction then now = GetBindingAction(key) or "" end
-    -- (a gamepad function reads back empty: found by its keys)
+    local now = GetBindingAction and GetBindingAction(key) or ""
     if now == "" and GetBindingKey then
         for _, fn in ipairs(FUNCTIONS) do
             for _, k in ipairs({ GetBindingKey(fn) }) do if k == key then now = fn end end
             if now ~= "" then break end
         end
     end
+    if now == "" then now = CORE[key] or "" end
     if now:find("^CLICK " .. Keys.BUTTON .. ":") then now = "" end
-    seen[key] = now
     return now
 end
 
@@ -239,23 +260,19 @@ local function Write(kind, key, command)
         onOwner.native[key] = command
     end
 end
--- key to run want ("click", a function, nil). The native record is never let
--- go while the key is ours: a click goes on a newer record above it. Let go
--- (the key given back), the next fresh binding is handed its function: the
--- native owner takes that one first, so it never reaches our click
+-- key to run want ("click", a function, nil). A record that carried a function
+-- is never let go (the game would hand the function to the next binding of the
+-- key, anyone's): a click goes on a newer record above it, and a key given back
+-- stays our click (Apply: its game command through a chord) till /reload
 local function Put(key, want)
     if want == bound[key] then return end
-    if want == "click" and soak[key] then Write("native", key, soak[key]) end
-    if want then soak[key] = nil end
     if want == "click" then
         Write("click", key)
     elseif want then
         Write("native", key, want)
-    else
-        if onOwner.native[key] then soak[key] = onOwner.native[key] end
-        for kind, owner in pairs(OWNERS) do
-            if onOwner[kind][key] then SetOverrideBinding(owner, true, key, nil); onOwner[kind][key] = nil end
-        end
+    elseif onOwner.click[key] then
+        SetOverrideBinding(clickOwner, true, key, nil)
+        onOwner.click[key] = nil
     end
     bound[key] = want
 end
@@ -271,6 +288,8 @@ function Keys.Apply()
     for _, key in ipairs(Keys.KEYS) do
         game[key] = GameCommand(key)
         local mode, fn = Keys.Mode(key)
+        -- (given back after a function: our click still, Base the game's command)
+        if not mode and onOwner.native[key] then mode = "click" end
         want[key] = mode == "click" and "click" or fn
         -- (Base empty on a click: the game's own command through a chord)
         local c = game[key]
@@ -302,8 +321,11 @@ function Keys.Apply()
                     end
                 elseif layer == "base" then
                     id = ChordPick(game[key]) or "none"
+                elseif not Keys.Mode(key) then
+                    id = "none"
                 end
             end
+            if layer == "base" then basePick[key] = id end
             button:SetAttribute("gpc-" .. name .. "-" .. layer, id)
         end
     end
@@ -334,21 +356,16 @@ function Keys.Set(key, layer, action)
 end
 
 -- (a key of ours covered by Blizzard's binding (its core set again after a
--- window, a window's footer): ours written again in place, back on top; what
--- the game put there becomes the key's own command, for an empty Base)
+-- window, a window's footer): ours written again in place, back on top)
 Sh.Claim(claimed, function()
     if InCombatLockdown and InCombatLockdown() then pending = true; return end
-    local again = false
     for key, command in pairs(claimed) do
         local actual = GetBindingAction(key, true) or ""
         -- (a Blizzard function reads back empty: only another command over it is a cover)
         if actual ~= command and (bound[key] == "click" or actual ~= "") then
-            local was = seen[key]
-            if GameCommand(key) ~= was and not Keys.Get(key, "base") then again = true end
             Write(bound[key] == "click" and "click" or "native", key, bound[key])
         end
     end
-    if again then Keys.Apply() end
 end)
 
 -- A trace kept in the saved settings (read after a /reload), a list per
@@ -519,6 +536,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     if event == "GAME_PAD_ACTIVE_CHANGED" or event == "GAME_PAD_CONNECTED" then
         -- (another pad: the triggers' indexes again; the bindings stay)
         if Sh.ForgetPadIndexes then Sh.ForgetPadIndexes() end
+        Release()
         if InCombatLockdown and InCombatLockdown() then pending = true; return end
         button:SetAttribute("gpc-lt", PadIndex("PADLTRIGGER"))
         button:SetAttribute("gpc-rt", PadIndex("PADRTRIGGER"))
@@ -528,6 +546,7 @@ events:SetScript("OnEvent", function(_, event, arg, msg)
     if event == "PLAYER_LOGIN" and C_Timer and C_Timer.NewTicker then
         C_Timer.NewTicker(5, function() if not (InCombatLockdown and InCombatLockdown()) then pcall(Keys.PadHealth) end end)
     end
+    if event == "PLAYER_ENTERING_WORLD" then Release() end
     if event == "PLAYER_REGEN_ENABLED" then
         Keys.BindHelperChords()
         if not pending then return end

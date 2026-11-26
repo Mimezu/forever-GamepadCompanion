@@ -37,6 +37,9 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
    K.Hold), the helper holds the chord. In game: a binding let go hands its
    function to the next fresh binding of the key; a function stays in its
    record under a click written over it; the newest record wins.
+   So a record that carried a function is never let go: a key given back
+   after one stays our click (Base: its own command's chord) till /reload.
+   A key's own command is read from its keybinding, never an override.
 2. The layer is read at the press, in the secure snippet, never in Lua.
 3. Nothing rebinds when L2 / R2 move. Never bind, relay or re-send a trigger
    for a layer.

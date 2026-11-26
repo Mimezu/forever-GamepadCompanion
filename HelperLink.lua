@@ -1146,12 +1146,29 @@ function K.LayoutHold(unit, line)
         tex:SetSize(unit, unit)
     end
 end
--- Hold chord n (0: let go), drawn at once
+-- Hold chord n (0: let go), drawn at once. A let-go waits till n has been on
+-- screen HOLD_FRAMES rendered frames (WoW Helper reads one a frame): a short tap
+-- is still seen
+K.HOLD_FRAMES = 2
+K.holdFrames, K.holdLetGo = 0, false
 function K.Hold(n)
     n = math.floor(tonumber(n) or 0)
     if n < 0 or n > 9 then n = 0 end
-    K.hold = n
+    if n == 0 and K.hold > 0 and K.holdFrames <= K.HOLD_FRAMES and K.HoldCellsOn() then
+        K.holdLetGo = true
+        return
+    end
+    K.hold, K.holdFrames, K.holdLetGo = n, 0, false
     K.DrawHold()
+end
+-- Each rendered frame (the strip's OnUpdate; the frame Hold was called in counts once)
+function K.HoldTick()
+    if K.hold == 0 then return end
+    K.holdFrames = K.holdFrames + 1
+    if K.holdLetGo and K.holdFrames > K.HOLD_FRAMES then
+        K.hold, K.holdFrames, K.holdLetGo = 0, 0, false
+        K.DrawHold()
+    end
 end
 
 -- (the check pixel's pair: blue false red, blue; true blue, red)
@@ -1329,7 +1346,7 @@ local function Build()
         K.checkTextures[i] = tex
     end
     frame:Hide()
-    frame:SetScript("OnUpdate", function(_, elapsed) K.Step(elapsed) end)
+    frame:SetScript("OnUpdate", function(_, elapsed) K.HoldTick(); K.Step(elapsed) end)
     frame:SetScript("OnEvent", function(_, event, name)
         if event == "ADDON_LOADED" then
             if name == addonName then K.AutoOn(); K.Refresh() end
@@ -1361,6 +1378,7 @@ end
 function K.SetEnabled(on)
     DB().on = on and true or false
     if not on then
+        K.hold, K.holdFrames, K.holdLetGo = 0, 0, false
         for i = #K.queue, 1, -1 do K.queue[i] = nil end
         active = false
         K.state.event, K.state.gain, K.state.touch, K.state.sound = 0, 0, 0, 0

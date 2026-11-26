@@ -155,7 +155,14 @@ local function Ours(key)
     return n
 end
 C_KeyBindings = { GetBindingByKey = function(key) return Running(key) end }
-function GetBindingAction(key) return overrides[key] and overrides[key].action or "" end
+-- (checkOverride, as the game: the newest override's command, a gamepad function read back
+-- empty; without it the key's own binding only)
+local bindings = {}
+function GetBindingAction(key, override)
+    local r = override and overrides[key]
+    if r then return PAD_SET[r.action] and "" or r.action end
+    return bindings[key] or ""
+end
 C_GamePad = {
     GetActiveDeviceID = function() return 1 end,
     ButtonBindingToIndex = function() return 0 end,
@@ -212,13 +219,7 @@ end
 PickupSpell = function(id) cursor = id end
 C_Spell.PickupSpell = PickupSpell
 GetBindingKey = function(command) if command == "OPENRADIAL" then return "PADRSHOULDER" end end
-local bindings = { PADLSTICK = "TOGGLEAUTORUN" }
-local overridesRead = GetBindingAction
--- (checkOverride, as the game: an override on the key wins over its own binding)
-GetBindingAction = function(key, override)
-    if override and overrides[key] then return overrides[key].action end
-    return bindings[key] or overridesRead(key)
-end
+bindings.PADLSTICK = "TOGGLEAUTORUN"
 -- As the game: binding indexes are 0-based, the state's buttons 1-based
 local ButtonIndex = { PADRSHOULDER = 9, PADLTRIGGER = 10, PADRTRIGGER = 11, PAD1 = 0, PADDUP = 12, PADBACK = 18, PADSOCIAL = 16, PAD5 = 4 }
 C_GamePad.ButtonBindingToIndex = function(key) return ButtonIndex[key] end
@@ -680,17 +681,40 @@ do
     check(Keys.Set("PADSYSTEM", "base", "bind:radial"), "PS: Radial")
     eq(Running("PADSYSTEM"), "OPENRADIAL", "PS runs Radial")
     eq(Ours("PADSYSTEM"), 1, "in place: one record")
-    -- (given back: the game's own screenshot)
+    -- (given back: the Radial's record never let go; our click over it, Base the game's own
+    -- screenshot through a chord, the layers nothing)
+    local mark = #bindLog
     Keys.Set("PADSYSTEM", "base", nil)
-    eq(Running("PADSYSTEM"), nil, "PS given back")
-    eq(GetBindingAction("PADSYSTEM", true), "FRAMEGAMBIT_CLEAN_SCREENSHOT", "the game's screenshot")
-    -- (the Radial let go is handed to the next fresh binding on PS: the native owner takes it,
-    -- never our click)
+    eq(Running("PADSYSTEM"), "CLICK GamepadCompanionKeys:p7", "PS given back: our click still")
+    for i = mark + 1, #bindLog do check(not (bindLog[i].key == "PADSYSTEM" and bindLog[i].action == nil), "nothing let go on PS") end
+    local pick = kb:GetAttribute("gpc-p7-base")
+    local n = tonumber((pick or ""):match("^h(%d)$"))
+    check(n and n >= 4, "Base: a game chord")
+    eq(Running(CHORD .. tostring(n)), "FRAMEGAMBIT_CLEAN_SCREENSHOT", "that chord: the screenshot")
+    eq(kb:GetAttribute("gpc-p7-lt"), "none", "L2: nothing")
+    Holds()
+    local _, id = PressKey("PADSYSTEM", true)
+    check(not id, "L2 + PS: nothing")
+    eq(Holds(), "", "L2 + PS: nothing held")
+    -- (another owner binding PS fresh, a window's set: never handed the Radial)
+    local other = new("Frame", "SomeWindowBinds")
+    SetOverrideBinding(other, true, "PADSYSTEM", "TOGGLEWORLDMAP")
+    eq(Running("PADSYSTEM"), "TOGGLEWORLDMAP", "another owner's binding: its own, no Radial")
+    SetOverrideBinding(other, true, "PADSYSTEM", nil)
     check(Keys.Set("PADSYSTEM", "base", "text:/wave"), "PS: a macro")
-    eq(Running("PADSYSTEM"), "CLICK GamepadCompanionKeys:p7", "PS runs our click, no Radial under it")
+    eq(Running("PADSYSTEM"), "CLICK GamepadCompanionKeys:p7", "PS runs our click, no Radial over it")
     eq((PressKey("PADSYSTEM")), "/wave", "PS: the macro")
+    -- (no WoW Helper: the card's note on the given-back Base)
     Reset("PADSYSTEM")
-    eq(Running("PADSYSTEM"), nil, "PS given back again")
+    local data = WowHelperData
+    WowHelperData = {}
+    local runs, why = Keys.Runs("PADSYSTEM", "base")
+    check(runs == false and why == "needs WoW Helper", "Base's game command without WoW Helper: a note")
+    ui.buttons.ps.scripts.OnClick(ui.buttons.ps)
+    check((ui.kind.text or ""):find("needs WoW Helper", 1, true) ~= nil, "card: the note")
+    WowHelperData = data
+    runs, why = Keys.Runs("PADSYSTEM", "base")
+    check(runs == false and why == nil, "with WoW Helper: no note")
 end
 
 -- Options, the player's setup: Base Radial, L2 Focus UI, R2 Check minimap. One click on the key,
@@ -791,7 +815,8 @@ do
     eq(Running("PAD5"), "TOGGLEUIFOCUS", "native again, on top")
     eq(Ours("PAD5"), 2, "both records kept, none let go")
     Reset("PAD5")
-    eq(Ours("PAD5"), 0, "given back")
+    eq(Ours("PAD5"), 2, "given back: both records kept")
+    eq(Running("PAD5"), "CLICK GamepadCompanionKeys:p8", "our click on top")
 end
 
 -- Base empty with combos: the key's own game command through a chord 4-9
@@ -879,9 +904,68 @@ do
     check(Keys.Set("PADLSTICK", "base", "bind:radial"), "L3: Radial again")
     eq(Running("PADLSTICK"), "OPENRADIAL", "L3 runs Radial again")
     Reset("PADLSTICK")
-    eq(Ours("PADLSTICK"), 0, "L3 given back: nothing of ours live")
+    eq(Running("PADLSTICK"), "CLICK GamepadCompanionKeys:p3", "L3 given back: our click over the Radial")
+    local n = tonumber(kb:GetAttribute("gpc-p3-base"):match("^h(%d)$"))
+    eq(Running(CHORD .. n), "TOGGLEAUTORUN", "Base: its own auto-run through a chord")
 end
-for _, key in ipairs(Keys.KEYS) do eq(Ours(key), 0, "all given back: " .. key) end
+-- keys that never carried a function: given back for real
+for _, key in ipairs({ "PADRSTICK", "PADSOCIAL", "PADFORWARD" }) do eq(Ours(key), 0, "given back: " .. key) end
+
+-- The key's own command: its keybinding, never a window's override on top
+do
+    bindings.PADSOCIAL = "TOGGLEWORLDMAP"
+    local footer = new("Frame", "SomeFooter")
+    SetOverrideBindingClick(footer, true, "PADSOCIAL", "FooterButton", "LeftButton")
+    check(Keys.Set("PADSOCIAL", "lt", "text:/wave"), "L2 + Create, a window's footer on Create")
+    local n = tonumber(kb:GetAttribute("gpc-p5-base"):match("^h(%d)$"))
+    eq(Running(CHORD .. n), "TOGGLEWORLDMAP", "Base: the map, not the footer")
+    for _, fn in ipairs(hooks.SetOverrideBindingClick or {}) do fn(UIParent, true, "PADSOCIAL", "FooterButton") end
+    SetOverrideBindingClick(UIParent, true, "PADSOCIAL", "FooterButton2", "LeftButton")
+    for _, fn in ipairs(hooks.SetOverrideBindingClick or {}) do fn(UIParent, true, "PADSOCIAL", "FooterButton2") end
+    RunTimers()
+    eq(Running("PADSOCIAL"), "CLICK GamepadCompanionKeys:p5", "covered: ours back on top")
+    eq(Running(CHORD .. n), "TOGGLEWORLDMAP", "the cover not taken for Create's command")
+    ClearOverrideBindings(footer); ClearOverrideBindings(UIParent)
+    Reset("PADSOCIAL")
+    -- (Options with no keybinding: Blizzard's core set default)
+    bindings.PADFORWARD = nil
+    check(Keys.Set("PADFORWARD", "lt", "text:/wave"), "L2 + Options")
+    n = tonumber(kb:GetAttribute("gpc-p6-base"):match("^h(%d)$"))
+    eq(Running(CHORD .. n), "TOGGLEGAMEMENU", "Options: the core set's game menu")
+    Reset("PADFORWARD")
+end
+
+-- A hold whose release never comes (a window ate it): the pad read up lets go; so do a new
+-- pad and a loading screen
+do
+    local watch = _G.GamepadCompanionKeyHold
+    bindings.PADSOCIAL = "TOGGLEWORLDMAP"
+    check(Keys.Set("PADSOCIAL", "lt", "bind:focus"), "L2 + Create: Focus UI")
+    Holds()
+    pressed.PADSOCIAL = true
+    Half("PADSOCIAL", true)
+    check(watch.scripts.OnUpdate ~= nil, "held: the pad watched")
+    watch.scripts.OnUpdate(watch, 0.06)
+    eq(Holds(), tostring(tonumber(kb:GetAttribute("gpc-p5-base"):match("%d"))), "held while the pad says down")
+    pressed.PADSOCIAL = nil
+    watch.scripts.OnUpdate(watch, 0.01)
+    eq(Holds(), "", "under the poll: not yet read")
+    watch.scripts.OnUpdate(watch, 0.05)
+    eq(Holds(), "0", "the pad reads Create up: let go")
+    check(watch.scripts.OnUpdate == nil, "not watched after")
+    Half("PADSOCIAL", false)
+    eq(Holds(), "", "the late release: nothing more")
+    for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "GAME_PAD_ACTIVE_CHANGED" }) do
+        pressed.PADSOCIAL = true
+        Half("PADSOCIAL", true)
+        Holds()
+        Fire(event)
+        eq(Holds(), "0", event .. ": let go")
+        pressed.PADSOCIAL = nil
+        Half("PADSOCIAL", false)
+    end
+    Reset("PADSOCIAL")
+end
 
 -- The game's pad hand-back blocked by another addon's taint: written down
 do

@@ -90,6 +90,9 @@ local function GameBinding(key, layer)
         return C.CommandName(action)
     end
     if layer ~= "base" then return nil end
+    -- (under our click: the key's own binding)
+    local own = Call(GetBindingAction, key)
+    if type(own) == "string" and own ~= "" and not own:find(ns.Keys.BUTTON, 1, true) then return C.CommandName(own) end
     if not commandKeys then
         commandKeys = {}
         for _, command in ipairs(C.LOOKUP_COMMANDS) do
@@ -229,7 +232,10 @@ local function Target()
                 end
                 local game = GameBinding(key, l)
                 if not game then return nil end
-                return { name = game, icon = "Gamepad_" .. info.glyph .. "_64", atlas = true, kind = "Blizzard" }
+                -- (the game's command through WoW Helper: a note without it)
+                local _, note = ns.Keys.Runs(key, l)
+                return { name = game, icon = "Gamepad_" .. info.glyph .. "_64", atlas = true,
+                    kind = "Blizzard" .. (note and (" · " .. note) or ""), dim = note ~= nil or nil }
             end,
             set = function(l, action) ns.Keys.Set(key, l, action) end,
             clear = function(l) ns.Keys.Set(key, l, nil) end,
