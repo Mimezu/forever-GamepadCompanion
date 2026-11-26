@@ -10,16 +10,16 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 - Never `IsKeyDown` on a binding's key. The game's key state is the bindings':
   a release a window ate stays down, Blizzard's sets rebind the triggers'
   keys. That put Focus UI on Create with L2 up (2026-11-21).
-- Readers: Keys.Watch (held-layer extras), the touchpad preview, the
-  Controller page, the API's state (Core.lua). Fishing's `F.R2Held` reads the
+- Readers: the touchpad preview, the Controller page, the API's state
+  (Core.lua). Keys.lua reads no layer in Lua: its secure snippet does, at the press. Fishing's `F.R2Held` reads the
   same pad state on its own.
 
 ## Who owns which key
 
 | Keys | Owner | How |
 | --- | --- | --- |
-| L3 R3 Create Options PS Mute | Keys.lua `owner` | Base: one secure click per key (the snippet picks the layer at the press, in combat too), or a Blizzard function's binding |
-| the same, a held layer | Keys.lua `layerOwner` (a Blizzard function), `clickOwner` (our click) | out of combat: the layer's binding or click while the pad says L2 / R2 is down; off on release (Blizzard's modifier hook, a 20 ms poll), in combat, on a pad change, without a pad. Never a function and a click on one owner's key: the game keeps the function under a later click |
+| L3 R3 Create Options PS Mute | Keys.lua `GamepadCompanionKeyBinds` (click), `GamepadCompanionKeyNative` (a Blizzard function) | no action: the game's own. Only a Blizzard function on Base: that function on the key. Else one secure click per key, written in place only when the settings change; the snippet picks the layer at the press: a macro (k<n>), a WoW Helper chord (h<n>), or none |
+| Alt-Ctrl-Shift-1..9 | Keys.lua `GamepadCompanionHelperChords` (1-3), `GamepadCompanionGameChords` (4-9) | WoW Helper's keys, held while the hold cells say n: 1 Focus UI, 2 Radial, 3 Ping wheel (bound once at login); 4-9 a key's own game command when its Base is empty |
 | Touchpad PADBACK / PAD6, 8 prefixes | Touchpad.lua `binds` | always the zones' secure click; a 0.5 s watcher and Sh.Claim take it back |
 | R2 with a pole in hand | Fishing.lua `owner` | cast / catch; changed only with R2 up |
 | PAD3 at the bank | BankMove.lua | while the bank is open |
@@ -31,18 +31,20 @@ One model for what Companion puts on a pad key, and how it reads L2 / R2.
 
 ## Rules
 
-1. A Blizzard function (Focus UI, Radial) runs only from a key binding, on
-   the exact layer chosen. A held layer's binding never outlives the hold.
-2. The layer is read at the press, in the secure snippet, wherever the action
-   is ours. The watcher only where a Blizzard function is on the key or shares
-   it with another layer's action.
-3. Nothing rebinds while a trigger is held but the watcher's own `layerOwner`.
-   Never bind, relay or re-send a trigger for a layer.
-4. Bindings change out of combat only; PLAYER_REGEN_DISABLED clears the extras.
-   Every key is checked against what it should run (`Keys.Heal`): 4 times a
-   second and the moment a window takes or gives back the pad. Base goes
-   back on top, the held layer's extras above it; a leftover of ours on a key
-   the game owns is dropped; the game's own bindings are never fought.
+1. A Blizzard gamepad function (Focus UI, Radial, Ping wheel) goes on a pad
+   key only when it is that key's one action, on Base. Anywhere else it runs
+   through WoW Helper: the click's pick h<n> sets the hold cells (HelperLink
+   K.Hold), the helper holds the chord. In game: a binding let go hands its
+   function to the next fresh binding of the key; a function stays in its
+   record under a click written over it; the newest record wins.
+   So a record that carried a function is never let go: a key given back
+   after one stays our click (Base: its own command's chord) till /reload.
+   A key's own command is read from its keybinding, never an override.
+2. The layer is read at the press, in the secure snippet, never in Lua.
+3. Nothing rebinds when L2 / R2 move. Never bind, relay or re-send a trigger
+   for a layer.
+4. Bindings change out of combat only, when the settings do (or Blizzard's
+   binding covers a key of ours: Sh.Claim writes ours again in place).
 5. A mode that takes a trigger (Fishing's R2 now, a lure on L2 next) is an
    override on the trigger's key, on its own owner, changed only with the
    trigger up and cleared when the mode ends (the pole off). `Sh.Held` still
