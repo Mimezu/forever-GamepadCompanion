@@ -1483,7 +1483,7 @@ do
     -- (Auctionator's block was said above already: a second addon here)
     local n0 = #errors()
     Keys.Blocked("Spoken", "SetPreferredGamepadInteractTarget()")
-    eq(said[#said], "Pad stuck by Spoken · hold Cross to reload", "blocked: said with the addon the game blames")
+    eq(said[#said], "Pad stuck by Spoken · Cross: reload", "blocked: said with the addon the game blames")
     eq(#errors(), n0 + 3, "blocked: BLOCKED, STACK, SLOTS written down")
     check(errors()[n0 + 1]:find("BLOCKED SetPreferredGamepadInteractTarget() by Spoken", 1, true) ~= nil, "the block")
     check(errors()[n0 + 2]:find("STACK Blizzard_X/A.lua:1 | Auctionator/B.lua:2", 1, true) ~= nil, "the stack, one line, short paths")
@@ -1510,7 +1510,7 @@ do
     eq(#said, n, "not said twice for the same addon")
     tainted[interact].ApplyExtraButtonStylesForState = "Details"
     eq(Keys.PadHealth(), "Details", "another addon's mark")
-    eq(said[#said], "Pad stuck by Details · hold Cross to reload", "said for it")
+    eq(said[#said], "Pad stuck by Details · Cross: reload", "said for it")
     check(errors()[#errors() - 1]:find("STUCK by Details: Cross's style closure tainted", 1, true) ~= nil, "written down, with the slots after")
     Keys.PadHealth()
     eq(#said, n + 1, "once per addon")

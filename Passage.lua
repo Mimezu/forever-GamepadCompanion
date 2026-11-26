@@ -30,7 +30,7 @@ P.OWNERS = {
     -- (the pad stuck by another addon's taint: Cross held reloads, PadRescue.lua)
     pad = { label = "Pad stuck", home = { 36, 432 },
         sample = { icon = "Interface\\Icons\\Spell_Nature_TimeStop", title = "Pad stuck", clock = "", frac = 0.4,
-            sub = "Hold to reload" } },
+            sub = "Reload" } },
 }
 
 -- owner's spot from saved ({ owner = { x, y } }): x, y

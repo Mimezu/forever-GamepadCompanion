@@ -2,10 +2,12 @@
 -- refused till /reload, and nothing of ours can clean a Blizzard field. Two things here.
 --
 -- The way out in one press. While it's stuck (Keys.PadStuckBy, Keys.Blocked: Keys.lua calls
--- R.Stuck), a quiet line at the bottom left (Passage.lua, owner "pad") says so, and Cross held
--- R.HOLD s reloads. The pad itself is read (GetDeviceMappedState, Sh.PadDown): no binding, no
--- input taken, so it works however tainted the game's own pad handling is. Out of combat only;
--- a Cross already down when the line comes up counts once it's let go.
+-- R.Stuck), a quiet line at the bottom left (Passage.lua, owner "pad") says so, and Cross runs
+-- /reload: a secure macro button (R.BUTTON), bound on Cross with priority, acting on release.
+-- ReloadUI from our own code is refused (a timer, a pad pick: ADDON_ACTION_BLOCKED, Profiles.lua);
+-- a binding's press is the hardware event it needs, and the macro runs it securely. Bound once
+-- out of combat (a fight first: at its end), taken back when Blizzard's own sets rebind Cross
+-- (Sh.Claim), never cleared: the reload clears it. While stuck Cross does nothing else anyway.
 --
 -- The first taint caught in the act. The game names whichever addon's value the execution read
 -- last, so the name can lie: Auctionator's LibStub.lua defines the LibStub global, and any
@@ -15,30 +17,14 @@
 -- binding stack) read the slots (Keys.PadSlots) after each call; the first slot newly tainted is
 -- traced (errors: TAINT FIRST, TAINT STACK) with the call, its argument and the Lua stack of the
 -- caller: the addon file that really drove Blizzard's code. Once a session; reads only.
--- Pure: R.Hold, R.New (tests/PadRescue.lua)
+-- Pure: R.New (tests/PadRescue.lua)
 local _, ns = ...
 local R = {}
 ns.PadRescue = R
 
-R.HOLD = 1.0
 R.KEY = "PAD1"   -- Cross
-
--- The hold: state ({ since, wait }), the time, Cross down -> how far (0..1), reload now
-function R.Hold(state, now, down)
-    if not down then
-        state.since, state.wait = nil, nil
-        return 0, false
-    end
-    if state.wait then return 0, false end
-    state.since = state.since or now
-    local frac = (now - state.since) / R.HOLD
-    if frac >= 1 then
-        state.since, state.wait = nil, true
-        return 1, true
-    end
-    return frac, false
-end
-
+R.BUTTON = "GamepadCompanionPadRescue"
+R.ACTION = "CLICK " .. R.BUTTON .. ":LeftButton"
 -- The slots tainted in now and not in before (label -> addon maps): "label=addon", sorted
 function R.New(before, now)
     local out = {}
@@ -54,7 +40,6 @@ if not CreateFrame then return end
 local Keys, Sh = ns.Keys, ns.Shared
 local function Trace(line) if Keys and Keys.Trace then Keys.Trace(line, "errors") end end
 local function Combat() return InCombatLockdown and InCombatLockdown() end
-local function Now() return GetTime and GetTime() or 0 end
 
 -- The catcher -------------------------------------------------------------------------------
 local baseline, caught, armed = nil, false, false
@@ -104,52 +89,73 @@ end
 R.Arm = Arm
 
 -- The way out -------------------------------------------------------------------------------
-local stuckBy, hold, up = nil, {}, false
-local function Spec(frac)
+local stuckBy, up, bound = nil, false, false
+local button = CreateFrame("Button", R.BUTTON, UIParent, "SecureActionButtonTemplate")
+button:SetSize(1, 1)
+button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -20, 20)
+button:RegisterForClicks("AnyDown", "AnyUp")
+button:SetAttribute("type", "macro")
+button:SetAttribute("macrotext", "/reload")
+button:SetAttribute("useOnKeyDown", false)   -- (on release: the press itself does nothing)
+button:HookScript("PostClick", function(_, _, down)
+    if down == false or down == nil then Trace(("RELOAD: Cross (pad stuck by %s)"):format(tostring(stuckBy))) end
+end)
+local owner = CreateFrame("Frame", "GamepadCompanionPadRescueKey")
+-- Cross on the button, out of combat (else at the fight's end)
+local function Bind()
+    if not stuckBy or Combat() then return false end
+    SetOverrideBindingClick(owner, true, R.KEY, R.BUTTON, "LeftButton")
+    if not bound then
+        bound = true
+        Trace(("RESCUE: Cross runs /reload (pad stuck by %s)"):format(stuckBy))
+    end
+    return true
+end
+R.Bind = Bind
+local claimed = false
+local function Spec()
     local C = ns.ControllerModel
     local glyph = C and C.Glyph and C.Glyph("Shp_Cross", 12) or "Cross"
     return { icon = "Interface\\Icons\\Spell_Nature_TimeStop", title = "Pad stuck", clock = "",
-        frac = frac, sub = glyph .. "  Hold to reload", subLit = frac > 0 }
+        frac = 0, sub = glyph .. "  Reload", subLit = bound }
+end
+local P = ns.Passage
+local function Show(fight)
+    if not P then return end
+    if fight or Combat() then
+        if up then P.Hide("pad"); up = false end
+        return
+    end
+    if not up then P.Show("pad", Spec()); up = true else P.Update("pad", Spec()) end
 end
 -- Keys says it's stuck (addon: the one the game blames)
 function R.Stuck(addon)
     if stuckBy then return end
     stuckBy = tostring(addon or "?")
-    -- (Cross down now: wait for its release)
-    local buttons = Sh and Sh.PadButtons and Sh.PadButtons()
-    if Sh and Sh.PadDown and Sh.PadDown(buttons, R.KEY) then hold.wait = true end
+    if not claimed and Sh and Sh.Claim then
+        claimed = true
+        Sh.Claim({ [R.KEY] = R.ACTION }, function() Bind() end)
+    end
+    Bind()
+    Show()
 end
 function R.StuckBy() return stuckBy end
-local P = ns.Passage
-local function Step()
-    if not stuckBy or not P then return end
-    if Combat() then
-        if up then P.Hide("pad"); up = false end
-        hold.since = nil
-        return
-    end
-    local buttons = Sh.PadButtons()
-    local frac, fire = R.Hold(hold, Now(), Sh.PadDown(buttons, R.KEY) == true)
-    if not up then P.Show("pad", Spec(frac)); up = true else P.Update("pad", Spec(frac)) end
-    if fire then
-        Trace(("RELOAD: Cross held (pad stuck by %s)"):format(stuckBy))
-        if type(ReloadUI) == "function" then ReloadUI() end
-    end
-end
-R.Step = Step
+function R.Bound() return bound end
 
 local driver = CreateFrame("Frame")
-local since = 0
-driver:SetScript("OnUpdate", function(_, elapsed)
-    if not stuckBy then return end
-    since = since + elapsed
-    if since < 0.03 then return end
-    since = 0
-    Step()
-end)
 driver:RegisterEvent("PLAYER_LOGIN")
 driver:RegisterEvent("PLAYER_ENTERING_WORLD")
-driver:SetScript("OnEvent", function()
+driver:RegisterEvent("PLAYER_REGEN_DISABLED")
+driver:RegisterEvent("PLAYER_REGEN_ENABLED")
+driver:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+        if stuckBy then
+            -- (REGEN_DISABLED comes before the lockdown: InCombatLockdown still says no)
+            if event == "PLAYER_REGEN_ENABLED" then Bind() end
+            Show(event == "PLAYER_REGEN_DISABLED")
+        end
+        return
+    end
     Arm()
     -- (a write no hook saw: the time it was found, once a second out of combat)
     if C_Timer and C_Timer.NewTicker and not R.ticker then

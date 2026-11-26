@@ -741,12 +741,12 @@ end
 function Keys.Trace(line, list) return Trace(line, list) end
 local stuckSaid, blockedTraced = {}, 0
 local function SayStuck(addon)
-    -- (the way out: PadRescue's line, Cross held reloads)
+    -- (the way out: PadRescue's line, Cross runs /reload)
     if ns.PadRescue and ns.PadRescue.Stuck then ns.PadRescue.Stuck(addon) end
     if stuckSaid[addon] then return end
     stuckSaid[addon] = true
     if UIErrorsFrame and UIErrorsFrame.AddMessage then
-        UIErrorsFrame:AddMessage(("Pad stuck by %s · hold Cross to reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
+        UIErrorsFrame:AddMessage(("Pad stuck by %s · Cross: reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
     end
 end
 function Keys.PadHealth()

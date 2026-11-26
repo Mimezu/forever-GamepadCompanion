@@ -2,7 +2,7 @@
 
 Forever 1.60.1, gamepad mode. After the Auction House (Auctionator), the mailbox or another
 window, Cross (Interact) and the jump button do nothing. Spells still work. Only `/reload` helps.
-Companion says `Pad stuck by <addon> · hold Cross to reload` (Cross held 1 s reloads) and keeps
+Companion says `Pad stuck by <addon> · Cross: reload` (Cross runs /reload) and keeps
 the evidence in its trace (`errors`).
 
 ## The chain (Blizzard's, from !BugGrabber's stacks, 2026-11-24)
@@ -64,9 +64,22 @@ rewrite ever happens: `/reload` is the only way out. Companion cannot clean a Bl
 ## The way out
 
 `PadRescue.lua`: while stuck, a Passage line at the bottom left ("Pad stuck", Cross glyph,
-"Hold to reload"); Cross held 1 s, out of combat, calls `ReloadUI()`. It reads the pad
-(`C_GamePad.GetDeviceMappedState`), binds nothing and takes no input. A Cross already held when
-the line comes up counts only after a release.
+"Reload"), and Cross runs `/reload`: a secure macro button (`GamepadCompanionPadRescue`,
+`useOnKeyDown` false) bound on PAD1 with priority, out of combat (else at the fight's end),
+claimed back with `Sh.Claim` when Blizzard's sets rebind Cross, never cleared (the reload does).
+Not `ReloadUI()` from our code: the game refuses it from a timer or a pad pick
+(ADDON_ACTION_BLOCKED, BugGrabber session 427, Profiles.lua); a binding's press is the hardware
+event, and the macro runs it securely.
+
+## The crafting one (2026-11-25, session 584)
+
+First block 1538775.53 on a panel closed with Circle (SmartNav back -> HideUIPanel ->
+ForcePanelHide -> FrameHidden), same slots already tainted: `binding PADLTRIGGER` and the
+catcher, "Auctionator". Before it the pad was on `AuctionatorCraftingInfoProfessionsFrame`
+(Auctionator's panel inside the Professions window, 1538723), then the AH with Auctionator's
+Buy, Shopping, Selling tabs and Post (1538741-1538766). Auctionator's crafting panel hooks the
+schematic form (`Init`, `statsChangedHandler`), registers its callbacks and shows itself inside
+the open panel. Same unproven writer; the catcher names it next time.
 
 ## Catching the writer
 
