@@ -935,16 +935,32 @@ do
     GamepadCompanionHapticsDB, WowHelperData = saved, data
 end
 
--- The focus pixel: a red|blue pair, swapped for each Focus UI asked; nothing without WoW Helper
+-- The hold cells: n 0-9 in two colours, drawn only while the link is on and WoW Helper reads them
 do
-    local a, b = K.FocusCells(false), K.FocusCells(true)
-    assert(a[1][1] == 1 and a[1][3] == 0 and a[2][1] == 0 and a[2][3] == 1, "red then blue")
-    assert(b[1][1] == 0 and b[1][3] == 1 and b[2][1] == 1 and b[2][3] == 0, "blue then red")
-    local data = WowHelperData
+    local function near(x, want) return math.abs(x - want / 255) < 1e-9 end
+    for n = 0, 9 do
+        local c = K.HoldCells(n)
+        assert(near(c[1][1], 16 * n) and near(c[1][2], 255 - 16 * n) and near(c[1][3], 90), "cell A for " .. n)
+        assert(near(c[2][1], 255 - 16 * n) and near(c[2][2], 16 * n) and near(c[2][3], 165), "cell B for " .. n)
+    end
+    local data, db = WowHelperData, GamepadCompanionHapticsDB
     WowHelperData = {}
-    local before = K.focusBlue
-    assert(K.AskFocus() == false and K.focusBlue == before, "no WoW Helper reading it: nothing")
-    WowHelperData = data
+    assert(not K.HoldCellsOn(), "no WoW Helper reading them: off")
+    K.Hold(2)
+    assert(K.hold == 2, "the hold kept")
+    for _, tex in ipairs(K.holdTextures) do assert(not tex:IsShown(), "off: not drawn") end
+    WowHelperData = { holdCells = 1 }
+    K.SetEnabled(true)
+    assert(K.HoldCellsOn(), "the link on, WoW Helper reading them: on")
+    K.Hold(3)
+    for _, tex in ipairs(K.holdTextures) do assert(tex:IsShown(), "on: drawn at once") end
+    K.Hold(0)
+    assert(K.hold == 0, "let go")
+    K.Hold(12)
+    assert(K.hold == 0, "out of range: 0")
+    K.SetEnabled(false)
+    assert(not K.HoldCellsOn(), "the link off: off")
+    WowHelperData, GamepadCompanionHapticsDB = data, db
 end
 
 -- The check pixel: the same pair, its own swap; only while WoW Helper reads it (and the link is on)

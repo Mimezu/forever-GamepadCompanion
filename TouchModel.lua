@@ -801,6 +801,7 @@ for kind, on in pairs(T.ACCEPTS) do if kind ~= "bind" then T.SLOT_ACCEPTS[kind] 
 T.BINDINGS = {
     { key = "focus", label = "Focus UI", binding = "TOGGLEUIFOCUS", icon = "Interface\\Icons\\Spell_Holy_MindVision" },
     { key = "radial", label = "Radial", binding = "OPENRADIAL", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
+    { key = "ping", label = "Ping wheel", binding = "TOGGLEPINGSYSTEM", icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath" },
 }
 T.BINDING_BY_KEY = {}
 for _, b in ipairs(T.BINDINGS) do T.BINDING_BY_KEY[b.key] = b end

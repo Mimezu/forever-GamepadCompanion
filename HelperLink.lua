@@ -1005,7 +1005,7 @@ function K.Step(elapsed)
         if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
         if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
         if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes.list) or nil) end
-        if K.DrawFocus then K.DrawFocus() end
+        if K.DrawHold then K.DrawHold() end
         if K.DrawCheck then K.DrawCheck() end
         return true
     end
@@ -1095,7 +1095,7 @@ function K.Layout()
         tex:SetSize(unit, unit)
     end
     if K.LayoutNodes then K.LayoutNodes(unit, line) end
-    if K.LayoutFocus then K.LayoutFocus(unit, line) end
+    if K.LayoutHold then K.LayoutHold(unit, line) end
     if K.LayoutCheck then K.LayoutCheck(unit, line) end
 end
 
@@ -1113,52 +1113,57 @@ function K.LayoutNodes(unit, line)
 end
 
 ---------------------------------------------------------------------------
--- The focus pixel (WoW Helper's docs/PROTOCOL-V2.md, "The focus pixel"): two cells seven rows up
--- (one line: cells 171-172), red then blue, or blue then red: swapped for each Focus UI asked (a
--- pair a game scene doesn't make, so the world behind them can't press). Each swap, WoW Helper
--- presses Keys.FOCUS_KEY, bound to Focus UI once at login: a combo's Focus UI without ever
--- binding Focus UI on the combo's button (a function taken off a button is handed to the next
--- binding made there: Mute stuck on Focus UI, 2026-11-25). Drawn only while WoW Helper says it
--- reads it (WowHelperData.focusPixel = 1)
+-- The hold cells (WoW Helper's docs/PROTOCOL-V2.md): two cells seven rows up (one line: cells
+-- 171-172) saying n, 0-9: cell A (16n, 255-16n, 90), cell B (255-16n, 16n, 165). While n > 0,
+-- WoW Helper holds the chord Keys.CHORD .. n (Keys.lua binds them): a pad key's Focus UI,
+-- Radial, Ping wheel or own game command, held as long as the key is. Drawn only while the
+-- link is on and WoW Helper says it reads them (WowHelperData.holdCells = 1)
 ---------------------------------------------------------------------------
-K.LINE_FOCUS = 171
-K.focusBlue = false
-function K.FocusPixelOn()
+K.LINE_HOLD = 171
+K.hold = 0
+function K.HoldCellsOn()
     local d = WowHelperData
-    return K.Enabled() and K.V2() and type(d) == "table" and d.focusPixel == 1
+    return K.Enabled() and type(d) == "table" and d.holdCells == 1
 end
--- (blue false: red, blue; true: blue, red)
-function K.FocusCells(blue)
-    local red, bl = { 1, 0, 0 }, { 0, 0, 1 }
-    return blue and { bl, red } or { red, bl }
+-- n's two colours, 0-1 each
+function K.HoldCells(n)
+    local v = 16 * n
+    return { { v / 255, (255 - v) / 255, 90 / 255 }, { (255 - v) / 255, v / 255, 165 / 255 } }
 end
-function K.DrawFocus()
-    local on = K.FocusPixelOn()
-    local cells = on and K.FocusCells(K.focusBlue)
-    for i, tex in ipairs(K.focusTextures or {}) do
+function K.DrawHold()
+    local on = K.HoldCellsOn()
+    local cells = on and K.HoldCells(K.hold)
+    for i, tex in ipairs(K.holdTextures or {}) do
         if cells then local c = cells[i]; tex:SetColorTexture(c[1], c[2], c[3], 1) end
         tex:SetShown(on and true or false)
     end
 end
-function K.LayoutFocus(unit, line)
-    for i, tex in ipairs(K.focusTextures or {}) do
+function K.LayoutHold(unit, line)
+    for i, tex in ipairs(K.holdTextures or {}) do
         tex:ClearAllPoints()
-        if line then tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_FOCUS + i - 1) * unit, 0)
+        if line then tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (K.LINE_HOLD + i - 1) * unit, 0)
         else tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 7 * unit) end
         tex:SetSize(unit, unit)
     end
 end
--- Focus UI through WoW Helper; false: it doesn't read the pixel (nothing done)
-function K.AskFocus()
-    if not K.FocusPixelOn() then return false end
-    K.focusBlue = not K.focusBlue
-    K.DrawFocus()
-    return true
+-- Hold chord n (0: let go), drawn at once
+function K.Hold(n)
+    n = math.floor(tonumber(n) or 0)
+    if n < 0 or n > 9 then n = 0 end
+    K.hold = n
+    K.DrawHold()
 end
 
+-- (the check pixel's pair: blue false red, blue; true blue, red)
+local function CheckCells(blue)
+    local red, bl = { 1, 0, 0 }, { 0, 0, 1 }
+    return blue and { bl, red } or { red, bl }
+end
+K.CheckCells = CheckCells
+
 ---------------------------------------------------------------------------
--- The check pixel (WoW Helper's docs/PROTOCOL-V2.md, "The check pixel"): the same red|blue pair
--- as the focus pixel, cells 2-3 of its row (one line: 173-174), swapped for each "Check
+-- The check pixel (WoW Helper's docs/PROTOCOL-V2.md, "The check pixel"): a red|blue pair,
+-- cells 2-3 of the hold cells' row (one line: 173-174), swapped for each "Check
 -- minimap": WoW Helper puts the cursor on the minimap's next node dot, the game's tooltip shown.
 -- Drawn only while WoW Helper says it reads it (WowHelperData.minimapCheck = 1)
 ---------------------------------------------------------------------------
@@ -1170,7 +1175,7 @@ function K.CheckPixelOn()
 end
 function K.DrawCheck()
     local on = K.CheckPixelOn()
-    local cells = on and K.FocusCells(K.checkBlue)
+    local cells = on and CheckCells(K.checkBlue)
     for i, tex in ipairs(K.checkTextures or {}) do
         if cells then local c = cells[i]; tex:SetColorTexture(c[1], c[2], c[3], 1) end
         tex:SetShown(on and true or false)
@@ -1307,13 +1312,13 @@ local function Build()
         tex:Hide()
         K.nodeTextures[i] = tex
     end
-    K.focusTextures = {}
+    K.holdTextures = {}
     for i = 1, 2 do
         local tex = frame:CreateTexture(nil, "OVERLAY")
         if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         tex:Hide()
-        K.focusTextures[i] = tex
+        K.holdTextures[i] = tex
     end
     K.checkTextures = {}
     for i = 1, 2 do
