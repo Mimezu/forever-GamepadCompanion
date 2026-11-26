@@ -72,6 +72,7 @@ AutorunTurn.lua
 ControllerModel.lua
 Touchpad.lua
 Keys.lua
+PadRescue.lua
 Gestures.lua
 SpreadOverview.lua
 SpellRanks.lua

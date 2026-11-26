@@ -148,7 +148,7 @@ S.EditMode(true)
 local names = {}
 for _, s in ipairs(S.spots) do if s.box:IsShown() then names[#names + 1] = s.label end end
 table.sort(names)
-eq(table.concat(names, ", "), "Fishing, Flight, Meal, Meal & fire", "Edit Mode: a box for each passage too")
+eq(table.concat(names, ", "), "Fishing, Flight, Meal, Meal & fire, Pad stuck", "Edit Mode: a box for each passage too")
 local mealSpot
 for _, s in ipairs(S.spots) do if s.name == "passage-meal" then mealSpot = s end end
 mealSpot.set(120, 400)

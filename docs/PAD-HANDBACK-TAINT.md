@@ -2,7 +2,8 @@
 
 Forever 1.60.1, gamepad mode. After the Auction House (Auctionator), the mailbox or another
 window, Cross (Interact) and the jump button do nothing. Spells still work. Only `/reload` helps.
-Companion says `Pad stuck by <addon> · /reload` and keeps the evidence in its trace (`errors`).
+Companion says `Pad stuck by <addon> · hold Cross to reload` (Cross held 1 s reloads) and keeps
+the evidence in its trace (`errors`).
 
 ## The chain (Blizzard's, from !BugGrabber's stacks, 2026-11-24)
 
@@ -40,6 +41,47 @@ call `ApplyPressedStyle` first, which reads that closure: from then on `RunBindi
 `InteractUnit`, `AttackTarget` are refused. Spell buttons use secure attributes and keep working.
 Every later hand-back reads the tainted manager fields before writing them, so no secure
 rewrite ever happens: `/reload` is the only way out. Companion cannot clean a Blizzard field.
+
+## 2026-11-25: the name can lie
+
+- Tonight's first block (GPC trace 1537489.39) came on a quest-log toggle, 13 s after the
+  Auction House closed (pad moves on `LibAHFrame-1.0-AuctionatorTabs_Selling`, Auctionator's
+  config tab, `AuctionatorPostButton`, then Blizzard's Buy tab, 1537353-1537476). Yesterday's
+  (1470386) also came after pad use in the AH. The AH's own fields (`ah.*` slots) were clean.
+- First tainted slot: `activeBindings[PADLTRIGGER]`. L2 there is the focus manager's
+  `FocusPreviousFrame` (FrameControlsManager.lua:193), activated by `CheckForInputBinding`,
+  which runs on every `FrameShown` / `FrameHidden`. Those run from EventRegistry's
+  `UIParentPanelManager.ShowUIPanel` / `HideUIPanel` callbacks, in the caller's taint: any
+  insecure `ShowUIPanel` / `HideUIPanel` (or a popup shown from addon code) writes it.
+- Auctionator's own code calls none of ShowUIPanel, HideUIPanel or StaticPopup_Show.
+- The name is a LibStub stamp. The game names the addon whose value the execution read last.
+  Auctionator's `Libs/LibStub` loads first, so the `LibStub` global is Auctionator's. The
+  2026-11-20 taint log shows GatherMate2's `HBD`, Details' DF frames and BugSack's LibDBIcon
+  all "tainted by Auctionator", each right after a `LibStub(...)` call. So "Auctionator" may be
+  any addon that calls LibStub and then drives a Blizzard panel.
+- Not proven which addon: no taint log ran tonight. `PadRescue.lua` now catches it (below).
+
+## The way out
+
+`PadRescue.lua`: while stuck, a Passage line at the bottom left ("Pad stuck", Cross glyph,
+"Hold to reload"); Cross held 1 s, out of combat, calls `ReloadUI()`. It reads the pad
+(`C_GamePad.GetDeviceMappedState`), binds nothing and takes no input. A Cross already held when
+the line comes up counts only after a release.
+
+## Catching the writer
+
+`PadRescue.lua` post-hooks (hooksecurefunc, reads only) the focus manager (`FrameShown`,
+`FrameHidden`, `SetUIFocusState`, `SetFallThroughCatcherActive`, popups, `FocusNext/Previous`),
+`GamepadMode.Activate/DeactivateBindingGroup` and the binding stack (`AddBindingSet`,
+`RemoveSet`, `AssumeCoreBindingsAreUsable`). After each call it reads the slots
+(`Keys.PadSlots(into)`). The first slot newly tainted (vs. login) gets, once a session:
+
+```
+TAINT FIRST binding PADLTRIGGER=Auctionator after ActivateBindingGroup(...); clean after FrameShown
+TAINT STACK <the caller's Lua stack: the addon file that drove Blizzard's code>
+```
+
+A 1 s check catches a write no hook saw (its stack is ours: only the time counts).
 
 ## What Companion does
 

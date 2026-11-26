@@ -27,6 +27,10 @@ P.OWNERS = {
     flight = { label = "Flight", home = { 36, 358 },
         sample = { icon = "Interface\\Icons\\Ability_Mount_Gryphon_01", title = "Booty Bay", clock = "1:42", frac = 0.4,
             marks = { 0.55, 1 }, passed = 0, sub = "1 stop", bob = true } },
+    -- (the pad stuck by another addon's taint: Cross held reloads, PadRescue.lua)
+    pad = { label = "Pad stuck", home = { 36, 432 },
+        sample = { icon = "Interface\\Icons\\Spell_Nature_TimeStop", title = "Pad stuck", clock = "", frac = 0.4,
+            sub = "Hold to reload" } },
 }
 
 -- owner's spot from saved ({ owner = { x, y } }): x, y

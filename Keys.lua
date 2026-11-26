@@ -654,14 +654,19 @@ end
 -- Nothing here can undo it; it is said at once, with the addon the game blames, and the trace
 -- keeps the stack and which slots are tainted (issecurevariable: reads, no writes of ours).
 Keys.PAD_HANDBACK = { SetPreferredGamepadInteractTarget = true, ["SetPreferredGamepadInteractTarget()"] = true }
--- "name=addon" for each tainted slot among the hand-back's, then how many are clean
-function Keys.PadSlots()
+-- "name=addon" for each tainted slot among the hand-back's, then how many are clean. into
+-- (optional): each tainted slot put there, label -> addon, an active binding by its own key
+-- ("binding PADLTRIGGER"): PadRescue's first-taint catcher compares two of them
+function Keys.PadSlots(into)
     if type(issecurevariable) ~= "function" then return "no issecurevariable" end
     local tainted, clean = {}, 0
     local function Add(label, t, key)
         if type(t) ~= "table" then return end
         local ok, who = issecurevariable(t, key)
-        if ok then clean = clean + 1 else tainted[#tainted + 1] = ("%s=%s"):format(label, tostring(who or "?")) end
+        if ok then clean = clean + 1 else
+            tainted[#tainted + 1] = ("%s=%s"):format(label, tostring(who or "?"))
+            if into then into[label] = tostring(who or "?") end
+        end
     end
     local manager = GamepadSharedUtility and GamepadSharedUtility.InputBindingManager
     if type(manager) == "table" then
@@ -679,7 +684,10 @@ function Keys.PadSlots()
             local n, first = 0, nil
             for key in pairs(active) do
                 local ok, who = issecurevariable(active, key)
-                if not ok then n = n + 1; first = first or ("%s=%s"):format(tostring(key), tostring(who or "?")) else clean = clean + 1 end
+                if not ok then
+                    n = n + 1; first = first or ("%s=%s"):format(tostring(key), tostring(who or "?"))
+                    if into then into["binding " .. tostring(key)] = tostring(who or "?") end
+                else clean = clean + 1 end
             end
             if n > 0 then tainted[#tainted + 1] = ("active-bindings:%d(%s)"):format(n, first) end
         end
@@ -729,12 +737,16 @@ function Keys.PadStuckBy()
     if ok then return nil end
     return tostring(who or "?")
 end
+-- (the errors list, for PadRescue)
+function Keys.Trace(line, list) return Trace(line, list) end
 local stuckSaid, blockedTraced = {}, 0
 local function SayStuck(addon)
+    -- (the way out: PadRescue's line, Cross held reloads)
+    if ns.PadRescue and ns.PadRescue.Stuck then ns.PadRescue.Stuck(addon) end
     if stuckSaid[addon] then return end
     stuckSaid[addon] = true
     if UIErrorsFrame and UIErrorsFrame.AddMessage then
-        UIErrorsFrame:AddMessage(("Pad stuck by %s · /reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
+        UIErrorsFrame:AddMessage(("Pad stuck by %s · hold Cross to reload"):format(tostring(addon)), 1, 0.82, 0, 1, 6)
     end
 end
 function Keys.PadHealth()
