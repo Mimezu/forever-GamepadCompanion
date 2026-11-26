@@ -212,6 +212,12 @@ do
     eq(T.MacroText("window:reputation", lookup), '/run ToggleCharacter("ReputationFrame")', "a tab's toggle")
     eq(T.MacroText("window:map", lookup), "/run ToggleQuestLog()", "old World Map: Quests & Map")
     check(T.WINDOW_BY_KEY.worldmap == nil, "no World Map entry")
+    eq(T.MacroText("window:mark8", lookup), "/tm 8", "Skull: /tm 8")
+    eq(T.MacroText("window:mark0", lookup), "/tm 0", "clear mark")
+    eq(T.MacroText("window:pingattack", lookup), "/ping attack", "a quick ping")
+    for _, w in ipairs(T.MARKS) do
+        check(T.WINDOW_BY_KEY[w.key] == w and type(w.macro) == "string" and w.icon ~= nil, "marker runs a macro: " .. w.key)
+    end
     local seen = {}
     for _, w in ipairs(T.WINDOWS) do
         check(w.key ~= "map", "World Map not listed")

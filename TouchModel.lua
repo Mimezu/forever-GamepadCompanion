@@ -655,8 +655,28 @@ T.WINDOWS = {
     { key = "checkminimap", label = "Check minimap", icon = I .. "INV_Misc_Map_01",
         run = "GamepadCompanionCheckMinimap()" },
 }
+-- Raid markers and pings: secure slash commands (/tm, /ping) in the key's macro, so they run on
+-- combos too. Chosen as "window:<key>" (the same plumbing), listed under Markers.
+local RT = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
+T.MARKS = {
+    { key = "mark8", label = "Skull", icon = RT .. "8", macro = "/tm 8" },
+    { key = "mark7", label = "Cross", icon = RT .. "7", macro = "/tm 7" },
+    { key = "mark6", label = "Square", icon = RT .. "6", macro = "/tm 6" },
+    { key = "mark5", label = "Moon", icon = RT .. "5", macro = "/tm 5" },
+    { key = "mark4", label = "Triangle", icon = RT .. "4", macro = "/tm 4" },
+    { key = "mark3", label = "Diamond", icon = RT .. "3", macro = "/tm 3" },
+    { key = "mark2", label = "Circle", icon = RT .. "2", macro = "/tm 2" },
+    { key = "mark1", label = "Star", icon = RT .. "1", macro = "/tm 1" },
+    { key = "mark0", label = "Clear mark", icon = I .. "Spell_ChargeNegative", macro = "/tm 0" },
+    -- (on the target, else where the game aims)
+    { key = "pingattack", label = "Ping: Attack", icon = I .. "Ability_DualWield", macro = "/ping attack" },
+    { key = "pingwarning", label = "Ping: Warning", icon = I .. "Spell_Shadow_DeathScream", macro = "/ping warning" },
+    { key = "pingonmyway", label = "Ping: On my way", icon = I .. "Ability_Tracking", macro = "/ping onmyway" },
+    { key = "pingassist", label = "Ping: Assist", icon = I .. "Spell_Holy_HolyBolt", macro = "/ping assist" },
+}
 T.WINDOW_BY_KEY = {}
 for _, w in ipairs(T.WINDOWS) do T.WINDOW_BY_KEY[w.key] = w end
+for _, w in ipairs(T.MARKS) do T.WINDOW_BY_KEY[w.key] = w end
 -- (World Map, removed: Forever's map is Quests & Map)
 T.WINDOW_BY_KEY.map = T.WINDOW_BY_KEY.questlog
 
@@ -816,6 +836,7 @@ function T.MacroText(action, lookup)
     local kind, value = action:match("^(%a+):(.+)$")
     if kind == "window" then
         local w = T.WINDOW_BY_KEY[value]
+        if w and w.macro then return w.macro end
         for _, name in ipairs(w and w.buttons or {}) do
             if lookup.button(name) then return "/click " .. name end
         end

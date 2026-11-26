@@ -132,9 +132,9 @@ local function Macros()
     return list
 end
 
-local function Windows()
+local function Windows(from)
     local list = {}
-    for _, w in ipairs(T.WINDOWS) do
+    for _, w in ipairs(from or T.WINDOWS) do
         local action = "window:" .. w.key
         local name, icon, atlas = ns.Touch.ActionLook(action)
         list[#list + 1] = { action = action, name = name or w.label, icon = icon, atlas = atlas }
@@ -214,6 +214,7 @@ local function Categories()
         if #pets > 0 then cats[#cats + 1] = { key = "pets", label = "Pets", list = pets, group = "More" } end
     end
     if accepts.window then cats[#cats + 1] = { key = "windows", label = "Windows", list = Windows(), group = "More" } end
+    if accepts.window then cats[#cats + 1] = { key = "markers", label = "Markers", list = Windows(T.MARKS), group = "More" } end
     if accepts.bind then cats[#cats + 1] = { key = "gamepad", label = "Gamepad", list = Gamepad(), group = "More" } end
     if accepts.text then cats[#cats + 1] = { key = "text", label = "Typed macro", text = true, group = "More" } end
     return cats

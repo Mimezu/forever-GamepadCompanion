@@ -473,7 +473,7 @@ picker, pui = ns.PickerWindow()
 check(picker and picker:IsShown(), "choose opens the picker")
 local keys = {}
 for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
-eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,text", "bar slot: every kind")
+eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,markers,text", "bar slot: every kind")
 eq(pui.tiles[1].entry.name, "Fireball", "first spell")
 eq(#pui.categories[1].list, 2, "passive spells left out")
 pui.cats.items.scripts.OnClick(pui.cats.items)
@@ -600,7 +600,7 @@ ui.buttons.l3.scripts.OnClick(ui.buttons.l3)
 ui.choose.scripts.OnClick(ui.choose)
 keys = {}
 for _, cat in ipairs(pui.categories) do keys[#keys + 1] = cat.key end
-eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,gamepad,text", "button: every kind")
+eq(table.concat(keys, ","), "spells:Holy,quick,items,macros,halo,windows,markers,gamepad,text", "button: every kind")
 pui.cats.halo.scripts.OnClick(pui.cats.halo)
 eq(pui.tiles[1].entry.name, "Utility", "Halo rings of this character")
 check(not pui.tiles[2]:IsShown(), "another character's ring left out")
