@@ -68,4 +68,8 @@ ns.LIGHT_PRESETS = {
     bar = { { 0, "tint", 0.8, "step" }, { 0.1, "dark", 0, "step" }, { 0.2, "tint", 0.8, "step" }, { 0.3, "dark", 0, "step" }, { 0.4, "tint", 0.8, "step" }, { 0.8, "dark", 0, "out" } }, leds = { { 0, 31, 3 }, { 0.8, 0, 1 } }, mic = { { 0, "pulse" }, { 3, "off" } }, },
   { id = 40, key = "invite", name = "Invites, duels", kind = "once", group = "Social",
     bar = { { 0, "dark", 0, "linear" }, { 0.15, "tint", 0.7, "smooth" }, { 0.5, "tint", 0.2, "smooth" }, { 0.65, "tint", 0.7, "smooth" }, { 1.2, "dark", 0, "smooth" } }, mic = { { 0, "pulse" }, { 2, "off" } }, },
+  { id = 41, key = "nodeFound", name = "Node found", kind = "once", group = "World", blend = "add",
+    bar = { { 0, "dark", 0, "linear" }, { 0.06, "tint", 0.25, "out" }, { 0.5, "dark", 0, "out" } }, },
+  { id = 42, key = "nodeTracked", name = "Tracked node found", kind = "once", group = "World", blend = "add",
+    bar = { { 0, "dark", 0, "linear" }, { 0.08, "tint", 0.4, "out" }, { 0.26, "tint", 0.1, "smooth" }, { 0.38, "tint", 0.4, "out" }, { 0.9, "dark", 0, "out" } }, },
 }

@@ -784,6 +784,13 @@ L.EVENTS = {
         tip = "WoW Helper hears the bite. Then R2 reels it in" },
     { key = "fishCatch", icon = ART .. "vibe_gears", group = "Abilities", label = "Catch", feel = "reelIn", on = true,
         tip = "The fish comes in" },
+    -- WoW Helper's node compass (its docs/NODE-COMPASS.md): a new node dot on the minimap. Never
+    -- fired here: WoW Helper sees the dot and plays these, once a node, with the feel, light and
+    -- sound set here (HelperCues.HELPER_MOMENTS: their numbers are past the strip's)
+    { key = "nodeFound", icon = ART .. "vibe_micro", group = "Abilities", label = "Node found", feel = "feather", on = true,
+        tip = "WoW Helper sees a new node on the minimap" },
+    { key = "nodeTracked", icon = ART .. "vibe_double", group = "Abilities", label = "Tracked node found", feel = "notch", on = true,
+        tip = "A node of a kind you track (Setup > Nodes)" },
     -- A hunter's traps and Cheetah's daze (Hunter.lua)
     { key = "trapArmed", icon = ART .. "vibe_click", group = "Abilities", label = "Trap armed", feel = "spring", on = true },
     { key = "trapSprung", icon = ART .. "vibe_latch", group = "Abilities", label = "Trap sprung", feel = "jaws", on = true },

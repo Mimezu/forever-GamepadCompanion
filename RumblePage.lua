@@ -46,6 +46,7 @@ local GROUPS = {
     { key = "Abilities", items = { { "c", "spell" }, { "c", "gather" }, { "c", "craft" }, { "l", "tension" },
         { "l", "gcd" }, { "l", "combo" }, { "l", "comboFull" }, { "l", "full" }, { "l", "oom" },
         { "l", "fishLand" }, { "l", "fishNibble" }, { "l", "fishBite" }, { "l", "fishCatch" },
+        { "l", "nodeFound" }, { "l", "nodeTracked" },
         { "l", "trapArmed" }, { "l", "trapSprung" }, { "l", "dazed" } } },
     -- (a hunter's pet: Hunter.lua)
     { key = "Pet", items = { { "l", "petArrive" }, { "l", "petDismiss" }, { "l", "petTamed" }, { "l", "petAttack" },
@@ -315,6 +316,7 @@ local LIGHT_GROUP = {
     crit = "Attacks", kill = "Attacks",
     critTaken = "Defense", hitTaken = "Defense", avoid = "Defense",
     release = "Abilities", interrupted = "Abilities", instant = "Attacks", death = "Defense", alive = "Defense",
+    nodeFound = "Abilities", nodeTracked = "Abilities",
     levelUp = "Progress", questDone = "Progress", loot = "Progress",
     whisper = "Social", readyCheck = "Social", invite = "Social", haloUse = "Interface", halo = "Interface",
 }
@@ -326,6 +328,7 @@ local LIGHT_OF = {
     block = "avoid", kill = "kill", lowHp = "lowHp", spell = "cast", instant = "instant", haloOpen = "halo",
     haloUse = "haloUse", levelUp = "levelUp", questDone = "questDone", loot = "loot", death = "death", alive = "alive",
     whisper = "whisper", readyCheck = "readyCheck", invite = "invite",
+    nodeFound = "nodeFound", nodeTracked = "nodeTracked",
 }
 ui.LIGHT_OF = LIGHT_OF
 -- and back: a light's first feel moment
