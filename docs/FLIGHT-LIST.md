@@ -65,10 +65,14 @@ R2 a brown one, and "2/3" while you are on their round.
   time left at the line's end, and the way as a thin line: a dot per stop (gold once passed, a
   soft gold breath as it passes), the destination's larger, a gold bead gliding along it; B's
   word under it. A meal's or the fire's wait uses the same passage (MealCard.lua).
-- Time: the game gives none. Each route's time is learned from flights taken (per character,
-  flightTimes: from > to, the mean of the last two). Never flown: the straight length (C_TaxiMap
-  world points) x 1.2 at 30 yd/s, plus 10 s, marked "~". The stops' places on the line: each
-  hop's share of the way.
+- Time: the game gives none. Each route's time is learned from flights taken (every character's,
+  from > to, the mean of the last two). A flight with stops also teaches each hop on it: the
+  stops are seen passing under you (closest within 250 yd), each hop kept as if flown direct.
+  A route not flown: its hops' times, rising and setting down counted once (10 s), else the
+  straight length (C_TaxiMap world points) at the pace learned (the mean of the last 20 flights;
+  1.2 x the line at 30 yd/s before any), marked "~". In the air a stop passed sets the rest right
+  (reached late: the rest stretched alike); before one, how fast the way shrinks. /gpc flights
+  lists the last 30 flights: planned, taken.
 - B lands at the next stop (TaxiRequestEarlyLanding, Blizzard's own leave button's call): a first
   press names it, a second within 3 s lands. B is an override binding only while on a taxi with
   a stop ahead, changed once B has been up 0.25 s (Sh.Settler), never in a fight.

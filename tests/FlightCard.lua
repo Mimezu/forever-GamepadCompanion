@@ -62,15 +62,16 @@ plan = C.Plan({ { from = A, to = B }, { from = B, to = X } }, {})
 near(plan.marks[1], 0.5, "no lengths: even shares")
 
 -- progress
-plan = C.Plan(two, { [C.Key(A, B)] = 60, [C.Key(B, X)] = 40 })
-eq(plan.total, 100, "hops known: their sum")
+plan = C.Plan(two, { [C.Key(A, B)] = 70, [C.Key(B, X)] = 40 })
+eq(plan.total, 100, "hops known: their sum, rising and setting down once (60 + 30 + 10)")
+eq(plan.guess, false, "every hop known: no ~")
 local frac, left, passed = C.Progress(plan, 30)
 near(frac, 0.3, "30 s of 100")
 eq(left, 70, "70 s left")
 eq(passed, 0, "the stop still ahead")
 eq(C.NextStop(plan, passed), 1, "B lands at the first stop")
-frac, left, passed = C.Progress(plan, 65)
-eq(passed, 1, "past the stop at 60 s")
+frac, left, passed = C.Progress(plan, 70)
+eq(passed, 1, "past the stop at 2/3 of the way")
 eq(C.NextStop(plan, passed), nil, "no stop left before the end")
 frac, left = C.Progress(plan, 130)
 eq(frac, 1, "late: at the end, no further")
@@ -120,6 +121,61 @@ do
     eq(C.LearnPace(d, 30, 9000), false, "300 yd/s: not a flight")
     local p = C.Plan(direct, {}, 0.06)
     near(p.total, 1500 * 0.06 + C.TAKEOFF, "a new route at the learned pace")
+    -- the pace: the mean of many flights, not of the last two
+    d = { flightPace = 0.04 }
+    C.LearnPace(d, 0.08 * 1000 + C.TAKEOFF, 1000)
+    near(d.flightPace, 0.04 + 0.04 / 3, "an old pace counts as two flights")
+    for _ = 1, 60 do C.LearnPace(d, 0.05 * 1000 + C.TAKEOFF, 1000) end
+    near(d.flightPace, 0.05, "settles on what the flights say")
+    eq(d.paceN, C.PACE_N, "counted up to 20")
+
+    -- a stop passing under you
+    local nr, at = C.Passing(nil, 900, 10)
+    eq(at, nil, "far: not yet")
+    nr, at = C.Passing(nr, 120, 30)
+    nr, at = C.Passing(nr, 140, 31)
+    eq(at, nil, "a little away: not yet")
+    nr, at = C.Passing(nr, 200, 32)
+    eq(at, 30, "behind you: passed when closest")
+    eq(nr, nil, "the next stop starts afresh")
+    nr, at = C.Passing({ d = 600, t = 5 }, 700, 6)
+    eq(at, nil, "never close: never passed")
+
+    -- a stop reached late stretches the rest; a learned route holds
+    local g2 = C.Plan(two, {})
+    local at1 = g2.marks[1] * g2.total
+    near(C.Planned(g2, at1 * 0.8, { at1 * 0.8 }), (g2.total - at1) * 0.8, "early by a fifth: the rest a fifth sooner")
+    near(C.Planned(g2, at1 * 0.8 + 10, { at1 * 0.8 }), (g2.total - at1) * 0.8 - 10, "and counting down")
+    near(C.Planned(g2, 40, {}), g2.total - 40, "no stop passed: the plan")
+    near(C.Planned(g2, at1 * 5, { at1 * 5 }), (g2.total - at1) * 2, "never stretched past twice")
+    local routed = C.Plan(two, { [C.Key(A, X)] = 200 })
+    eq(C.Planned(routed, 50, { 10 }), 150, "the route flown before: its time holds")
+    left, guess = C.Left(g2, at1, 500, 45, { at1 })
+    near(left, g2.total - at1, "a stop passed: the plan set right, not the distance seen")
+
+    -- each hop learned from a flight through it
+    local tt, pd = {}, {}
+    eq(C.LearnLegs(tt, pd, two, { 50 }, 80), 2, "both hops")
+    eq(tt[C.Key(A, B)], 55, "to the stop, setting down added half")
+    eq(tt[C.Key(B, X)], 35, "from the stop, rising added half")
+    check(pd.flightPace ~= nil, "and the pace")
+    local three = { two[1], two[2], { from = X, to = A, len = 700 } }
+    tt = {}
+    eq(C.LearnLegs(tt, nil, three, { 40, 70 }, 100), 3, "three hops")
+    eq(tt[C.Key(B, X)], 40, "the middle one: rising and setting down both added")
+    tt = {}
+    eq(C.LearnLegs(tt, nil, three, { 40 }, 66, 2), 2, "set down at the second stop: its two hops")
+    eq(tt[C.Key(B, X)], 31, "the hop it set down at the end of")
+    eq(tt[C.Key(X, A)], nil, "the hop not flown: nothing")
+    tt = {}
+    eq(C.LearnLegs(tt, nil, three, {}, 100), 0, "no stop seen passing: nothing")
+
+    -- the log: planned and taken
+    local lg = {}
+    C.Log(lg, C.Plan(direct, {}), B, 61)
+    check(lg.log[1]:match("^Splintertree Post > Crossroads: ~%d+:%d%d, took 1:01$") ~= nil, "a line per flight (" .. tostring(lg.log[1]) .. ")")
+    for _ = 1, 40 do C.Log(lg, C.Plan(direct, {}), B, 61) end
+    eq(#lg.log, C.LOG, "the last 30")
 end
 
 -- the clock

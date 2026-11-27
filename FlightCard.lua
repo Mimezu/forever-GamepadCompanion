@@ -26,29 +26,76 @@ function C.Key(from, to) return tostring(from) .. " > " .. tostring(to) end
 -- { [key] = s }. -> plan { total, guess (true: some of it estimated), marks (each hop's end, a
 -- fraction of the way), hops }
 -- pace: s per straight yard, learned from your flights (C.LearnPace), else BEND / SPEED.
+-- (a hop's time is kept as flown direct: rising and setting down in it. On a longer way the
+-- taxi does neither at the stops, so they come off each hop and go back on once)
 function C.Plan(hops, times, pace)
     times = times or {}
     pace = pace or C.BEND / C.SPEED
     local parts, sum, guess = {}, 0, false
     for i, h in ipairs(hops) do
         local t = times[C.Key(h.from, h.to)]
-        if not t then
+        if t then
+            t = math.max(1, t - C.TAKEOFF)
+        else
             guess = true
             t = h.len and h.len * pace or C.UNKNOWN
-            if #hops == 1 then t = t + C.TAKEOFF end
         end
         parts[i] = t
         sum = sum + t
     end
     local route = #hops > 0 and times[C.Key(hops[1].from, hops[#hops].to)]
-    local total = route or (sum + ((#hops > 1 and guess) and C.TAKEOFF or 0))
+    local total = route or (sum + C.TAKEOFF)
     if route then guess = false end
     local marks, acc = {}, 0
     for i, t in ipairs(parts) do
         acc = acc + t
         marks[i] = sum > 0 and acc / sum or i / #parts
     end
-    return { total = total, guess = guess, marks = marks, hops = hops }
+    return { total = total, guess = guess, marks = marks, hops = hops, route = route and true or false }
+end
+
+-- Passing a stop: the straight distance to it, once a second, falls to its least and grows
+-- again. near = { d, t } the least so far; -> near, and the time it was passed (nil: not yet)
+C.PASS = 250      -- yd: a stop flown over comes this close
+C.PASS_OUT = 40   -- yd: then away by this much: passed
+function C.Passing(near, d, t)
+    if not near or d < near.d then return { d = d, t = t }, nil end
+    if near.d <= C.PASS and d >= near.d + C.PASS_OUT then return nil, near.t end
+    return near, nil
+end
+
+-- The plan's time left, set right by the stops passed: a stop reached later or sooner than
+-- planned stretches or shrinks the rest alike. passes[i]: s into the flight stop i was passed
+function C.Planned(plan, elapsed, passes)
+    elapsed = elapsed or 0
+    local left = math.max(0, (plan.total or 0) - elapsed)
+    local k = passes and #passes or 0
+    if k == 0 or plan.route or not plan.marks[k] then return left end
+    local at = plan.marks[k] * (plan.total or 0)
+    if at <= 0 then return left end
+    local ratio = math.max(0.5, math.min(2, passes[k] / at))
+    return math.max(0, (plan.total - at) * ratio - (elapsed - passes[k]))
+end
+
+-- A flight with stops teaches each hop: the time between passing its ends, kept as if flown
+-- direct (half the rising and setting down added at each end the taxi flew through). passes as
+-- above; took: s at the end of hop upto (the last, or the stop it set down at). -> hops learned
+function C.LearnLegs(times, db, hops, passes, took, upto)
+    upto = upto or #hops
+    local n = 0
+    for i = 1, upto do
+        local t0 = i == 1 and 0 or passes[i - 1]
+        local t1 = i == upto and took or passes[i]
+        if t0 and t1 and t1 > t0 then
+            local secs = t1 - t0 + (i > 1 and C.TAKEOFF / 2 or 0) + (i < upto and C.TAKEOFF / 2 or 0)
+            local h = hops[i]
+            if C.Learn(times, C.Key(h.from, h.to), secs) then
+                n = n + 1
+                if db and h.len then C.LearnPace(db, secs, h.len) end
+            end
+        end
+    end
+    return n
 end
 
 -- elapsed s into the plan: -> fraction of the way (0..1), s left, stops passed. left: the time
@@ -102,26 +149,41 @@ function C.LiveLeft(samples)
     return last.d / rate, span
 end
 
--- The time left to show: the plan's; a guessed plan gives way to what's seen as it builds;
--- a learned one holds unless it ran out with the destination still ahead. -> s, guessed
-function C.Left(plan, elapsed, live, span)
-    local planned = math.max(0, (plan.total or 0) - (elapsed or 0))
+-- The time left to show: the plan's (set right by the stops passed); a guessed plan gives way to
+-- what's seen as it builds, until a stop is passed; a learned one holds unless it ran out with the
+-- destination still ahead. -> s, guessed
+function C.Left(plan, elapsed, live, span, passes)
+    local planned = C.Planned(plan, elapsed, passes)
     if not live then return planned, plan.guess end
     if planned <= 0 then return live, true end
-    if not plan.guess then return planned, false end
+    if not plan.guess or (passes and #passes > 0) then return planned, plan.guess end
     local w = math.min(1, (span or 0) / C.TRUST)
     return w * live + (1 - w) * planned, true
 end
 
--- A whole flight teaches the pace (s per straight yard, after rising and setting down): the
--- first as it is, then the mean with the last. -> kept
+-- A flight teaches the pace (s per straight yard, after rising and setting down): the mean of
+-- the last C.PACE_N or so. -> kept
+C.PACE_N = 20
 function C.LearnPace(db, seconds, len)
     if type(seconds) ~= "number" or type(len) ~= "number" or len < 200 then return false end
     if seconds < C.MIN or seconds > C.MAX then return false end
     local p = (seconds - C.TAKEOFF) / len
     if p < 0.02 or p > 0.2 then return false end     -- (30 to 2 yd/s straight: else not a flight)
-    db.flightPace = db.flightPace and (db.flightPace + p) / 2 or p
+    local old = tonumber(db.flightPace)
+    db.paceN = math.min(C.PACE_N, (tonumber(db.paceN) or (old and 2 or 0)) + 1)
+    db.flightPace = old and old + (p - old) / db.paceN or p
     return true
+end
+
+-- A flight in the log: "Orgrimmar > Gadgetzan: ~6:58, took 6:57" (the last C.LOG)
+C.LOG = 30
+function C.Log(db, plan, to, took, early)
+    if type(db.log) ~= "table" then db.log = {} end
+    local from = plan.hops[1] and plan.hops[1].from
+    local function Short(n) return (tostring(n):match("^(.-),") or tostring(n)) end
+    db.log[#db.log + 1] = ("%s > %s: %s, took %s%s"):format(Short(from), Short(to), C.Clock(plan.total, plan.guess),
+        C.Clock(took), early and " (set down early)" or "")
+    while #db.log > C.LOG do table.remove(db.log, 1) end
 end
 
 -- "2:05", "~2:05" (a guess), "0:00"
@@ -212,6 +274,7 @@ local function Route(index)
             local dx, dy = a.x - b.x, a.y - b.y
             h.len = math.sqrt(dx * dx + dy * dy)
         end
+        if b then h.at = { cont = b.cont, map = b.map, x = b.x, y = b.y } end
     end
     -- (and where it ends: the time left is read against it in flight)
     local dest = at[hops[#hops].to]
@@ -249,15 +312,22 @@ local function Icon()
     return faction == "Horde" and "Interface\\Icons\\Ability_Mount_Wyvern_01" or "Interface\\Icons\\Ability_Mount_Gryphon_01"
 end
 
+-- Where the flight stands: s left, guessed, fraction of the way, stops passed
+local function Where()
+    local plan = flight.plan
+    -- (the plan, set right by the stops passed and by how fast the way shrinks)
+    local elapsed = Now() - flight.start
+    local live, span = C.LiveLeft(flight.samples)
+    local left, guess = C.Left(plan, elapsed, live, span, flight.passes)
+    local frac, _, passed = C.Progress(plan, elapsed, left)
+    return left, guess, frac, math.max(passed, flight.passes and #flight.passes or 0)
+end
+
 -- What the passage shows now: the place, the time left, the way and its stops, B's word
 function C.Spec()
     if not flight then return nil end
     local plan = flight.plan
-    -- (the time left as seen in flight: the plan, corrected by how fast the way shrinks)
-    local elapsed = Now() - flight.start
-    local live, span = C.LiveLeft(flight.samples)
-    local left, guess = C.Left(plan, elapsed, live, span)
-    local frac, _, passed = C.Progress(plan, elapsed, left)
+    local left, guess, frac, passed = Where()
     local FL = ns.FlightList
     local s = { icon = Icon(), title = (FL.SplitName(flight.to)), clock = C.Clock(left, guess), frac = frac,
         marks = #plan.marks > 1 and plan.marks or nil, passed = passed, bob = true }
@@ -292,7 +362,7 @@ local landButton = CreateFrame("Button", LAND_BUTTON, UIParent)
 landButton:RegisterForClicks("AnyDown")
 landButton:SetScript("OnClick", function()
     if not (flight and OnTaxi()) then return end
-    local _, _, passed = C.Progress(flight.plan, Now() - flight.start)
+    local _, _, _, passed = Where()
     local stop = C.NextStop(flight.plan, passed)
     if not stop then return end
     if Now() < armedUntil then
@@ -317,7 +387,7 @@ function C.Bind()
     if InCombat() then return false end
     local want = false
     if flight and OnTaxi() and C.Enabled() and type(TaxiRequestEarlyLanding) == "function" then
-        local _, _, passed = C.Progress(flight.plan, Now() - flight.start)
+        local _, _, _, passed = Where()
         want = C.NextStop(flight.plan, passed) ~= nil and not flight.landing
     end
     if want == landOn then return true end
@@ -352,17 +422,25 @@ local function Sample(elapsed)
     local here = Here()
     local FL = ns.FlightList
     if not (here and FL.SameContinent(here, flight.dest)) then return end
-    local dx, dy = here.x - flight.dest.x, here.y - flight.dest.y
+    local function Dist(p) local dx, dy = here.x - p.x, here.y - p.y; return math.sqrt(dx * dx + dy * dy) end
     local s = flight.samples
-    s[#s + 1] = { t = Now(), d = math.sqrt(dx * dx + dy * dy) }
+    s[#s + 1] = { t = Now(), d = Dist(flight.dest) }
     if #s > C.KEEP then table.remove(s, 1) end
+    -- (the next stop: passed when it's behind you)
+    local k = #flight.passes + 1
+    local stop = k < #flight.plan.hops and flight.plan.hops[k].at
+    if stop and FL.SameContinent(here, stop) then
+        local at
+        flight.near, at = C.Passing(flight.near, Dist(stop), Now() - flight.start)
+        if at then flight.passes[k] = at end
+    end
 end
 
 local function TakeOff()
     local p = pending
     pending = nil
     flight = { from = p.from, to = p.to, start = Now(), wall = Wall(), plan = C.Plan(p.hops, C.Times(), Pace()),
-        dest = p.dest, samples = {} }
+        dest = p.dest, samples = {}, passes = {} }
     sampleIn = 0
     armedUntil = 0
     Save()
@@ -372,13 +450,21 @@ end
 local function Land()
     if not flight then return end
     local took = Now() - flight.start
-    local times = C.Times()
-    -- (a time worth keeping: a whole flight, or to the stop it set down at)
-    if flight.landing then C.Learn(times, C.Key(flight.from, flight.landing), took)
-    elseif not flight.resumed then
-        C.Learn(times, C.Key(flight.from, flight.to), took)
-        -- (and the pace, for the routes not flown yet)
-        C.LearnPace(C.Shared(), took, Length(flight.plan.hops))
+    local times, shared = C.Times(), C.Shared()
+    local hops = flight.plan.hops
+    if not flight.resumed then
+        C.Log(shared, flight.plan, flight.landing or flight.to, took, flight.landing)
+        -- (a time worth keeping: a whole flight, or to the stop it set down at)
+        local upto = #hops
+        if flight.landing then
+            C.Learn(times, C.Key(flight.from, flight.landing), took)
+            for i, h in ipairs(hops) do if h.to == flight.landing then upto = i end end
+        else
+            C.Learn(times, C.Key(flight.from, flight.to), took)
+        end
+        -- (each hop on the way too, and the pace, for the routes not flown yet)
+        if upto > 1 then C.LearnLegs(times, shared, hops, flight.passes, took, upto)
+        elseif not flight.landing then C.LearnPace(shared, took, Length(hops)) end
     end
     flight = nil
     Save()
@@ -400,7 +486,7 @@ local function Resume()
     if not OnTaxi() then Sh.CharDB().flightNow = nil; return end
     local since = math.max(0, Wall() - (saved.wall or Wall()))
     flight = { from = saved.from, to = saved.to, wall = saved.wall, start = Now() - since,
-        plan = C.Plan(saved.hops, C.Times(), Pace()), resumed = true, dest = saved.dest, samples = {} }
+        plan = C.Plan(saved.hops, C.Times(), Pace()), resumed = true, dest = saved.dest, samples = {}, passes = {} }
     sampleIn = 0
     Fill()
 end

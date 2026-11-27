@@ -789,8 +789,10 @@ SlashCmdList.GAMEPADCOMPANION = function(message)
     end
     if command == "flights" and ns.FlightList then
         local lines = ns.Shared.CharDB().flightProbe
-        if type(lines) ~= "table" or #lines == 0 then Say("no flight map opened yet") return end
-        for _, line in ipairs(lines) do print(line) end
+        local log = ns.FlightCard and ns.FlightCard.Shared().log
+        if type(lines) == "table" and #lines > 0 then for _, line in ipairs(lines) do print(line) end
+        else Say("no flight map opened yet") end
+        if type(log) == "table" then for _, line in ipairs(log) do print(line) end end
         return
     end
     if command == "nav" and ns.BagGrid then
