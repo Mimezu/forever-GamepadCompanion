@@ -568,6 +568,258 @@ function K.DecodeNodeRow(cells)
 end
 
 ---------------------------------------------------------------------------
+-- The compact strip (WoW Helper's docs/STRIP-COMPACT.md): every row above in ONE short line,
+-- 8 levels a channel (0-7: 9 bits a cell instead of 3). Cells: 0 magenta (7,0,7), 1 yellow
+-- (7,7,0) = compact, 2 ramp (1,3,5), 3 ramp (6,4,2): the reader learns each level's colour from
+-- these four every frame; from cell 4 the stream, bit n in cell 4 + n // 9, channel (n % 9) // 3,
+-- bit n % 3 of its level. Little-endian. The stream: a header (flags: light, trigger, spell, map,
+-- node rows present; the hold chord 0-9), the main fields (v2's, then the check pixel's bit), the
+-- rows present in that order (their fields exactly as on their own rows, no version or markers),
+-- a CRC-16/CCITT-FALSE over all of it, zero padding to the cell. 17 cells with no row, 55 with
+-- every row (today's one line: 175). Drawn only when Lab › Strip says "Compact" and WoW Helper
+-- says it reads it (WowHelperData.compactStrip == 1). Decoded, every field equals the rows' own.
+---------------------------------------------------------------------------
+K.COMPACT_LEVELS = 8
+K.COMPACT_HEAD = { { 7, 0, 7 }, { 7, 7, 0 }, { 1, 3, 5 }, { 6, 4, 2 } }
+K.COMPACT_MIN, K.COMPACT_MAX = 17, 55
+local CBITS = { head = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, crc = 16 }
+K.COMPACT_BITS = CBITS
+local CSECTIONS = { "light", "trig", "spell", "map", "node" }
+
+-- CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, not reflected). Check value: "123456789" -> 0x29B1
+function K.Crc16(bytes)
+    local crc = 0xFFFF
+    for _, byte in ipairs(bytes) do
+        crc = BXor(crc, byte * 256)
+        for _ = 1, 8 do
+            if crc >= 32768 then crc = BXor((crc * 2) % 65536, 0x1021) else crc = (crc * 2) % 65536 end
+        end
+    end
+    return crc
+end
+
+local function Crc16Bits(bits, n)
+    local bytes = {}
+    for k = 0, math.ceil(n / 8) - 1 do bytes[k + 1] = Get(bits, k * 8, math.min(8, n - k * 8)) end
+    return K.Crc16(bytes)
+end
+
+-- The stream's length in bits (without the CRC) and the strip's cells, from the header's flags
+function K.CompactLength(flags)
+    local n = CBITS.head + CBITS.main
+    for i, name in ipairs(CSECTIONS) do
+        if floor(flags / 2 ^ (i - 1)) % 2 == 1 then n = n + CBITS[name] end
+    end
+    return n, #K.COMPACT_HEAD + math.ceil((n + CBITS.crc) / 9)
+end
+
+-- parts = { state (K.state's fields), light (a light row or nil), trig ({ left, right } or nil),
+-- spell ({ seq, phase, id } or nil), map (or nil), node ({ nodes, prefs } or nil), hold 0-9,
+-- check (boolean) } -> cells of { r, g, b } levels 0-7
+function K.EncodeCompact(parts)
+    parts = parts or {}
+    local bits = {}
+    local flags = 0
+    for i, name in ipairs(CSECTIONS) do
+        if parts[name] then flags = flags + 2 ^ (i - 1) end
+    end
+    for i = 0, (K.CompactLength(flags)) + CBITS.crc - 1 do bits[i] = 0 end   -- (unused node slots, spare bits: zero)
+    Put(bits, 0, flags, 5)
+    Put(bits, 5, Int(parts.hold, 9), 4)
+    -- the main fields, as K.EncodeV2 (its bits 0-87 at 9), then the check pixel's bit
+    local s = parts.state or {}
+    local at = 9
+    Put(bits, at, Int(s.seq, 1e9) % 16, 4)
+    PutTrigger(bits, at + 4, s.left)
+    PutTrigger(bits, at + 19, s.right)
+    Put(bits, at + 34, Int(s.touch, 4095), 12)
+    Put(bits, at + 46, Int(s.sound, 4095), 12)
+    Put(bits, at + 58, Int(s.gain, 7), 3)
+    Put(bits, at + 61, Int(s.level, 3), 2)
+    Put(bits, at + 63, Int(s.side, 15), 4)
+    Put(bits, at + 67, Int(s.intensity, 7), 3)
+    Put(bits, at + 70, Int(s.seed, 255), 8)
+    Put(bits, at + 78, Int(s.mic, 3), 2)
+    Put(bits, at + 80, Int(s.moment, 127), 7)
+    Put(bits, at + 87, s.open and 1 or 0, 1)
+    Put(bits, at + 88, parts.check and 1 or 0, 1)
+    at = at + CBITS.main
+    local row = parts.light
+    if row then
+        local v1 = (tonumber(row.version) or 0) >= 1
+        Put(bits, at, v1 and 1 or 0, 1)
+        Put(bits, at + 1, row.resting and 1 or 0, 1)
+        Put(bits, at + 2, row.hdOff and 1 or 0, 1)
+        Put(bits, at + 3, Int(row.hold, 255), 8)
+        Put(bits, at + 11, Int(row.holdTint, 31), 5)
+        Put(bits, at + 16, Int(row.holdStrength, 7), 3)
+        Put(bits, at + 19, Int(row.progress, 15), 4)
+        Put(bits, at + 23, Int(row.cue, 255), 8)
+        Put(bits, at + 31, Int(row.cueTint, 31), 5)
+        Put(bits, at + 36, Int(row.cueStrength, 7), 3)
+        -- (version 0 carries no dots and mic, as its own row)
+        Put(bits, at + 39, v1 and Int(row.holdDots, 15) or 0, 4)
+        Put(bits, at + 43, v1 and Int(row.holdMic, 7) or 0, 3)
+        Put(bits, at + 46, v1 and Int(row.cueDots, 15) or 0, 4)
+        Put(bits, at + 50, v1 and Int(row.cueMic, 7) or 0, 3)
+        at = at + CBITS.light
+    end
+    row = parts.trig
+    if row then
+        local function pick(p, a)
+            p = p or {}
+            Put(bits, a, Int(p.shape, 1023), 10)
+            Put(bits, a + 10, Value7(p.value), 7)
+            Put(bits, a + 17, Int(p.count, 15), 4)
+        end
+        pick(row.left, at)
+        pick(row.right, at + 21)
+        at = at + CBITS.trig
+    end
+    row = parts.spell
+    if row then
+        Put(bits, at, Int(row.seq, 15), 4)
+        Put(bits, at + 4, Int(row.phase, 3), 2)
+        local id = Int(row.id, K.SPELL_ID_MAX + 1)
+        Put(bits, at + 6, id > K.SPELL_ID_MAX and 0 or id, 20)
+        at = at + CBITS.spell
+    end
+    row = parts.map
+    if row then
+        Put(bits, at, Int(row.facing, 1023), 10)
+        Put(bits, at + 10, Int(row.x, 8191), 13)
+        Put(bits, at + 23, Int(row.y, 8191), 13)
+        Put(bits, at + 36, Int(row.radius, 1023), 10)
+        Put(bits, at + 46, Int(row.yards, 1023), 10)
+        Put(bits, at + 56, row.rotates and 1 or 0, 1)
+        Put(bits, at + 57, Int(row.tracking, 3), 2)
+        Put(bits, at + 59, row.camera and 1 or 0, 1)
+        Put(bits, at + 60, row.camera and Int(row.camera, 1023) or 0, 10)
+        at = at + CBITS.map
+    end
+    row = parts.node
+    if row then
+        local nodes, prefs = row.nodes or {}, row.prefs
+        Put(bits, at, prefs and 1 or 0, 1)
+        local count = math.min(#nodes, prefs and K.NODE_MAX_V2 or K.NODE_MAX)
+        Put(bits, at + 1, count, 3)
+        for i = 1, count do
+            local n, a = nodes[i], at + 4 + (i - 1) * 24
+            Put(bits, a, Int((n.dx or 0) + 128, 255), 8)
+            Put(bits, a + 8, Int((n.dy or 0) + 128, 255), 8)
+            Put(bits, a + 16, Int(n.kind, 63), 6)
+            Put(bits, a + 22, n.wanted == false and 0 or 1, 1)
+            Put(bits, a + 23, n.gatherable == false and 0 or 1, 1)
+        end
+        if prefs then
+            local a = at + 4 + 24 * K.NODE_MAX_V2
+            for k = 0, K.NODE_SLOTS - 1 do
+                Put(bits, a + 3 * k, Int(prefs.mode and prefs.mode[k] or 0, 2), 2)
+                Put(bits, a + 3 * k + 2, (prefs.gatherable and prefs.gatherable[k] == false) and 0 or 1, 1)
+            end
+        end
+        at = at + CBITS.node
+    end
+    Put(bits, at, Crc16Bits(bits, at), 16)
+    at = at + CBITS.crc
+    local cells = {}
+    for i, c in ipairs(K.COMPACT_HEAD) do cells[i] = { c[1], c[2], c[3] } end
+    local ncells = math.ceil(at / 9)
+    for i = at, ncells * 9 - 1 do bits[i] = 0 end
+    for c = 0, ncells - 1 do
+        local b = c * 9
+        cells[#cells + 1] = { Get(bits, b, 3), Get(bits, b + 3, 3), Get(bits, b + 6, 3) }
+    end
+    return cells
+end
+
+-- cells (levels 0-7) -> parts (each row as its own decoder gives it), or nil and a reason
+function K.DecodeCompact(cells)
+    if type(cells) ~= "table" or #cells < K.COMPACT_MIN then return nil, "length" end
+    for i, m in ipairs(K.COMPACT_HEAD) do
+        local c = cells[i]
+        if c[1] ~= m[1] or c[2] ~= m[2] or c[3] ~= m[3] then return nil, "marker" end
+    end
+    local bits = {}
+    for c = #K.COMPACT_HEAD, #cells - 1 do
+        local cell = cells[c + 1]
+        for k = 1, 3 do
+            local v = cell[k]
+            if type(v) ~= "number" or v < 0 or v > 7 or v ~= floor(v) then return nil, "value" end
+            Put(bits, (c - #K.COMPACT_HEAD) * 9 + (k - 1) * 3, v, 3)
+        end
+    end
+    local flags = Get(bits, 0, 5)
+    local n, ncells = K.CompactLength(flags)
+    if #cells ~= ncells then return nil, "length" end
+    if Crc16Bits(bits, n) ~= Get(bits, n, 16) then return nil, "crc" end
+    for i = n + 16, (ncells - #K.COMPACT_HEAD) * 9 - 1 do
+        if bits[i] ~= 0 then return nil, "value" end
+    end
+    local out = { hold = Get(bits, 5, 4) }
+    local at = 9
+    out.state = { seq = Get(bits, at, 4), left = GetTrigger(bits, at + 4), right = GetTrigger(bits, at + 19),
+        touch = Get(bits, at + 34, 12), sound = Get(bits, at + 46, 12), gain = Get(bits, at + 58, 3),
+        level = Get(bits, at + 61, 2), side = Get(bits, at + 63, 4), intensity = Get(bits, at + 67, 3),
+        seed = Get(bits, at + 70, 8), mic = Get(bits, at + 78, 2), moment = Get(bits, at + 80, 7),
+        open = Get(bits, at + 87, 1) == 1 }
+    out.check = Get(bits, at + 88, 1) == 1
+    at = at + CBITS.main
+    if flags % 2 == 1 then
+        local v1 = Get(bits, at, 1) == 1
+        local row = { version = v1 and 1 or 0, resting = Get(bits, at + 1, 1) == 1, hdOff = Get(bits, at + 2, 1) == 1,
+            hold = Get(bits, at + 3, 8), holdTint = Get(bits, at + 11, 5), holdStrength = Get(bits, at + 16, 3),
+            progress = Get(bits, at + 19, 4), cue = Get(bits, at + 23, 8), cueTint = Get(bits, at + 31, 5),
+            cueStrength = Get(bits, at + 36, 3) }
+        if v1 then
+            row.holdDots, row.holdMic = Get(bits, at + 39, 4), Get(bits, at + 43, 3)
+            row.cueDots, row.cueMic = Get(bits, at + 46, 4), Get(bits, at + 50, 3)
+        end
+        out.light = row
+        at = at + CBITS.light
+    end
+    if floor(flags / 2) % 2 == 1 then
+        local function pick(a)
+            local v = Get(bits, a + 10, 7)
+            return { shape = Get(bits, a, 10), value = v <= 100 and v / 100 or nil, count = Get(bits, a + 17, 4) }
+        end
+        out.trig = { left = pick(at), right = pick(at + 21) }
+        at = at + CBITS.trig
+    end
+    if floor(flags / 4) % 2 == 1 then
+        out.spell = { seq = Get(bits, at, 4), phase = Get(bits, at + 4, 2), id = Get(bits, at + 6, 20) }
+        at = at + CBITS.spell
+    end
+    if floor(flags / 8) % 2 == 1 then
+        out.map = { facing = Get(bits, at, 10), x = Get(bits, at + 10, 13), y = Get(bits, at + 23, 13),
+            radius = Get(bits, at + 36, 10), yards = Get(bits, at + 46, 10), rotates = Get(bits, at + 56, 1) == 1,
+            tracking = Get(bits, at + 57, 2), camera = Get(bits, at + 59, 1) == 1 and Get(bits, at + 60, 10) or nil }
+        at = at + CBITS.map
+    end
+    if floor(flags / 16) % 2 == 1 then
+        local v2 = Get(bits, at, 1) == 1
+        local node = {}
+        if v2 then
+            node.prefs = { mode = {}, gatherable = {} }
+            local a = at + 4 + 24 * K.NODE_MAX_V2
+            for k = 0, K.NODE_SLOTS - 1 do
+                node.prefs.mode[k] = Get(bits, a + 3 * k, 2)
+                node.prefs.gatherable[k] = Get(bits, a + 3 * k + 2, 1) == 1
+            end
+        end
+        local count = Get(bits, at + 1, 3)
+        if count > (v2 and K.NODE_MAX_V2 or K.NODE_MAX) then return nil, "value" end
+        for i = 1, count do
+            local a = at + 4 + (i - 1) * 24
+            node[i] = { dx = Get(bits, a, 8) - 128, dy = Get(bits, a + 8, 8) - 128, kind = Get(bits, a + 16, 6),
+                wanted = Get(bits, a + 22, 1) == 1, gatherable = Get(bits, a + 23, 1) == 1 }
+        end
+        out.node = node
+    end
+    return out
+end
+
+---------------------------------------------------------------------------
 -- Live state and the event queue
 ---------------------------------------------------------------------------
 local function OffTrigger() return { mode = 0, start = 0, finish = 0, force = 0 } end
@@ -601,20 +853,29 @@ end
 -- one line (main 34 cells, the light row from cell 34 padded to 23, the trigger row from 57:
 -- 76 cells). One line only when Lab › Strip says so and WoW Helper says it reads it
 -- (WowHelperData.stripOneLine); else stacked, as before.
-K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" } }
+-- Compact (K.EncodeCompact): every row in one short line of 8-level cells, only when WoW Helper
+-- says it reads it (WowHelperData.compactStrip == 1); else stacked.
+K.STRIPS = { { "stacked", "Stacked" }, { "oneline", "One line" }, { "compact", "Compact" } }
 K.LINE_LIGHT, K.LINE_TRIG, K.LINE_CELLS = 34, 57, 76
 K.LINE_SPELL, K.LINE_CELLS_SPELL = 76, 89   -- (the spell row after the trigger row: 89 cells)
 K.LINE_MAP, K.LINE_CELLS_MAP = 89, 117      -- (the map row after the spell row's place: 117 cells)
 K.LINE_NODE, K.LINE_CELLS_NODE = 117, 171   -- (the node row after the map row: 171 cells)
-function K.Strip() return DB().strip == "oneline" and "oneline" or "stacked" end
+function K.Strip()
+    local s = DB().strip
+    return (s == "oneline" or s == "compact") and s or "stacked"
+end
 function K.SetStrip(v)
-    DB().strip = v == "oneline" and "oneline" or nil
+    DB().strip = (v == "oneline" or v == "compact") and v or nil
     K.Layout()
     dirty = true
 end
 function K.OneLine()
     local d = WowHelperData
     return K.V2() and K.Strip() == "oneline" and type(d) == "table" and d.stripOneLine == true
+end
+function K.CompactOn()
+    local d = WowHelperData
+    return K.V2() and K.Strip() == "compact" and type(d) == "table" and d.compactStrip == 1
 end
 
 -- The spell row: only once WoW Helper says it reads it (WowHelperData.spellRow)
@@ -1039,23 +1300,42 @@ function K.Step(elapsed)
         Start(table.remove(K.queue, 1))
     end
     if dirty then
-        dirty = false
-        -- (WoW Helper's word on one line arrives with its data: the layout follows)
-        if (K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine()) or (K.spellDrawn ~= nil and K.spellDrawn ~= K.SpellRowOn())
-            or (K.mapDrawn ~= nil and K.mapDrawn ~= K.MapRowOn()) or (K.nodeDrawn ~= nil and K.nodeDrawn ~= K.NodeRowOn()) then
-            K.Layout()
-        end
-        if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
-        if K.DrawLight then K.DrawLight(K.V2() and K.LightRow() and K.EncodeLight(K.LightRow()) or nil) end
-        if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
-        if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
-        if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
-        if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes and K.nodes.list, K.NodeRowV2() and (K.prefs or {}) or nil) or nil) end
-        if K.DrawHold then K.DrawHold() end
-        if K.DrawCheck then K.DrawCheck() end
+        K.Redraw()
         return true
     end
     return false
+end
+
+-- What the compact strip carries this frame: the same rows, gated as when drawn apart
+function K.CompactParts()
+    return { state = K.state, light = K.LightRow(), trig = K.trig,
+        spell = K.SpellRowOn() and (K.spell or { seq = K.spellSeq or 0 }) or nil,
+        map = K.MapRowOn() and K.map or nil,
+        node = K.NodeRowOn() and { nodes = K.nodes and K.nodes.list, prefs = K.NodeRowV2() and (K.prefs or {}) or nil } or nil,
+        hold = K.HoldCellsOn() and K.hold or 0, check = K.CheckPixelOn() and K.checkBlue or false }
+end
+
+-- Everything on screen again (the strip and its rows, or the compact line)
+function K.Redraw()
+    dirty = false
+    -- (WoW Helper's word on one line arrives with its data: the layout follows)
+    if (K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine()) or (K.spellDrawn ~= nil and K.spellDrawn ~= K.SpellRowOn())
+        or (K.mapDrawn ~= nil and K.mapDrawn ~= K.MapRowOn()) or (K.nodeDrawn ~= nil and K.nodeDrawn ~= K.NodeRowOn())
+        or (K.compactDrawn ~= nil and K.compactDrawn ~= K.CompactOn()) then
+        K.Layout()
+    end
+    if K.CompactOn() then
+        if K.DrawCompact then K.DrawCompact(K.EncodeCompact(K.CompactParts())) end
+        return
+    end
+    if K.Draw then K.Draw(K.V2() and K.EncodeV2(K.state) or K.Encode(K.state)) end
+    if K.DrawLight then K.DrawLight(K.V2() and K.LightRow() and K.EncodeLight(K.LightRow()) or nil) end
+    if K.DrawTrig then K.DrawTrig(K.V2() and K.trig and K.EncodeTrigRow(K.trig) or nil) end
+    if K.DrawSpell then K.DrawSpell(K.SpellRowOn() and K.EncodeSpellRow(K.spell or { seq = K.spellSeq or 0 }) or nil) end
+    if K.DrawMap then K.DrawMap(K.MapRowOn() and K.EncodeMapRow(K.map) or nil) end
+    if K.DrawNode then K.DrawNode(K.NodeRowOn() and K.EncodeNodeRow(K.nodes and K.nodes.list, K.NodeRowV2() and (K.prefs or {}) or nil) or nil) end
+    if K.DrawHold then K.DrawHold() end
+    if K.DrawCheck then K.DrawCheck() end
 end
 
 ---------------------------------------------------------------------------
@@ -1091,7 +1371,23 @@ function K.Layout()
     frame:SetPoint("BOTTOMLEFT", nil, "BOTTOMLEFT", 0, 0)
     local n = K.V2() and K.CELLS_V2 or K.CELLS
     local line, spell, map, node = K.OneLine(), K.SpellRowOn(), K.MapRowOn(), K.NodeRowOn()
-    K.lineDrawn, K.spellDrawn, K.mapDrawn, K.nodeDrawn = line, spell, map, node
+    local compact = K.CompactOn()
+    K.lineDrawn, K.spellDrawn, K.mapDrawn, K.nodeDrawn, K.compactDrawn = line, spell, map, node, compact
+    -- compact: one line of up to 55 cells, the rows' own textures hidden (K.DrawCompact shows its own)
+    for i, tex in ipairs(K.compactTextures or {}) do
+        tex:ClearAllPoints()
+        tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
+        tex:SetSize(unit, unit)
+        if not compact then tex:Hide() end
+    end
+    if compact then
+        frame:SetSize(unit * K.COMPACT_MAX, unit)
+        for _, list in ipairs({ textures, K.lightTextures, K.trigTextures, K.spellTextures, K.mapTextures, K.nodeTextures,
+            K.holdTextures, K.checkTextures }) do
+            for _, tex in ipairs(list or {}) do tex:Hide() end
+        end
+        return
+    end
     frame:SetSize(unit * (line and (node and K.LINE_CELLS_NODE or map and K.LINE_CELLS_MAP or spell and K.LINE_CELLS_SPELL
         or K.LINE_CELLS) or n), unit)
     for i, tex in ipairs(textures) do
@@ -1177,6 +1473,12 @@ function K.HoldCells(n)
     return { { v / 255, (255 - v) / 255, 90 / 255 }, { (255 - v) / 255, v / 255, 165 / 255 } }
 end
 function K.DrawHold()
+    -- (compact: the chord rides in the line's header, drawn at once as the cells were)
+    if K.CompactOn() then
+        dirty = true
+        if K.Enabled() and frame and frame:IsShown() then K.Redraw() end
+        return
+    end
     local on = K.HoldCellsOn()
     local cells = on and K.HoldCells(K.hold)
     for i, tex in ipairs(K.holdTextures or {}) do
@@ -1237,6 +1539,12 @@ function K.CheckPixelOn()
     return K.Enabled() and K.V2() and type(d) == "table" and d.minimapCheck == 1
 end
 function K.DrawCheck()
+    -- (compact: the swap rides in the line's main bits, drawn at once as the pair was)
+    if K.CompactOn() then
+        dirty = true
+        if K.Enabled() and frame and frame:IsShown() then K.Redraw() end
+        return
+    end
     local on = K.CheckPixelOn()
     local cells = on and CheckCells(K.checkBlue)
     for i, tex in ipairs(K.checkTextures or {}) do
@@ -1321,6 +1629,15 @@ function K.Draw(cells)
     end
 end
 
+-- The compact line's cells (levels 0-7 a channel: level / 7), the cells past its end hidden
+function K.DrawCompact(cells)
+    for i, tex in ipairs(K.compactTextures or {}) do
+        local c = cells and cells[i]
+        if c then tex:SetColorTexture(c[1] / 7, c[2] / 7, c[3] / 7, 1) end
+        tex:SetShown(c ~= nil)
+    end
+end
+
 local function Build()
     if frame or not CreateFrame then return end
     frame = CreateFrame("Frame", "GamepadCompanionHelperLink", nil)
@@ -1390,6 +1707,14 @@ local function Build()
         if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
         tex:Hide()
         K.checkTextures[i] = tex
+    end
+    K.compactTextures = {}
+    for i = 1, K.COMPACT_MAX do
+        local tex = frame:CreateTexture(nil, "OVERLAY")
+        if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+        if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+        tex:Hide()
+        K.compactTextures[i] = tex
     end
     frame:Hide()
     frame:SetScript("OnUpdate", function(_, elapsed) K.HoldTick(); K.Step(elapsed) end)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.76.0 (2026-11-27)
+
+- **Compact strip** (Beta › Link › Strip: Compact; WoW Helper's docs/STRIP-COMPACT.md): every row of the helper link in one line of 8-level cells, 17-55 cells instead of 175. Only once WoW Helper says it reads it; the rows stay the default and decode the same.
+
 ## 0.75.2 (2026-11-26)
 
 - WoW Helper installs ffmpeg itself (winget, Addons page, Auto): the game's own sounds on the pad (the fishing cast, the splash, the reel, voices) with nothing to type.

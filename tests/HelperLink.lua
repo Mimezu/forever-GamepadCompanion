@@ -1022,4 +1022,234 @@ do
     assert(GamepadCompanionCheckMinimap() == false, "check: the action's macro call, nothing")
     WowHelperData = data
 end
-print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors)")
+-- The compact strip (WoW Helper's docs/STRIP-COMPACT.md): every row in one line of 8-level cells.
+-- Decoded, each row equals what its own encoder and decoder give (byte-identical); every level
+-- change is caught by the CRC-16; the fixture is read by WoW Helper (cargo test compact).
+local compactcount, compactflips = 0, 0
+do
+    assert(K.Crc16({ 49, 50, 51, 52, 53, 54, 55, 56, 57 }) == 0x29B1, "CRC-16/CCITT-FALSE check value")
+    seed = 777
+    local function randV2()
+        return { seq = rand(16), left = randTrigger(), right = randTrigger(), touch = rand(4096), sound = rand(4096),
+            gain = rand(8), level = rand(4), side = rand(16), intensity = rand(8), seed = rand(256), mic = rand(4),
+            moment = rand(128), open = rand(2) == 1 }
+    end
+    local function randLight(v)
+        return { version = v, resting = rand(2) == 1, hdOff = rand(2) == 1, hold = rand(256), holdTint = rand(32),
+            holdStrength = rand(8), progress = rand(16), cue = rand(256), cueTint = rand(32), cueStrength = rand(8),
+            holdDots = rand(16), holdMic = rand(8), cueDots = rand(16), cueMic = rand(8) }
+    end
+    local function randPick()
+        local v = rand(102)
+        return { shape = rand(1024), value = v <= 100 and v / 100 or nil, count = rand(16) }
+    end
+    local function randTrig() return { left = randPick(), right = randPick() } end
+    local function randSpell() return { seq = rand(16), phase = rand(4), id = rand(1048576) } end
+    local function randMap()
+        return { facing = rand(1024), x = rand(8192), y = rand(8192), radius = rand(1024), yards = rand(1024),
+            rotates = rand(2) == 1, tracking = rand(4), camera = rand(3) > 0 and rand(1024) or nil }
+    end
+    local function randNodes(v2)
+        local nodes = {}
+        for i = 1, rand(v2 and 5 or 7) do
+            nodes[i] = { dx = rand(255) - 127, dy = rand(255) - 127, kind = rand(64), wanted = rand(2) == 1, gatherable = rand(2) == 1 }
+        end
+        local prefs
+        if v2 then
+            prefs = { mode = {}, gatherable = {} }
+            for k = 0, K.NODE_SLOTS - 1 do prefs.mode[k] = rand(3); prefs.gatherable[k] = rand(2) == 1 end
+        end
+        return { nodes = nodes, prefs = prefs }
+    end
+    local function randParts(flags)
+        return { state = randV2(), light = flags % 2 == 1 and randLight(rand(2)) or nil,
+            trig = math.floor(flags / 2) % 2 == 1 and randTrig() or nil,
+            spell = math.floor(flags / 4) % 2 == 1 and randSpell() or nil,
+            map = math.floor(flags / 8) % 2 == 1 and randMap() or nil,
+            node = math.floor(flags / 16) % 2 == 1 and randNodes(rand(2) == 1) or nil,
+            hold = rand(10), check = rand(2) == 1 }
+    end
+    -- the rows' own decoders, on the rows' own cells: what the compact line must give back
+    local function own(parts)
+        return { state = assert(K.DecodeV2(K.EncodeV2(parts.state))),
+            light = parts.light and assert(K.DecodeLight(K.EncodeLight(parts.light))) or nil,
+            trig = parts.trig and assert(K.DecodeTrigRow(K.EncodeTrigRow(parts.trig))) or nil,
+            spell = parts.spell and assert(K.DecodeSpellRow(K.EncodeSpellRow(parts.spell))) or nil,
+            map = parts.map and assert(K.DecodeMapRow(K.EncodeMapRow(parts.map))) or nil,
+            node = parts.node and assert(K.DecodeNodeRow(K.EncodeNodeRow(parts.node.nodes, parts.node.prefs))) or nil,
+            hold = parts.hold, check = parts.check }
+    end
+    local function digits(cells)
+        local t = {}
+        for i, c in ipairs(cells) do t[i] = tostring(c[1] * 4 + c[2] * 2 + c[3]) end
+        return table.concat(t)
+    end
+    local function octal(cells)
+        local t = {}
+        for i, c in ipairs(cells) do t[i] = c[1] .. c[2] .. c[3] end
+        return table.concat(t)
+    end
+    local lines = {}
+    local function vector(p)
+        lines[#lines + 1] = table.concat({ digits(K.EncodeV2(p.state)), p.light and digits(K.EncodeLight(p.light)) or "-",
+            p.trig and digits(K.EncodeTrigRow(p.trig)) or "-", p.spell and digits(K.EncodeSpellRow(p.spell)) or "-",
+            p.map and digits(K.EncodeMapRow(p.map)) or "-",
+            p.node and digits(K.EncodeNodeRow(p.node.nodes, p.node.prefs)) or "-",
+            tostring(p.hold), p.check and "1" or "0" }, " ") .. " : " .. octal(K.EncodeCompact(p))
+    end
+    local sizes = {}
+    for i = 1, 3000 do
+        local flags = (i <= 32) and (i - 1) or rand(32)
+        local parts = randParts(flags)
+        local cells = K.EncodeCompact(parts)
+        for k, c in ipairs(cells) do
+            for ch = 1, 3 do assert(c[ch] >= 0 and c[ch] <= 7 and c[ch] == math.floor(c[ch]), "levels 0-7") end
+            if k <= 4 then eq(c, K.COMPACT_HEAD[k], "head cell " .. k) end
+        end
+        local _, ncells = K.CompactLength(flags)
+        assert(#cells == ncells and ncells >= K.COMPACT_MIN and ncells <= K.COMPACT_MAX, "cells: " .. #cells .. " for flags " .. flags)
+        sizes[flags] = ncells
+        local d = assert(K.DecodeCompact(cells))
+        eq(d, own(parts), "compact " .. flags)
+        -- one level changed anywhere in the stream: caught (the CRC, or the length it implies)
+        local k, ch = 5 + rand(ncells - 4), 1 + rand(3)
+        local was = cells[k][ch]
+        cells[k][ch] = (was + 1 + rand(7)) % 8
+        local bad, why = K.DecodeCompact(cells)
+        assert(bad == nil and (why == "crc" or why == "length" or why == "value"), "a level change caught: " .. tostring(why))
+        compactflips = compactflips + 1
+        cells[k][ch] = was
+        if i <= 32 * 4 then vector(parts) end
+        compactcount = compactcount + 1
+    end
+    assert(sizes[0] == 17 and sizes[31] == 55 and sizes[7] == 31, "17 cells bare, 31 with lights, triggers and spells, 55 with every row")
+    -- the edges: everything zero, everything at its top
+    local zero = { state = { seq = 0, left = {}, right = {}, touch = 0, sound = 0, gain = 0, level = 0, side = 0, intensity = 0, seed = 0, mic = 0, moment = 0, open = false },
+        light = { version = 0 }, trig = { left = { shape = 0, value = 0, count = 0 }, right = {} }, spell = { seq = 0, phase = 0, id = 0 },
+        map = { facing = 0, x = 0, y = 0, radius = 0, yards = 0, rotates = false, tracking = 0 }, node = { nodes = {} }, hold = 0, check = false }
+    local six = {}
+    for i = 1, 6 do six[i] = { dx = 127, dy = -127, kind = 63, wanted = true, gatherable = true } end
+    local top = { state = { seq = 15, left = { mode = 7, start = 15, finish = 15, force = 15 }, right = { mode = 7, start = 15, finish = 15, force = 15 },
+            touch = 4095, sound = 4095, gain = 7, level = 3, side = 15, intensity = 7, seed = 255, mic = 3, moment = 127, open = true },
+        light = { version = 1, resting = true, hdOff = true, hold = 255, holdTint = 31, holdStrength = 7, progress = 15, cue = 255, cueTint = 31,
+            cueStrength = 7, holdDots = 15, holdMic = 7, cueDots = 15, cueMic = 7 },
+        trig = { left = { shape = 1023, value = 1, count = 15 }, right = { shape = 1023, value = nil, count = 15 } },
+        spell = { seq = 15, phase = 3, id = K.SPELL_ID_MAX },
+        map = { facing = 1023, x = 8191, y = 8191, radius = 1023, yards = 1023, rotates = true, tracking = 3, camera = 1023 },
+        node = { nodes = six }, hold = 9, check = true }
+    for _, p in ipairs({ zero, top }) do
+        eq(assert(K.DecodeCompact(K.EncodeCompact(p))), own(p), "edge")
+        vector(p)
+    end
+    -- (clamps as the rows': a value past its range reads as the rows read it)
+    local wild = { state = { seq = 17, left = { mode = 9, start = -3 }, right = {}, touch = 9000, moment = 300 }, trig = { left = { shape = 5000, value = 2 } },
+        spell = { seq = 1, phase = 2, id = 1311676 }, map = { x = 9000, y = -5, facing = 2000 }, hold = 12 }
+    local w = assert(K.DecodeCompact(K.EncodeCompact(wild)))
+    eq(w.state, K.DecodeV2(K.EncodeV2(wild.state)), "wild state")
+    eq(w.trig, K.DecodeTrigRow(K.EncodeTrigRow(wild.trig)), "wild trig")
+    eq(w.spell, K.DecodeSpellRow(K.EncodeSpellRow(wild.spell)), "wild spell")
+    eq(w.map, K.DecodeMapRow(K.EncodeMapRow(wild.map)), "wild map")
+    assert(w.hold == 9 and w.light == nil and w.node == nil and w.check == false, "wild: hold capped at 9, no rows")
+    -- malformed: a head cell off, a cell short, a value past 7
+    local c = K.EncodeCompact(zero); c[2] = { 0, 7, 7 }
+    assert(select(2, K.DecodeCompact(c)) == "marker", "marker")
+    c = K.EncodeCompact(zero); c[#c] = nil
+    assert(select(2, K.DecodeCompact(c)) == "length", "a cell short")
+    c = K.EncodeCompact(zero); c[#c + 1] = { 0, 0, 0 }
+    assert(select(2, K.DecodeCompact(c)) == "length", "a cell long")
+    c = K.EncodeCompact(zero); c[6][2] = 8
+    assert(select(2, K.DecodeCompact(c)) == "value", "value")
+    assert(select(2, K.DecodeCompact({})) == "length", "empty")
+
+    -- the fixture WoW Helper reads (tests/fixtures/helperlink-compact-vectors.txt; --write regenerates it)
+    local path = root .. "/tests/fixtures/helperlink-compact-vectors.txt"
+    local text = { "# HelperLink compact vectors: v2 light trig spell map node (each row's cells as r*4+g*2+b, - for none) hold check : the compact line, each cell's levels rgb (0-7)",
+        "# Written by: lua5.1 tests/HelperLink.lua . --write ; read by: WoW Helper cargo test compact" }
+    for _, l in ipairs(lines) do text[#text + 1] = l end
+    text = table.concat(text, "\n") .. "\n"
+    if write then
+        local f = assert(io.open(path, "wb")); f:write(text); f:close()
+        print("wrote " .. path)
+    else
+        local f = io.open(path, "rb")
+        assert(f, "compact fixture missing: run with --write")
+        local old = f:read("*a"):gsub("\r\n", "\n"); f:close()
+        assert(old == text, "compact fixture differs from this encoder: regenerate with --write and rerun cargo test")
+    end
+    assert(#lines == 130, "130 compact vectors: " .. #lines)
+
+    -- live: Lab › Strip "Compact", only once WoW Helper says it reads it; one line of 55 cells at
+    -- most, levels drawn as level / 7, every other texture hidden; the hold and the check pixel
+    -- ride in it, redrawn at once; back to the rows when it is turned off
+    local data = WowHelperData
+    K.SetEnabled(true)
+    K.SetStrip("compact")
+    assert(GamepadCompanionHapticsDB.link.strip == "compact" and K.Strip() == "compact", "saved")
+    assert(not K.CompactOn(), "WoW Helper hasn't said it reads it: not compact")
+    K.MarkDirty(); K.Step(0)
+    assert(not K.compactTextures[1]:IsShown() and K.frame.width > 0, "the rows as before")
+    WowHelperData = { compactStrip = 1, lightRow = 1, spellRow = true, holdCells = 1, minimapCheck = 1 }
+    K.MarkDirty(); K.Step(0)
+    assert(K.CompactOn(), "compact")
+    local unit = K.frame.height
+    assert(math.abs(K.frame.width - 55 * unit) < 1e-6, "55 cells wide")
+    local ct = K.compactTextures
+    assert(math.abs(ct[2].points[1][4] - unit) < 1e-6 and ct[2].points[1][5] == 0, "cells along the line")
+    local function drawnCells()
+        local cells = {}
+        for i, tex in ipairs(ct) do
+            if not tex:IsShown() then break end
+            local col = tex.color
+            cells[i] = { math.floor(col[1] * 7 + 0.5), math.floor(col[2] * 7 + 0.5), math.floor(col[3] * 7 + 0.5) }
+        end
+        return cells
+    end
+    local d = assert(K.DecodeCompact(drawnCells()))
+    assert(#drawnCells() == 20 and d.spell and d.light == nil and d.trig == nil, "lights off, no trigger shape: spell row only (20 cells)")
+    for _, tex in ipairs(K.lightTextures) do assert(not tex:IsShown(), "the light row's textures hidden") end
+    for _, tex in ipairs(K.holdTextures) do assert(not tex:IsShown(), "the hold cells hidden") end
+    K.SetTrigRow({ right = { shape = 6, value = 0.42 } })
+    K.SetLight({ version = 1, hold = 5, holdTint = 3, holdStrength = 2, holdDots = 4, holdMic = 1 })
+    K.Step(0)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(d.trig.right.shape == 6 and d.trig.right.value == 0.42 and d.light.hold == 5 and d.light.holdDots == 4, "rows in the line")
+    assert(#drawnCells() == 31 and not ct[32]:IsShown(), "lights, triggers and spells: 31 cells, the rest hidden")
+    -- the hold chord at once (no Step), and let go
+    K.Hold(3)
+    assert(K.DecodeCompact(drawnCells()).hold == 3, "hold drawn at once")
+    for _ = 1, 5 do K.HoldTick() end
+    K.Hold(0)
+    assert(K.DecodeCompact(drawnCells()).hold == 0, "let go")
+    -- the check pixel's swap at once
+    local before = K.DecodeCompact(drawnCells()).check
+    assert(K.AskCheck() == true and K.DecodeCompact(drawnCells()).check == (not before), "check swapped at once")
+    -- a cue: the main fields as in the wide strip
+    assert(K.Cue({ moment = 42, touch = 300, sound = 900, gain = 5 }))
+    K.Step(1)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(d.state.moment == 42 and d.state.touch == 300 and d.state.sound == 900 and d.state.gain == 5, "a cue in the line")
+    eq(d.state, K.DecodeV2(K.EncodeV2(K.state)), "the line's main fields are the wide strip's")
+    -- the map and node rows: 55 cells
+    ns.NodeSense = { Prefs = function() return { mode = { [5] = 1 }, gatherable = {} } end }
+    WowHelperData.mapRow, WowHelperData.nodeRow = 2, 2
+    K.SetMap({ facing = 256, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1 })
+    K.SetNodes({ { dx = 5, dy = 5, kind = 4 } })
+    K.Step(0)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(#drawnCells() == 55 and d.map.x == 1800 and d.node[1].kind == 4 and d.node.prefs.mode[5] == 1, "map and nodes: 55 cells")
+    for _ = 1, 10 do K.Step(1) end
+    K.SetMap(nil); K.SetNodes(nil); ns.NodeSense = nil
+    K.SetTrigRow(nil); K.SetLight(nil)
+    K.Step(0)
+    assert(#drawnCells() == 20, "back to 20")
+    -- WoW Helper says no more: the rows again, the compact line hidden
+    WowHelperData.compactStrip = nil
+    K.MarkDirty(); K.Step(0)
+    assert(not K.CompactOn() and not ct[1]:IsShown() and math.abs(K.frame.width - 34 * unit) < 1e-6, "stacked again")
+    K.SetStrip("stacked")
+    WowHelperData = data
+    K.SetEnabled(false)
+    print("PASS: compact strip: " .. compactcount .. " lines byte-identical to the rows, " .. compactflips .. " level changes caught, 17-55 cells, live")
+end
+
+print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors, " .. compactcount .. " compact lines)")
