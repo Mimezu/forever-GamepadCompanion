@@ -1346,100 +1346,15 @@ function L.WaterState()
     return { api = api, submerged = submerged, swimming = swimming, wading = L.IsWading(submerged, swimming) }
 end
 
--- Riding: the mount's own gait, from its model (MountGaits.lua: each mount's walk and run, the
--- cycle at the animation's own move speed and the hooves in it, each on its side). The cycle
--- plays at speed / its own from the move's start, as the game plays the animation; the hoof
--- that lands after the longest flight is the heavy one.
--- (the riding horse's: a mount not in the list, travel form, Ghost Wolf)
-local HORSE = { run = { 800, 9.03, { 134, 234, 334, 500 }, "RLLR" }, walk = { 800, 2.5, { 67, 333, 467, 733 }, "RRLL" } }
-L.RIDE_WALK, L.HEAVY_PULSE = 4.5, 0.08
-
--- The mount you sit on: its spell, from your auras (nil: none known)
-function L.MountSpell()
-    local list = ns.MountGaits and ns.MountGaits.spells
-    if not list then return nil end
-    local get = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
-    for i = 1, 40 do
-        local id
-        if get then
-            local ok, a = pcall(get, "player", i, "HELPFUL")
-            if not ok or not a then return nil end
-            id = a.spellId
-        elseif UnitAura then
-            local ok, name, _, _, _, _, _, _, _, _, sid = pcall(UnitAura, "player", i, "HELPFUL")
-            if not ok or not name then return nil end
-            id = sid
-        else
-            return nil
-        end
-        if id and not secret(id) and list[id] then return id end
-    end
-end
-
--- A mount's gait at a speed: { cycle ms, its move speed, { hooves ms }, sides }
-function L.RideGait(spell, speed)
-    local m = spell and ns.MountGaits and ns.MountGaits.spells[spell] or HORSE
-    return speed < L.RIDE_WALK and m.walk or m.run
-end
-
--- A cycle's seconds at a speed (a move speed of 0: the animation is not scaled)
-function L.RideCycle(g, speed)
-    local s = g[1] / 1000
-    if g[2] > 0 then s = s * g[2] / max(0.5, speed) end
-    return s
-end
-
--- The heavy hoof: the one after the longest gap
-local heavyOf = setmetatable({}, { __mode = "k" })
-function L.RideHeavy(g)
-    if heavyOf[g] then return heavyOf[g] end
-    local falls, best, at = g[3], -1, 1
-    for i = 1, #falls do
-        local gap = falls[i] - (falls[i - 1] or (falls[#falls] - g[1]))
-        if gap > best then best, at = gap, i end
-    end
-    heavyOf[g] = at
-    return at
-end
-
--- The hoof sounding now and the seconds since it (nil before the first). The clock runs in
--- cycles: a new speed changes its pace, never its place; a new gait starts its cycle now.
-function L.RideHoof(g, v, now, speed, moveStart)
-    local cycle = L.RideCycle(g, speed)
-    if v.gait ~= g then
-        v.phase = v.gait and 0 or (now - (moveStart or now)) / cycle
-        v.gait = g
-    else
-        v.phase = v.phase + (now - v.at) / cycle
-    end
-    v.at = now
-    if v.phase < 0 then return nil end
-    local t, falls = (v.phase % 1) * g[1], g[3]
-    for i = #falls, 1, -1 do
-        if falls[i] <= t then return i, (t - falls[i]) / g[1] * cycle end
-    end
-    return #falls, (t + g[1] - falls[#falls]) / g[1] * cycle
-end
-
+-- Three hooves, left to right, a stride quicker with speed
 local function Gallop(now, v)
     if not (live.moving and live.mounted) then return nil end
-    -- (the mount: read once a ride, again each second while unknown)
-    if not live.mountSpell and now - (live.mountLookAt or 0) > 1 then
-        live.mountLookAt = now
-        live.mountSpell = L.MountSpell()
-    end
-    local g = L.RideGait(live.mountSpell, live.speed)
-    local i, d = L.RideHoof(g, v, now + (ns.Timing and ns.Timing.Lead() or 0), live.speed, live.moveStart)
-    if not i then return 0, 0 end
-    local left = g[4]:sub(i, i) ~= "R"
-    if i == L.RideHeavy(g) then
-        if d < L.HEAVY_PULSE then return left and 0.4 or 0.3, left and 0.3 or 0.4 end
-    elseif d < PULSE then
-        return left and 0.14 or 0.08, left and 0.08 or 0.14
-    end
+    local d = Beat(v, now, max(0.36, 1 / max(0.8, live.speed / 9)))
+    if d < PULSE then return 0.14, 0.08 end
+    if d >= 0.11 and d < 0.11 + PULSE then return 0.08, 0.12 end
+    if d >= 0.22 and d < 0.22 + 0.09 then return 0.4, 0.3 end
     return 0, 0
 end
-L.GallopForTest = Gallop
 
 -- A cast: ticks closer and stronger toward its end
 local function Tension(now)
@@ -2063,8 +1978,6 @@ local function Poll()
     live.speed = speed
     live.mounted = mounted or rides
     mounted = live.mounted
-    -- (off the mount: the next one is read anew)
-    if not mounted then live.mountSpell, live.mountLookAt = nil, nil end
     live.moving = speed > 0 and not falling and not swimming and not flying and not taxi
     live.swimming = swimming and speed > 0
     L.water = L.WaterState()
