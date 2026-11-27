@@ -2,7 +2,7 @@
 
 ## 0.78.0 (2026-11-27)
 
-- **Compass arrows stay while you stand.** The compact line carries a world section with the map row (second header flag 2, 38 bits: the zone's uiMapID, your place on its map, whether the minimap shows, is faded or hidden, and whether you move) once WoW Helper says it reads it (`WowHelperData.compactWorld = 1`). The map row then keeps coming while Frame Gambit fades the minimap out, with the state in it; WoW Helper stops reading the faded minimap and keeps drawing the arrows it knows, turned with the camera, until it shows again. Without that helper (or outside the compact line) the row stops as before. 22 cells bare, 67 at most.
+- **Compass arrows stay while you stand.** The compact line carries a world section with the map row (second header flag 2, 47 bits: the zone's uiMapID, where you stand in world yards (UnitPosition, half a yard a step), whether the minimap shows, is faded or hidden, and whether you move) once WoW Helper says it reads it (`WowHelperData.compactWorld = 1`). The map row then keeps coming while Frame Gambit fades the minimap out, with the state in it; WoW Helper stops reading the faded minimap and keeps drawing the arrows it knows, turned with the camera, until it shows again. WoW Helper keeps its nodes in yards from the position (exact, no drift; trusted once it agrees with the dots' own moves), and learns which ore kinds each zone has shown (hovers, gathers): a zone with one kind names new dots without a hover. Without that helper (or outside the compact line) the row stops as before. 23 cells bare, 68 at most.
 
 ## 0.77.0 (2026-11-27)
 

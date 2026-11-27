@@ -586,15 +586,15 @@ end
 -- section rides, so a line without one is the first compact line, cell for cell. The goblin row
 -- (its HelperRow.lua, WoW Helper's docs/GOBLIN.md): its bits 0-59 (seq 4, event 4, mode 2, six
 -- flags, index 8, id 20, value 16), 60 bits, 62 cells at most. The world section (NodeCompass.lua,
--- WoW Helper's docs/NODE-COMPASS.md), 38 bits, with the map row: zone (uiMapID) 11, map x 12,
--- map y 12 (0-4095 across the zone map; both 0: unknown), minimap 2 (0 shown, 1 faded by an
--- addon, 2 hidden), moving 1; 67 cells at most.
+-- WoW Helper's docs/NODE-COMPASS.md), 47 bits, with the map row: zone (uiMapID) 11, east 16 and
+-- north 16 (the character in world yards, half a yard a step, wrapping at 32768 yd), position
+-- known 1, minimap 2 (0 shown, 1 faded by an addon, 2 hidden), moving 1; 68 cells at most.
 ---------------------------------------------------------------------------
 K.COMPACT_LEVELS = 8
 K.COMPACT_HEAD = { { 7, 0, 7 }, { 7, 7, 0 }, { 1, 3, 5 }, { 6, 4, 2 } }
-K.COMPACT_MIN, K.COMPACT_MAX = 17, 67
+K.COMPACT_MIN, K.COMPACT_MAX = 17, 68
 K.COMPACT_EXT = 15   -- the hold nibble that says a second header cell follows
-local CBITS = { head = 9, ext = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, goblin = 60, world = 38, crc = 16 }
+local CBITS = { head = 9, ext = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, goblin = 60, world = 47, crc = 16 }
 K.COMPACT_BITS = CBITS
 local CSECTIONS = { "light", "trig", "spell", "map", "node" }
 local XSECTIONS = { "goblin", "world" }   -- the second header's flags, in order
@@ -659,8 +659,8 @@ end
 
 -- parts = { state (K.state's fields), light (a light row or nil), trig ({ left, right } or nil),
 -- spell ({ seq, phase, id } or nil), map (or nil), node ({ nodes, prefs } or nil), hold 0-9,
--- check (boolean), goblin (Ten Minute Goblin's row fields or nil), world ({ zone, x, y, minimap,
--- moving } or nil) } -> cells of { r, g, b } levels 0-7
+-- check (boolean), goblin (Ten Minute Goblin's row fields or nil), world ({ zone, east, north,
+-- known, minimap, moving } or nil) } -> cells of { r, g, b } levels 0-7
 function K.EncodeCompact(parts)
     parts = parts or {}
     local bits = {}
@@ -783,10 +783,11 @@ function K.EncodeCompact(parts)
     local w = parts.world
     if w then
         Put(bits, at, Int(w.zone, 2047), 11)
-        Put(bits, at + 11, Int(w.x, 4095), 12)
-        Put(bits, at + 23, Int(w.y, 4095), 12)
-        Put(bits, at + 35, Int(w.minimap, 3), 2)
-        Put(bits, at + 37, w.moving and 1 or 0, 1)
+        Put(bits, at + 11, Int(w.east, 65535), 16)
+        Put(bits, at + 27, Int(w.north, 65535), 16)
+        Put(bits, at + 43, w.known and 1 or 0, 1)
+        Put(bits, at + 44, Int(w.minimap, 3), 2)
+        Put(bits, at + 46, w.moving and 1 or 0, 1)
         at = at + CBITS.world
     end
     Put(bits, at, Crc16Bits(bits, at), 16)
@@ -899,8 +900,8 @@ function K.DecodeCompact(cells)
         at = at + CBITS.goblin
     end
     if floor(xflags / 2) % 2 == 1 then
-        out.world = { zone = Get(bits, at, 11), x = Get(bits, at + 11, 12), y = Get(bits, at + 23, 12),
-            minimap = Get(bits, at + 35, 2), moving = Get(bits, at + 37, 1) == 1 }
+        out.world = { zone = Get(bits, at, 11), east = Get(bits, at + 11, 16), north = Get(bits, at + 27, 16),
+            known = Get(bits, at + 43, 1) == 1, minimap = Get(bits, at + 44, 2), moving = Get(bits, at + 46, 1) == 1 }
         at = at + CBITS.world
     end
     return out
@@ -1015,9 +1016,9 @@ function K.WorldOn()
     return K.CompactOn() and type(d) == "table" and d.compactWorld == 1
 end
 
--- The world section's fields from the map row's state
+-- The world section's fields from the map row's state (the position known when NodeCompass gave one)
 function K.WorldOf(m)
-    return { zone = m.zone, x = m.mx, y = m.my, minimap = m.minimap, moving = m.moving }
+    return { zone = m.zone, east = m.east, north = m.north, known = m.east ~= nil and m.north ~= nil, minimap = m.minimap, moving = m.moving }
 end
 
 -- The map row's state (NodeCompass.lua), or nil: none. Redrawn when a field changes.
@@ -1032,10 +1033,10 @@ function K.SetMap(m)
     local key = Int(m.facing, 1023) .. ":" .. Int(m.x, 8191) .. ":" .. Int(m.y, 8191) .. ":" .. Int(m.radius, 1023)
         .. ":" .. Int(m.yards, 1023) .. ":" .. (m.rotates and 1 or 0) .. ":" .. Int(m.tracking, 3)
         .. ":" .. (m.camera and Int(m.camera, 1023) or "-")
-        .. ":" .. Int(m.minimap, 3) .. ":" .. Int(m.zone, 2047) .. ":" .. Int(m.mx, 4095) .. ":" .. Int(m.my, 4095) .. ":" .. (m.moving and 1 or 0)
+        .. ":" .. Int(m.minimap, 3) .. ":" .. Int(m.zone, 2047) .. ":" .. (m.east and Int(m.east, 65535) or "-") .. ":" .. (m.north and Int(m.north, 65535) or "-") .. ":" .. (m.moving and 1 or 0)
     if K.map and K.map.key == key then return end
     K.map = { key = key, facing = m.facing, x = m.x, y = m.y, radius = m.radius, yards = m.yards, rotates = m.rotates,
-        tracking = m.tracking, camera = m.camera, minimap = m.minimap, zone = m.zone, mx = m.mx, my = m.my, moving = m.moving }
+        tracking = m.tracking, camera = m.camera, minimap = m.minimap, zone = m.zone, east = m.east, north = m.north, moving = m.moving }
     dirty = true
 end
 

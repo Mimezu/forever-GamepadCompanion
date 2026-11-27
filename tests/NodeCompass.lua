@@ -25,16 +25,19 @@ Minimap = {
     GetEffectiveScale = function() return 1 end,
     GetWidth = function() return 140 end,
 }
--- the world: Elwynn Forest (37), the character at 0.42, 0.65 on its map, standing
-local mapID, posX, posY, speed = 37, 0.42, 0.65, 0
+-- the world: Elwynn Forest (37), the character at world posY -9000.25 (west), posX 1200.5
+-- (north), standing. UnitPosition gives posY first.
+local mapID, posY, posX, speed = 37, -9000.25, 1200.5, 0
 C_Map = {
     GetBestMapForUnit = function() return mapID end,
     GetPlayerMapPosition = function(id, unit)
         assert(id == mapID and unit == "player", "GetPlayerMapPosition(uiMapID, unit)")
-        if not posX then return nil end
-        return { x = posX, y = posY, GetXY = function(self) return self.x, self.y end }
+        return { x = 0.42, y = 0.65, GetXY = function(self) return self.x, self.y end }
     end,
+    -- (the game's own map-to-world, the fallback: the same place)
+    GetWorldPosFromMapPos = function(id, pos) return 0, { x = posX, y = posY } end,
 }
+function UnitPosition() return posY, posX, 0, 0 end
 function GetUnitSpeed() return speed end
 local sent = {}
 local ns = { HelperLink = { SetMap = function(m) sent[#sent + 1] = m or false end } }
@@ -58,19 +61,29 @@ assert(m.x == math.floor(1200 * k + 0.5) and m.y == math.floor(1440 - 700 * k + 
 assert(m.radius == math.floor(70 * k + 0.5), "radius " .. m.radius)
 assert(m.facing == 256 and m.tracking == 1 and m.rotates == false, "facing a quarter turn")
 assert(m.yards == 467, "outdoor zoom 0: 467 yards across")
--- the world section's fields: the zone, the place on its map in 4096ths, the minimap shown, standing
-assert(m.minimap == 0 and m.zone == 37 and m.mx == math.floor(0.42 * 4096) and m.my == math.floor(0.65 * 4096) and m.moving == false,
-    "world: " .. tostring(m.zone) .. " " .. tostring(m.mx) .. "," .. tostring(m.my) .. " minimap " .. tostring(m.minimap))
+-- the world section's fields: the zone, the place in half yards (east = -posY = 9000.25 ->
+-- 18001 (rounded: 18000.5 -> 18001); north = posX = 1200.5 -> 2401), the minimap shown, standing
+assert(m.minimap == 0 and m.zone == 37 and m.east == 18001 and m.north == 2401 and m.moving == false,
+    "world: " .. tostring(m.zone) .. " " .. tostring(m.east) .. "," .. tostring(m.north) .. " minimap " .. tostring(m.minimap))
 speed = 7
 assert(N.Row().moving == true, "moving")
 speed = 0
-posX = nil
+-- far west: the half yards wrap at 32768 yd (the helper takes the differences)
+posY = 20000
+assert(N.Row().east == (-40000) % 65536, "wrapping: " .. tostring(N.Row().east))
+posY = -9000.25
+-- UnitPosition says nothing (a secret value in an instance): the game's own map-to-world instead
+local up = UnitPosition
+UnitPosition = function() return nil end
 m = N.Row()
-assert(m.zone == 37 and m.mx == nil and m.my == nil, "no position (an instance): the zone alone")
-posX = 0.42
+assert(m.east == 18001 and m.north == 2401, "the map position through GetWorldPosFromMapPos: " .. tostring(m.east))
+C_Map.GetWorldPosFromMapPos = nil
+m = N.Row()
+assert(m.zone == 37 and m.east == nil and m.north == nil, "no position: the zone alone")
+UnitPosition = up
 mapID = nil
 m = N.Row()
-assert(m.zone == nil and m.mx == nil, "no map: no world")
+assert(m.zone == nil and m.east == 18001, "no map: no zone, the position still")
 mapID = 37
 zoom = 2
 assert(N.Row().yards == 180, "indoor (the minimap shows the inside zoom): 180")

@@ -5,10 +5,11 @@
 -- node dots in its capture of the minimap and draws arrows on the screen's edge. Nothing here
 -- reads the dots: no API does.
 -- With it the world (the compact line's world section, HelperLink.lua): whether the minimap
--- shows, is faded out (Frame Gambit while you stand) or hidden, the zone (uiMapID), the place on
--- its map and whether the character moves. With a WoW Helper that reads it, the row keeps coming
--- while the minimap is faded or hidden: the helper then draws its arrows from what it remembers
--- instead of dropping them (2026-11-27).
+-- shows, is faded out (Frame Gambit while you stand) or hidden, the zone (uiMapID), where the
+-- character stands in world yards (UnitPosition; east and north at half a yard, wrapping) and
+-- whether it moves. With a WoW Helper that reads it, the row keeps coming while the minimap is
+-- faded or hidden: the helper then draws its arrows from what it remembers instead of dropping
+-- them, and keeps its nodes in yards from the position, exact (2026-11-27).
 --
 -- The camera: no API gives its yaw, so it is worked out from the pad. Moving with the left stick
 -- is camera-relative and the character turns to face where it goes (GamePadFaceMovementMaxAngle,
@@ -183,26 +184,44 @@ local function Ask(fn, ...)
     return nil
 end
 
--- Where the character is: the zone's uiMapID and the place on its map, 0-4095 across (nil: the
--- game doesn't say: an instance, a secret value)
-function N.World()
+-- Where the character stands in world yards: east and north (the world's axes: UnitPosition gives
+-- posY (west) then posX (north), so east = -posY, north = posX); nil: the game doesn't say (an
+-- instance, a secret value). Without UnitPosition, the map position through the game's own
+-- map-to-world (C_Map.GetWorldPosFromMapPos: no table of zone sizes)
+function N.Position()
+    if UnitPosition then
+        local ok, py, px = pcall(UnitPosition, "player")
+        if ok and Public(py) and Public(px) and type(py) == "number" and type(px) == "number" then return -py, px end
+    end
     local C = C_Map
-    if not (C and C.GetBestMapForUnit and C.GetPlayerMapPosition) then return nil end
+    if not (C and C.GetBestMapForUnit and C.GetPlayerMapPosition and C.GetWorldPosFromMapPos) then return nil end
     local map = Ask(C.GetBestMapForUnit, "player")
     if type(map) ~= "number" or map <= 0 then return nil end
     local pos = Ask(C.GetPlayerMapPosition, map, "player")
-    local x, y
-    if type(pos) == "table" or type(pos) == "userdata" then
-        x, y = pos.x, pos.y
-        if pos.GetXY then
-            local ok, a, b = pcall(pos.GetXY, pos)
-            if ok then x, y = a, b end
-        end
+    if type(pos) ~= "table" and type(pos) ~= "userdata" then return nil end
+    local ok, _, world = pcall(C.GetWorldPosFromMapPos, map, pos)
+    if not ok or (type(world) ~= "table" and type(world) ~= "userdata") then return nil end
+    local wx, wy = world.x, world.y
+    if world.GetXY then
+        local ok2, a, b = pcall(world.GetXY, world)
+        if ok2 then wx, wy = a, b end
     end
-    if not (Public(x) and Public(y) and type(x) == "number" and type(y) == "number" and x > 0 and x < 1 and y > 0 and y < 1) then
-        return map, nil, nil
+    if Public(wx) and Public(wy) and type(wx) == "number" and type(wy) == "number" then return -wy, wx end
+    return nil
+end
+
+-- The world section's place fields: the zone's uiMapID (nil: unknown) and the position in half
+-- yards, 0-65535 wrapping (nil, nil: unknown)
+function N.World()
+    local zone
+    local C = C_Map
+    if C and C.GetBestMapForUnit then
+        zone = Ask(C.GetBestMapForUnit, "player")
+        if type(zone) ~= "number" or zone <= 0 then zone = nil end
     end
-    return map, floor(x * 4096), floor(y * 4096)
+    local east, north = N.Position()
+    if not east then return zone, nil, nil end
+    return zone, floor(east * 2 + 0.5) % 65536, floor(north * 2 + 0.5) % 65536
 end
 
 -- Yards across at this zoom: the outdoor table when the outdoor zoom CVar is what the minimap
@@ -231,7 +250,7 @@ function N.Row()
     if not cx or not ph or ph <= 0 then return nil end
     local k = mm:GetEffectiveScale() * ph / 768   -- UI units -> physical pixels
     local cam = N.Camera(facing)
-    local zone, mx, my = N.World()
+    local zone, east, north = N.World()
     return {
         facing = Round(facing / (2 * pi) * 1024) % 1024,
         x = Round(cx * k), y = Round(ph - cy * k),
@@ -241,7 +260,7 @@ function N.Row()
         tracking = N.tracking,
         camera = cam and Round(cam / (2 * pi) * 1024) % 1024 or nil,
         -- the world section (the compact line only)
-        minimap = minimap, zone = zone, mx = mx, my = my, moving = N.Moving(),
+        minimap = minimap, zone = zone, east = east, north = north, moving = N.Moving(),
     }
 end
 
