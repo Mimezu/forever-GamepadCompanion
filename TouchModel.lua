@@ -668,12 +668,13 @@ T.MARKS = {
     { key = "mark2", label = "Circle", icon = RT .. "2", macro = "/tm 2" },
     { key = "mark1", label = "Star", icon = RT .. "1", macro = "/tm 1" },
     { key = "mark0", label = "Clear mark", icon = I .. "Spell_ChargeNegative", macro = "/tm 0" },
-    -- (on the target, else where the game aims; Ping: the game picks the kind, as its own button)
-    { key = "ping", label = "Ping", icon = I .. "Ability_Hunter_MarkedForDeath", macro = "/ping" },
-    { key = "pingattack", label = "Ping: Attack", icon = I .. "Ability_DualWield", macro = "/ping attack" },
-    { key = "pingwarning", label = "Ping: Warning", icon = I .. "Spell_Shadow_DeathScream", macro = "/ping warning" },
-    { key = "pingonmyway", label = "Ping: On my way", icon = I .. "Ability_Tracking", macro = "/ping onmyway" },
-    { key = "pingassist", label = "Ping: Assist", icon = I .. "Spell_Holy_HolyBolt", macro = "/ping assist" },
+    -- (on the target, else where the game aims; Ping: the game picks the kind, as its own button.
+    -- wheel: on a pad key held, the game's ping wheel instead: Keys.lua)
+    { key = "ping", label = "Ping", icon = I .. "Ability_Hunter_MarkedForDeath", macro = "/ping", wheel = true },
+    { key = "pingattack", label = "Ping: Attack", icon = I .. "Ability_DualWield", macro = "/ping attack", wheel = true },
+    { key = "pingwarning", label = "Ping: Warning", icon = I .. "Spell_Shadow_DeathScream", macro = "/ping warning", wheel = true },
+    { key = "pingonmyway", label = "Ping: On my way", icon = I .. "Ability_Tracking", macro = "/ping onmyway", wheel = true },
+    { key = "pingassist", label = "Ping: Assist", icon = I .. "Spell_Holy_HolyBolt", macro = "/ping assist", wheel = true },
 }
 T.WINDOW_BY_KEY = {}
 for _, w in ipairs(T.WINDOWS) do T.WINDOW_BY_KEY[w.key] = w end
@@ -806,6 +807,13 @@ T.BINDINGS = {
 }
 T.BINDING_BY_KEY = {}
 for _, b in ipairs(T.BINDINGS) do T.BINDING_BY_KEY[b.key] = b end
+
+-- A ping whose pad key, held, opens the game's ping wheel (Keys.lua)
+function T.HoldsWheel(action)
+    if type(action) ~= "string" then return false end
+    local w = T.WINDOW_BY_KEY[action:match("^window:(.+)$") or ""]
+    return w and w.wheel == true or false
+end
 
 -- The Blizzard binding an action runs ("TOGGLEUIFOCUS"), or nil
 function T.BindingOf(action)

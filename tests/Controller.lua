@@ -606,7 +606,10 @@ eq(ui.name.text, "Empty", "PS unbound")
 -- function natively only on a key that has nothing else; the rest through WoW Helper's chords
 local kb = _G.GamepadCompanionKeys
 local keySnippet = assert(loadstring("local self, button, down = ...\n" .. assert(wraps.GamepadCompanionKeys, "keys snippet wrapped")))
-setfenv(keySnippet, { GetGamePadState = function() return C_GamePad.GetDeviceMappedState() end })
+local mods = false       -- WoW Helper's Alt-Ctrl-Shift down
+local function Mod() return mods end
+setfenv(keySnippet, { GetGamePadState = function() return C_GamePad.GetDeviceMappedState() end,
+    IsAltKeyDown = Mod, IsControlKeyDown = Mod, IsShiftKeyDown = Mod })
 local HL = ns.HelperLink
 local holds = {}         -- each K.Hold(n), in order
 local hold = HL.Hold
@@ -964,6 +967,56 @@ do
         pressed.PADSOCIAL = nil
         Half("PADSOCIAL", false)
     end
+    Reset("PADSOCIAL")
+end
+
+-- A ping on a pad key: a tap sends it on the release; held, the game's ping wheel (chord 3)
+-- as long as the key is, and the release sends nothing of ours
+do
+    local watch = _G.GamepadCompanionKeyHold
+    check(Keys.Set("PADSOCIAL", "rt", "window:pingattack"), "R2 + Create: Ping: Attack")
+    local function Down() pressed.PADRTRIGGER = true; pressed.PADSOCIAL = true; local id = Half("PADSOCIAL", true); return id end
+    local function Up() pressed.PADSOCIAL = nil; local id = Half("PADSOCIAL", false); pressed.PADRTRIGGER = nil; return id end
+    Holds()
+    -- tap
+    local id = Down()
+    eq(kb:GetAttribute("*macrotext-" .. id), "/ping attack", "the ping's macro picked")
+    eq(kb:GetAttribute("useOnKeyDown"), false, "a ping: not on the press")
+    NOW = NOW + 0.05; watch.scripts.OnUpdate(watch, 0.06)
+    eq(Holds(), "", "tapped: no wheel yet")
+    eq(Up(), id, "the tap's release runs the ping")
+    eq(kb:GetAttribute("useOnKeyDown"), false, "on the release")
+    check(watch.scripts.OnUpdate == nil, "not watched after")
+    eq(Holds(), "", "a tap: nothing held")
+    -- hold
+    Down()
+    NOW = NOW + 0.2; watch.scripts.OnUpdate(watch, 0.06)
+    eq(Holds(), "3", "held: the ping wheel")
+    mods = true
+    eq(Up(), false, "the release with the wheel held: nothing of ours")
+    mods = false
+    eq(Holds(), "0", "let go: the wheel sends its ping")
+    -- a held wheel whose release never comes: the pad read up lets go
+    Down()
+    NOW = NOW + 0.2; watch.scripts.OnUpdate(watch, 0.06)
+    eq(Holds(), "3", "held again")
+    pressed.PADSOCIAL = nil
+    watch.scripts.OnUpdate(watch, 0.06)
+    eq(Holds(), "0", "pad up: let go")
+    pressed.PADRTRIGGER = nil
+    -- another action: the game's key-down setting again
+    check(Keys.Set("PADSOCIAL", "lt", "text:/wave"), "L2 + Create: a macro")
+    pressed.PADLTRIGGER = true; pressed.PADSOCIAL = true
+    Half("PADSOCIAL", true)
+    eq(kb:GetAttribute("useOnKeyDown"), nil, "not a ping: the game's setting")
+    pressed.PADSOCIAL = nil; Half("PADSOCIAL", false); pressed.PADLTRIGGER = nil
+    -- without WoW Helper: a plain ping, never held
+    local data = WowHelperData
+    WowHelperData = {}
+    Down(); NOW = NOW + 0.3; if watch.scripts.OnUpdate then watch.scripts.OnUpdate(watch, 0.06) end
+    eq(Holds(), "", "no helper: no wheel")
+    check(Up() ~= false, "no helper: the release runs the ping")
+    WowHelperData = data
     Reset("PADSOCIAL")
 end
 

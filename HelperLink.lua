@@ -1194,13 +1194,13 @@ function K.LayoutHold(unit, line)
 end
 -- Hold chord n (0: let go), drawn at once. A let-go waits till n has been on
 -- screen HOLD_FRAMES rendered frames (WoW Helper reads one a frame): a short tap
--- is still seen
+-- is still seen (now: let go at once, the chord unwanted after all)
 K.HOLD_FRAMES = 2
 K.holdFrames, K.holdLetGo = 0, false
-function K.Hold(n)
+function K.Hold(n, now)
     n = math.floor(tonumber(n) or 0)
     if n < 0 or n > 9 then n = 0 end
-    if n == 0 and K.hold > 0 and K.holdFrames <= K.HOLD_FRAMES and K.HoldCellsOn() then
+    if n == 0 and not now and K.hold > 0 and K.holdFrames <= K.HOLD_FRAMES and K.HoldCellsOn() then
         K.holdLetGo = true
         return
     end

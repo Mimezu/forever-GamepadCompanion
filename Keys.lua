@@ -12,6 +12,9 @@
 --   h<n>   a WoW Helper chord, held while the key is: 1 Focus UI, 2 Radial,
 --          3 Ping wheel; 4-9 the key's own game command (Base empty)
 --   none   nothing
+-- A ping (T.HoldsWheel) runs on the release: a tap sends it; held WHEEL_HOLD s, WoW Helper
+-- holds chord 3 (the game's ping wheel, as Blizzard's own ping key) and the release sends
+-- nothing of ours: the helper's Alt-Ctrl-Shift still down at it, the wheel's ping instead
 -- The helper reads the hold cells (HelperLink K.Hold) and holds the chord
 -- ALT-CTRL-SHIFT-<n>, bound here once: a gamepad function never goes on a pad
 -- key that shares it with other actions.
@@ -55,6 +58,7 @@ click name ("p6"); attributes, set out of combat:
   gpc-<p>-<layer>     that key and layer's pick ("k3", "h1"), or "none"
 The pick is read at the press and kept for its release, so the action runs on
 the half the game's key-down setting says, with the layer of the press.
+  gpc-wheel-<id>      true: a ping, run on the release unless the wheel is held
 gpc-down / gpc-up: the key of the last press / release, for PostClick. ]]
 Keys.SNIPPET = [[
     local pick = "gpc-pick-" .. button
@@ -62,6 +66,12 @@ Keys.SNIPPET = [[
         self:SetAttribute("gpc-up", button)
         local id = self:GetAttribute(pick)
         self:SetAttribute(pick, nil)
+        if id and self:GetAttribute("gpc-wheel-" .. id) then
+            if IsAltKeyDown() and IsControlKeyDown() and IsShiftKeyDown() then return false end
+            self:SetAttribute("useOnKeyDown", false)
+        else
+            self:SetAttribute("useOnKeyDown", nil)
+        end
         return id or false
     end
     self:SetAttribute("gpc-down", button)
@@ -81,6 +91,11 @@ Keys.SNIPPET = [[
         return false
     end
     self:SetAttribute(pick, id)
+    if self:GetAttribute("gpc-wheel-" .. id) then
+        self:SetAttribute("useOnKeyDown", false)
+    else
+        self:SetAttribute("useOnKeyDown", nil)
+    end
     return id
 ]]
 
@@ -93,9 +108,20 @@ SecureHandlerWrapScript(button, "OnClick", button, Keys.SNIPPET)
 -- (two keys: the last press wins, its release lets go). While held, the pad
 -- itself is read every HOLD_POLL s: a release a window ate lets go too
 Keys.HOLD_POLL = 0.05
+-- A ping key held this long: the game's ping wheel (Blizzard's own tap / hold split, 0.15 s)
+Keys.WHEEL_HOLD = 0.15
+Keys.WHEEL_CHORD = 3
+local wheelKey, wheelAt   -- a ping key down, not yet the wheel: its click name, when
+local heldAt = 0
 local watch = CreateFrame("Frame", "GamepadCompanionKeyHold")
+local function HelperOn()
+    local K = ns.HelperLink
+    return K and K.HoldCellsOn and K.HoldCellsOn() or false
+end
+local function Now() return GetTime and GetTime() or 0 end
 local function Release()
-    if not holding then return end
+    wheelKey = nil
+    if not holding then watch:SetScript("OnUpdate", nil); return end
     holding = nil
     watch:SetScript("OnUpdate", nil)
     local K = ns.HelperLink
@@ -107,6 +133,18 @@ local function Watch(_, elapsed)
     since = since + (elapsed or 0)
     if since < Keys.HOLD_POLL then return end
     since = 0
+    if wheelKey then
+        local key = KEY_OF[wheelKey]
+        if Sh.PadDown(Sh.PadButtons(), key) == false then wheelKey = nil
+        elseif Now() - wheelAt >= Keys.WHEEL_HOLD then
+            -- (held: the wheel, as long as the key is)
+            holding, wheelKey, heldAt = wheelKey, nil, Now()
+            local K = ns.HelperLink
+            if K and K.Hold then K.Hold(Keys.WHEEL_CHORD) end
+        end
+        if not wheelKey and not holding then watch:SetScript("OnUpdate", nil) end
+        return
+    end
     if holding and Sh.PadDown(Sh.PadButtons(), KEY_OF[holding]) == false then Release() end
 end
 button:HookScript("PostClick", function(self, _, down)
@@ -114,13 +152,23 @@ button:HookScript("PostClick", function(self, _, down)
         local name = self:GetAttribute("gpc-down")
         local pick = name and self:GetAttribute("gpc-pick-" .. name)
         local n = type(pick) == "string" and tonumber(pick:match("^h(%d)$"))
-        if n then
+        if pick and self:GetAttribute("gpc-wheel-" .. pick) and HelperOn() then
+            -- (a ping: the wheel once held WHEEL_HOLD s; a chord another key holds let go)
+            if holding then Release() end
+            wheelKey, wheelAt, since = name, Now(), 0
+            watch:SetScript("OnUpdate", Watch)
+        elseif n then
             holding, since = name, 0
             watch:SetScript("OnUpdate", Watch)
             local K = ns.HelperLink
             if K and K.Hold then K.Hold(n) end
         end
+    elseif wheelKey and self:GetAttribute("gpc-up") == wheelKey then
+        Release()
     elseif holding and self:GetAttribute("gpc-up") == holding then
+        -- (the wheel let go at once if the helper can't have pressed it yet: the tap's ping ran)
+        local K = ns.HelperLink
+        if K and K.Hold and Now() - heldAt < 0.05 and holding then holding = nil; watch:SetScript("OnUpdate", nil); K.Hold(0, true); return end
         Release()
     end
 end)
@@ -188,10 +236,6 @@ end
 
 -- Does the key's action on a layer run; and a note, a few words, when not
 -- (no action: a note only when Base's game command needs WoW Helper)
-local function HelperOn()
-    local K = ns.HelperLink
-    return K and K.HoldCellsOn and K.HoldCellsOn() or false
-end
 function Keys.Runs(key, layer)
     local action = Keys.Get(key, layer)
     if not action then
@@ -316,6 +360,7 @@ function Keys.Apply()
                         id = "k" .. n
                         button:SetAttribute("*type-" .. id, "macro")
                         button:SetAttribute("*macrotext-" .. id, macro)
+                        button:SetAttribute("gpc-wheel-" .. id, T.HoldsWheel(action) or nil)
                     else
                         id = "none"  -- (nothing to run in this client)
                     end
@@ -332,6 +377,7 @@ function Keys.Apply()
     for i = n + 1, used do
         button:SetAttribute("*type-k" .. i, nil)
         button:SetAttribute("*macrotext-k" .. i, nil)
+        button:SetAttribute("gpc-wheel-k" .. i, nil)
     end
     used = n
     wipe(claimed)
