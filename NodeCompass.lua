@@ -4,6 +4,11 @@
 -- across, whether it rotates, which tracking, and the camera's yaw. WoW Helper finds the live
 -- node dots in its capture of the minimap and draws arrows on the screen's edge. Nothing here
 -- reads the dots: no API does.
+-- With it the world (the compact line's world section, HelperLink.lua): whether the minimap
+-- shows, is faded out (Frame Gambit while you stand) or hidden, the zone (uiMapID), the place on
+-- its map and whether the character moves. With a WoW Helper that reads it, the row keeps coming
+-- while the minimap is faded or hidden: the helper then draws its arrows from what it remembers
+-- instead of dropping them (2026-11-27).
 --
 -- The camera: no API gives its yaw, so it is worked out from the pad. Moving with the left stick
 -- is camera-relative and the character turns to face where it goes (GamePadFaceMovementMaxAngle,
@@ -145,10 +150,7 @@ function N.Camera(facing)
         c.speed = speed
         c.gain = store and store.speed == speed and tonumber(store.gain) or N.GAIN0 * speed
     end
-    -- (the speed is a secret number in combat: the last known kept then)
-    local sp = GetUnitSpeed and GetUnitSpeed("player")
-    if type(sp) == "number" and not (issecretvalue and issecretvalue(sp)) then c.moving = sp > 0 end
-    local moving = c.moving or false
+    local moving = N.Moving()
     local was = c.gain
     local yaw = N.CameraStep(c, dt, facing, lx, ly, rx, moving, FaceLimit())
     if c.gain ~= was then
@@ -156,6 +158,51 @@ function N.Camera(facing)
         if store then store.gain, store.speed = c.gain, c.speed end
     end
     return yaw
+end
+
+-- The character moves (the speed is a secret number in combat: the last known kept then)
+function N.Moving()
+    local c = N.cam
+    local sp = GetUnitSpeed and GetUnitSpeed("player")
+    if type(sp) == "number" and not (issecretvalue and issecretvalue(sp)) then c.moving = sp > 0 end
+    return c.moving or false
+end
+
+-- The minimap's state (the world section's 2 bits): 0 shown, 1 faded out by an addon (an
+-- effective alpha under 0.3: Frame Gambit while you stand), 2 hidden
+function N.MinimapState(mm)
+    if not mm or not mm:IsVisible() then return 2 end
+    if mm.GetEffectiveAlpha and (mm:GetEffectiveAlpha() or 1) < 0.3 then return 1 end
+    return 0
+end
+
+local function Public(v) return v ~= nil and not (issecretvalue and issecretvalue(v)) end
+local function Ask(fn, ...)
+    local ok, a = pcall(fn, ...)
+    if ok and Public(a) then return a end
+    return nil
+end
+
+-- Where the character is: the zone's uiMapID and the place on its map, 0-4095 across (nil: the
+-- game doesn't say: an instance, a secret value)
+function N.World()
+    local C = C_Map
+    if not (C and C.GetBestMapForUnit and C.GetPlayerMapPosition) then return nil end
+    local map = Ask(C.GetBestMapForUnit, "player")
+    if type(map) ~= "number" or map <= 0 then return nil end
+    local pos = Ask(C.GetPlayerMapPosition, map, "player")
+    local x, y
+    if type(pos) == "table" or type(pos) == "userdata" then
+        x, y = pos.x, pos.y
+        if pos.GetXY then
+            local ok, a, b = pcall(pos.GetXY, pos)
+            if ok then x, y = a, b end
+        end
+    end
+    if not (Public(x) and Public(y) and type(x) == "number" and type(y) == "number" and x > 0 and x < 1 and y > 0 and y < 1) then
+        return map, nil, nil
+    end
+    return map, floor(x * 4096), floor(y * 4096)
 end
 
 -- Yards across at this zoom: the outdoor table when the outdoor zoom CVar is what the minimap
@@ -168,14 +215,15 @@ function N.Yards(mm)
     return (indoor and N.YARDS.indoor or N.YARDS.outdoor)[zoom] or 0
 end
 
--- The row now, or nil: none (no node tracking, no minimap, no facing)
+-- The row now, or nil: none (no node tracking, no minimap, no facing). The minimap hidden or
+-- faded out (an addon hiding it while you stand): the row says so (minimap 1 or 2); HelperLink
+-- sends it then only to a WoW Helper that reads the world section, which keeps the nodes it
+-- knows and their arrows until it shows again (an older helper gets no row, as before)
 function N.Row()
     if (N.tracking or 0) == 0 then return nil end
     local mm = Minimap
-    -- (hidden, or faded out (an addon hiding it while you stand): no row; WoW Helper keeps
-    -- the nodes it knows until it shows again)
-    if not mm or not mm:IsVisible() then return nil end
-    if mm.GetEffectiveAlpha and (mm:GetEffectiveAlpha() or 1) < 0.3 then return nil end
+    if not mm then return nil end
+    local minimap = N.MinimapState(mm)
     local facing = GetPlayerFacing and GetPlayerFacing()
     if type(facing) ~= "number" or (issecretvalue and issecretvalue(facing)) then return nil end
     local cx, cy = mm:GetCenter()
@@ -183,6 +231,7 @@ function N.Row()
     if not cx or not ph or ph <= 0 then return nil end
     local k = mm:GetEffectiveScale() * ph / 768   -- UI units -> physical pixels
     local cam = N.Camera(facing)
+    local zone, mx, my = N.World()
     return {
         facing = Round(facing / (2 * pi) * 1024) % 1024,
         x = Round(cx * k), y = Round(ph - cy * k),
@@ -191,6 +240,8 @@ function N.Row()
         rotates = GetCVar("rotateMinimap") == "1",
         tracking = N.tracking,
         camera = cam and Round(cam / (2 * pi) * 1024) % 1024 or nil,
+        -- the world section (the compact line only)
+        minimap = minimap, zone = zone, mx = mx, my = my, moving = N.Moving(),
     }
 end
 

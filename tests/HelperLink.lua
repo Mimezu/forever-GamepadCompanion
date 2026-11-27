@@ -1087,6 +1087,19 @@ do
         for _, name in ipairs(GFLAGS) do g[name] = rand(2) == 1 end
         return g
     end
+    -- the world section's fields (NodeCompass.lua, as K.WorldOf gives them)
+    local function randWorld()
+        return { zone = rand(2048), x = rand(4096), y = rand(4096), minimap = rand(4), moving = rand(2) == 1 }
+    end
+    -- what the line gives back for them: the encoder's own caps (there is no row of their own)
+    local function ownWorld(w)
+        local function cap(v, hi) v = math.floor((tonumber(v) or 0) + 0.5); return math.max(0, math.min(v, hi)) end
+        return { zone = cap(w.zone, 2047), x = cap(w.x, 4095), y = cap(w.y, 4095), minimap = cap(w.minimap, 3), moving = w.moving and true or false }
+    end
+    local function worldText(w)
+        w = ownWorld(w)
+        return table.concat({ w.zone, w.x, w.y, w.minimap, w.moving and 1 or 0 }, ",")
+    end
     -- what the goblin row's own decoder gives for those fields (Ten Minute Goblin's, when here;
     -- else the same floors and caps written out)
     local function ownGoblin(g)
@@ -1104,6 +1117,7 @@ do
             map = math.floor(flags / 8) % 2 == 1 and randMap() or nil,
             node = math.floor(flags / 16) % 2 == 1 and randNodes(rand(2) == 1) or nil,
             goblin = math.floor(flags / 32) % 2 == 1 and randGoblin() or nil,
+            world = math.floor(flags / 64) % 2 == 1 and randWorld() or nil,
             hold = rand(10), check = rand(2) == 1 }
     end
     -- the rows' own decoders, on the rows' own cells: what the compact line must give back
@@ -1115,6 +1129,7 @@ do
             map = parts.map and assert(K.DecodeMapRow(K.EncodeMapRow(parts.map))) or nil,
             node = parts.node and assert(K.DecodeNodeRow(K.EncodeNodeRow(parts.node.nodes, parts.node.prefs))) or nil,
             goblin = parts.goblin and ownGoblin(parts.goblin) or nil,
+            world = parts.world and ownWorld(parts.world) or nil,
             hold = parts.hold, check = parts.check }
     end
     -- the goblin fields as Ten Minute Goblin's fixture prints them (seq event mode flags index id value), with commas
@@ -1140,12 +1155,14 @@ do
             p.trig and digits(K.EncodeTrigRow(p.trig)) or "-", p.spell and digits(K.EncodeSpellRow(p.spell)) or "-",
             p.map and digits(K.EncodeMapRow(p.map)) or "-",
             p.node and digits(K.EncodeNodeRow(p.node.nodes, p.node.prefs)) or "-",
-            tostring(p.hold), p.check and "1" or "0", p.goblin and goblinText(p.goblin) or "-" }, " ") .. " : " .. octal(K.EncodeCompact(p))
+            tostring(p.hold), p.check and "1" or "0", p.goblin and goblinText(p.goblin) or "-",
+            p.world and worldText(p.world) or "-" }, " ") .. " : " .. octal(K.EncodeCompact(p))
     end
     local sizes = {}
     for i = 1, 4000 do
-        -- (the first 256: every flag set four times, so the fixture holds 128 lines with the goblin row)
-        local flags = (i <= 256) and ((i - 1) % 64) or rand(64)
+        -- (the first 256: every flag set twice, so the fixture holds 128 lines with the goblin row
+        -- and 128 with the world section)
+        local flags = (i <= 256) and ((i - 1) % 128) or rand(128)
         local parts = randParts(flags)
         local cells = K.EncodeCompact(parts)
         for k, c in ipairs(cells) do
@@ -1154,7 +1171,7 @@ do
         end
         local _, ncells = K.CompactLength(flags % 32, math.floor(flags / 32))
         assert(#cells == ncells and ncells >= K.COMPACT_MIN and ncells <= K.COMPACT_MAX, "cells: " .. #cells .. " for flags " .. flags)
-        -- the second header cell (hold nibble 15: green bit 2 and blue 7) only with the goblin row
+        -- the second header cell (hold nibble 15: green bit 2 and blue 7) only with the goblin row or the world
         local ext = cells[5][2] >= 4 and cells[5][3] == 7
         assert(ext == (flags >= 32), "second header for flags " .. flags)
         sizes[flags] = ncells
@@ -1178,6 +1195,7 @@ do
     end
     assert(sizes[0] == 17 and sizes[31] == 55 and sizes[7] == 31, "17 cells bare, 31 with lights, triggers and spells, 55 with every row")
     assert(sizes[32] == 25 and sizes[36] == 28 and sizes[63] == 62, "with the goblin row: 25 bare, 28 with the spell row (today's line), 62 with every row")
+    assert(sizes[64] == 22 and sizes[124] == 56 and sizes[127] == 67, "with the world: 22 bare, 56 for a mining line (spell, map, node, goblin, world), 67 with everything")
     -- the edges: everything zero, everything at its top
     local zero = { state = { seq = 0, left = {}, right = {}, touch = 0, sound = 0, gain = 0, level = 0, side = 0, intensity = 0, seed = 0, mic = 0, moment = 0, open = false },
         light = { version = 0 }, trig = { left = { shape = 0, value = 0, count = 0 }, right = {} }, spell = { seq = 0, phase = 0, id = 0 },
@@ -1195,10 +1213,13 @@ do
     local zeroG = { seq = 0, event = 0, mode = 0, index = 0, id = 0, value = 0 }
     local topG = { seq = 15, event = 15, mode = 3, combat = true, instance = true, dead = true, ah = true, merchant = true, resting = true,
         index = 255, id = 1048575, value = 65535 }
+    local zeroW = { zone = 0, x = 0, y = 0, minimap = 0, moving = false }
+    local topW = { zone = 2047, x = 4095, y = 4095, minimap = 3, moving = true }
     local zeroWith, topWith = {}, {}
     for k, v in pairs(zero) do zeroWith[k] = v end
     for k, v in pairs(top) do topWith[k] = v end
     zeroWith.goblin, topWith.goblin = zeroG, topG
+    zeroWith.world, topWith.world = zeroW, topW
     for _, p in ipairs({ zero, top, zeroWith, topWith }) do
         eq(assert(K.DecodeCompact(K.EncodeCompact(p))), own(p), "edge")
         vector(p)
@@ -1209,6 +1230,12 @@ do
     eq(wg.goblin, ownGoblin(wildG), "wild goblin")
     assert(wg.goblin.seq == 1 and wg.goblin.mode == 3 and wg.goblin.id == 1048575 and wg.goblin.value == 65535 and wg.goblin.index == 255, "goblin caps")
     assert(K.DecodeCompact(K.EncodeCompact({ goblin = {} })).goblin.mode == 1, "mode 1 unsaid")
+    -- (the world's fields cap as the encoder puts them; a hidden minimap reads back as 2)
+    local wildW = { zone = 5000, x = -1, y = 9999, minimap = 2, moving = 1 }
+    local ww = assert(K.DecodeCompact(K.EncodeCompact({ world = wildW })))
+    eq(ww.world, { zone = 2047, x = 0, y = 4095, minimap = 2, moving = true }, "wild world")
+    eq(K.DecodeCompact(K.EncodeCompact({ world = {} })).world, zeroW, "world unsaid: zeros")
+    assert(#K.EncodeCompact({ world = zeroW }) == 22, "a bare world line: 22 cells")
     -- (clamps as the rows': a value past its range reads as the rows read it)
     local wild = { state = { seq = 17, left = { mode = 9, start = -3 }, right = {}, touch = 9000, moment = 300 }, trig = { left = { shape = 5000, value = 2 } },
         spell = { seq = 1, phase = 2, id = 1311676 }, map = { x = 9000, y = -5, facing = 2000 }, hold = 12 }
@@ -1240,10 +1267,10 @@ do
     assert(#c == 25 and c[5][1] == 0 and c[5][2] == 4 and c[5][3] == 7 and c[6][1] == 0 and c[6][2] == 2 and c[6][3] == 0,
         "a bare goblin line: 25 cells, no flags, the mark, then hold 0 and the goblin flag in cell 5")
     c = K.EncodeCompact(zeroWith)
-    assert(#c == 62 and c[5][2] == 7 and c[5][3] == 7 and c[6][2] == 2, "every row and the goblin row: 62 cells")
+    assert(#c == 67 and c[5][2] == 7 and c[5][3] == 7 and c[6][2] == 6, "every row, the goblin row and the world: 67 cells, flags 1 and 2 in cell 5")
     c[6][2] = 0
     assert(select(2, K.DecodeCompact(c)) == "value", "second header without a flag")
-    c = K.EncodeCompact(bareG); c[6][2] = 6
+    c = K.EncodeCompact(bareG); c[6][3] = 1
     assert(select(2, K.DecodeCompact(c)) == "value", "a flag this reader does not know")
     c = K.EncodeCompact(bareG); c[#c] = nil
     assert(select(2, K.DecodeCompact(c)) == "length", "goblin line a cell short")
@@ -1264,7 +1291,7 @@ do
 
     -- the fixture WoW Helper reads (tests/fixtures/helperlink-compact-vectors.txt; --write regenerates it)
     local path = root .. "/tests/fixtures/helperlink-compact-vectors.txt"
-    local text = { "# HelperLink compact vectors: v2 light trig spell map node (each row's cells as r*4+g*2+b, - for none) hold check goblin (Ten Minute Goblin's fields seq,event,mode,flags,index,id,value or -) : the compact line, each cell's levels rgb (0-7)",
+    local text = { "# HelperLink compact vectors: v2 light trig spell map node (each row's cells as r*4+g*2+b, - for none) hold check goblin (Ten Minute Goblin's fields seq,event,mode,flags,index,id,value or -) world (zone,x,y,minimap,moving or -) : the compact line, each cell's levels rgb (0-7)",
         "# Written by: lua5.1 tests/HelperLink.lua . --write ; read by: WoW Helper cargo test compact" }
     for _, l in ipairs(lines) do text[#text + 1] = l end
     text = table.concat(text, "\n") .. "\n"
@@ -1278,10 +1305,11 @@ do
         assert(old == text, "compact fixture differs from this encoder: regenerate with --write and rerun cargo test")
     end
     assert(#lines == 260, "260 compact vectors (130 with the goblin row): " .. #lines)
-    -- the first compact lines (0.76.0's fixture, kept as tests/fixtures/helperlink-compact-first-vectors.txt):
-    -- still read, each to the rows it was written from
-    do
-        local f = assert(io.open(root .. "/tests/fixtures/helperlink-compact-first-vectors.txt", "rb"), "first vectors missing")
+    -- the first compact lines (0.76.0's fixture, kept as tests/fixtures/helperlink-compact-first-vectors.txt)
+    -- and the lines with the goblin row (0.77.0's, helperlink-compact-goblin-vectors.txt): still
+    -- read, each to the rows it was written from, and encoded the same today
+    local function keptFixture(name, columns, count)
+        local f = assert(io.open(root .. "/tests/fixtures/" .. name, "rb"), name .. " missing")
         local old = f:read("*a"); f:close()
         local function cells(digits)
             local t = {}
@@ -1297,7 +1325,7 @@ do
                 local rows, compact = line:match("^(.-) : (%d+)$")
                 local f = {}
                 for w in rows:gmatch("%S+") do f[#f + 1] = w end
-                assert(#f == 8, "eight columns: " .. line)
+                assert(#f == columns, columns .. " columns: " .. line)
                 local levels = {}
                 for i = 1, #compact, 3 do levels[#levels + 1] = { tonumber(compact:sub(i, i)), tonumber(compact:sub(i + 1, i + 1)), tonumber(compact:sub(i + 2, i + 2)) } end
                 local d = assert(K.DecodeCompact(levels))
@@ -1305,8 +1333,15 @@ do
                     trig = f[3] ~= "-" and assert(K.DecodeTrigRow(cells(f[3]))) or nil, spell = f[4] ~= "-" and assert(K.DecodeSpellRow(cells(f[4]))) or nil,
                     map = f[5] ~= "-" and assert(K.DecodeMapRow(cells(f[5]))) or nil, node = f[6] ~= "-" and assert(K.DecodeNodeRow(cells(f[6]))) or nil,
                     hold = tonumber(f[7]), check = f[8] == "1" }
-                eq(d, want, "a first compact line still reads: " .. line:sub(1, 40))
-                assert(d.goblin == nil, "no goblin row in a first line")
+                if f[9] and f[9] ~= "-" then
+                    -- (the goblin fields as the fixture prints them: seq,event,mode,flags,index,id,value)
+                    local g = {}
+                    for v in f[9]:gmatch("[^,]+") do g[#g + 1] = v end
+                    want.goblin = { seq = tonumber(g[1]), event = tonumber(g[2]), mode = tonumber(g[3]), index = tonumber(g[5]), id = tonumber(g[6]), value = tonumber(g[7]) }
+                    for k, name in ipairs(GFLAGS) do want.goblin[name] = g[4]:sub(k, k) == "1" end
+                end
+                eq(d, want, "a kept compact line still reads: " .. line:sub(1, 40))
+                assert(d.world == nil, "no world section in a kept line")
                 -- (the encoder takes the node row as { nodes, prefs })
                 local enc = {}
                 for k, v in pairs(want) do enc[k] = v end
@@ -1315,8 +1350,10 @@ do
                 first = first + 1
             end
         end
-        assert(first == 130, "130 first compact lines: " .. first)
+        assert(first == count, count .. " kept compact lines in " .. name .. ": " .. first)
     end
+    keptFixture("helperlink-compact-first-vectors.txt", 8, 130)
+    keptFixture("helperlink-compact-goblin-vectors.txt", 9, 260)
 
     -- live: Lab › Strip "Compact", only once WoW Helper says it reads it; one line of 55 cells at
     -- most, levels drawn as level / 7, every other texture hidden; the hold and the check pixel
@@ -1332,7 +1369,7 @@ do
     K.MarkDirty(); K.Step(0)
     assert(K.CompactOn(), "compact")
     local unit = K.frame.height
-    assert(math.abs(K.frame.width - 62 * unit) < 1e-6, "62 cells wide")
+    assert(math.abs(K.frame.width - 67 * unit) < 1e-6, "67 cells wide")
     local ct = K.compactTextures
     assert(math.abs(ct[2].points[1][4] - unit) < 1e-6 and ct[2].points[1][5] == 0, "cells along the line")
     local function drawnCells()
@@ -1444,6 +1481,38 @@ do
     K.MarkDirty(); K.Step(0)
     assert(#drawnCells() == 20 and not K.GoblinCarried(), "the addon gone: no section")
     WowHelperData.compactGoblin = nil
+    -- the world section (NodeCompass.lua): with the map row, once WoW Helper reads it
+    -- (compactWorld = 1); only then does the map row keep coming while the minimap is faded or
+    -- hidden (an older helper gets no row then, as before)
+    WowHelperData.mapRow, WowHelperData.nodeRow = 2, nil
+    local row = { facing = 256, x = 1800, y = 120, radius = 70, yards = 467, rotates = false, tracking = 1, minimap = 0, zone = 37, mx = 1720, my = 2662, moving = false }
+    K.SetMap(row)
+    K.MarkDirty(); K.Step(0)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(d.map and d.map.facing == 256 and d.world == nil and #drawnCells() == 28, "the map row without the world section: 28 cells")
+    row.minimap = 1
+    K.SetMap(row)
+    K.MarkDirty(); K.Step(0)
+    assert(not K.MapRowOn() and K.DecodeCompact(drawnCells()).map == nil and #drawnCells() == 20, "the minimap faded: no map row for a helper without the world section")
+    WowHelperData.compactWorld = 1
+    K.MarkDirty(); K.Step(0)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(K.MapRowOn() and d.map and d.map.facing == 256, "with the world section the map row keeps coming while the minimap is faded")
+    eq(d.world, { zone = 37, x = 1720, y = 2662, minimap = 1, moving = false }, "the world section in the line")
+    assert(#drawnCells() == 33, "spell, map and world: 33 cells")
+    row.minimap, row.moving = 2, true
+    K.SetMap(row)
+    K.MarkDirty(); K.Step(0)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(d.world.minimap == 2 and d.world.moving == true and d.map.facing == 256, "hidden, moving: in the line")
+    row.minimap, row.zone, row.mx, row.my = 0, nil, nil, nil
+    K.SetMap(row)
+    K.MarkDirty(); K.Step(0)
+    eq(K.DecodeCompact(drawnCells()).world, { zone = 0, x = 0, y = 0, minimap = 0, moving = true }, "shown again, no zone known: zeros")
+    K.SetMap(nil)
+    K.MarkDirty(); K.Step(0)
+    assert(K.DecodeCompact(drawnCells()).world == nil and #drawnCells() == 20, "no map row: no world section")
+    WowHelperData.compactWorld, WowHelperData.mapRow = nil, nil
     -- WoW Helper says no more: the rows again, the compact line hidden
     WowHelperData.compactStrip = nil
     K.MarkDirty(); K.Step(0)
@@ -1451,7 +1520,7 @@ do
     K.SetStrip("stacked")
     WowHelperData = data
     K.SetEnabled(false)
-    print("PASS: compact strip: " .. compactcount .. " lines byte-identical to the rows, " .. compactflips .. " level changes caught, 17-62 cells, "
+    print("PASS: compact strip: " .. compactcount .. " lines byte-identical to the rows, " .. compactflips .. " level changes caught, 17-67 cells, "
         .. goblincross .. " goblin rows agreed with Ten Minute Goblin's coder, live")
 end
 

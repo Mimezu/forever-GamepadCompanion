@@ -581,19 +581,23 @@ end
 --
 -- Rows of other addons ride along too, so there is never a second line: the header's hold nibble
 -- 15 (never a chord: 0-9) says a SECOND header cell follows it (the hold chord 0-9, then five more
--- flags: Ten Minute Goblin's row present, 4 spare), the main fields then start at bit 18 and the
--- extra rows come after GPC's own. Drawn only when such a row rides, so a line without one is the
--- first compact line, cell for cell. The goblin row (its HelperRow.lua, WoW Helper's docs/GOBLIN.md):
--- its bits 0-59 (seq 4, event 4, mode 2, six flags, index 8, id 20, value 16), 60 bits, 62 cells at most.
+-- flags: Ten Minute Goblin's row present, the world section present, 3 spare), the main fields
+-- then start at bit 18 and the extra sections come after GPC's own rows. Drawn only when such a
+-- section rides, so a line without one is the first compact line, cell for cell. The goblin row
+-- (its HelperRow.lua, WoW Helper's docs/GOBLIN.md): its bits 0-59 (seq 4, event 4, mode 2, six
+-- flags, index 8, id 20, value 16), 60 bits, 62 cells at most. The world section (NodeCompass.lua,
+-- WoW Helper's docs/NODE-COMPASS.md), 38 bits, with the map row: zone (uiMapID) 11, map x 12,
+-- map y 12 (0-4095 across the zone map; both 0: unknown), minimap 2 (0 shown, 1 faded by an
+-- addon, 2 hidden), moving 1; 67 cells at most.
 ---------------------------------------------------------------------------
 K.COMPACT_LEVELS = 8
 K.COMPACT_HEAD = { { 7, 0, 7 }, { 7, 7, 0 }, { 1, 3, 5 }, { 6, 4, 2 } }
-K.COMPACT_MIN, K.COMPACT_MAX = 17, 62
+K.COMPACT_MIN, K.COMPACT_MAX = 17, 67
 K.COMPACT_EXT = 15   -- the hold nibble that says a second header cell follows
-local CBITS = { head = 9, ext = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, goblin = 60, crc = 16 }
+local CBITS = { head = 9, ext = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, goblin = 60, world = 38, crc = 16 }
 K.COMPACT_BITS = CBITS
 local CSECTIONS = { "light", "trig", "spell", "map", "node" }
-local XSECTIONS = { "goblin" }   -- the second header's flags, in order
+local XSECTIONS = { "goblin", "world" }   -- the second header's flags, in order
 
 -- CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, not reflected). Check value: "123456789" -> 0x29B1
 function K.Crc16(bytes)
@@ -655,7 +659,8 @@ end
 
 -- parts = { state (K.state's fields), light (a light row or nil), trig ({ left, right } or nil),
 -- spell ({ seq, phase, id } or nil), map (or nil), node ({ nodes, prefs } or nil), hold 0-9,
--- check (boolean), goblin (Ten Minute Goblin's row fields or nil) } -> cells of { r, g, b } levels 0-7
+-- check (boolean), goblin (Ten Minute Goblin's row fields or nil), world ({ zone, x, y, minimap,
+-- moving } or nil) } -> cells of { r, g, b } levels 0-7
 function K.EncodeCompact(parts)
     parts = parts or {}
     local bits = {}
@@ -775,6 +780,15 @@ function K.EncodeCompact(parts)
         PutGoblin(bits, at, parts.goblin)
         at = at + CBITS.goblin
     end
+    local w = parts.world
+    if w then
+        Put(bits, at, Int(w.zone, 2047), 11)
+        Put(bits, at + 11, Int(w.x, 4095), 12)
+        Put(bits, at + 23, Int(w.y, 4095), 12)
+        Put(bits, at + 35, Int(w.minimap, 3), 2)
+        Put(bits, at + 37, w.moving and 1 or 0, 1)
+        at = at + CBITS.world
+    end
     Put(bits, at, Crc16Bits(bits, at), 16)
     at = at + CBITS.crc
     local cells = {}
@@ -884,6 +898,11 @@ function K.DecodeCompact(cells)
         out.goblin = GetGoblin(bits, at)
         at = at + CBITS.goblin
     end
+    if floor(xflags / 2) % 2 == 1 then
+        out.world = { zone = Get(bits, at, 11), x = Get(bits, at + 11, 12), y = Get(bits, at + 23, 12),
+            minimap = Get(bits, at + 35, 2), moving = Get(bits, at + 37, 1) == 1 }
+        at = at + CBITS.world
+    end
     return out
 end
 
@@ -981,10 +1000,24 @@ function K.SpellRowOn()
 end
 
 -- The map row: only once WoW Helper says it reads this version (WowHelperData.mapRow = 2), and
--- while NodeCompass.lua has one (a node tracking on)
+-- while NodeCompass.lua has one (a node tracking on). The minimap faded or hidden (m.minimap 1 or
+-- 2): only with the world section (K.WorldOn: the helper then keeps its nodes and their arrows);
+-- else no row, as before
 function K.MapRowOn()
     local d = WowHelperData
-    return K.V2() and type(d) == "table" and d.mapRow == 2 and K.map ~= nil
+    return K.V2() and type(d) == "table" and d.mapRow == 2 and K.map ~= nil and ((K.map.minimap or 0) == 0 or K.WorldOn())
+end
+
+-- The world section (NodeCompass.lua; WoW Helper's docs/NODE-COMPASS.md): in the compact line,
+-- with the map row, once WoW Helper says it reads it (WowHelperData.compactWorld = 1)
+function K.WorldOn()
+    local d = WowHelperData
+    return K.CompactOn() and type(d) == "table" and d.compactWorld == 1
+end
+
+-- The world section's fields from the map row's state
+function K.WorldOf(m)
+    return { zone = m.zone, x = m.mx, y = m.my, minimap = m.minimap, moving = m.moving }
 end
 
 -- The map row's state (NodeCompass.lua), or nil: none. Redrawn when a field changes.
@@ -999,9 +1032,10 @@ function K.SetMap(m)
     local key = Int(m.facing, 1023) .. ":" .. Int(m.x, 8191) .. ":" .. Int(m.y, 8191) .. ":" .. Int(m.radius, 1023)
         .. ":" .. Int(m.yards, 1023) .. ":" .. (m.rotates and 1 or 0) .. ":" .. Int(m.tracking, 3)
         .. ":" .. (m.camera and Int(m.camera, 1023) or "-")
+        .. ":" .. Int(m.minimap, 3) .. ":" .. Int(m.zone, 2047) .. ":" .. Int(m.mx, 4095) .. ":" .. Int(m.my, 4095) .. ":" .. (m.moving and 1 or 0)
     if K.map and K.map.key == key then return end
     K.map = { key = key, facing = m.facing, x = m.x, y = m.y, radius = m.radius, yards = m.yards, rotates = m.rotates,
-        tracking = m.tracking, camera = m.camera }
+        tracking = m.tracking, camera = m.camera, minimap = m.minimap, zone = m.zone, mx = m.mx, my = m.my, moving = m.moving }
     dirty = true
 end
 
@@ -1410,7 +1444,8 @@ function K.CompactParts()
         map = K.MapRowOn() and K.map or nil,
         node = K.NodeRowOn() and { nodes = K.nodes and K.nodes.list, prefs = K.NodeRowV2() and (K.prefs or {}) or nil } or nil,
         hold = K.HoldCellsOn() and K.hold or 0, check = K.CheckPixelOn() and K.checkBlue or false,
-        goblin = K.GoblinFields() }
+        goblin = K.GoblinFields(),
+        world = K.WorldOn() and K.MapRowOn() and K.WorldOf(K.map) or nil }
 end
 
 -- Everything on screen again (the strip and its rows, or the compact line)

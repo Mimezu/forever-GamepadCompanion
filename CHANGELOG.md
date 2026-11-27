@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.78.0 (2026-11-27)
+
+- **Compass arrows stay while you stand.** The compact line carries a world section with the map row (second header flag 2, 38 bits: the zone's uiMapID, your place on its map, whether the minimap shows, is faded or hidden, and whether you move) once WoW Helper says it reads it (`WowHelperData.compactWorld = 1`). The map row then keeps coming while Frame Gambit fades the minimap out, with the state in it; WoW Helper stops reading the faded minimap and keeps drawing the arrows it knows, turned with the camera, until it shows again. Without that helper (or outside the compact line) the row stops as before. 22 cells bare, 67 at most.
+
 ## 0.77.0 (2026-11-27)
 
 - **Compact strip: one line, never two.** Ten Minute Goblin's goblin row rides in the compact line (28 cells with the spell row, 62 at most) once WoW Helper says it reads it there (`WowHelperData.compactGoblin = 1`): the line's header gets a second cell (hold nibble 15) with the hold chord and the goblin flag, the row's 60 bits follow Companion's rows under the line's CRC-16. Ten Minute Goblin then hides its own row and tells Companion when its fields change (no polling); every other case it draws its row as before. Lines without it are 0.76.0's, cell for cell.
