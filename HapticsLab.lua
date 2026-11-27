@@ -1413,9 +1413,12 @@ end
 -- the real cycle over the model's, and how long after the model's footfall a hoof is heard);
 -- else the model's pace, heard after the sound path
 L.RIDE_HEARD = 0.14
-function L.RideTiming(g)
+-- (learned per speed, "<sig>|<speed to 0.5>"; else the gait's at any speed)
+function L.RideTiming(g, speed)
     local d = _G.WowHelperData
-    local t = type(d) == "table" and type(d.rideTiming) == "table" and d.rideTiming[L.RideSig(g)]
+    local all = type(d) == "table" and type(d.rideTiming) == "table" and d.rideTiming
+    local t = all and speed and all[L.RideSig(g) .. string.format("|%.1f", math.floor(speed * 2 + 0.5) / 2)]
+    if type(t) ~= "table" then t = all and all[L.RideSig(g)] end
     if type(t) == "table" and type(t.pace) == "number" and type(t.offset) == "number" and t.pace > 0.5 and t.pace < 2 then
         return t.pace, t.offset, true
     end
@@ -1426,7 +1429,7 @@ end
 -- cycles: a new speed changes its pace, never its place; a new gait starts its cycle now.
 -- (`now` as heard: the hooves `offset` after the move's start, as WoW Helper heard them)
 function L.RideHoof(g, v, now, speed, moveStart)
-    local pace, offset = L.RideTiming(g)
+    local pace, offset = L.RideTiming(g, speed)
     local cycle = L.RideCycle(g, speed) * pace
     if v.gait ~= g then
         v.phase = v.gait and -offset / cycle or (now - (moveStart or now) - offset) / cycle

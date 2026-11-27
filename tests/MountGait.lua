@@ -69,6 +69,11 @@ do
     check(p == 1 and o == L.RIDE_HEARD and not learned, "an unlearned gait: the model's, after the sound path")
     WowHelperData.rideTiming[sigH] = { pace = 7, offset = 0 }
     check(L.RideTiming(g) == 1, "a pace out of reason is not taken")
+    -- (learned at the speed ridden: that speed's own, others the gait's)
+    WowHelperData.rideTiming[sigH] = { pace = 1.1, offset = 0.2 }
+    WowHelperData.rideTiming[sigH .. "|12.5"] = { pace = 0.85, offset = 0.05 }
+    check(L.RideTiming(g, 12.25) == 0.85, "12.25 yd/s: its own pace")
+    check(L.RideTiming(g, 7) == 1.1, "another speed: the gait's")
     WowHelperData = nil
 end
 
