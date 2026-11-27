@@ -848,6 +848,19 @@ end
 
 -- The line out (UNIT_SPELLCAST_CHANNEL_*), Fishing every rank
 local FISHING = { [7620] = true, [7731] = true, [7732] = true, [18248] = true }
+
+-- For Frame Gambit: whether the float stands in for the cast bar right now (a
+-- Fishing channel, Cast ring on), so its cast bar rule stays dark instead of
+-- fighting it. Read live, never from L.Cast: which addon hears the event first
+-- doesn't matter
+if type(_G.GamepadCompanionAPI) == "table" then
+    function _G.GamepadCompanionAPI.FishingHidesCastBar()
+        if L.Setting().castRing == false then return false end
+        local ok, _, _, _, _, _, _, _, spellID = pcall(UnitChannelInfo, "player")
+        if not ok or (issecretvalue and issecretvalue(spellID)) then return false end
+        return FISHING[spellID] == true
+    end
+end
 function L.Cast(on)
     if on then
         local _, _, _, startMs, endMs = Call(UnitChannelInfo, "player")

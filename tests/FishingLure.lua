@@ -48,6 +48,7 @@ GetWeaponEnchantInfo = function() if enchant then return true, enchant * 1000 en
 local char = {}
 local ns = { Shared = { CharDB = function() return char end } }
 MimezuFishing = { PoleEquipped = function() return true end }
+GamepadCompanionAPI = {}
 assert(loadfile(root .. "/FishingWaters.lua"))("GamepadCompanion", ns)
 assert(loadfile(root .. "/FishingLure.lua"))("GamepadCompanion", ns)
 local L = ns.FishingLure
@@ -448,6 +449,20 @@ eq(bar.alpha, 1, "another channel: the bar untouched")
 char.fishing.castRing = false
 ev(nil, "UNIT_SPELLCAST_CHANNEL_START", "player", nil, 7620)
 eq(bar.alpha, 1, "Cast ring off: Blizzard's bar as it is")
+-- Frame Gambit asks whether the float is the cast bar now (read live)
+local hides = GamepadCompanionAPI.FishingHidesCastBar
+local channel
+UnitChannelInfo = function() if channel then return "Fishing", nil, nil, 0, 1, false, false, channel end end
+channel = 7620
+check(hides() == false, "Cast ring off: the float isn't the cast bar")
+char.fishing.castRing = nil
+check(hides() == true, "fishing: the float is the cast bar")
+channel = 18248
+check(hides() == true, "every rank of Fishing")
+channel = 133
+check(hides() == false, "another channel: the cast bar is the cast bar")
+channel = nil
+check(hides() == false, "no channel: nothing stands in")
 char.fishing.castRing = nil
 ev(nil, "UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 7620)
 
