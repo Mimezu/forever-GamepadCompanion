@@ -15,15 +15,30 @@ C_Minimap = {
     GetNumTrackingTypes = function() return #tracking end,
     GetTrackingInfo = function(i) return tracking[i] end,
 }
-local zoom, shown = 0, true
+local zoom, shown, alpha = 0, true, 1
 -- a 140-unit minimap at scale 1, its centre at (1200, 700) UI units of a 1440 px tall screen
 Minimap = {
     GetZoom = function() return zoom end,
     IsVisible = function() return shown end,
+    GetEffectiveAlpha = function() return alpha end,
     GetCenter = function() return 1200, 700 end,
     GetEffectiveScale = function() return 1 end,
     GetWidth = function() return 140 end,
 }
+-- the world: Elwynn Forest (37), the character at world posY -9000.25 (west), posX 1200.5
+-- (north), standing. UnitPosition gives posY first.
+local mapID, posY, posX, speed = 37, -9000.25, 1200.5, 0
+C_Map = {
+    GetBestMapForUnit = function() return mapID end,
+    GetPlayerMapPosition = function(id, unit)
+        assert(id == mapID and unit == "player", "GetPlayerMapPosition(uiMapID, unit)")
+        return { x = 0.42, y = 0.65, GetXY = function(self) return self.x, self.y end }
+    end,
+    -- (the game's own map-to-world, the fallback: the same place)
+    GetWorldPosFromMapPos = function(id, pos) return 0, { x = posX, y = posY } end,
+}
+function UnitPosition() return posY, posX, 0, 0 end
+function GetUnitSpeed() return speed end
 local sent = {}
 local ns = { HelperLink = { SetMap = function(m) sent[#sent + 1] = m or false end } }
 assert(loadfile(root .. "/NodeCompass.lua"))("GamepadCompanion", ns)
@@ -46,6 +61,30 @@ assert(m.x == math.floor(1200 * k + 0.5) and m.y == math.floor(1440 - 700 * k + 
 assert(m.radius == math.floor(70 * k + 0.5), "radius " .. m.radius)
 assert(m.facing == 256 and m.tracking == 1 and m.rotates == false, "facing a quarter turn")
 assert(m.yards == 467, "outdoor zoom 0: 467 yards across")
+-- the world section's fields: the zone, the place in half yards (east = -posY = 9000.25 ->
+-- 18001 (rounded: 18000.5 -> 18001); north = posX = 1200.5 -> 2401), the minimap shown, standing
+assert(m.minimap == 0 and m.zone == 37 and m.east == 18001 and m.north == 2401 and m.moving == false,
+    "world: " .. tostring(m.zone) .. " " .. tostring(m.east) .. "," .. tostring(m.north) .. " minimap " .. tostring(m.minimap))
+speed = 7
+assert(N.Row().moving == true, "moving")
+speed = 0
+-- far west: the half yards wrap at 32768 yd (the helper takes the differences)
+posY = 20000
+assert(N.Row().east == (-40000) % 65536, "wrapping: " .. tostring(N.Row().east))
+posY = -9000.25
+-- UnitPosition says nothing (a secret value in an instance): the game's own map-to-world instead
+local up = UnitPosition
+UnitPosition = function() return nil end
+m = N.Row()
+assert(m.east == 18001 and m.north == 2401, "the map position through GetWorldPosFromMapPos: " .. tostring(m.east))
+C_Map.GetWorldPosFromMapPos = nil
+m = N.Row()
+assert(m.zone == 37 and m.east == nil and m.north == nil, "no position: the zone alone")
+UnitPosition = up
+mapID = nil
+m = N.Row()
+assert(m.zone == nil and m.east == 18001, "no map: no zone, the position still")
+mapID = 37
 zoom = 2
 assert(N.Row().yards == 180, "indoor (the minimap shows the inside zoom): 180")
 cvars.minimapInsideZoom = "0"
@@ -60,8 +99,13 @@ facing = nil
 assert(N.Row() == nil, "no facing (an instance): no row")
 facing = 0
 shown = false
-assert(N.Row() == nil, "no minimap: no row")
+assert(N.Row().minimap == 2, "minimap hidden: the row says so (HelperLink sends it only with the world section)")
 shown = true
+alpha = 0.12
+assert(N.Row().minimap == 1, "minimap faded out (Frame Gambit): the row says so")
+alpha = 0.5
+assert(N.Row().minimap == 0, "half faded still shows")
+alpha = 1
 tracking[2].active = false
 N.Refresh()
 assert(N.Row() == nil and sent[#sent] == false, "tracking off: the row goes")

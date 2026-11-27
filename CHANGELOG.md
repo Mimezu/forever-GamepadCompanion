@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.78.0 (2026-11-27)
+
+- **Compass arrows stay while you stand.** The compact line carries a world section with the map row (second header flag 2, 47 bits: the zone's uiMapID, where you stand in world yards (UnitPosition, half a yard a step), whether the minimap shows, is faded or hidden, and whether you move) once WoW Helper says it reads it (`WowHelperData.compactWorld = 1`). The map row then keeps coming while Frame Gambit fades the minimap out, with the state in it; WoW Helper stops reading the faded minimap and keeps drawing the arrows it knows, turned with the camera, until it shows again. WoW Helper keeps its nodes in yards from the position (exact, no drift; trusted once it agrees with the dots' own moves), and learns which ore kinds each zone has shown (hovers, gathers): a zone with one kind names new dots without a hover. Without that helper (or outside the compact line) the row stops as before. 23 cells bare, 68 at most.
+- **Two moments: Node found, Tracked node found** (Rumble tab > Abilities). WoW Helper raises them when a new node's arrow shows, and once more when the node turns out to be a kind you track (Setup > Nodes); once a node, never again for the same one. Their feel, light and sound are set here like any moment's (defaults: a faint Feather tap, a faint Notch double; light and sound off until chosen); their numbers (128, 129) lie past the strip's, so no cue ever goes from the game. On WoW Helper's Moments page either can take a full feel.
+
 ## 0.77.0 (2026-11-27)
 
 - **Compact strip: one line, never two.** Ten Minute Goblin's goblin row rides in the compact line (28 cells with the spell row, 62 at most) once WoW Helper says it reads it there (`WowHelperData.compactGoblin = 1`): the line's header gets a second cell (hold nibble 15) with the hold chord and the goblin flag, the row's 60 bits follow Companion's rows under the line's CRC-16. Ten Minute Goblin then hides its own row and tells Companion when its fields change (no polling); every other case it draws its row as before. Lines without it are 0.76.0's, cell for cell.

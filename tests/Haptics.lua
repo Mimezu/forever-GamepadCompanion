@@ -1403,6 +1403,17 @@ do
         and ex.moments.loot.sound == K.SOUNDS.coin and ex.moments.loot.label == "Loot", "moments exported")
     assert(ex.moments.crit.light == critLight and ex.moments.jump.light == false, "lights exported")
     assert(ex.moments.loot.feelVol == 1 and ex.moments.loot.soundVol, "volumes exported")
+    -- WoW Helper's own moments (the node compass): exported past the strip's numbers, the
+    -- Rumble tab's feel; no cue ever goes for them from here
+    assert(ex.moments.nodeFound.n == 128 and ex.moments.nodeTracked.n == 129, "node moments past the wire")
+    assert(ex.moments.nodeFound.feel == "feather" and ex.moments.nodeTracked.feel == "notch", "their feels: faint taps")
+    assert(ex.moments.nodeFound.group == "Abilities" and ex.moments.nodeFound.label == "Node found" and ex.moments.nodeTracked.label == "Tracked node found", "labels")
+    assert(ex.moments.nodeFound.light == false and ex.moments.nodeFound.sound == false, "no light or sound until chosen")
+    assert(C.MOMENT_N.nodeFound == nil and C.UNNUMBERED.nodeFound, "no strip number")
+    -- the light picked: exported
+    ns.Lights.Settings("nodeTracked").on = true
+    assert(ns.HapticsLab.Export().moments.nodeTracked.light == ns.Lights.Settings("nodeTracked").light, "light exported once on")
+    ns.Lights.Settings("nodeTracked").on = false
     assert(ex.helperData == "2026-11-16 18:02", "data seen, exported")
     K.SetEnabled(false)
     WowHelperData = nil

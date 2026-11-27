@@ -71,11 +71,16 @@ for n, m in ipairs(C.MOMENTS) do C.MOMENT_N[m[1]] = n end
 -- Moments on the Rumble tab with no number (their cue goes as 0, its touch and sound as sent):
 -- 95 is the last number, 96-127 are WoW Helper's markers
 -- (Emote voices: its voice goes on WoW Helper's marker 99, HelperLink K.EmoteVoice)
-C.UNNUMBERED = { fishNibble = true, emoteVoice = true,
+C.UNNUMBERED = { fishNibble = true, emoteVoice = true, nodeFound = true, nodeTracked = true,
     -- (a hunter's: Hunter.lua)
     trapArmed = true, trapSprung = true, dazed = true, petArrive = true, petDismiss = true, petTamed = true,
     petAttack = true, petCommand = true, petCrit = true, petHurt = true, petDeath = true, petFeed = true,
     petHappy = true, petUnhappy = true }
+-- WoW Helper's own moments (HapticsLab.EVENTS, the Rumble tab): never a cue from here; WoW Helper
+-- raises them itself (its node compass sees a new dot) and plays the feel, light and sound set
+-- here, so their numbers lie past the strip's 7 bits (128 and up: never on the wire). Exported
+-- with the others (ExportMoments); a full feel of WoW Helper's can take each over, as any moment
+C.HELPER_MOMENTS = { nodeFound = 128, nodeTracked = 129 }
 -- Light-only moments: no cue goes with their number (no sound row for them). A cast's cue goes
 -- as its kind's moment (Spell casting, Gathering, Crafting: 22-24), not as "cast" (72)
 C.LIGHT_ONLY = { critTaken = true, avoid = true, combat = true, cast = true, halo = true }
@@ -644,6 +649,15 @@ local function ExportMoments(export)
         moments[key] = { n = n, group = m[2], parent = m[3], label = label, lightOnly = C.LIGHT_ONLY[key] or nil, feel = C.MomentFeel(key) or false,
             sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
             feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.Sound(key) or 1 }
+    end
+    -- (WoW Helper's own moments: their numbers past the strip's, the Rumble tab's feel, light and sound)
+    for key, n in pairs(C.HELPER_MOMENTS) do
+        local ev = L.EVENT and L.EVENT[key]
+        if ev then
+            moments[key] = { n = n, group = ev.group, label = ev.label, feel = C.MomentFeel(key) or false,
+                sound = C.MomentSound(key) or false, light = C.MomentLight(key) or false,
+                feelVol = ns.Volume and ns.Volume.Feel(key) or 1, soundVol = ns.Volume and ns.Volume.Sound(key) or 1 }
+        end
     end
     -- (Emote voices: no cue number, its marker's, 99: WoW Helper offers a full feel for it)
     local ev = L.EVENT and L.EVENT.emoteVoice

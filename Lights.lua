@@ -316,6 +316,9 @@ LT.EVENTS = {
     { key = "whisper", group = "Social", label = "Whisper", color = "purple", strength = 5, on = true },
     { key = "readyCheck", group = "Social", label = "Ready check", color = "gold", strength = 5, on = true },
     { key = "invite", group = "Social", label = "Invites, duels", color = "green", strength = 5, on = true },
+    -- WoW Helper's node compass: a new node on the minimap (off until chosen: a faint tap says it)
+    { key = "nodeFound", group = "World", label = "Node found", color = "gold", strength = 2, on = false },
+    { key = "nodeTracked", group = "World", label = "Tracked node found", color = "blue", strength = 3, on = false },
     -- States (Stack.lua's conditions; FrameGambit's words): off until chosen, so nobody's look changes
     { key = "dead", group = "States", label = "Dead or ghost", look = "breathe", color = "white", strength = 1, on = false, state = true },
     { key = "afk", group = "States", label = "Away", look = "breathe", color = "base", strength = 1, on = false, state = true },
