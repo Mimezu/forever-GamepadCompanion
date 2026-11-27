@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.75.2 (2026-11-26)
+
+- WoW Helper installs ffmpeg itself (winget, Addons page, Auto): the game's own sounds on the pad (the fishing cast, the splash, the reel, voices) with nothing to type.
+
 ## 0.75.1 (2026-11-26)
 
 - WoW Helper: fishing bites felt whatever device the game's sound plays on (the DualSense's own speaker too); WoW Helper sees WoW Forever running (updates wait for it to close); fishing's search covers ultrawide screens.
