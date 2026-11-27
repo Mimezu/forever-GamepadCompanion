@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.75.0)
+## 0.75.0 (2026-11-26)
 
 - Fixed: the fishing float hidden by Frame Gambit's Cinematic mode while Blizzard's cast bar showed. Companion now tells Frame Gambit when the float stands in for the cast bar (GamepadCompanionAPI.FishingHidesCastBar); Frame Gambit 1.3.14 keeps the float and the cast bar dark then.
 - New: pings on a pad key work like Blizzard's ping key. A tap sends that ping (Ping: Attack, Warning, ...) on the release; hold it 0.15 s and the game's ping wheel opens, held as long as the key is: pick any ping with the stick, let go to send it. The wheel goes through WoW Helper's chord 3 (TOGGLEPINGSYSTEM); while it is held the key's own ping is skipped (the helper's Alt-Ctrl-Shift still down at the release). Without WoW Helper, the plain ping.
