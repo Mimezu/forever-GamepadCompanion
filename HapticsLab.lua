@@ -1402,34 +1402,12 @@ function L.RideHeavy(g)
     return at
 end
 
--- A gait's name, as WoW Helper's (src/ride.rs sig): "800@9.03:134,234,334,500"
-local sigOf = setmetatable({}, { __mode = "k" })
-function L.RideSig(g)
-    if not sigOf[g] then sigOf[g] = string.format("%d@%.2f:%s", g[1], g[2], table.concat(g[3], ",")) end
-    return sigOf[g]
-end
-
--- How the hooves are heard against the model: WoW Helper's, by ear (WowHelperData.rideTiming:
--- the real cycle over the model's, and how long after the model's footfall a hoof is heard);
--- else the model's pace, heard after the sound path
-L.RIDE_HEARD = 0.14
-function L.RideTiming(g)
-    local d = _G.WowHelperData
-    local t = type(d) == "table" and type(d.rideTiming) == "table" and d.rideTiming[L.RideSig(g)]
-    if type(t) == "table" and type(t.pace) == "number" and type(t.offset) == "number" and t.pace > 0.5 and t.pace < 2 then
-        return t.pace, t.offset, true
-    end
-    return 1, L.RIDE_HEARD, false
-end
-
 -- The hoof sounding now and the seconds since it (nil before the first). The clock runs in
 -- cycles: a new speed changes its pace, never its place; a new gait starts its cycle now.
--- (`now` as heard: the hooves `offset` after the move's start, as WoW Helper heard them)
 function L.RideHoof(g, v, now, speed, moveStart)
-    local pace, offset = L.RideTiming(g)
-    local cycle = L.RideCycle(g, speed) * pace
+    local cycle = L.RideCycle(g, speed)
     if v.gait ~= g then
-        v.phase = v.gait and -offset / cycle or (now - (moveStart or now) - offset) / cycle
+        v.phase = v.gait and 0 or (now - (moveStart or now)) / cycle
         v.gait = g
     else
         v.phase = v.phase + (now - v.at) / cycle
@@ -1443,18 +1421,14 @@ function L.RideHoof(g, v, now, speed, moveStart)
     return #falls, (t + g[1] - falls[#falls]) / g[1] * cycle
 end
 
--- The mount ridden: read once a ride, again each half second while unknown
-function L.RideMount(now)
-    if not live.mountSpell and now - (live.mountLookAt or 0) > 0.5 then
+local function Gallop(now, v)
+    if not (live.moving and live.mounted) then return nil end
+    -- (the mount: read once a ride, again each second while unknown)
+    if not live.mountSpell and now - (live.mountLookAt or 0) > 1 then
         live.mountLookAt = now
         live.mountSpell = L.MountSpell()
     end
-    return live.mountSpell
-end
-
-local function Gallop(now, v)
-    if not (live.moving and live.mounted) then return nil end
-    local g = L.RideGait(L.RideMount(now), live.speed)
+    local g = L.RideGait(live.mountSpell, live.speed)
     local i, d = L.RideHoof(g, v, now + (ns.Timing and ns.Timing.Lead() or 0), live.speed, live.moveStart)
     if not i then return 0, 0 end
     local left = g[4]:sub(i, i) ~= "R"
@@ -1466,56 +1440,6 @@ local function Gallop(now, v)
     return 0, 0
 end
 L.GallopForTest = Gallop
-
--- WoW Helper hears each ride (its first 40 s) to learn the gait's pace and offset: the step
--- markers say which gait (touch 512 + its place in MountGaits.lua), when it began (seed: how
--- late, bit 7 the same ride at a new speed) and the speed; a stop says 512. A mount not known
--- is not said (nothing to learn it against). docs/RIDING.md in WoW Helper.
-L.RIDE_MARK, L.RIDE_KEEP = 512, 10
-local rideMark = {}
-local placeOf = setmetatable({}, { __mode = "k" })
-function L.RidePlace(spell)
-    local M = ns.MountGaits
-    local m = spell and M and M.spells[spell]
-    if not m then return nil end
-    if not placeOf[m] then
-        for i, g in ipairs(M.gaits) do
-            if g == m then placeOf[m] = i end
-        end
-    end
-    return placeOf[m]
-end
-
-function L.RideMarkers(now, riding, speed)
-    local K = ns.HelperLink
-    if not (K and K.Marker and K.Enabled and K.Enabled() and K.V2 and K.V2()) then rideMark.start = nil; return end
-    local place = riding and L.RidePlace(L.RideMount(now))
-    if not place then
-        if rideMark.start then
-            rideMark.start = nil
-            K.Marker({ moment = 98, touch = L.RIDE_MARK, gain = 0 })
-        end
-        return
-    end
-    local walk = speed < L.RIDE_WALK
-    local start = live.moveStart or now
-    local send = function(update)
-        K.Marker({ moment = walk and 97 or 96, touch = L.RIDE_MARK + place, gain = 0,
-            sound = min(4095, max(0, floor(speed * 100 + 0.5))),
-            seed = (update and 128 or 0) + min(127, max(0, floor((now - rideMark.from) / 0.01 + 0.5))) })
-        rideMark.at, rideMark.speed = now, speed
-    end
-    if start ~= rideMark.start or walk ~= rideMark.walk or place ~= rideMark.place then
-        -- (walk to run in the same move: the new gait from now, as the hooves' clock)
-        rideMark.from = (start == rideMark.start and walk ~= rideMark.walk) and now or start
-        rideMark.start, rideMark.walk, rideMark.place = start, walk, place
-        -- (said only while its start is still in the marker's 1.27 s: else this move teaches nothing)
-        rideMark.said = now - rideMark.from <= 1.27
-        if rideMark.said then send(false) end
-    elseif rideMark.said and (math.abs(speed - rideMark.speed) > 0.05 * max(0.5, rideMark.speed) or now - rideMark.at >= L.RIDE_KEEP) then
-        send(true)
-    end
-end
 
 -- A cast: ticks closer and stronger toward its end
 local function Tension(now)
@@ -2146,7 +2070,6 @@ local function Poll()
     L.water = L.WaterState()
     live.wading = L.water.wading
     L.StepMarkers(now, live.moving and not mounted and not beast, speed)
-    L.RideMarkers(now, live.moving and mounted, speed)
     -- (WoW Helper plays them, in time with the footfalls it hears, and wading by ear)
     local own = not L.HelperPlaysSteps()
     if own and live.moving and not mounted and not beast and not live.wading then StartLive("footsteps", Steps) else H.Stop("live_footsteps") end
