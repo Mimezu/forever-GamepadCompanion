@@ -34,6 +34,7 @@ Haptics.lua
 Timing.lua
 Volume.lua
 SpellOverrides.lua
+MountGaits.lua
 HapticsLab.lua
 HelperLink.lua
 NodeCompass.lua
