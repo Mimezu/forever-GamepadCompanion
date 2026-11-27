@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.77.0 (2026-11-27)
+
+- **Compact strip: one line, never two.** Ten Minute Goblin's goblin row rides in the compact line (28 cells with the spell row, 62 at most) once WoW Helper says it reads it there (`WowHelperData.compactGoblin = 1`): the line's header gets a second cell (hold nibble 15) with the hold chord and the goblin flag, the row's 60 bits follow Companion's rows under the line's CRC-16. Ten Minute Goblin then hides its own row and tells Companion when its fields change (no polling); every other case it draws its row as before. Lines without it are 0.76.0's, cell for cell.
+
 ## 0.76.0 (2026-11-27)
 
 - **Compact strip** (Beta › Link › Strip: Compact; WoW Helper's docs/STRIP-COMPACT.md): every row of the helper link in one line of 8-level cells, 17-55 cells instead of 175. Only once WoW Helper says it reads it; the rows stay the default and decode the same.

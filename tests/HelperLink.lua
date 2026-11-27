@@ -1024,10 +1024,29 @@ do
 end
 -- The compact strip (WoW Helper's docs/STRIP-COMPACT.md): every row in one line of 8-level cells.
 -- Decoded, each row equals what its own encoder and decoder give (byte-identical); every level
--- change is caught by the CRC-16; the fixture is read by WoW Helper (cargo test compact).
-local compactcount, compactflips = 0, 0
+-- change is caught by the CRC-16; the fixture is read by WoW Helper (cargo test compact). Ten
+-- Minute Goblin's row rides along (flag 32 here: the second header cell): its own HelperRow.lua,
+-- when found beside this addon (or at $TMG_HELPERROW), must agree bit for bit.
+local compactcount, compactflips, goblincross = 0, 0, 0
 do
     assert(K.Crc16({ 49, 50, 51, 52, 53, 54, 55, 56, 57 }) == 0x29B1, "CRC-16/CCITT-FALSE check value")
+    -- Ten Minute Goblin's pure row coder, loaded without the game part (no CreateFrame while it loads)
+    local TMG
+    do
+        local path = os.getenv("TMG_HELPERROW") or (root .. "/../TenMinuteGoblin/HelperRow.lua")
+        local f = io.open(path, "r")
+        if f then
+            f:close()
+            local cf, saved = CreateFrame, TenMinuteGoblin
+            CreateFrame = nil
+            TenMinuteGoblin = nil
+            dofile(path)
+            TMG = TenMinuteGoblin.HelperRow
+            CreateFrame, TenMinuteGoblin = cf, saved
+        else
+            print("note: Ten Minute Goblin's HelperRow.lua not found (" .. path .. "): its coder not cross-checked")
+        end
+    end
     seed = 777
     local function randV2()
         return { seq = rand(16), left = randTrigger(), right = randTrigger(), touch = rand(4096), sound = rand(4096),
@@ -1061,12 +1080,30 @@ do
         end
         return { nodes = nodes, prefs = prefs }
     end
+    -- the goblin row's fields as Ten Minute Goblin sends them (its HelperRow.Encode's ranges)
+    local GFLAGS = { "combat", "instance", "dead", "ah", "merchant", "resting" }
+    local function randGoblin()
+        local g = { seq = rand(16), event = rand(8), mode = 1 + rand(3), index = rand(256), id = rand(1048576), value = rand(65536) }
+        for _, name in ipairs(GFLAGS) do g[name] = rand(2) == 1 end
+        return g
+    end
+    -- what the goblin row's own decoder gives for those fields (Ten Minute Goblin's, when here;
+    -- else the same floors and caps written out)
+    local function ownGoblin(g)
+        if TMG then return assert(TMG.Decode(TMG.Encode(g))) end
+        local function cap(v, hi, default) v = math.floor(tonumber(v) or default); return math.max(0, math.min(v, hi)) end
+        local o = { seq = math.floor(tonumber(g.seq) or 0) % 16, event = math.floor(tonumber(g.event) or 0) % 16,
+            mode = cap(g.mode, 3, 1), index = cap(g.index, 255, 0), id = cap(g.id, 1048575, 0), value = cap(g.value, 65535, 0) }
+        for _, name in ipairs(GFLAGS) do o[name] = g[name] and true or false end
+        return o
+    end
     local function randParts(flags)
         return { state = randV2(), light = flags % 2 == 1 and randLight(rand(2)) or nil,
             trig = math.floor(flags / 2) % 2 == 1 and randTrig() or nil,
             spell = math.floor(flags / 4) % 2 == 1 and randSpell() or nil,
             map = math.floor(flags / 8) % 2 == 1 and randMap() or nil,
             node = math.floor(flags / 16) % 2 == 1 and randNodes(rand(2) == 1) or nil,
+            goblin = math.floor(flags / 32) % 2 == 1 and randGoblin() or nil,
             hold = rand(10), check = rand(2) == 1 }
     end
     -- the rows' own decoders, on the rows' own cells: what the compact line must give back
@@ -1077,7 +1114,15 @@ do
             spell = parts.spell and assert(K.DecodeSpellRow(K.EncodeSpellRow(parts.spell))) or nil,
             map = parts.map and assert(K.DecodeMapRow(K.EncodeMapRow(parts.map))) or nil,
             node = parts.node and assert(K.DecodeNodeRow(K.EncodeNodeRow(parts.node.nodes, parts.node.prefs))) or nil,
+            goblin = parts.goblin and ownGoblin(parts.goblin) or nil,
             hold = parts.hold, check = parts.check }
+    end
+    -- the goblin fields as Ten Minute Goblin's fixture prints them (seq event mode flags index id value), with commas
+    local function goblinText(g)
+        g = ownGoblin(g)
+        local flags = {}
+        for k, name in ipairs(GFLAGS) do flags[k] = g[name] and "1" or "0" end
+        return table.concat({ g.seq, g.event, g.mode, table.concat(flags), g.index, g.id, g.value }, ",")
     end
     local function digits(cells)
         local t = {}
@@ -1095,22 +1140,31 @@ do
             p.trig and digits(K.EncodeTrigRow(p.trig)) or "-", p.spell and digits(K.EncodeSpellRow(p.spell)) or "-",
             p.map and digits(K.EncodeMapRow(p.map)) or "-",
             p.node and digits(K.EncodeNodeRow(p.node.nodes, p.node.prefs)) or "-",
-            tostring(p.hold), p.check and "1" or "0" }, " ") .. " : " .. octal(K.EncodeCompact(p))
+            tostring(p.hold), p.check and "1" or "0", p.goblin and goblinText(p.goblin) or "-" }, " ") .. " : " .. octal(K.EncodeCompact(p))
     end
     local sizes = {}
-    for i = 1, 3000 do
-        local flags = (i <= 32) and (i - 1) or rand(32)
+    for i = 1, 4000 do
+        -- (the first 256: every flag set four times, so the fixture holds 128 lines with the goblin row)
+        local flags = (i <= 256) and ((i - 1) % 64) or rand(64)
         local parts = randParts(flags)
         local cells = K.EncodeCompact(parts)
         for k, c in ipairs(cells) do
             for ch = 1, 3 do assert(c[ch] >= 0 and c[ch] <= 7 and c[ch] == math.floor(c[ch]), "levels 0-7") end
             if k <= 4 then eq(c, K.COMPACT_HEAD[k], "head cell " .. k) end
         end
-        local _, ncells = K.CompactLength(flags)
+        local _, ncells = K.CompactLength(flags % 32, math.floor(flags / 32))
         assert(#cells == ncells and ncells >= K.COMPACT_MIN and ncells <= K.COMPACT_MAX, "cells: " .. #cells .. " for flags " .. flags)
+        -- the second header cell (hold nibble 15: green bit 2 and blue 7) only with the goblin row
+        local ext = cells[5][2] >= 4 and cells[5][3] == 7
+        assert(ext == (flags >= 32), "second header for flags " .. flags)
         sizes[flags] = ncells
         local d = assert(K.DecodeCompact(cells))
         eq(d, own(parts), "compact " .. flags)
+        if parts.goblin and TMG then
+            -- Ten Minute Goblin's own row for these fields decodes to what the line carries
+            eq(d.goblin, TMG.Decode(TMG.Encode(parts.goblin)), "goblin as its own row " .. flags)
+            goblincross = goblincross + 1
+        end
         -- one level changed anywhere in the stream: caught (the CRC, or the length it implies)
         local k, ch = 5 + rand(ncells - 4), 1 + rand(3)
         local was = cells[k][ch]
@@ -1119,10 +1173,11 @@ do
         assert(bad == nil and (why == "crc" or why == "length" or why == "value"), "a level change caught: " .. tostring(why))
         compactflips = compactflips + 1
         cells[k][ch] = was
-        if i <= 32 * 4 then vector(parts) end
+        if i <= 64 * 4 then vector(parts) end
         compactcount = compactcount + 1
     end
     assert(sizes[0] == 17 and sizes[31] == 55 and sizes[7] == 31, "17 cells bare, 31 with lights, triggers and spells, 55 with every row")
+    assert(sizes[32] == 25 and sizes[36] == 28 and sizes[63] == 62, "with the goblin row: 25 bare, 28 with the spell row (today's line), 62 with every row")
     -- the edges: everything zero, everything at its top
     local zero = { state = { seq = 0, left = {}, right = {}, touch = 0, sound = 0, gain = 0, level = 0, side = 0, intensity = 0, seed = 0, mic = 0, moment = 0, open = false },
         light = { version = 0 }, trig = { left = { shape = 0, value = 0, count = 0 }, right = {} }, spell = { seq = 0, phase = 0, id = 0 },
@@ -1137,10 +1192,23 @@ do
         spell = { seq = 15, phase = 3, id = K.SPELL_ID_MAX },
         map = { facing = 1023, x = 8191, y = 8191, radius = 1023, yards = 1023, rotates = true, tracking = 3, camera = 1023 },
         node = { nodes = six }, hold = 9, check = true }
-    for _, p in ipairs({ zero, top }) do
+    local zeroG = { seq = 0, event = 0, mode = 0, index = 0, id = 0, value = 0 }
+    local topG = { seq = 15, event = 15, mode = 3, combat = true, instance = true, dead = true, ah = true, merchant = true, resting = true,
+        index = 255, id = 1048575, value = 65535 }
+    local zeroWith, topWith = {}, {}
+    for k, v in pairs(zero) do zeroWith[k] = v end
+    for k, v in pairs(top) do topWith[k] = v end
+    zeroWith.goblin, topWith.goblin = zeroG, topG
+    for _, p in ipairs({ zero, top, zeroWith, topWith }) do
         eq(assert(K.DecodeCompact(K.EncodeCompact(p))), own(p), "edge")
         vector(p)
     end
+    -- (the goblin fields clamp as the addon's own row clamps them: its floors and caps, mode 1 when unsaid)
+    local wildG = { seq = 17, event = -1, mode = 9, index = 999, id = 5000000, value = 99999 }
+    local wg = assert(K.DecodeCompact(K.EncodeCompact({ goblin = wildG })))
+    eq(wg.goblin, ownGoblin(wildG), "wild goblin")
+    assert(wg.goblin.seq == 1 and wg.goblin.mode == 3 and wg.goblin.id == 1048575 and wg.goblin.value == 65535 and wg.goblin.index == 255, "goblin caps")
+    assert(K.DecodeCompact(K.EncodeCompact({ goblin = {} })).goblin.mode == 1, "mode 1 unsaid")
     -- (clamps as the rows': a value past its range reads as the rows read it)
     local wild = { state = { seq = 17, left = { mode = 9, start = -3 }, right = {}, touch = 9000, moment = 300 }, trig = { left = { shape = 5000, value = 2 } },
         spell = { seq = 1, phase = 2, id = 1311676 }, map = { x = 9000, y = -5, facing = 2000 }, hold = 12 }
@@ -1160,10 +1228,43 @@ do
     c = K.EncodeCompact(zero); c[6][2] = 8
     assert(select(2, K.DecodeCompact(c)) == "value", "value")
     assert(select(2, K.DecodeCompact({})) == "length", "empty")
+    -- the hold nibble 10-14 is never a line (15 is the second header's mark); a second header with
+    -- no flag or an unknown one neither; a goblin line a cell short is "length"
+    for h = 10, 14 do
+        c = K.EncodeCompact(zero)
+        c[5][2] = (h % 2) * 4; c[5][3] = math.floor(h / 2)
+        assert(select(2, K.DecodeCompact(c)) == "value", "hold " .. h)
+    end
+    local bareG = { state = zero.state, goblin = zeroG }
+    c = K.EncodeCompact(bareG)
+    assert(#c == 25 and c[5][1] == 0 and c[5][2] == 4 and c[5][3] == 7 and c[6][1] == 0 and c[6][2] == 2 and c[6][3] == 0,
+        "a bare goblin line: 25 cells, no flags, the mark, then hold 0 and the goblin flag in cell 5")
+    c = K.EncodeCompact(zeroWith)
+    assert(#c == 62 and c[5][2] == 7 and c[5][3] == 7 and c[6][2] == 2, "every row and the goblin row: 62 cells")
+    c[6][2] = 0
+    assert(select(2, K.DecodeCompact(c)) == "value", "second header without a flag")
+    c = K.EncodeCompact(bareG); c[6][2] = 6
+    assert(select(2, K.DecodeCompact(c)) == "value", "a flag this reader does not know")
+    c = K.EncodeCompact(bareG); c[#c] = nil
+    assert(select(2, K.DecodeCompact(c)) == "length", "goblin line a cell short")
+    -- a line without the goblin row is the first compact line, cell for cell (710e301's encoder)
+    do
+        local p = randParts(13)
+        local cells = K.EncodeCompact(p)
+        local bits = {}
+        for ci = 5, #cells do
+            for ch = 1, 3 do
+                local v = cells[ci][ch]
+                for b = 0, 2 do bits[(ci - 5) * 9 + (ch - 1) * 3 + b] = v % 2; v = math.floor(v / 2) end
+            end
+        end
+        local function get(pos, n) local v, m = 0, 1; for b = 0, n - 1 do v = v + bits[pos + b] * m; m = m * 2 end; return v end
+        assert(get(0, 5) == 13 and get(5, 4) == p.hold and get(9, 4) == p.state.seq % 16, "flags, hold, then v2's seq at bit 9")
+    end
 
     -- the fixture WoW Helper reads (tests/fixtures/helperlink-compact-vectors.txt; --write regenerates it)
     local path = root .. "/tests/fixtures/helperlink-compact-vectors.txt"
-    local text = { "# HelperLink compact vectors: v2 light trig spell map node (each row's cells as r*4+g*2+b, - for none) hold check : the compact line, each cell's levels rgb (0-7)",
+    local text = { "# HelperLink compact vectors: v2 light trig spell map node (each row's cells as r*4+g*2+b, - for none) hold check goblin (Ten Minute Goblin's fields seq,event,mode,flags,index,id,value or -) : the compact line, each cell's levels rgb (0-7)",
         "# Written by: lua5.1 tests/HelperLink.lua . --write ; read by: WoW Helper cargo test compact" }
     for _, l in ipairs(lines) do text[#text + 1] = l end
     text = table.concat(text, "\n") .. "\n"
@@ -1176,7 +1277,46 @@ do
         local old = f:read("*a"):gsub("\r\n", "\n"); f:close()
         assert(old == text, "compact fixture differs from this encoder: regenerate with --write and rerun cargo test")
     end
-    assert(#lines == 130, "130 compact vectors: " .. #lines)
+    assert(#lines == 260, "260 compact vectors (130 with the goblin row): " .. #lines)
+    -- the first compact lines (0.76.0's fixture, kept as tests/fixtures/helperlink-compact-first-vectors.txt):
+    -- still read, each to the rows it was written from
+    do
+        local f = assert(io.open(root .. "/tests/fixtures/helperlink-compact-first-vectors.txt", "rb"), "first vectors missing")
+        local old = f:read("*a"); f:close()
+        local function cells(digits)
+            local t = {}
+            for d in digits:gmatch("%d") do
+                d = tonumber(d)
+                t[#t + 1] = { math.floor(d / 4) % 2, math.floor(d / 2) % 2, d % 2 }
+            end
+            return t
+        end
+        local first = 0
+        for line in old:gmatch("[^\r\n]+") do
+            if line:sub(1, 1) ~= "#" then
+                local rows, compact = line:match("^(.-) : (%d+)$")
+                local f = {}
+                for w in rows:gmatch("%S+") do f[#f + 1] = w end
+                assert(#f == 8, "eight columns: " .. line)
+                local levels = {}
+                for i = 1, #compact, 3 do levels[#levels + 1] = { tonumber(compact:sub(i, i)), tonumber(compact:sub(i + 1, i + 1)), tonumber(compact:sub(i + 2, i + 2)) } end
+                local d = assert(K.DecodeCompact(levels))
+                local want = { state = assert(K.DecodeV2(cells(f[1]))), light = f[2] ~= "-" and assert(K.DecodeLight(cells(f[2]))) or nil,
+                    trig = f[3] ~= "-" and assert(K.DecodeTrigRow(cells(f[3]))) or nil, spell = f[4] ~= "-" and assert(K.DecodeSpellRow(cells(f[4]))) or nil,
+                    map = f[5] ~= "-" and assert(K.DecodeMapRow(cells(f[5]))) or nil, node = f[6] ~= "-" and assert(K.DecodeNodeRow(cells(f[6]))) or nil,
+                    hold = tonumber(f[7]), check = f[8] == "1" }
+                eq(d, want, "a first compact line still reads: " .. line:sub(1, 40))
+                assert(d.goblin == nil, "no goblin row in a first line")
+                -- (the encoder takes the node row as { nodes, prefs })
+                local enc = {}
+                for k, v in pairs(want) do enc[k] = v end
+                enc.node = want.node and { nodes = want.node, prefs = want.node.prefs } or nil
+                eq(K.EncodeCompact(enc), levels, "and is encoded the same today: " .. line:sub(1, 40))
+                first = first + 1
+            end
+        end
+        assert(first == 130, "130 first compact lines: " .. first)
+    end
 
     -- live: Lab › Strip "Compact", only once WoW Helper says it reads it; one line of 55 cells at
     -- most, levels drawn as level / 7, every other texture hidden; the hold and the check pixel
@@ -1192,7 +1332,7 @@ do
     K.MarkDirty(); K.Step(0)
     assert(K.CompactOn(), "compact")
     local unit = K.frame.height
-    assert(math.abs(K.frame.width - 55 * unit) < 1e-6, "55 cells wide")
+    assert(math.abs(K.frame.width - 62 * unit) < 1e-6, "62 cells wide")
     local ct = K.compactTextures
     assert(math.abs(ct[2].points[1][4] - unit) < 1e-6 and ct[2].points[1][5] == 0, "cells along the line")
     local function drawnCells()
@@ -1242,6 +1382,68 @@ do
     K.SetTrigRow(nil); K.SetLight(nil)
     K.Step(0)
     assert(#drawnCells() == 20, "back to 20")
+    -- Ten Minute Goblin's row rides along: once the addon is here (ADDON_LOADED hooks it) and WoW
+    -- Helper says it reads the row in the line; the addon is told it is carried (it hides its own
+    -- row), its word of a change redraws the line next step, its fields decode as sent
+    local gstate = { seq = 3, event = 2, mode = 2, merchant = true, index = 7, id = 1286, value = 66 }
+    local refreshed = 0
+    TenMinuteGoblin = { HelperRow = { Fields = function() return gstate end, Refresh = function() refreshed = refreshed + 1 end } }
+    local R = TenMinuteGoblin.HelperRow
+    assert(not K.GoblinCarried(), "WoW Helper has not said it reads the goblin row in the line")
+    K.frame.scripts.OnEvent(K.frame, "ADDON_LOADED", "TenMinuteGoblin")
+    assert(R.Changed == K.GoblinChanged and R.Carried == K.GoblinCarried, "hooked at ADDON_LOADED")
+    assert(R.Carried() == false, "not carried yet")
+    K.Step(0)
+    assert(#drawnCells() == 20 and K.DecodeCompact(drawnCells()).goblin == nil, "no goblin section without WoW Helper's word")
+    WowHelperData.compactGoblin = 1
+    assert(K.GoblinCarried() and R.Carried(), "carried: compact on, WoW Helper reads it there, the addon is here")
+    K.MarkDirty(); K.Step(0)
+    assert(refreshed == 1, "the addon told once: its row goes")
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(#drawnCells() == 28, "the spell row and the goblin row: 28 cells (one line, 1 px cells: 28 px)")
+    eq(d.goblin, ownGoblin(gstate), "the goblin fields in the line")
+    assert(d.goblin.id == 1286 and d.goblin.merchant == true and d.goblin.mode == 2 and d.spell, "fields as sent, the spell row still there")
+    -- the addon's word: redrawn at the next step, no polling
+    gstate.seq, gstate.event, gstate.id, gstate.value = 4, 6, 2880, 150
+    assert(K.DecodeCompact(drawnCells()).goblin.seq == 3, "not yet")
+    R.Changed()
+    assert(K.Step(0) == true, "redrawn at the step")
+    assert(K.DecodeCompact(drawnCells()).goblin.seq == 4 and K.DecodeCompact(drawnCells()).goblin.id == 2880, "the change in the line")
+    assert(K.Step(0) == false, "then quiet")
+    -- a cue beside it: the main fields as in the wide strip, the goblin row untouched
+    assert(K.Cue({ moment = 42, touch = 300, sound = 900, gain = 5 }))
+    K.Step(1)
+    d = assert(K.DecodeCompact(drawnCells()))
+    assert(d.state.moment == 42 and d.goblin.id == 2880, "a cue and the goblin row in one line")
+    -- the hold chord lives in the second header cell now, drawn at once
+    K.Hold(5)
+    assert(K.DecodeCompact(drawnCells()).hold == 5 and K.DecodeCompact(drawnCells()).goblin.id == 2880, "hold in the second header")
+    for _ = 1, 5 do K.HoldTick() end
+    K.Hold(0)
+    assert(K.DecodeCompact(drawnCells()).hold == 0, "let go")
+    -- WoW Helper stops reading it there: the addon told at once, its own row again, the line as before
+    WowHelperData.compactGoblin = nil
+    K.MarkDirty(); K.Step(0)
+    assert(refreshed == 2 and not R.Carried() and #drawnCells() == 20 and K.DecodeCompact(drawnCells()).goblin == nil, "the goblin row back on its own")
+    WowHelperData.compactGoblin = 1
+    K.MarkDirty(); K.Step(0)
+    assert(refreshed == 3 and #drawnCells() == 28, "and in the line again")
+    -- the addon has nothing to send (WoW Helper not reading goblin at all): no section, still carried
+    local fields = R.Fields
+    R.Fields = function() return nil end
+    K.MarkDirty(); K.Step(0)
+    assert(#drawnCells() == 20 and R.Carried(), "no fields: no section")
+    R.Fields = fields
+    -- the link off: not carried (the addon's own gate hides its row too)
+    K.SetEnabled(false)
+    assert(not R.Carried(), "link off: not carried")
+    K.SetEnabled(true)
+    K.Step(0)
+    assert(#drawnCells() == 28, "on again")
+    TenMinuteGoblin = nil
+    K.MarkDirty(); K.Step(0)
+    assert(#drawnCells() == 20 and not K.GoblinCarried(), "the addon gone: no section")
+    WowHelperData.compactGoblin = nil
     -- WoW Helper says no more: the rows again, the compact line hidden
     WowHelperData.compactStrip = nil
     K.MarkDirty(); K.Step(0)
@@ -1249,7 +1451,8 @@ do
     K.SetStrip("stacked")
     WowHelperData = data
     K.SetEnabled(false)
-    print("PASS: compact strip: " .. compactcount .. " lines byte-identical to the rows, " .. compactflips .. " level changes caught, 17-55 cells, live")
+    print("PASS: compact strip: " .. compactcount .. " lines byte-identical to the rows, " .. compactflips .. " level changes caught, 17-62 cells, "
+        .. goblincross .. " goblin rows agreed with Ten Minute Goblin's coder, live")
 end
 
 print("HelperLink: ok (2000 round trips, " .. rejected .. " flips rejected, " .. #vectors .. " fixture vectors, " .. v2count .. " v2 vectors, " .. trigcount .. " trigger vectors, " .. fallcount .. " fall vectors, " .. emotecount .. " emote vectors, " .. mapcount .. " map vectors, " .. compactcount .. " compact lines)")

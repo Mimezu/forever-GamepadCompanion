@@ -578,13 +578,22 @@ end
 -- a CRC-16/CCITT-FALSE over all of it, zero padding to the cell. 17 cells with no row, 55 with
 -- every row (today's one line: 175). Drawn only when Lab › Strip says "Compact" and WoW Helper
 -- says it reads it (WowHelperData.compactStrip == 1). Decoded, every field equals the rows' own.
+--
+-- Rows of other addons ride along too, so there is never a second line: the header's hold nibble
+-- 15 (never a chord: 0-9) says a SECOND header cell follows it (the hold chord 0-9, then five more
+-- flags: Ten Minute Goblin's row present, 4 spare), the main fields then start at bit 18 and the
+-- extra rows come after GPC's own. Drawn only when such a row rides, so a line without one is the
+-- first compact line, cell for cell. The goblin row (its HelperRow.lua, WoW Helper's docs/GOBLIN.md):
+-- its bits 0-59 (seq 4, event 4, mode 2, six flags, index 8, id 20, value 16), 60 bits, 62 cells at most.
 ---------------------------------------------------------------------------
 K.COMPACT_LEVELS = 8
 K.COMPACT_HEAD = { { 7, 0, 7 }, { 7, 7, 0 }, { 1, 3, 5 }, { 6, 4, 2 } }
-K.COMPACT_MIN, K.COMPACT_MAX = 17, 55
-local CBITS = { head = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, crc = 16 }
+K.COMPACT_MIN, K.COMPACT_MAX = 17, 62
+K.COMPACT_EXT = 15   -- the hold nibble that says a second header cell follows
+local CBITS = { head = 9, ext = 9, main = 89, light = 53, trig = 42, spell = 26, map = 70, node = 148, goblin = 60, crc = 16 }
 K.COMPACT_BITS = CBITS
 local CSECTIONS = { "light", "trig", "spell", "map", "node" }
+local XSECTIONS = { "goblin" }   -- the second header's flags, in order
 
 -- CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, not reflected). Check value: "123456789" -> 0x29B1
 function K.Crc16(bytes)
@@ -605,30 +614,72 @@ local function Crc16Bits(bits, n)
 end
 
 -- The stream's length in bits (without the CRC) and the strip's cells, from the header's flags
-function K.CompactLength(flags)
+-- and the second header's (xflags 0 or nil: no second header cell)
+function K.CompactLength(flags, xflags)
     local n = CBITS.head + CBITS.main
     for i, name in ipairs(CSECTIONS) do
         if floor(flags / 2 ^ (i - 1)) % 2 == 1 then n = n + CBITS[name] end
     end
+    if (xflags or 0) > 0 then
+        n = n + CBITS.ext
+        for i, name in ipairs(XSECTIONS) do
+            if floor(xflags / 2 ^ (i - 1)) % 2 == 1 then n = n + CBITS[name] end
+        end
+    end
     return n, #K.COMPACT_HEAD + math.ceil((n + CBITS.crc) / 9)
+end
+
+-- The goblin row's fields as Ten Minute Goblin's HelperRow.Encode puts them (its bits 0-59):
+-- the same floors and caps, so the line's row is its own row bit for bit
+local GOBLIN_FLAGS = { "combat", "instance", "dead", "ah", "merchant", "resting" }
+local function GFloor(v, hi, default)
+    v = floor(tonumber(v) or default)
+    if v < 0 then return 0 elseif v > hi then return hi end
+    return v
+end
+local function PutGoblin(bits, at, g)
+    Put(bits, at, floor(tonumber(g.seq) or 0) % 16, 4)
+    Put(bits, at + 4, floor(tonumber(g.event) or 0) % 16, 4)
+    Put(bits, at + 8, GFloor(g.mode, 3, 1), 2)
+    for k, name in ipairs(GOBLIN_FLAGS) do bits[at + 9 + k] = g[name] and 1 or 0 end
+    Put(bits, at + 16, GFloor(g.index, 255, 0), 8)
+    Put(bits, at + 24, GFloor(g.id, 1048575, 0), 20)
+    Put(bits, at + 44, GFloor(g.value, 65535, 0), 16)
+end
+local function GetGoblin(bits, at)
+    local g = { seq = Get(bits, at, 4), event = Get(bits, at + 4, 4), mode = Get(bits, at + 8, 2),
+        index = Get(bits, at + 16, 8), id = Get(bits, at + 24, 20), value = Get(bits, at + 44, 16) }
+    for k, name in ipairs(GOBLIN_FLAGS) do g[name] = bits[at + 9 + k] == 1 end
+    return g
 end
 
 -- parts = { state (K.state's fields), light (a light row or nil), trig ({ left, right } or nil),
 -- spell ({ seq, phase, id } or nil), map (or nil), node ({ nodes, prefs } or nil), hold 0-9,
--- check (boolean) } -> cells of { r, g, b } levels 0-7
+-- check (boolean), goblin (Ten Minute Goblin's row fields or nil) } -> cells of { r, g, b } levels 0-7
 function K.EncodeCompact(parts)
     parts = parts or {}
     local bits = {}
-    local flags = 0
+    local flags, xflags = 0, 0
     for i, name in ipairs(CSECTIONS) do
         if parts[name] then flags = flags + 2 ^ (i - 1) end
     end
-    for i = 0, (K.CompactLength(flags)) + CBITS.crc - 1 do bits[i] = 0 end   -- (unused node slots, spare bits: zero)
+    for i, name in ipairs(XSECTIONS) do
+        if parts[name] then xflags = xflags + 2 ^ (i - 1) end
+    end
+    for i = 0, (K.CompactLength(flags, xflags)) + CBITS.crc - 1 do bits[i] = 0 end   -- (unused node slots, spare bits: zero)
     Put(bits, 0, flags, 5)
-    Put(bits, 5, Int(parts.hold, 9), 4)
-    -- the main fields, as K.EncodeV2 (its bits 0-87 at 9), then the check pixel's bit
+    local at = CBITS.head
+    if xflags == 0 then
+        Put(bits, 5, Int(parts.hold, 9), 4)
+    else
+        -- the second header: the hold chord moves there, the flags past GPC's own rows follow
+        Put(bits, 5, K.COMPACT_EXT, 4)
+        Put(bits, at, Int(parts.hold, 9), 4)
+        Put(bits, at + 4, xflags, 5)
+        at = at + CBITS.ext
+    end
+    -- the main fields, as K.EncodeV2 (its bits 0-87), then the check pixel's bit
     local s = parts.state or {}
-    local at = 9
     Put(bits, at, Int(s.seq, 1e9) % 16, 4)
     PutTrigger(bits, at + 4, s.left)
     PutTrigger(bits, at + 19, s.right)
@@ -720,6 +771,10 @@ function K.EncodeCompact(parts)
         end
         at = at + CBITS.node
     end
+    if parts.goblin then
+        PutGoblin(bits, at, parts.goblin)
+        at = at + CBITS.goblin
+    end
     Put(bits, at, Crc16Bits(bits, at), 16)
     at = at + CBITS.crc
     local cells = {}
@@ -750,14 +805,22 @@ function K.DecodeCompact(cells)
         end
     end
     local flags = Get(bits, 0, 5)
-    local n, ncells = K.CompactLength(flags)
+    -- the hold chord 0-9, or 15: a second header cell with the chord and the flags past GPC's rows
+    local hold, xflags, at = Get(bits, 5, 4), 0, CBITS.head
+    if hold == K.COMPACT_EXT then
+        if #cells < #K.COMPACT_HEAD + 2 then return nil, "length" end
+        hold, xflags = Get(bits, 9, 4), Get(bits, 13, 5)
+        if xflags == 0 or xflags >= 2 ^ #XSECTIONS then return nil, "value" end
+        at = at + CBITS.ext
+    end
+    if hold > 9 then return nil, "value" end
+    local n, ncells = K.CompactLength(flags, xflags)
     if #cells ~= ncells then return nil, "length" end
     if Crc16Bits(bits, n) ~= Get(bits, n, 16) then return nil, "crc" end
     for i = n + 16, (ncells - #K.COMPACT_HEAD) * 9 - 1 do
         if bits[i] ~= 0 then return nil, "value" end
     end
-    local out = { hold = Get(bits, 5, 4) }
-    local at = 9
+    local out = { hold = hold }
     out.state = { seq = Get(bits, at, 4), left = GetTrigger(bits, at + 4), right = GetTrigger(bits, at + 19),
         touch = Get(bits, at + 34, 12), sound = Get(bits, at + 46, 12), gain = Get(bits, at + 58, 3),
         level = Get(bits, at + 61, 2), side = Get(bits, at + 63, 4), intensity = Get(bits, at + 67, 3),
@@ -815,6 +878,11 @@ function K.DecodeCompact(cells)
                 wanted = Get(bits, a + 22, 1) == 1, gatherable = Get(bits, a + 23, 1) == 1 }
         end
         out.node = node
+        at = at + CBITS.node
+    end
+    if xflags % 2 == 1 then
+        out.goblin = GetGoblin(bits, at)
+        at = at + CBITS.goblin
     end
     return out
 end
@@ -876,6 +944,34 @@ end
 function K.CompactOn()
     local d = WowHelperData
     return K.V2() and K.Strip() == "compact" and type(d) == "table" and d.compactStrip == 1
+end
+
+-- Ten Minute Goblin's row (its HelperRow.lua) rides in the compact line, so there is never a
+-- second line: only while the link draws the compact line, WoW Helper says it reads the row
+-- there (WowHelperData.compactGoblin == 1) and the addon is here with its fields. Every other
+-- case the addon draws its own row as before (it asks K.GoblinCarried through R.Carried).
+local function GoblinRow()
+    local R = type(TenMinuteGoblin) == "table" and TenMinuteGoblin.HelperRow
+    return type(R) == "table" and type(R.Fields) == "function" and R or nil
+end
+function K.GoblinCarried()
+    local d = WowHelperData
+    return K.Enabled() and K.CompactOn() and type(d) == "table" and d.compactGoblin == 1 and GoblinRow() ~= nil
+end
+-- Its fields this frame (nil: not carried, or the addon has none to send)
+function K.GoblinFields()
+    if not K.GoblinCarried() then return nil end
+    return GoblinRow().Fields()
+end
+-- The addon's word that its fields changed: the line is redrawn next frame (no polling)
+function K.GoblinChanged() dirty = true end
+-- Once the addon is loaded (ADDON_LOADED, either order): its callbacks
+function K.HookGoblin()
+    local R = GoblinRow()
+    if not R or R.Changed == K.GoblinChanged then return end
+    R.Changed = K.GoblinChanged
+    R.Carried = K.GoblinCarried
+    dirty = true
 end
 
 -- The spell row: only once WoW Helper says it reads it (WowHelperData.spellRow)
@@ -1306,17 +1402,27 @@ function K.Step(elapsed)
     return false
 end
 
--- What the compact strip carries this frame: the same rows, gated as when drawn apart
+-- What the compact strip carries this frame: the same rows, gated as when drawn apart, and Ten
+-- Minute Goblin's row when it rides along
 function K.CompactParts()
     return { state = K.state, light = K.LightRow(), trig = K.trig,
         spell = K.SpellRowOn() and (K.spell or { seq = K.spellSeq or 0 }) or nil,
         map = K.MapRowOn() and K.map or nil,
         node = K.NodeRowOn() and { nodes = K.nodes and K.nodes.list, prefs = K.NodeRowV2() and (K.prefs or {}) or nil } or nil,
-        hold = K.HoldCellsOn() and K.hold or 0, check = K.CheckPixelOn() and K.checkBlue or false }
+        hold = K.HoldCellsOn() and K.hold or 0, check = K.CheckPixelOn() and K.checkBlue or false,
+        goblin = K.GoblinFields() }
 end
 
 -- Everything on screen again (the strip and its rows, or the compact line)
 function K.Redraw()
+    -- (the goblin row's place changes: the addon draws or hides its own row at once; its word of
+    -- the change is this redraw)
+    local carried = K.GoblinCarried()
+    if K.goblinCarried ~= carried then
+        K.goblinCarried = carried
+        local R = GoblinRow()
+        if R and R.Refresh then R.Refresh() end
+    end
     dirty = false
     -- (WoW Helper's word on one line arrives with its data: the layout follows)
     if (K.lineDrawn ~= nil and K.lineDrawn ~= K.OneLine()) or (K.spellDrawn ~= nil and K.spellDrawn ~= K.SpellRowOn())
@@ -1373,7 +1479,7 @@ function K.Layout()
     local line, spell, map, node = K.OneLine(), K.SpellRowOn(), K.MapRowOn(), K.NodeRowOn()
     local compact = K.CompactOn()
     K.lineDrawn, K.spellDrawn, K.mapDrawn, K.nodeDrawn, K.compactDrawn = line, spell, map, node, compact
-    -- compact: one line of up to 55 cells, the rows' own textures hidden (K.DrawCompact shows its own)
+    -- compact: one line of up to 62 cells, the rows' own textures hidden (K.DrawCompact shows its own)
     for i, tex in ipairs(K.compactTextures or {}) do
         tex:ClearAllPoints()
         tex:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", (i - 1) * unit, 0)
@@ -1721,6 +1827,7 @@ local function Build()
     frame:SetScript("OnEvent", function(_, event, name)
         if event == "ADDON_LOADED" then
             if name == addonName then K.AutoOn(); K.Refresh() end
+            K.HookGoblin()   -- (Ten Minute Goblin, whichever loads first)
         else
             K.Layout()
         end
