@@ -1190,7 +1190,13 @@ function L.StepHand()
     local steps, wade = L.LiveOnForSteps("footsteps"), L.LiveOnForSteps("wading")
     if not (steps or wade) then return 0, 4 end
     local vol = L.LiveVolumeForSteps(steps and "footsteps" or "wading")
-    return 128 + (steps and 1 or 0) + (wade and 2 or 0), floor(max(0, min(1, Strength() * vol)) * 7 + 0.5)
+    -- (the gain as every cue's, Volume.Gain: WoW Helper reads it as (g + 1) / 8, so 0 % is
+    -- none and 50 % is half. It was strength x 7, read so: 0 % still felt, the rest a bit strong)
+    local feel = max(0, min(1, Strength() * vol))
+    local g = ns.Volume and ns.Volume.Gain and ns.Volume.Gain(feel)
+    if not ns.Volume then g = floor(feel * 8 + 0.5) - 1; if g < 0 then g = nil end end
+    if not g then return 0, 4 end
+    return 128 + (steps and 1 or 0) + (wade and 2 or 0), g
 end
 
 local stepMark = {}

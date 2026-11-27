@@ -3,6 +3,7 @@
 ## 0.75.1 (2026-11-26)
 
 - WoW Helper: fishing bites felt whatever device the game's sound plays on (the DualSense's own speaker too); WoW Helper sees WoW Forever running (updates wait for it to close); fishing's search covers ultrawide screens.
+- Fixed: footsteps' and wading's strength with WoW Helper's HD feel. Their gain went as strength x 7, which WoW Helper reads as (g + 1) / 8: 0 % still felt and every step a little strong. Now as every moment's (Volume.Gain): 0 % none, 50 % half. 20 % stays as it was.
 
 ## 0.75.0 (2026-11-26)
 
