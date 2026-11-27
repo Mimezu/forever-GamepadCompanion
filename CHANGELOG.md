@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.75.1 (2026-11-26)
+
+- WoW Helper: fishing bites felt whatever device the game's sound plays on (the DualSense's own speaker too); WoW Helper sees WoW Forever running (updates wait for it to close); fishing's search covers ultrawide screens.
+
 ## 0.75.0 (2026-11-26)
 
 - Fixed: the fishing float hidden by Frame Gambit's Cinematic mode while Blizzard's cast bar showed. Companion now tells Frame Gambit when the float stands in for the cast bar (GamepadCompanionAPI.FishingHidesCastBar); Frame Gambit 1.3.14 keeps the float and the cast bar dark then.
